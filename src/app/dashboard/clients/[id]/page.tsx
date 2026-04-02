@@ -74,7 +74,7 @@ export default function ClientDetailPage() {
   const scrApp = scripts.filter(s => s.script_status === "approved").length;
   const doneTasks = checklist.filter(t => t.status === "done").length;
   const pct = checklist.length > 0 ? Math.round(doneTasks / checklist.length * 100) : 0;
-  const months = Array.from(new Set(scripts.map(s => s.month_number))).sort();
+  const months = [...new Set(scripts.map(s => s.month_number))].sort();
   const monthScripts = scripts.filter(s => s.month_number === viewMonth);
 
   const scStatuses = [{ value: "notStarted", label: "Не начато" }, { value: "inProgress", label: "В работе" }, { value: "review", label: "На утверждение" }, { value: "approved", label: "Утверждён" }];
@@ -92,7 +92,14 @@ export default function ClientDetailPage() {
 
   return (
     <div>
-      <button onClick={() => router.back()} className="flex items-center gap-1 text-xs mb-2" style={{ color: "var(--cy)", background: "none", border: "none", cursor: "pointer" }}>← Назад</button>
+      <div className="flex justify-between items-center mb-2">
+        <button onClick={() => router.back()} className="flex items-center gap-1 text-xs" style={{ color: "var(--cy)", background: "none", border: "none", cursor: "pointer" }}>← Назад</button>
+        <button onClick={async () => { if (confirm("Удалить клиента? Все данные будут потеряны.")) { await db.deleteClient(supabase, clientId); router.push("/dashboard/clients"); } }}
+          className="px-3 py-1 rounded-lg text-[10px] font-semibold"
+          style={{ color: "var(--rd)", border: "1px solid var(--rd)", background: "transparent", cursor: "pointer" }}>
+          🗑 Удалить
+        </button>
+      </div>
 
       {/* Hero Card */}
       <div className="card mb-3" style={{ padding: "20px", borderRadius: 18, background: "linear-gradient(135deg, var(--card), var(--bg2))" }}>
@@ -292,31 +299,47 @@ export default function ClientDetailPage() {
       })}
 
       {/* Checklist tab */}
-      {tab === "plan" && checklist.map((t, i) => {
-        const prevPhase = i > 0 ? checklist[i - 1].phase : "";
-        const showPhase = t.phase !== prevPhase;
-        const over = t.status !== "done" && t.deadline && daysDiff(t.deadline) > 0;
-        return (
-          <div key={t.id}>
-            {showPhase && <div className="text-[9px] font-bold tracking-wider mt-3 mb-1" style={{ color: "var(--cy)" }}>{t.phase}</div>}
-            <div className="flex items-center gap-2 py-1 px-1">
-              <button onClick={() => toggleTask(t.id, t.status)} className="w-4 h-4 rounded shrink-0 flex items-center justify-center"
-                style={{ border: `2px solid ${t.status === "done" ? "var(--gr)" : "var(--brd)"}`, background: t.status === "done" ? "var(--grd)" : "transparent", cursor: "pointer" }}>
-                {t.status === "done" && <span style={{ color: "var(--gr)", fontSize: 10 }}>✓</span>}
-              </button>
-              <span className="flex-1 text-[10px]" style={{ color: t.status === "done" ? "var(--t3)" : "var(--t1)", textDecoration: t.status === "done" ? "line-through" : "none" }}>{t.task_name}</span>
-              <select value={t.responsible_id || ""} onChange={e => updateTaskField(t.id, "responsible_id", parseInt(e.target.value) || null)}
-                className="text-[8px] px-1 py-0.5 rounded outline-none" style={{ background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t2)", maxWidth: 80 }}>
-                <option value="">—</option>
-                {team.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-              </select>
-              <input type="date" value={t.deadline || ""} onChange={e => updateTaskField(t.id, "deadline", e.target.value)}
-                className="text-[9px] font-mono bg-transparent border-none outline-none cursor-pointer" style={{ color: over ? "var(--rd)" : "var(--t3)", width: 95 }} />
-              {over && <span className="badge" style={{ background: "rgba(239,68,68,0.15)", color: "var(--rd)" }}>-{daysDiff(t.deadline!)}д</span>}
-            </div>
+      {tab === "plan" && (
+        <div>
+          <div className="flex gap-2 mb-3">
+            <button onClick={async () => { for (const t of checklist.filter(x => x.status !== "done")) { await db.updateTask(supabase, t.id, { status: "done" }); } load(); }}
+              className="px-3 py-1.5 rounded-lg text-[10px] font-semibold"
+              style={{ background: "var(--grd)", color: "var(--gr)", border: "1px solid var(--gr)", cursor: "pointer" }}>
+              ✓ Отметить все
+            </button>
+            <button onClick={async () => { for (const t of checklist.filter(x => x.status === "done")) { await db.updateTask(supabase, t.id, { status: "todo" }); } load(); }}
+              className="px-3 py-1.5 rounded-lg text-[10px]"
+              style={{ color: "var(--t3)", border: "1px solid var(--brd)", background: "transparent", cursor: "pointer" }}>
+              Сбросить все
+            </button>
           </div>
-        );
-      })}
+          {checklist.map((t, i) => {
+            const prevPhase = i > 0 ? checklist[i - 1].phase : "";
+            const showPhase = t.phase !== prevPhase;
+            const over = t.status !== "done" && t.deadline && daysDiff(t.deadline) > 0;
+            return (
+              <div key={t.id}>
+                {showPhase && <div className="text-[9px] font-bold tracking-wider mt-3 mb-1" style={{ color: "var(--cy)" }}>{t.phase}</div>}
+                <div className="flex items-center gap-2 py-1 px-1">
+                  <button onClick={() => toggleTask(t.id, t.status)} className="w-4 h-4 rounded shrink-0 flex items-center justify-center"
+                    style={{ border: `2px solid ${t.status === "done" ? "var(--gr)" : "var(--brd)"}`, background: t.status === "done" ? "var(--grd)" : "transparent", cursor: "pointer" }}>
+                    {t.status === "done" && <span style={{ color: "var(--gr)", fontSize: 10 }}>✓</span>}
+                  </button>
+                  <span className="flex-1 text-[10px]" style={{ color: t.status === "done" ? "var(--t3)" : "var(--t1)", textDecoration: t.status === "done" ? "line-through" : "none" }}>{t.task_name}</span>
+                  <select value={t.responsible_id || ""} onChange={e => updateTaskField(t.id, "responsible_id", parseInt(e.target.value) || null)}
+                    className="text-[8px] px-1 py-0.5 rounded outline-none" style={{ background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t2)", maxWidth: 80 }}>
+                    <option value="">—</option>
+                    {team.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                  </select>
+                  <input type="date" value={t.deadline || ""} onChange={e => updateTaskField(t.id, "deadline", e.target.value)}
+                    className="text-[9px] font-mono bg-transparent border-none outline-none cursor-pointer" style={{ color: over ? "var(--rd)" : "var(--t3)", width: 95 }} />
+                  {over && <span className="badge" style={{ background: "rgba(239,68,68,0.15)", color: "var(--rd)" }}>-{daysDiff(t.deadline!)}д</span>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
