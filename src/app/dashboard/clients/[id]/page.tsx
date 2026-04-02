@@ -74,7 +74,7 @@ export default function ClientDetailPage() {
   const scrApp = scripts.filter(s => s.script_status === "approved").length;
   const doneTasks = checklist.filter(t => t.status === "done").length;
   const pct = checklist.length > 0 ? Math.round(doneTasks / checklist.length * 100) : 0;
-  const months = [...new Set(scripts.map(s => s.month_number))].sort();
+  const months = Array.from(new Set(scripts.map(s => s.month_number))).sort();
   const monthScripts = scripts.filter(s => s.month_number === viewMonth);
 
   const scStatuses = [{ value: "notStarted", label: "Не начато" }, { value: "inProgress", label: "В работе" }, { value: "review", label: "На утверждение" }, { value: "approved", label: "Утверждён" }];
