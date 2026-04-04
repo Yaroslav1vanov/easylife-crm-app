@@ -190,7 +190,7 @@ export default function ClientDetailPage() {
 
       {/* Circular Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-3">
-        {[{ v: pub, m: scripts.length, l: "РОЛИКИ", c: "var(--pu)" }, { v: editVids, m: Math.max(1, scripts.length - pub), l: "МОНТАЖ", c: "var(--or)" }, { v: scrApp, m: scripts.length, l: "СЦЕНАРИИ", c: "var(--gr)" }, { v: pct, m: 100, l: "ЧЕКЛИСТ", c: "var(--cy)", suf: "%" }].map((s, i) => {
+        {[{ v: pct, m: 100, l: "ЧЕКЛИСТ", c: "var(--cy)", suf: "%" }, { v: scrApp, m: scripts.length, l: "СЦЕНАРИИ", c: "var(--gr)" }, { v: editVids, m: Math.max(1, scripts.length - pub), l: "МОНТАЖ", c: "var(--or)" }, { v: pub, m: scripts.length, l: "РОЛИКИ", c: "var(--pu)" }].map((s, i) => {
           const r = 35; const circ = 2 * Math.PI * r; const pctV = s.m > 0 ? s.v / s.m : 0;
           return (
             <div key={i} className="card text-center flex flex-col items-center" style={{ padding: 14 }}>
