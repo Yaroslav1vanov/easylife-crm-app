@@ -188,24 +188,122 @@ export default function ClientDetailPage() {
         </div>
       </div>
 
-      {/* Circular Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-3">
-        {[{ v: pct, m: 100, l: "ЧЕКЛИСТ", c: "var(--cy)", suf: "%" }, { v: scrApp, m: scripts.length, l: "СЦЕНАРИИ", c: "var(--gr)" }, { v: editVids, m: Math.max(1, scripts.length - pub), l: "МОНТАЖ", c: "var(--or)" }, { v: pub, m: scripts.length, l: "РОЛИКИ", c: "var(--pu)" }].map((s, i) => {
-          const r = 35; const circ = 2 * Math.PI * r; const pctV = s.m > 0 ? s.v / s.m : 0;
+      {/* Circular Stats with status details */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2 mb-3">
+        {/* Чеклист */}
+        {(() => {
+          const r = 30; const circ = 2 * Math.PI * r; const pctV = pct / 100;
+          const todoTasks = checklist.filter(t => t.status === "todo").length;
+          const progTasks = checklist.filter(t => t.status === "progress").length;
           return (
-            <div key={i} className="card text-center flex flex-col items-center" style={{ padding: 14 }}>
-              <svg width="80" height="80" style={{ transform: "rotate(-90deg)" }}>
-                <circle cx="40" cy="40" r={r} fill="none" stroke="var(--brd)" strokeWidth="5" />
-                <circle cx="40" cy="40" r={r} fill="none" stroke={s.c} strokeWidth="5" strokeDasharray={circ} strokeDashoffset={circ - pctV * circ} strokeLinecap="round" />
-              </svg>
-              <div className="relative -mt-[58px] mb-4 flex flex-col items-center justify-center h-[50px]">
-                <span className="text-lg font-bold font-mono" style={{ color: "var(--t1)" }}>{s.v}{s.suf || ""}</span>
-                {!s.suf && <span className="text-[7px]" style={{ color: "var(--t3)" }}>из {s.m}</span>}
+            <div className="card flex items-center gap-3" style={{ padding: 12 }}>
+              <div className="relative shrink-0">
+                <svg width="68" height="68" style={{ transform: "rotate(-90deg)" }}>
+                  <circle cx="34" cy="34" r={r} fill="none" stroke="var(--brd)" strokeWidth="4.5" />
+                  <circle cx="34" cy="34" r={r} fill="none" stroke="var(--cy)" strokeWidth="4.5" strokeDasharray={circ} strokeDashoffset={circ - pctV * circ} strokeLinecap="round" />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-sm font-bold font-mono" style={{ color: "var(--t1)" }}>{pct}%</span>
+                </div>
               </div>
-              <div className="text-[9px] font-bold tracking-wider" style={{ color: "var(--t1)" }}>{s.l}</div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[9px] font-bold tracking-wider mb-1.5" style={{ color: "var(--t1)" }}>ЧЕКЛИСТ</div>
+                {[{ l: "Сделано", v: doneTasks, c: "var(--gr)" }, { l: "В процессе", v: progTasks, c: "var(--or)" }, { l: "Осталось", v: todoTasks, c: "var(--t3)" }].map((s, i) => (
+                  <div key={i} className="flex justify-between" style={{ padding: "1px 0" }}>
+                    <span className="text-[9px]" style={{ color: "var(--t2)" }}>{s.l}</span>
+                    <span className="text-[10px] font-bold font-mono" style={{ color: s.c }}>{s.v}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           );
-        })}
+        })()}
+
+        {/* Сценарии */}
+        {(() => {
+          const r = 30; const circ = 2 * Math.PI * r; const pctV = scripts.length > 0 ? scrApp / scripts.length : 0;
+          const notStarted = scripts.filter(s => s.script_status === "notStarted").length;
+          const inProg = scripts.filter(s => s.script_status === "inProgress").length;
+          const inReview = scripts.filter(s => s.script_status === "review").length;
+          return (
+            <div className="card flex items-center gap-3" style={{ padding: 12 }}>
+              <div className="relative shrink-0">
+                <svg width="68" height="68" style={{ transform: "rotate(-90deg)" }}>
+                  <circle cx="34" cy="34" r={r} fill="none" stroke="var(--brd)" strokeWidth="4.5" />
+                  <circle cx="34" cy="34" r={r} fill="none" stroke="var(--gr)" strokeWidth="4.5" strokeDasharray={circ} strokeDashoffset={circ - pctV * circ} strokeLinecap="round" />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-sm font-bold font-mono" style={{ color: "var(--t1)" }}>{scrApp}</span>
+                </div>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[9px] font-bold tracking-wider mb-1.5" style={{ color: "var(--t1)" }}>СЦЕНАРИИ</div>
+                {[{ l: "Утверждён", v: scrApp, c: "var(--gr)" }, { l: "На утвержд.", v: inReview, c: "var(--yl)" }, { l: "В работе", v: inProg, c: "var(--or)" }, { l: "Не начато", v: notStarted, c: "var(--t3)" }].map((s, i) => (
+                  <div key={i} className="flex justify-between" style={{ padding: "1px 0" }}>
+                    <span className="text-[9px]" style={{ color: "var(--t2)" }}>{s.l}</span>
+                    <span className="text-[10px] font-bold font-mono" style={{ color: s.c }}>{s.v}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Монтаж */}
+        {(() => {
+          const r = 30; const circ = 2 * Math.PI * r;
+          const totalMontage = inMontage + reviewVids + ready;
+          const pctV = scripts.length > 0 ? totalMontage / Math.max(1, scripts.length - pub) : 0;
+          return (
+            <div className="card flex items-center gap-3" style={{ padding: 12 }}>
+              <div className="relative shrink-0">
+                <svg width="68" height="68" style={{ transform: "rotate(-90deg)" }}>
+                  <circle cx="34" cy="34" r={r} fill="none" stroke="var(--brd)" strokeWidth="4.5" />
+                  <circle cx="34" cy="34" r={r} fill="none" stroke="var(--or)" strokeWidth="4.5" strokeDasharray={circ} strokeDashoffset={circ - pctV * circ} strokeLinecap="round" />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-sm font-bold font-mono" style={{ color: "var(--t1)" }}>{totalMontage}</span>
+                </div>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[9px] font-bold tracking-wider mb-1.5" style={{ color: "var(--t1)" }}>МОНТАЖ</div>
+                {[{ l: "Готово", v: ready, c: "var(--cy)" }, { l: "На утвержд.", v: reviewVids, c: "var(--yl)" }, { l: "В работе", v: inMontage, c: "var(--or)" }, { l: "Осталось", v: Math.max(0, c.package - pub - ready - inMontage - reviewVids), c: "var(--t3)" }].map((s, i) => (
+                  <div key={i} className="flex justify-between" style={{ padding: "1px 0" }}>
+                    <span className="text-[9px]" style={{ color: "var(--t2)" }}>{s.l}</span>
+                    <span className="text-[10px] font-bold font-mono" style={{ color: s.c }}>{s.v}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Ролики */}
+        {(() => {
+          const r = 30; const circ = 2 * Math.PI * r; const pctV = scripts.length > 0 ? pub / scripts.length : 0;
+          return (
+            <div className="card flex items-center gap-3" style={{ padding: 12 }}>
+              <div className="relative shrink-0">
+                <svg width="68" height="68" style={{ transform: "rotate(-90deg)" }}>
+                  <circle cx="34" cy="34" r={r} fill="none" stroke="var(--brd)" strokeWidth="4.5" />
+                  <circle cx="34" cy="34" r={r} fill="none" stroke="var(--pu)" strokeWidth="4.5" strokeDasharray={circ} strokeDashoffset={circ - pctV * circ} strokeLinecap="round" />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-sm font-bold font-mono" style={{ color: "var(--t1)" }}>{pub}</span>
+                </div>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[9px] font-bold tracking-wider mb-1.5" style={{ color: "var(--t1)" }}>РОЛИКИ</div>
+                {[{ l: "Опубликовано", v: pub, c: "var(--gr)" }, { l: "Ожидается", v: expectedPub, c: pubOnTrack ? "var(--gr)" : "var(--rd)" }, { l: "Осталось", v: c.package - pub, c: "var(--t3)" }].map((s, i) => (
+                  <div key={i} className="flex justify-between" style={{ padding: "1px 0" }}>
+                    <span className="text-[9px]" style={{ color: "var(--t2)" }}>{s.l}</span>
+                    <span className="text-[10px] font-bold font-mono" style={{ color: s.c }}>{s.v}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Client Card */}
