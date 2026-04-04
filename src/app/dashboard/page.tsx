@@ -63,9 +63,9 @@ export default function DashboardPage() {
 
   const stats = [
     { icon: "👥", l: "ВСЕГО КЛИЕНТОВ", val: clients.length, tag: `${clients.filter(c => c.stage === "Производство").length} в производстве`, tagColor: "var(--cy)", ck: () => router.push("/dashboard/clients") },
-    { icon: "🎬", l: "ВИДЕО ГОТОВО", val: totalPub, valSub: `/ ${totalPkg}`, tag: vidGap > 0 ? `Отстаём на ${vidGap}` : "✓ В норме", tagColor: vidGap > 0 ? "var(--rd)" : "var(--gr)", bar: true, barPct: totalPkg > 0 ? totalPub / totalPkg * 100 : 0, barColor: vidGap > 0 ? "var(--rd)" : "var(--gr)", ck: () => router.push("/dashboard/montage") },
-    { icon: "📝", l: "СЦЕНАРИЕВ", val: totalScr, valSub: `/ ${totalPkg}`, tag: "✓ В работе", tagColor: "var(--gr)", bar: true, barPct: totalPkg > 0 ? totalScr / totalPkg * 100 : 0, barColor: "var(--gr)", ck: () => router.push("/dashboard/scripts") },
-    { icon: "🔄", l: "ОСТАЛОСЬ", val: totalPkg - totalPub, valSub: "роликов", tag: totalPkg - totalPub > totalPkg * 0.7 ? "Критическая фаза" : "В работе", tagColor: totalPkg - totalPub > totalPkg * 0.7 ? "var(--rd)" : "var(--or)", ck: () => router.push("/dashboard/montage") },
+    { icon: "📝", l: "СЦЕНАРИЕВ", val: totalScr, valSub: `/ ${totalPkg}`, tag: totalScr >= totalPkg ? "✓ Все готовы" : "В работе", tagColor: totalScr >= totalPkg ? "var(--gr)" : "var(--or)", bar: true, barPct: totalPkg > 0 ? totalScr / totalPkg * 100 : 0, barColor: "var(--gr)", ck: () => router.push("/dashboard/scripts") },
+    { icon: "🎬", l: "В МОНТАЖЕ", val: totalEdit, valSub: `+ ${totalReady} готово`, tag: totalEdit > 0 ? "В работе" : "—", tagColor: totalEdit > 0 ? "var(--or)" : "var(--t3)", bar: true, barPct: totalPkg > 0 ? (totalEdit + totalReady) / totalPkg * 100 : 0, barColor: "var(--or)", ck: () => router.push("/dashboard/montage") },
+    { icon: "✅", l: "ОПУБЛИКОВАНО", val: totalPub, valSub: `/ ${totalPkg}`, tag: vidGap > 0 ? `Отстаём на ${vidGap}` : "✓ В норме", tagColor: vidGap > 0 ? "var(--rd)" : "var(--gr)", bar: true, barPct: totalPkg > 0 ? totalPub / totalPkg * 100 : 0, barColor: vidGap > 0 ? "var(--rd)" : "var(--gr)", ck: () => router.push("/dashboard/montage") },
   ];
 
   return (
