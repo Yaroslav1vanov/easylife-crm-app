@@ -343,7 +343,23 @@ export default function ClientDetailPage() {
       )}
 
       {/* Scripts tab — all scripts with status */}
-      {tab === "scripts" && monthScripts.map(s => {
+      {tab === "scripts" && (
+        <div>
+          {/* Status summary */}
+          <div className="flex gap-3 mb-3 pb-3" style={{ borderBottom: "1px solid var(--brd)" }}>
+            {[
+              { l: "Не начато", v: monthScripts.filter(s => s.script_status === "notStarted").length, c: "var(--t3)" },
+              { l: "В работе", v: monthScripts.filter(s => s.script_status === "inProgress").length, c: "var(--or)" },
+              { l: "На утверждении", v: monthScripts.filter(s => s.script_status === "review").length, c: "var(--yl)" },
+              { l: "Утверждён", v: monthScripts.filter(s => s.script_status === "approved").length, c: "var(--gr)" },
+            ].map((s, i) => (
+              <div key={i} className="text-center flex-1 py-2 rounded-lg" style={{ background: `${s.c}08`, border: `1px solid ${s.c}20` }}>
+                <div className="text-lg font-bold font-mono" style={{ color: s.c }}>{s.v}</div>
+                <div className="text-[8px]" style={{ color: "var(--t3)" }}>{s.l}</div>
+              </div>
+            ))}
+          </div>
+          {monthScripts.map(s => {
         const isExpanded = expandedScript === s.id;
         return (
           <div key={s.id} className="card mb-1" style={{ padding: 0 }}>
@@ -389,13 +405,23 @@ export default function ClientDetailPage() {
           </div>
         );
       })}
+        </div>
+      )}
 
       {/* Montage tab — approved scripts with video status */}
       {tab === "montage" && (
         <div>
-          <div className="flex gap-3 mb-3">
-            {[{ l: "В работе", v: inMontage, c: "var(--or)" }, { l: "На утверждении", v: reviewVids, c: "var(--yl)" }, { l: "Готово", v: ready, c: "var(--cy)" }, { l: "Осталось", v: Math.max(0, c.package - pub - ready - inMontage - reviewVids), c: "var(--t3)" }].map((s, i) => (
-              <div key={i} className="text-center"><div className="text-lg font-bold font-mono" style={{ color: s.c }}>{s.v}</div><div className="text-[8px]" style={{ color: "var(--t3)" }}>{s.l}</div></div>
+          <div className="flex gap-3 mb-3 pb-3" style={{ borderBottom: "1px solid var(--brd)" }}>
+            {[
+              { l: "В работе", v: inMontage, c: "var(--or)" },
+              { l: "На утверждении", v: reviewVids, c: "var(--yl)" },
+              { l: "Готово", v: ready, c: "var(--cy)" },
+              { l: "Осталось", v: Math.max(0, c.package - pub - ready - inMontage - reviewVids), c: "var(--t3)" },
+            ].map((s, i) => (
+              <div key={i} className="text-center flex-1 py-2 rounded-lg" style={{ background: `${s.c}08`, border: `1px solid ${s.c}20` }}>
+                <div className="text-lg font-bold font-mono" style={{ color: s.c }}>{s.v}</div>
+                <div className="text-[8px]" style={{ color: "var(--t3)" }}>{s.l}</div>
+              </div>
             ))}
           </div>
           {scripts.filter(s => s.script_status === "approved" && s.video_status !== "published").map(s => (
@@ -419,25 +445,64 @@ export default function ClientDetailPage() {
       {/* Published tab */}
       {tab === "published" && (
         <div>
-          <div className="flex gap-3 mb-3">
-            <div className="text-center"><div className="text-2xl font-bold font-mono" style={{ color: "var(--gr)" }}>{pub}</div><div className="text-[8px]" style={{ color: "var(--t3)" }}>Опубликовано</div></div>
-            <div className="text-center"><div className="text-2xl font-bold font-mono" style={{ color: "var(--t3)" }}>{c.package - pub}</div><div className="text-[8px]" style={{ color: "var(--t3)" }}>Осталось</div></div>
-            {expectedPub > 0 && <div className="text-center"><div className="text-2xl font-bold font-mono" style={{ color: pubOnTrack ? "var(--gr)" : "var(--rd)" }}>{expectedPub}</div><div className="text-[8px]" style={{ color: "var(--t3)" }}>Ожидается к сегодня</div></div>}
+          <div className="flex gap-3 mb-3 pb-3" style={{ borderBottom: "1px solid var(--brd)" }}>
+            {[
+              { l: "Опубликовано", v: pub, c: "var(--gr)" },
+              { l: "Осталось", v: c.package - pub, c: "var(--t3)" },
+              ...(expectedPub > 0 ? [{ l: "Ожидается", v: expectedPub, c: pubOnTrack ? "var(--gr)" : "var(--rd)" }] : []),
+              ...(expectedPub > 0 ? [{ l: pubOnTrack ? "✓ В норме" : "Отставание", v: pubOnTrack ? 0 : expectedPub - pub, c: pubOnTrack ? "var(--gr)" : "var(--rd)" }] : []),
+            ].map((s, i) => (
+              <div key={i} className="text-center flex-1 py-2 rounded-lg" style={{ background: `${s.c}08`, border: `1px solid ${s.c}20` }}>
+                <div className="text-lg font-bold font-mono" style={{ color: s.c }}>{s.l === "✓ В норме" ? "✓" : s.v}</div>
+                <div className="text-[8px]" style={{ color: "var(--t3)" }}>{s.l}</div>
+              </div>
+            ))}
           </div>
           <div className="h-2 rounded-full mb-3" style={{ background: "var(--brd)" }}>
             <div className="h-full rounded-full" style={{ width: `${c.package > 0 ? pub / c.package * 100 : 0}%`, background: "linear-gradient(90deg, var(--cy), var(--gr))" }} />
           </div>
-          {scripts.filter(s => s.video_status === "published").map(s => (
-            <div key={s.id} className="card mb-1" style={{ padding: "8px 12px" }}>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-mono" style={{ color: "var(--cy)" }}>#{s.order_num}</span>
-                <span className="text-xs flex-1" style={{ color: "var(--t1)" }}>{s.hook_text || s.hook}</span>
-                <input type="date" value={s.pub_date || ""} onChange={e => updateScript(s.id, { pub_date: e.target.value })}
-                  className="text-[10px] font-mono bg-transparent border-none outline-none cursor-pointer" style={{ color: "var(--gr)" }} />
-                <span className="badge" style={{ background: "var(--grd)", color: "var(--gr)" }}>Опубликовано</span>
+          {scripts.filter(s => s.video_status === "published").map(s => {
+            const isExp = expandedScript === s.id;
+            return (
+              <div key={s.id} className="card mb-1" style={{ padding: 0 }}>
+                <div onClick={() => setExpandedScript(isExp ? null : s.id)} className="flex items-center gap-2 px-3 py-2 cursor-pointer">
+                  <span className="text-[10px] font-mono" style={{ color: "var(--cy)" }}>#{s.order_num}</span>
+                  <span className="text-xs flex-1" style={{ color: "var(--t1)" }}>{s.hook_text || s.hook}</span>
+                  <input type="date" value={s.pub_date || ""} onClick={e => e.stopPropagation()} onChange={e => updateScript(s.id, { pub_date: e.target.value })}
+                    className="text-[10px] font-mono bg-transparent border-none outline-none cursor-pointer" style={{ color: "var(--gr)" }} />
+                  <span className="badge" style={{ background: "var(--grd)", color: "var(--gr)" }}>Опубликовано</span>
+                  <span style={{ color: "var(--t3)", transform: isExp ? "rotate(180deg)" : "none", transition: "transform .2s" }}>▾</span>
+                </div>
+                {isExp && (
+                  <div className="px-3 pb-3 border-t" style={{ borderColor: "var(--brd)" }}>
+                    <div className="flex gap-3 py-2 flex-wrap items-end">
+                      <div>
+                        <div className="text-[8px] font-semibold tracking-wider mb-1" style={{ color: "var(--pu)" }}>СТАТУС РОЛИКА</div>
+                        <select value={s.video_status} onChange={e => updateScript(s.id, { video_status: e.target.value })}
+                          className="text-[10px] px-2 py-1 rounded outline-none" style={{ background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)" }}>
+                          {viStatuses.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <div className="text-[8px] font-semibold tracking-wider mb-1" style={{ color: "var(--gr)" }}>ДАТА ПУБЛИКАЦИИ</div>
+                        <input type="date" value={s.pub_date || ""} onChange={e => updateScript(s.id, { pub_date: e.target.value })}
+                          className="text-[10px] px-2 py-1 rounded outline-none" style={{ background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)" }} />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[8px] font-semibold tracking-wider mb-1" style={{ color: "var(--cy)" }}>🔗 ССЫЛКА НА РОЛИК</div>
+                      <div className="flex gap-2">
+                        <input value={s.ref_url || ""} onChange={e => updateScript(s.id, { ref_url: e.target.value })} placeholder="https://instagram.com/reel/..."
+                          className="flex-1 px-2 py-1.5 rounded text-xs outline-none" style={{ background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)" }} />
+                        {s.ref_url && <a href={s.ref_url.startsWith("http") ? s.ref_url : `https://${s.ref_url}`} target="_blank" rel="noopener noreferrer"
+                          className="px-3 py-1.5 rounded text-[10px] font-semibold" style={{ background: "var(--cyd)", color: "var(--cy)", border: "1px solid var(--cy)", textDecoration: "none" }}>Открыть ↗</a>}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
           {scripts.filter(s => s.video_status === "published").length === 0 && (
             <div className="text-xs text-center py-8" style={{ color: "var(--t3)" }}>Нет опубликованных роликов</div>
           )}
