@@ -13,7 +13,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <div className="flex min-h-screen" style={{ background: "var(--bg)" }}>
       <Sidebar userRole={userRole} />
-      <main className="flex-1 ml-[190px] p-5 overflow-auto">
+      {/* Desktop: margin-left for sidebar. Mobile: margin-top for top bar */}
+      <main className="flex-1 md:ml-[190px] ml-0 mt-[50px] md:mt-0 p-3 md:p-5 overflow-auto min-w-0">
         {children}
       </main>
     </div>

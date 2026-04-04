@@ -1,4 +1,5 @@
 "use client";
+import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
 import { useTheme } from "@/components/ThemeProvider";
@@ -17,6 +18,17 @@ export function Sidebar({ userRole }: { userRole: string }) {
   const pathname = usePathname();
   const supabase = createClient();
   const { theme, toggle } = useTheme();
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
+  useEffect(() => { setMobileOpen(false); }, [pathname]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -28,36 +40,63 @@ export function Sidebar({ userRole }: { userRole: string }) {
     return pathname.startsWith(path);
   };
 
-  return (
-    <aside className="fixed left-0 top-0 h-screen w-[190px] flex flex-col border-r z-50"
-      style={{ background: "var(--side)", borderColor: "var(--brd)", transition: "all .3s" }}>
-      <div className="px-3 py-3 border-b" style={{ borderColor: "var(--brd)" }}>
-        <div className="text-sm font-bold">
-          <span style={{ color: "var(--t1)" }}>Easy</span>
-          <span className="brand-gradient">Life</span>
-          <span style={{ color: "var(--t1)" }}> AI</span>
+  const navigate = (path: string) => { router.push(path); setMobileOpen(false); };
+
+  if (isMobile) {
+    return (
+      <>
+        <div style={{ position:"fixed",top:0,left:0,right:0,height:50,zIndex:50,background:"var(--side)",borderBottom:"1px solid var(--brd)",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 14px" }}>
+          <button onClick={() => setMobileOpen(true)} style={{ border:"none",background:"transparent",color:"var(--t1)",cursor:"pointer",fontSize:20,padding:4 }}>☰</button>
+          <div style={{ fontSize:14,fontWeight:700 }}><span style={{ color:"var(--t1)" }}>Easy</span><span className="brand-gradient">Life</span><span style={{ color:"var(--t1)" }}> AI</span></div>
+          <div style={{ width:28 }}/>
         </div>
+        {mobileOpen && <div onClick={() => setMobileOpen(false)} style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:90 }}/>}
+        <div style={{ position:"fixed",top:0,left:0,bottom:0,width:250,zIndex:100,background:"var(--side)",borderRight:"1px solid var(--brd)",transform:mobileOpen?"translateX(0)":"translateX(-100%)",transition:"transform .3s ease",display:"flex",flexDirection:"column" }}>
+          <div style={{ padding:"14px 12px",borderBottom:"1px solid var(--brd)",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+            <div style={{ fontSize:14,fontWeight:700 }}><span style={{ color:"var(--t1)" }}>Easy</span><span className="brand-gradient">Life</span><span style={{ color:"var(--t1)" }}> AI</span></div>
+            <button onClick={() => setMobileOpen(false)} style={{ border:"none",background:"transparent",color:"var(--t2)",cursor:"pointer",fontSize:18 }}>✕</button>
+          </div>
+          <nav style={{ flex:1,padding:8,display:"flex",flexDirection:"column",gap:2 }}>
+            {navItems.map(item => (
+              <button key={item.id} onClick={() => navigate(item.path)} className={`nav-item ${isActive(item.path) ? "active" : ""}`} style={{ fontSize:14,padding:"12px" }}>
+                <span style={{ fontSize:16 }}>{item.icon}</span>{item.label}
+              </button>
+            ))}
+          </nav>
+          <div style={{ padding:"8px 10px 14px",borderTop:"1px solid var(--brd)" }}>
+            <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 4px",marginBottom:6 }}>
+              <span style={{ fontSize:12,color:"var(--t2)" }}>{theme==="dark"?"🌙 Тёмная":"☀️ Светлая"}</span>
+              <button onClick={toggle} style={{ width:40,height:22,borderRadius:11,border:"none",cursor:"pointer",background:"var(--brd)",position:"relative" }}>
+                <div style={{ width:16,height:16,borderRadius:"50%",position:"absolute",top:3,left:theme==="dark"?3:21,background:theme==="dark"?"var(--cy)":"var(--or)",transition:"all .3s" }}/>
+              </button>
+            </div>
+            <button onClick={handleLogout} className="nav-item" style={{ fontSize:13,color:"var(--t3)" }}>🚪 Выйти</button>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  return (
+    <aside style={{ position:"fixed",left:0,top:0,height:"100vh",width:190,display:"flex",flexDirection:"column",borderRight:"1px solid var(--brd)",background:"var(--side)",zIndex:50 }}>
+      <div style={{ padding:"12px",borderBottom:"1px solid var(--brd)" }}>
+        <div style={{ fontSize:14,fontWeight:700 }}><span style={{ color:"var(--t1)" }}>Easy</span><span className="brand-gradient">Life</span><span style={{ color:"var(--t1)" }}> AI</span></div>
       </div>
-      <nav className="flex-1 p-1.5 space-y-0.5">
+      <nav style={{ flex:1,padding:"6px",display:"flex",flexDirection:"column",gap:1 }}>
         {navItems.map(item => (
-          <button key={item.id} onClick={() => router.push(item.path)}
-            className={`nav-item ${isActive(item.path) ? "active" : ""}`}>
-            <span className="text-sm">{item.icon}</span>
-            {item.label}
+          <button key={item.id} onClick={() => router.push(item.path)} className={`nav-item ${isActive(item.path) ? "active" : ""}`}>
+            <span style={{ fontSize:14 }}>{item.icon}</span>{item.label}
           </button>
         ))}
       </nav>
-      <div className="p-2 border-t" style={{ borderColor: "var(--brd)" }}>
-        <div className="flex items-center justify-between px-2 py-1 mb-2">
-          <span className="text-[10px]" style={{ color: "var(--t2)" }}>{theme === "dark" ? "🌙" : "☀️"}</span>
-          <button onClick={toggle} className="relative w-9 h-5 rounded-full" style={{ background: "var(--brd)" }}>
-            <div className="absolute top-[3px] w-3.5 h-3.5 rounded-full transition-all"
-              style={{ left: theme === "dark" ? 3 : 19, background: theme === "dark" ? "var(--cy)" : "var(--or)" }} />
+      <div style={{ padding:"8px 10px 12px",borderTop:"1px solid var(--brd)" }}>
+        <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",padding:"4px",marginBottom:4 }}>
+          <span style={{ fontSize:10,color:"var(--t2)" }}>{theme==="dark"?"🌙":"☀️"}</span>
+          <button onClick={toggle} style={{ width:36,height:20,borderRadius:10,border:"none",cursor:"pointer",background:"var(--brd)",position:"relative" }}>
+            <div style={{ width:14,height:14,borderRadius:"50%",position:"absolute",top:3,left:theme==="dark"?3:19,background:theme==="dark"?"var(--cy)":"var(--or)",transition:"all .3s" }}/>
           </button>
         </div>
-        <button onClick={handleLogout} className="nav-item text-xs" style={{ color: "var(--t3)" }}>
-          🚪 Выйти
-        </button>
+        <button onClick={handleLogout} className="nav-item" style={{ fontSize:12,color:"var(--t3)" }}>🚪 Выйти</button>
       </div>
     </aside>
   );
