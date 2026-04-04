@@ -48,18 +48,37 @@ export default function DashboardPage() {
   const expectedVids = Math.round(totalPkg * expectedPct / 100);
   const vidGap = expectedVids - totalPub;
 
-  // Violations
-  const violations: { client: string; msg: string; days: number; cid: number }[] = [];
+  // Smart Violations — check actual progress, not just dates
+  const violations: { client: string; msg: string; days: number; cid: number; severity: string }[] = [];
   clients.forEach(c => {
-    if (c.scripts_deadline) {
-      const d = Math.round((today.getTime() - new Date(c.scripts_deadline).getTime()) / 86400000);
-      if (d > 0) violations.push({ client: c.name, msg: `Сценарии! +${d}д`, days: d, cid: c.id });
+    const cScripts = allScripts.filter(s => s.client_id === c.id);
+    const cPub = cScripts.filter(s => s.video_status === "published").length;
+    const cReady = cScripts.filter(s => s.video_status === "ready").length;
+    const cScrApp = cScripts.filter(s => s.script_status === "approved").length;
+    const scrBuffer = cScrApp - cPub; // scripts ahead of published
+    
+    // Check published vs expected by date
+    if (c.first_pub_date) {
+      const daysSinceFirst = Math.round((today.getTime() - new Date(c.first_pub_date).getTime()) / 86400000);
+      if (daysSinceFirst >= 0) {
+        const expectedByNow = Math.min(daysSinceFirst + 1, c.package);
+        if (cPub < expectedByNow) {
+          violations.push({ client: c.name, msg: `Ролики: ${cPub} из ${expectedByNow} ожид.`, days: expectedByNow - cPub, cid: c.id, severity: "high" });
+        }
+      }
     }
-    if (c.videos_deadline) {
-      const d = Math.round((today.getTime() - new Date(c.videos_deadline).getTime()) / 86400000);
-      if (d > 0) violations.push({ client: c.name, msg: `Ролики! +${d}д`, days: d, cid: c.id });
+    
+    // Check script buffer (need min 5 ahead)
+    if (c.scripts_deadline && scrBuffer < 5 && cPub < c.package) {
+      violations.push({ client: c.name, msg: `Запас сценариев: ${scrBuffer} (мин. 5)`, days: 5 - scrBuffer, cid: c.id, severity: scrBuffer < 0 ? "high" : "med" });
+    }
+    
+    // Check video buffer (need min 3 ready)
+    if (c.videos_deadline && cReady < 3 && cPub < c.package) {
+      violations.push({ client: c.name, msg: `Запас роликов: ${cReady} готовых (мин. 3)`, days: 3 - cReady, cid: c.id, severity: cReady === 0 ? "high" : "med" });
     }
   });
+  violations.sort((a, b) => b.days - a.days);
 
   const stats = [
     { icon: "👥", l: "ВСЕГО КЛИЕНТОВ", val: clients.length, tag: `${clients.filter(c => c.stage === "Производство").length} в производстве`, tagColor: "var(--cy)", ck: () => router.push("/dashboard/clients") },
@@ -140,15 +159,15 @@ export default function DashboardPage() {
           <div className="flex items-center gap-1 mb-2">
             <span style={{ color: "var(--rd)" }}>⚠️</span>
             <span className="text-[11px] font-bold" style={{ color: violations.length > 0 ? "var(--rd)" : "var(--gr)" }}>
-              {violations.length > 0 ? `НАРУШЕНИЯ (${violations.length})` : "Нарушений нет ✓"}
+              {violations.length > 0 ? `НАРУШЕНИЯ СРОКОВ (${violations.length})` : "Всё по плану ✓"}
             </span>
           </div>
           {violations.map((v, i) => (
             <div key={i} onClick={() => router.push(`/dashboard/clients/${v.cid}`)}
-              className="flex items-center gap-1 py-1 px-1.5 rounded cursor-pointer text-xs" style={{ borderLeft: "3px solid var(--rd)" }}>
+              className="flex items-center gap-1 py-1 px-1.5 rounded cursor-pointer text-xs" style={{ borderLeft: `3px solid ${v.severity === "high" ? "var(--rd)" : "var(--or)"}` }}>
               <span className="font-semibold" style={{ color: "var(--t1)" }}>{v.client}</span>
               <span style={{ color: "var(--t2)", flex: 1 }}>— {v.msg}</span>
-              <span className="badge" style={{ background: "rgba(239,68,68,0.15)", color: "var(--rd)" }}>+{v.days}д</span>
+              <span className="badge" style={{ background: v.severity === "high" ? "rgba(239,68,68,0.15)" : "rgba(249,115,22,0.15)", color: v.severity === "high" ? "var(--rd)" : "var(--or)" }}>!</span>
             </div>
           ))}
         </div>
