@@ -73,12 +73,14 @@ export default function ClientsPage() {
                 </div>
               ))}
               <div>
-                <label className="block text-[9px] font-semibold tracking-wider mb-1" style={{ color: "var(--cy)" }}>ПАКЕТ</label>
-                <div className="flex gap-1">
-                  {[30, 60, 90].map(p => (
+                <label className="block text-[9px] font-semibold tracking-wider mb-1" style={{ color: "var(--cy)" }}>ПАКЕТ (РИЛСОВ)</label>
+                <div className="flex gap-1 flex-wrap">
+                  {[10, 15, 30, 60, 90].map(p => (
                     <button key={p} onClick={() => setForm(prev => ({ ...prev, package: p }))}
-                      className="px-3 py-1 rounded text-xs" style={{ border: `1px solid ${form.package === p ? "var(--cy)" : "var(--brd)"}`, background: form.package === p ? "var(--cyd)" : "transparent", color: form.package === p ? "var(--cy)" : "var(--t2)" }}>{p}</button>
+                      className="px-3 py-1 rounded text-xs" style={{ border: `1px solid ${form.package === p ? "var(--cy)" : "var(--brd)"}`, background: form.package === p ? "var(--cyd)" : "transparent", color: form.package === p ? "var(--cy)" : "var(--t2)", cursor: "pointer" }}>{p}</button>
                   ))}
+                  <input type="number" value={form.package} onChange={e => setForm(p => ({ ...p, package: parseInt(e.target.value) || 0 }))}
+                    className="w-16 px-2 py-1 rounded text-xs outline-none" style={{ background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)" }} placeholder="Своё" />
                 </div>
               </div>
               <div>

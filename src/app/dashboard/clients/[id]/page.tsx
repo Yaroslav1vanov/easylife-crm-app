@@ -11,7 +11,7 @@ export default function ClientDetailPage() {
   const [scripts, setScripts] = useState<Script[]>([]);
   const [checklist, setChecklist] = useState<ChecklistTask[]>([]);
   const [team, setTeam] = useState<TeamMember[]>([]);
-  const [tab, setTab] = useState("scripts");
+  const [tab, setTab] = useState("plan");
   const [editing, setEditing] = useState(false);
   const [editData, setEditData] = useState<any>({});
   const [editSocial, setEditSocial] = useState<string | null>(null);
@@ -19,19 +19,23 @@ export default function ClientDetailPage() {
   const [expandedScript, setExpandedScript] = useState<number | null>(null);
   const [viewMonth, setViewMonth] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [userRole, setUserRole] = useState("");
   const router = useRouter();
   const supabase = createClient();
 
   useEffect(() => { load(); }, [clientId]);
 
   async function load() {
-    const [c, s, ch, tm] = await Promise.all([
+    const [c, s, ch, tm, profile] = await Promise.all([
       db.getClient(supabase, clientId),
       db.getScripts(supabase, clientId),
       db.getChecklist(supabase, clientId),
       db.getTeam(supabase),
+      db.getProfile(supabase),
     ]);
-    setClient(c); setScripts(s); setChecklist(ch); setTeam(tm); setLoading(false);
+    setClient(c); setScripts(s); setChecklist(ch); setTeam(tm);
+    if (profile) setUserRole(profile.role);
+    setLoading(false);
   }
 
   async function updateClientField(field: string, value: any) {
@@ -82,23 +86,59 @@ export default function ClientDetailPage() {
   const scColor = (s: string) => s === "approved" ? "var(--gr)" : s === "review" ? "var(--yl)" : s === "inProgress" ? "var(--or)" : "var(--t3)";
   const viColor = (s: string) => s === "published" ? "var(--gr)" : s === "ready" ? "var(--cy)" : s === "review" ? "var(--yl)" : s === "inProgress" ? "var(--or)" : "var(--t3)";
 
-  const tabs = [
-    { id: "scripts", label: `Сценарии (${scrApp}/${scripts.length})` },
-    { id: "videos", label: `Ролики (${pub}/${scripts.length})` },
-    { id: "plan", label: `Чеклист (${pct}%)` },
-  ];
+  // Smart deadline calculation
+  const now = new Date();
+  const daysDiff = (d: string) => Math.round((now.getTime() - new Date(d).getTime()) / 86400000);
 
-  const daysDiff = (d: string) => Math.round((new Date().getTime() - new Date(d).getTime()) / 86400000);
+  // Calculate expected published count based on first pub date
+  let expectedPub = 0;
+  let pubOnTrack = true;
+  if (c.first_pub_date) {
+    const daysSinceFirstPub = daysDiff(c.first_pub_date);
+    if (daysSinceFirstPub >= 0) {
+      expectedPub = Math.min(daysSinceFirstPub + 1, c.package); // 1 reel per day
+      pubOnTrack = pub >= expectedPub;
+    }
+  }
+
+  // Scripts deadline: check if enough scripts are approved ahead
+  let scrOnTrack = true;
+  let scrAhead = scrApp - pub; // how many scripts ahead of published
+  if (c.scripts_deadline) {
+    const daysPastScr = daysDiff(c.scripts_deadline);
+    if (daysPastScr > 0) {
+      scrOnTrack = scrAhead >= 5; // need 5 scripts buffer
+    }
+  }
+
+  // Videos deadline: check if enough ready videos ahead
+  let vidOnTrack = true;
+  if (c.videos_deadline) {
+    const daysPastVid = daysDiff(c.videos_deadline);
+    if (daysPastVid > 0) {
+      vidOnTrack = ready >= 3; // need 3 videos buffer
+    }
+  }
+
+  const inMontage = scripts.filter(s => s.video_status === "inProgress" && s.script_status === "approved").length;
+  const reviewVids = scripts.filter(s => s.video_status === "review").length;
+
+  const tabs = [
+    { id: "plan", label: `Чеклист (${pct}%)` },
+    { id: "scripts", label: `Сценарии (${scrApp}/${scripts.length})` },
+    { id: "montage", label: `Монтаж (${inMontage + reviewVids + ready})` },
+    { id: "published", label: `Опубликовано (${pub}/${c.package})` },
+  ];
 
   return (
     <div>
       <div className="flex justify-between items-center mb-2">
         <button onClick={() => router.back()} className="flex items-center gap-1 text-xs" style={{ color: "var(--cy)", background: "none", border: "none", cursor: "pointer" }}>← Назад</button>
-        <button onClick={async () => { if (confirm("Удалить клиента? Все данные будут потеряны.")) { await db.deleteClient(supabase, clientId); router.push("/dashboard/clients"); } }}
+        {userRole === "admin" && <button onClick={async () => { if (confirm("Удалить клиента? Все данные будут потеряны.")) { await db.deleteClient(supabase, clientId); router.push("/dashboard/clients"); } }}
           className="px-3 py-1 rounded-lg text-[10px] font-semibold"
           style={{ color: "var(--rd)", border: "1px solid var(--rd)", background: "transparent", cursor: "pointer" }}>
           🗑 Удалить
-        </button>
+        </button>}
       </div>
 
       {/* Hero Card */}
@@ -173,7 +213,7 @@ export default function ClientDetailPage() {
         <div className="flex justify-between items-center mb-3">
           <span className="text-[10px] font-bold tracking-wider" style={{ color: "var(--t1)" }}>КАРТОЧКА КЛИЕНТА</span>
           {!editing ? (
-            <button onClick={() => { setEditData({ name: c.name, surname: c.surname, niche: c.niche, phone: c.phone, product: c.product, avg_check: c.avg_check, package: c.package }); setEditing(true); }}
+            <button onClick={() => { setEditData({ name: c.name, surname: c.surname, niche: c.niche, phone: c.phone, product: c.product, avg_check: c.avg_check, package: c.package, montager_id: c.montager_id, teamlead_id: c.teamlead_id, priority: c.priority, stage: c.stage }); setEditing(true); }}
               className="text-[9px] px-3 py-1 rounded-lg font-semibold" style={{ border: "1px solid var(--cy)", color: "var(--cy)", background: "transparent", cursor: "pointer" }}>✏️ Редактировать</button>
           ) : (
             <div className="flex gap-1">
@@ -189,6 +229,40 @@ export default function ClientDetailPage() {
                 <input value={editData[k] || ""} onChange={e => setEditData((p: any) => ({ ...p, [k]: e.target.value }))}
                   className="w-full px-3 py-2 rounded-lg text-xs outline-none" style={{ background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)" }} /></div>
             ))}
+            <div>
+              <label className="block text-[8px] font-semibold tracking-wider mb-1" style={{ color: "var(--cy)" }}>ПАКЕТ (РИЛСОВ)</label>
+              <div className="flex gap-1">
+                {[15, 30, 60, 90].map(p => (
+                  <button key={p} onClick={() => setEditData((prev: any) => ({ ...prev, package: p }))}
+                    className="px-2 py-1 rounded text-[10px]" style={{ border: `1px solid ${editData.package === p ? "var(--cy)" : "var(--brd)"}`, background: editData.package === p ? "var(--cyd)" : "transparent", color: editData.package === p ? "var(--cy)" : "var(--t2)", cursor: "pointer" }}>{p}</button>
+                ))}
+                <input type="number" value={editData.package || ""} onChange={e => setEditData((p: any) => ({ ...p, package: parseInt(e.target.value) || 0 }))}
+                  className="w-16 px-2 py-1 rounded-lg text-xs outline-none" style={{ background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)" }} placeholder="Своё" />
+              </div>
+            </div>
+            <div>
+              <label className="block text-[8px] font-semibold tracking-wider mb-1" style={{ color: "var(--cy)" }}>МОНТАЖЁР</label>
+              <select value={editData.montager_id || ""} onChange={e => setEditData((p: any) => ({ ...p, montager_id: parseInt(e.target.value) || null }))}
+                className="w-full px-3 py-2 rounded-lg text-xs outline-none" style={{ background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)" }}>
+                <option value="">—</option>
+                {team.filter(t => t.member_type === "montager").map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-[8px] font-semibold tracking-wider mb-1" style={{ color: "var(--cy)" }}>TEAM LEAD</label>
+              <select value={editData.teamlead_id || ""} onChange={e => setEditData((p: any) => ({ ...p, teamlead_id: parseInt(e.target.value) || null }))}
+                className="w-full px-3 py-2 rounded-lg text-xs outline-none" style={{ background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)" }}>
+                <option value="">—</option>
+                {team.filter(t => t.member_type === "teamlead" || t.member_type === "admin").map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-[8px] font-semibold tracking-wider mb-1" style={{ color: "var(--cy)" }}>ЭТАП</label>
+              <select value={editData.stage || ""} onChange={e => setEditData((p: any) => ({ ...p, stage: e.target.value }))}
+                className="w-full px-3 py-2 rounded-lg text-xs outline-none" style={{ background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)" }}>
+                {["Онбординг", "Подготовка", "Распаковка", "Стратегия", "Сценарии", "Производство", "Запуск"].map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
@@ -199,19 +273,51 @@ export default function ClientDetailPage() {
         )}
       </div>
 
-      {/* Deadlines */}
+      {/* Deadlines — smart status */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-3">
-        {[{ l: "ПЕРВАЯ ПУБЛИКАЦИЯ", k: "first_pub_date" as const }, { l: "ДЕДЛАЙН СЦЕНАРИЕВ", k: "scripts_deadline" as const }, { l: "ДЕДЛАЙН РОЛИКОВ", k: "videos_deadline" as const }].map(dd => {
-          const val = c[dd.k]; const days = val ? daysDiff(val) : 0; const over = days > 0 && val;
+        {/* First pub date */}
+        {(() => {
+          const val = c.first_pub_date;
+          const isOk = pubOnTrack;
+          const statusText = !val ? "Не указана" : pubOnTrack ? `✓ ${pub} из ${expectedPub} ожид.` : `⚠ Отстаём: ${pub} из ${expectedPub} ожид.`;
+          const statusColor = !val ? "var(--t3)" : isOk ? "var(--gr)" : "var(--rd)";
           return (
-            <div key={dd.k} className="card" style={{ padding: 10, borderColor: over ? "rgba(239,68,68,0.3)" : "var(--brd)" }}>
-              <div className="text-[8px] font-semibold tracking-wider mb-1" style={{ color: "var(--cy)" }}>{dd.l}</div>
-              <input type="date" value={val || ""} onChange={e => updateClientField(dd.k, e.target.value)}
-                className="text-sm font-bold font-mono bg-transparent border-none outline-none cursor-pointer" style={{ color: over ? "var(--rd)" : "var(--gr)" }} />
-              {val && <div className="text-[9px] mt-1" style={{ color: over ? "var(--rd)" : "var(--gr)" }}>{over ? `+${days} дн.` : `${Math.abs(days)} дн.`}</div>}
+            <div className="card" style={{ padding: 10, borderColor: !isOk && val ? "rgba(239,68,68,0.3)" : "var(--brd)" }}>
+              <div className="text-[8px] font-semibold tracking-wider mb-1" style={{ color: "var(--cy)" }}>ПЕРВАЯ ПУБЛИКАЦИЯ</div>
+              <input type="date" value={val || ""} onChange={e => updateClientField("first_pub_date", e.target.value)}
+                className="text-sm font-bold font-mono bg-transparent border-none outline-none cursor-pointer" style={{ color: statusColor }} />
+              <div className="text-[9px] mt-1" style={{ color: statusColor }}>{statusText}</div>
             </div>
           );
-        })}
+        })()}
+        {/* Scripts deadline */}
+        {(() => {
+          const val = c.scripts_deadline;
+          const statusText = !val ? "Не указан" : scrOnTrack ? `✓ Запас: ${scrAhead} сцен. наперёд` : `⚠ Запас: ${scrAhead} (нужно мин. 5)`;
+          const statusColor = !val ? "var(--t3)" : scrOnTrack ? "var(--gr)" : scrAhead < 0 ? "var(--rd)" : "var(--or)";
+          return (
+            <div className="card" style={{ padding: 10, borderColor: !scrOnTrack && val ? "rgba(249,115,22,0.3)" : "var(--brd)" }}>
+              <div className="text-[8px] font-semibold tracking-wider mb-1" style={{ color: "var(--cy)" }}>ДЕДЛАЙН СЦЕНАРИЕВ</div>
+              <input type="date" value={val || ""} onChange={e => updateClientField("scripts_deadline", e.target.value)}
+                className="text-sm font-bold font-mono bg-transparent border-none outline-none cursor-pointer" style={{ color: statusColor }} />
+              <div className="text-[9px] mt-1" style={{ color: statusColor }}>{statusText}</div>
+            </div>
+          );
+        })()}
+        {/* Videos deadline */}
+        {(() => {
+          const val = c.videos_deadline;
+          const statusText = !val ? "Не указан" : vidOnTrack ? `✓ Готово: ${ready} роликов наперёд` : `⚠ Готово: ${ready} (нужно мин. 3)`;
+          const statusColor = !val ? "var(--t3)" : vidOnTrack ? "var(--gr)" : "var(--or)";
+          return (
+            <div className="card" style={{ padding: 10, borderColor: !vidOnTrack && val ? "rgba(249,115,22,0.3)" : "var(--brd)" }}>
+              <div className="text-[8px] font-semibold tracking-wider mb-1" style={{ color: "var(--cy)" }}>ДЕДЛАЙН РОЛИКОВ</div>
+              <input type="date" value={val || ""} onChange={e => updateClientField("videos_deadline", e.target.value)}
+                className="text-sm font-bold font-mono bg-transparent border-none outline-none cursor-pointer" style={{ color: statusColor }} />
+              <div className="text-[9px] mt-1" style={{ color: statusColor }}>{statusText}</div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Tabs */}
@@ -222,8 +328,8 @@ export default function ClientDetailPage() {
         ))}
       </div>
 
-      {/* Month selector (for scripts/videos) */}
-      {(tab === "scripts" || tab === "videos") && (
+      {/* Month selector (for scripts) */}
+      {tab === "scripts" && (
         <div className="flex gap-1 mb-3 flex-wrap items-center">
           {months.map(m => (
             <button key={m} onClick={() => setViewMonth(m)} className="px-3 py-1 rounded-lg text-[10px] font-semibold"
@@ -236,17 +342,15 @@ export default function ClientDetailPage() {
         </div>
       )}
 
-      {/* Scripts tab */}
-      {(tab === "scripts" || tab === "videos") && monthScripts.map(s => {
+      {/* Scripts tab — all scripts with status */}
+      {tab === "scripts" && monthScripts.map(s => {
         const isExpanded = expandedScript === s.id;
-        const showVid = tab === "videos";
         return (
           <div key={s.id} className="card mb-1" style={{ padding: 0 }}>
             <div onClick={() => setExpandedScript(isExpanded ? null : s.id)} className="flex items-center gap-2 px-3 py-2 cursor-pointer">
               <span className="text-[10px] font-mono w-5" style={{ color: "var(--t3)" }}>{s.order_num}</span>
               <span className="text-xs font-semibold flex-1" style={{ color: s.script_status === "notStarted" && !s.hook_text ? "var(--t3)" : "var(--t1)" }}>{s.hook_text || s.hook}</span>
               <span className="badge" style={{ background: `${scColor(s.script_status)}18`, color: scColor(s.script_status) }}>{scStatuses.find(x => x.value === s.script_status)?.label}</span>
-              {showVid && s.script_status === "approved" && <span className="badge" style={{ background: `${viColor(s.video_status)}18`, color: viColor(s.video_status) }}>{viStatuses.find(x => x.value === s.video_status)?.label}</span>}
               <span style={{ color: "var(--t3)", transform: isExpanded ? "rotate(180deg)" : "none", transition: "transform .2s" }}>▾</span>
             </div>
             {isExpanded && (
@@ -257,18 +361,6 @@ export default function ClientDetailPage() {
                       className="text-[10px] px-2 py-1 rounded outline-none" style={{ background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)" }}>
                       {scStatuses.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                     </select></div>
-                  {showVid && s.script_status === "approved" && (
-                    <div><div className="text-[8px] font-semibold tracking-wider mb-1" style={{ color: "var(--pu)" }}>СТАТУС РОЛИКА</div>
-                      <select value={s.video_status} onChange={e => updateScript(s.id, { video_status: e.target.value })}
-                        className="text-[10px] px-2 py-1 rounded outline-none" style={{ background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)" }}>
-                        {viStatuses.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                      </select></div>
-                  )}
-                  {s.video_status === "published" && (
-                    <div><div className="text-[8px] font-semibold tracking-wider mb-1" style={{ color: "var(--gr)" }}>ДАТА ПУБЛИКАЦИИ</div>
-                      <input type="date" value={s.pub_date || ""} onChange={e => updateScript(s.id, { pub_date: e.target.value })}
-                        className="text-[10px] px-2 py-1 rounded outline-none" style={{ background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)" }} /></div>
-                  )}
                 </div>
                 <div className="mb-2"><div className="text-[8px] font-semibold tracking-wider mb-1" style={{ color: "var(--or)" }}>🎬 РЕФЕРЕНС</div>
                   <input value={s.ref_url} onChange={e => updateScript(s.id, { ref_url: e.target.value })} placeholder="https://instagram.com/reel/..."
@@ -297,6 +389,60 @@ export default function ClientDetailPage() {
           </div>
         );
       })}
+
+      {/* Montage tab — approved scripts with video status */}
+      {tab === "montage" && (
+        <div>
+          <div className="flex gap-3 mb-3">
+            {[{ l: "В работе", v: inMontage, c: "var(--or)" }, { l: "На утверждении", v: reviewVids, c: "var(--yl)" }, { l: "Готово", v: ready, c: "var(--cy)" }, { l: "Осталось", v: Math.max(0, c.package - pub - ready - inMontage - reviewVids), c: "var(--t3)" }].map((s, i) => (
+              <div key={i} className="text-center"><div className="text-lg font-bold font-mono" style={{ color: s.c }}>{s.v}</div><div className="text-[8px]" style={{ color: "var(--t3)" }}>{s.l}</div></div>
+            ))}
+          </div>
+          {scripts.filter(s => s.script_status === "approved" && s.video_status !== "published").map(s => (
+            <div key={s.id} className="card mb-1" style={{ padding: "8px 12px" }}>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-mono" style={{ color: "var(--cy)" }}>#{s.order_num}</span>
+                <span className="text-xs flex-1" style={{ color: "var(--t1)" }}>{s.hook_text || s.hook}</span>
+                <select value={s.video_status} onChange={e => updateScript(s.id, { video_status: e.target.value })}
+                  className="text-[10px] px-2 py-0.5 rounded outline-none" style={{ background: `${viColor(s.video_status)}18`, border: "1px solid var(--brd)", color: viColor(s.video_status), cursor: "pointer" }}>
+                  {viStatuses.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </div>
+            </div>
+          ))}
+          {scripts.filter(s => s.script_status === "approved" && s.video_status !== "published").length === 0 && (
+            <div className="text-xs text-center py-8" style={{ color: "var(--t3)" }}>Все ролики опубликованы</div>
+          )}
+        </div>
+      )}
+
+      {/* Published tab */}
+      {tab === "published" && (
+        <div>
+          <div className="flex gap-3 mb-3">
+            <div className="text-center"><div className="text-2xl font-bold font-mono" style={{ color: "var(--gr)" }}>{pub}</div><div className="text-[8px]" style={{ color: "var(--t3)" }}>Опубликовано</div></div>
+            <div className="text-center"><div className="text-2xl font-bold font-mono" style={{ color: "var(--t3)" }}>{c.package - pub}</div><div className="text-[8px]" style={{ color: "var(--t3)" }}>Осталось</div></div>
+            {expectedPub > 0 && <div className="text-center"><div className="text-2xl font-bold font-mono" style={{ color: pubOnTrack ? "var(--gr)" : "var(--rd)" }}>{expectedPub}</div><div className="text-[8px]" style={{ color: "var(--t3)" }}>Ожидается к сегодня</div></div>}
+          </div>
+          <div className="h-2 rounded-full mb-3" style={{ background: "var(--brd)" }}>
+            <div className="h-full rounded-full" style={{ width: `${c.package > 0 ? pub / c.package * 100 : 0}%`, background: "linear-gradient(90deg, var(--cy), var(--gr))" }} />
+          </div>
+          {scripts.filter(s => s.video_status === "published").map(s => (
+            <div key={s.id} className="card mb-1" style={{ padding: "8px 12px" }}>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-mono" style={{ color: "var(--cy)" }}>#{s.order_num}</span>
+                <span className="text-xs flex-1" style={{ color: "var(--t1)" }}>{s.hook_text || s.hook}</span>
+                <input type="date" value={s.pub_date || ""} onChange={e => updateScript(s.id, { pub_date: e.target.value })}
+                  className="text-[10px] font-mono bg-transparent border-none outline-none cursor-pointer" style={{ color: "var(--gr)" }} />
+                <span className="badge" style={{ background: "var(--grd)", color: "var(--gr)" }}>Опубликовано</span>
+              </div>
+            </div>
+          ))}
+          {scripts.filter(s => s.video_status === "published").length === 0 && (
+            <div className="text-xs text-center py-8" style={{ color: "var(--t3)" }}>Нет опубликованных роликов</div>
+          )}
+        </div>
+      )}
 
       {/* Checklist tab */}
       {tab === "plan" && (
