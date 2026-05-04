@@ -9,7 +9,6 @@ const navItems = [
   { id: "clients", path: "/dashboard/clients", icon: "👥", label: "Клиенты" },
   { id: "scripts", path: "/dashboard/scripts", icon: "📝", label: "Сценарии" },
   { id: "montage", path: "/dashboard/montage", icon: "🎬", label: "Монтаж" },
-  { id: "potentials", path: "/dashboard/potentials", icon: "🎯", label: "Потенциальные" },
   { id: "reports", path: "/dashboard/reports", icon: "📊", label: "Отчёты" },
   { id: "team", path: "/dashboard/team", icon: "🤝", label: "Команда" },
   { id: "settings", path: "/dashboard/settings", icon: "⚙️", label: "Настройки" },
