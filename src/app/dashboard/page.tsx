@@ -115,10 +115,21 @@ export default function DashboardPage() {
   function activeMonthOverlapping(clientId: number, ym: string): ClientMonth | null {
     const { start, end } = ymRange(ym);
     const list = monthsForClient(clientId);
-    // Prefer 'active' month that overlaps; otherwise any month overlapping.
+    // 1. Strict overlap: month intersects the selected calendar month.
     const overlapping = list.filter((m) => m.start_date <= end && m.end_date >= start);
-    const active = overlapping.find((m) => m.status === "active");
-    return active || overlapping[overlapping.length - 1] || null;
+    if (overlapping.length > 0) {
+      const active = overlapping.find((m) => m.status === "active");
+      return active || overlapping[overlapping.length - 1];
+    }
+    // 2. Fallback: on current-or-future tabs, also show active months whose deadline
+    //    has passed but client is still in production (the "overdue" case).
+    if (ym >= currentYM) {
+      const overdue = list
+        .filter((m) => m.status === "active" && m.end_date < start)
+        .sort((a, b) => b.month_number - a.month_number)[0];
+      if (overdue) return overdue;
+    }
+    return null;
   }
 
   function publishedForMonth(clientId: number, monthNumber: number): number {
