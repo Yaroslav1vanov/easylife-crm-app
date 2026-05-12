@@ -21,16 +21,8 @@ export type ChecklistTask = {
   status: string; responsible_id: number | null; deadline: string | null;
   responsible?: TeamMember;
 };
-export type ClientMonth = {
-  id: number;
-  client_id: number;
-  month_number: number;
-  start_date: string;
-  end_date: string;
-  package: number;
-  status: "active" | "closed" | "cancelled";
-  closed_at: string | null;
-  note: string | null;
+export type MonthlyPlan = {
+  id: number; client_id: number; year_month: string; planned_videos: number;
 };
 
 const db = {
@@ -125,34 +117,33 @@ const db = {
     return (data || []) as (ChecklistTask & { client: { name: string; surname: string } })[];
   },
 
-  // Client contractual months — one row per (client, month_number)
-  async getClientMonths(sb: SupabaseClient) {
-    const { data, error } = await sb.from("client_months").select("*").order("client_id").order("month_number");
+  // Monthly plans (per-client per-calendar-month video target)
+  async getMonthlyPlans(sb: SupabaseClient) {
+    const { data, error } = await sb.from("monthly_plans").select("*");
     if (error) {
-      // Soft fail when migration not yet applied — dashboard then shows fallback.
-      return { data: [] as ClientMonth[], missing: true as boolean, error };
+      // Table may not exist yet — soft fail so the dashboard still renders defaults.
+      if ((error as any).code === "42P01" || /relation .* does not exist/i.test(error.message || "")) {
+        return [] as MonthlyPlan[];
+      }
+      return [] as MonthlyPlan[];
     }
-    return { data: (data || []) as ClientMonth[], missing: false as boolean, error: null as any };
+    return (data || []) as MonthlyPlan[];
   },
-  async upsertClientMonth(sb: SupabaseClient, row: Partial<ClientMonth> & { client_id: number; month_number: number }) {
+  async upsertMonthlyPlan(sb: SupabaseClient, clientId: number, yearMonth: string, plannedVideos: number) {
     const { error } = await sb
-      .from("client_months")
-      .upsert(row, { onConflict: "client_id,month_number" });
+      .from("monthly_plans")
+      .upsert(
+        { client_id: clientId, year_month: yearMonth, planned_videos: plannedVideos },
+        { onConflict: "client_id,year_month" }
+      );
     return { error };
   },
-  async closeClientMonth(sb: SupabaseClient, id: number) {
-    const today = new Date().toISOString().split("T")[0];
+  async deleteMonthlyPlan(sb: SupabaseClient, clientId: number, yearMonth: string) {
     const { error } = await sb
-      .from("client_months")
-      .update({ status: "closed", closed_at: today })
-      .eq("id", id);
-    return { error };
-  },
-  async reopenClientMonth(sb: SupabaseClient, id: number) {
-    const { error } = await sb
-      .from("client_months")
-      .update({ status: "active", closed_at: null })
-      .eq("id", id);
+      .from("monthly_plans")
+      .delete()
+      .eq("client_id", clientId)
+      .eq("year_month", yearMonth);
     return { error };
   },
 };
