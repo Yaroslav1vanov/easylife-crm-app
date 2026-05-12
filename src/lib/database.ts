@@ -21,9 +21,6 @@ export type ChecklistTask = {
   status: string; responsible_id: number | null; deadline: string | null;
   responsible?: TeamMember;
 };
-export type MonthlyPlan = {
-  id: number; client_id: number; year_month: string; planned_videos: number;
-};
 
 const db = {
   // Profile
@@ -115,36 +112,6 @@ const db = {
       .lt("deadline", today)
       .order("deadline");
     return (data || []) as (ChecklistTask & { client: { name: string; surname: string } })[];
-  },
-
-  // Monthly plans (per-client per-calendar-month video target)
-  async getMonthlyPlans(sb: SupabaseClient) {
-    const { data, error } = await sb.from("monthly_plans").select("*");
-    if (error) {
-      // Table may not exist yet — soft fail so the dashboard still renders defaults.
-      if ((error as any).code === "42P01" || /relation .* does not exist/i.test(error.message || "")) {
-        return [] as MonthlyPlan[];
-      }
-      return [] as MonthlyPlan[];
-    }
-    return (data || []) as MonthlyPlan[];
-  },
-  async upsertMonthlyPlan(sb: SupabaseClient, clientId: number, yearMonth: string, plannedVideos: number) {
-    const { error } = await sb
-      .from("monthly_plans")
-      .upsert(
-        { client_id: clientId, year_month: yearMonth, planned_videos: plannedVideos },
-        { onConflict: "client_id,year_month" }
-      );
-    return { error };
-  },
-  async deleteMonthlyPlan(sb: SupabaseClient, clientId: number, yearMonth: string) {
-    const { error } = await sb
-      .from("monthly_plans")
-      .delete()
-      .eq("client_id", clientId)
-      .eq("year_month", yearMonth);
-    return { error };
   },
 };
 
