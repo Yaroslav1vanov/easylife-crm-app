@@ -25,6 +25,9 @@ CREATE INDEX IF NOT EXISTS idx_client_months_client   ON public.client_months (c
 CREATE INDEX IF NOT EXISTS idx_client_months_status   ON public.client_months (status);
 CREATE INDEX IF NOT EXISTS idx_client_months_period   ON public.client_months (start_date, end_date);
 
+-- Match the access pattern used elsewhere in this DB: RLS off, full grants.
+ALTER TABLE public.client_months DISABLE ROW LEVEL SECURITY;
+
 -- Same access pattern as other tables (RLS off, full grant to anon+authenticated)
 GRANT USAGE ON SCHEMA public TO anon, authenticated;
 GRANT ALL ON TABLE public.client_months TO anon, authenticated;
