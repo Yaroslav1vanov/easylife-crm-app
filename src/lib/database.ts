@@ -15,6 +15,7 @@ export type Script = {
   id: number; client_id: number; month_number: number; order_num: number; hook: string;
   ref_url: string; transcription: string; hook_text: string; body_text: string; cta: string;
   description: string; script_status: string; video_status: string; pub_date: string | null;
+  ready_at: string | null;
 };
 export type ChecklistTask = {
   id: number; client_id: number; phase: string; task_name: string; task_order: number;
@@ -99,7 +100,17 @@ const db = {
     return (data || []) as (Script & { client: { name: string; surname: string } })[];
   },
   async updateScript(sb: SupabaseClient, id: number, updates: Partial<Script>) {
-    const { error } = await sb.from("scripts").update({ ...updates, updated_at: new Date().toISOString() }).eq("id", id);
+    // Auto-stamp ready_at when video transitions into 'ready' (and ready_at not explicitly set).
+    const merged: any = { ...updates, updated_at: new Date().toISOString() };
+    if (updates.video_status === "ready" && updates.ready_at === undefined) {
+      merged.ready_at = new Date().toISOString().slice(0, 10);
+    }
+    // When moving into 'published' — keep ready_at as-is (the day it became ready remains historical).
+    // If pub_date is being set and there's no ready_at yet on the row, set ready_at = pub_date as a fallback.
+    if (updates.video_status === "published" && updates.ready_at === undefined && updates.pub_date) {
+      // Only fills if NULL — Supabase update can't conditionally coalesce, so we'd need a separate read; skip for now.
+    }
+    const { error } = await sb.from("scripts").update(merged).eq("id", id);
     return { error };
   },
   async addMonthScripts(sb: SupabaseClient, clientId: number) {

@@ -289,6 +289,19 @@ function DashboardInner() {
     ).length;
   }
 
+  function madeInCalendarMonth(clientId: number, monthNumber: number, ym: string): number {
+    const { start, end } = ymRange(ym);
+    return allScripts.filter(
+      (s) =>
+        s.client_id === clientId &&
+        s.month_number === monthNumber &&
+        (s.video_status === "ready" || s.video_status === "published") &&
+        typeof s.ready_at === "string" &&
+        s.ready_at >= start &&
+        s.ready_at <= end
+    ).length;
+  }
+
   async function saveCalendarTarget(cmId: number, ym: string, newTarget: number) {
     setSavingPlanId(cmId);
     const cm = clientMonths.find((m) => m.id === cmId);
@@ -536,8 +549,12 @@ function DashboardInner() {
                       На {ymLabel(selectedMonth).split(" ")[0]}
                     </th>
                     <th style={{ padding: "6px 8px", fontWeight: 600, textAlign: "center" }}>
-                      Сделано в {ymLabel(selectedMonth).split(" ")[0]}
+                      Готово в {ymLabel(selectedMonth).split(" ")[0]}
                     </th>
+                    <th style={{ padding: "6px 8px", fontWeight: 600, textAlign: "center" }}>
+                      Опубл. в {ymLabel(selectedMonth).split(" ")[0]}
+                    </th>
+                    <th style={{ padding: "6px 8px", fontWeight: 600, textAlign: "center" }}>Буфер</th>
                     <th style={{ padding: "6px 8px", fontWeight: 600, textAlign: "center" }}>Осталось</th>
                     <th style={{ padding: "6px 8px", fontWeight: 600, textAlign: "center" }}>Всего по M</th>
                     <th style={{ padding: "6px 8px", fontWeight: 600 }}>Прогресс</th>
@@ -548,10 +565,12 @@ function DashboardInner() {
                   {rowsForMonth.map(({ client: c, month: m }) => {
                     const pkg = m.package || 0;
                     const targetMonth = targetForCalendarMonth(m, selectedMonth);
-                    const doneMonth = publishedInCalendarMonth(c.id, m.month_number, selectedMonth);
-                    const remainingMonth = Math.max(0, targetMonth - doneMonth);
+                    const madeMonth = madeInCalendarMonth(c.id, m.month_number, selectedMonth);
+                    const pubMonth = publishedInCalendarMonth(c.id, m.month_number, selectedMonth);
+                    const buffer = madeMonth - pubMonth;
+                    const remainingMonth = Math.max(0, targetMonth - madeMonth);
                     const totalPub = publishedForMonth(c.id, m.month_number);
-                    const pct = targetMonth > 0 ? Math.min(100, Math.round((doneMonth / targetMonth) * 100)) : 0;
+                    const pct = targetMonth > 0 ? Math.min(100, Math.round((madeMonth / targetMonth) * 100)) : 0;
                     const daysLeft = m.end_date ? daysBetween(todayIso, m.end_date) : null;
                     const barColor =
                       pct >= 100 ? "var(--gr)" : pct >= 50 ? "var(--cy)" : pct > 0 ? "var(--or)" : "var(--rd)";
@@ -684,7 +703,19 @@ function DashboardInner() {
                             </span>
                           )}
                         </td>
-                        <td style={{ padding: "8px", textAlign: "center", color: "var(--gr)", fontWeight: 700 }}>{doneMonth}</td>
+                        <td style={{ padding: "8px", textAlign: "center", color: "var(--cy)", fontWeight: 700 }}>{madeMonth}</td>
+                        <td style={{ padding: "8px", textAlign: "center", color: "var(--gr)", fontWeight: 700 }}>{pubMonth}</td>
+                        <td
+                          style={{
+                            padding: "8px",
+                            textAlign: "center",
+                            fontWeight: 700,
+                            color: buffer >= 3 ? "var(--gr)" : buffer >= 1 ? "var(--or)" : "var(--rd)",
+                          }}
+                          title="Готово − Опубликовано. Минимум 3 — буфер тимлида"
+                        >
+                          {buffer >= 0 ? `+${buffer}` : buffer}
+                        </td>
                         <td style={{ padding: "8px", textAlign: "center", color: remainingMonth > 0 ? "var(--or)" : "var(--gr)" }}>{remainingMonth}</td>
                         <td style={{ padding: "8px", textAlign: "center", color: "var(--t2)", fontSize: 10 }}>{totalPub}/{pkg}</td>
                         <td style={{ padding: "8px", minWidth: 120 }}>
@@ -788,8 +819,19 @@ function DashboardInner() {
                       <td style={{ padding: "10px 8px", textAlign: "center", color: "var(--cy)" }}>
                         {rowsForMonth.reduce((s, r) => s + targetForCalendarMonth(r.month, selectedMonth), 0)}
                       </td>
+                      <td style={{ padding: "10px 8px", textAlign: "center", color: "var(--cy)" }}>
+                        {rowsForMonth.reduce((s, r) => s + madeInCalendarMonth(r.client.id, r.month.month_number, selectedMonth), 0)}
+                      </td>
                       <td style={{ padding: "10px 8px", textAlign: "center", color: "var(--gr)" }}>
                         {rowsForMonth.reduce((s, r) => s + publishedInCalendarMonth(r.client.id, r.month.month_number, selectedMonth), 0)}
+                      </td>
+                      <td style={{ padding: "10px 8px", textAlign: "center", color: "var(--t2)" }}>
+                        {(() => {
+                          const totalMade = rowsForMonth.reduce((s, r) => s + madeInCalendarMonth(r.client.id, r.month.month_number, selectedMonth), 0);
+                          const totalPubMonth = rowsForMonth.reduce((s, r) => s + publishedInCalendarMonth(r.client.id, r.month.month_number, selectedMonth), 0);
+                          const buf = totalMade - totalPubMonth;
+                          return buf >= 0 ? `+${buf}` : `${buf}`;
+                        })()}
                       </td>
                       <td style={{ padding: "10px 8px", textAlign: "center", color: "var(--or)" }}>
                         {Math.max(
@@ -800,7 +842,7 @@ function DashboardInner() {
                               Math.max(
                                 0,
                                 targetForCalendarMonth(r.month, selectedMonth) -
-                                  publishedInCalendarMonth(r.client.id, r.month.month_number, selectedMonth)
+                                  madeInCalendarMonth(r.client.id, r.month.month_number, selectedMonth)
                               ),
                             0
                           )
@@ -814,10 +856,10 @@ function DashboardInner() {
             </div>
           )}
           <div style={{ marginTop: 10, fontSize: 10, color: "var(--t3)" }}>
-            «Пакет» — общий размер контрактного месяца. «На {ymLabel(selectedMonth).split(" ")[0]}» — таргет именно в этом календарном месяце
-            (автоматом пропорционально дням; клик — задай свой). «Сделано» — published с pub_date в этом месяце.
-            «Осталось» = target − сделано. «Всего по M» — суммарный published за весь контрактный месяц.
-            Кнопка «✓ Закрыть» — пометить M закрытым. «+ М(N+1)» — открыть следующий контрактный месяц.
+            «Пакет» — размер контрактного месяца. «На X» — таргет на этот календарный месяц (авто-пропорция, клик — override).
+            <b>«Готово в X»</b> = ролики ready+published, у которых ready_at в этом месяце (то есть когда тимлид смонтировал).
+            <b>«Опубл. в X»</b> = published с pub_date в этом месяце. <b>«Буфер»</b> = Готово − Опубл.; норма ≥ +3.
+            «Осталось» = На X − Готово. «Всего по M» — итог published за весь контракт.
           </div>
         </div>
       )}
