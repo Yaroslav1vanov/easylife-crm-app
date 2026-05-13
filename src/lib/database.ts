@@ -117,6 +117,29 @@ const db = {
     const { error } = await sb.rpc("add_month_scripts", { p_client_id: clientId });
     return { error };
   },
+  // Insert N empty scripts for a (client, month_number) with given count. Used when
+  // opening a new contractual month with a package size different from clients.package.
+  async addScriptsForMonth(sb: SupabaseClient, clientId: number, monthNumber: number, count: number) {
+    if (count <= 0) return { error: null };
+    const rows = Array.from({ length: count }, (_, i) => ({
+      client_id: clientId,
+      month_number: monthNumber,
+      order_num: i + 1,
+      hook: "",
+      ref_url: "",
+      transcription: "",
+      hook_text: "",
+      body_text: "",
+      cta: "",
+      description: "",
+      script_status: "notStarted",
+      video_status: "notStarted",
+      pub_date: null as string | null,
+      ready_at: null as string | null,
+    }));
+    const { error } = await sb.from("scripts").insert(rows);
+    return { error };
+  },
 
   // Checklist
   async getChecklist(sb: SupabaseClient, clientId: number) {

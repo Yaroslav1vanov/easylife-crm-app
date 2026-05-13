@@ -76,6 +76,9 @@ export default function ClientDetailPage() {
   const ready = scripts.filter(s => s.video_status === "ready").length;
   const editVids = scripts.filter(s => s.video_status === "inProgress" && s.script_status === "approved").length;
   const scrApp = scripts.filter(s => s.script_status === "approved").length;
+  // Total scripts across all contract months for this client (replaces c.package as the
+  // denominator for cards/progress, so a 2-month client shows 53/60 not 53/30).
+  const totalScripts = scripts.length;
   const doneTasks = checklist.filter(t => t.status === "done").length;
   const pct = checklist.length > 0 ? Math.round(doneTasks / checklist.length * 100) : 0;
   const months = Array.from(new Set(scripts.map(s => s.month_number))).sort();
@@ -96,7 +99,7 @@ export default function ClientDetailPage() {
   if (c.first_pub_date) {
     const daysSinceFirstPub = daysDiff(c.first_pub_date);
     if (daysSinceFirstPub >= 0) {
-      expectedPub = Math.min(daysSinceFirstPub + 1, c.package); // 1 reel per day
+      expectedPub = Math.min(daysSinceFirstPub + 1, totalScripts || c.package); // 1 reel per day, capped by total scripts
       pubOnTrack = pub >= expectedPub;
     }
   }
@@ -127,7 +130,7 @@ export default function ClientDetailPage() {
     { id: "plan", label: `Чеклист (${pct}%)` },
     { id: "scripts", label: `Сценарии (${scrApp}/${scripts.length})` },
     { id: "montage", label: `Монтаж (${inMontage + reviewVids + ready})` },
-    { id: "published", label: `Опубликовано (${pub}/${c.package})` },
+    { id: "published", label: `Опубликовано (${pub}/${totalScripts})` },
   ];
 
   return (
@@ -267,7 +270,7 @@ export default function ClientDetailPage() {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-[9px] font-bold tracking-wider mb-1.5" style={{ color: "var(--t1)" }}>МОНТАЖ</div>
-                {[{ l: "Готово", v: ready, c: "var(--cy)" }, { l: "На утвержд.", v: reviewVids, c: "var(--yl)" }, { l: "В работе", v: inMontage, c: "var(--or)" }, { l: "Осталось", v: Math.max(0, c.package - pub - ready - inMontage - reviewVids), c: "var(--t3)" }].map((s, i) => (
+                {[{ l: "Готово", v: ready, c: "var(--cy)" }, { l: "На утвержд.", v: reviewVids, c: "var(--yl)" }, { l: "В работе", v: inMontage, c: "var(--or)" }, { l: "Осталось", v: Math.max(0, totalScripts - pub - ready - inMontage - reviewVids), c: "var(--t3)" }].map((s, i) => (
                   <div key={i} className="flex justify-between" style={{ padding: "1px 0" }}>
                     <span className="text-[9px]" style={{ color: "var(--t2)" }}>{s.l}</span>
                     <span className="text-[10px] font-bold font-mono" style={{ color: s.c }}>{s.v}</span>
@@ -294,7 +297,7 @@ export default function ClientDetailPage() {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-[9px] font-bold tracking-wider mb-1.5" style={{ color: "var(--t1)" }}>РОЛИКИ</div>
-                {[{ l: "Опубликовано", v: pub, c: "var(--gr)" }, { l: "Ожидается", v: expectedPub, c: pubOnTrack ? "var(--gr)" : "var(--rd)" }, { l: "Осталось", v: c.package - pub, c: "var(--t3)" }].map((s, i) => (
+                {[{ l: "Опубликовано", v: pub, c: "var(--gr)" }, { l: "Ожидается", v: expectedPub, c: pubOnTrack ? "var(--gr)" : "var(--rd)" }, { l: "Осталось", v: totalScripts - pub, c: "var(--t3)" }].map((s, i) => (
                   <div key={i} className="flex justify-between" style={{ padding: "1px 0" }}>
                     <span className="text-[9px]" style={{ color: "var(--t2)" }}>{s.l}</span>
                     <span className="text-[10px] font-bold font-mono" style={{ color: s.c }}>{s.v}</span>
@@ -514,7 +517,7 @@ export default function ClientDetailPage() {
               { l: "В работе", v: inMontage, c: "var(--or)" },
               { l: "На утверждении", v: reviewVids, c: "var(--yl)" },
               { l: "Готово", v: ready, c: "var(--cy)" },
-              { l: "Осталось", v: Math.max(0, c.package - pub - ready - inMontage - reviewVids), c: "var(--t3)" },
+              { l: "Осталось", v: Math.max(0, totalScripts - pub - ready - inMontage - reviewVids), c: "var(--t3)" },
             ].map((s, i) => (
               <div key={i} className="text-center flex-1 py-2 rounded-lg" style={{ background: `${s.c}08`, border: `1px solid ${s.c}20` }}>
                 <div className="text-lg font-bold font-mono" style={{ color: s.c }}>{s.v}</div>
@@ -546,7 +549,7 @@ export default function ClientDetailPage() {
           <div className="flex gap-3 mb-3 pb-3" style={{ borderBottom: "1px solid var(--brd)" }}>
             {[
               { l: "Опубликовано", v: pub, c: "var(--gr)" },
-              { l: "Осталось", v: c.package - pub, c: "var(--t3)" },
+              { l: "Осталось", v: totalScripts - pub, c: "var(--t3)" },
               ...(expectedPub > 0 ? [{ l: "Ожидается", v: expectedPub, c: pubOnTrack ? "var(--gr)" : "var(--rd)" }] : []),
               ...(expectedPub > 0 ? [{ l: pubOnTrack ? "✓ В норме" : "Отставание", v: pubOnTrack ? 0 : expectedPub - pub, c: pubOnTrack ? "var(--gr)" : "var(--rd)" }] : []),
             ].map((s, i) => (
@@ -557,7 +560,7 @@ export default function ClientDetailPage() {
             ))}
           </div>
           <div className="h-2 rounded-full mb-3" style={{ background: "var(--brd)" }}>
-            <div className="h-full rounded-full" style={{ width: `${c.package > 0 ? pub / c.package * 100 : 0}%`, background: "linear-gradient(90deg, var(--cy), var(--gr))" }} />
+            <div className="h-full rounded-full" style={{ width: `${totalScripts > 0 ? pub / totalScripts * 100 : 0}%`, background: "linear-gradient(90deg, var(--cy), var(--gr))" }} />
           </div>
           {scripts.filter(s => s.video_status === "published").map(s => {
             const isExp = expandedScript === s.id;

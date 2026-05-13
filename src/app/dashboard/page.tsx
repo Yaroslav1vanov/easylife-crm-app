@@ -255,8 +255,20 @@ function DashboardInner() {
       alert(`Не удалось создать месяц: ${error.message || error}`);
       return;
     }
+    // Also create the N empty scripts so the client page (and tim leads) see them.
+    const { error: scriptsErr } = await db.addScriptsForMonth(supabase, openNewFor.clientId, openNewFor.nextN, pkg);
+    if (scriptsErr) {
+      alert(`М создан, но не удалось создать ${pkg} скриптов: ${scriptsErr.message || scriptsErr}`);
+    }
     const cmResult = await db.getClientMonths(supabase);
     setClientMonths(cmResult?.data || []);
+    // Refresh scripts so card totals update
+    const scripts: Script[] = [];
+    for (const c of clients) {
+      const s = await db.getScripts(supabase, c.id);
+      if (s) scripts.push(...s);
+    }
+    setAllScripts(scripts);
     setOpenNewFor(null);
   }
 
