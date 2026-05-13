@@ -70,6 +70,7 @@ const db = {
     name: string; surname?: string; niche?: string; package?: number;
     montager_id?: number; teamlead_id?: number; start_date?: string; pub_date?: string;
   }) {
+    const startDate = params.start_date || new Date().toISOString().split("T")[0];
     const { data, error } = await sb.rpc("create_client_full", {
       p_name: params.name,
       p_surname: params.surname || "",
@@ -77,9 +78,18 @@ const db = {
       p_package: params.package || 30,
       p_montager_id: params.montager_id || null,
       p_teamlead_id: params.teamlead_id || null,
-      p_start_date: params.start_date || new Date().toISOString().split("T")[0],
+      p_start_date: startDate,
       p_pub_date: params.pub_date || null,
     });
+    if (error || !data) return { clientId: data, error };
+    // Auto-set the onboarding deadlines: 10 days after start (unboxing phase).
+    const start = new Date(startDate);
+    const plus10 = new Date(start.getTime() + 10 * 86400000).toISOString().slice(0, 10);
+    await sb.from("clients").update({
+      first_pub_date: params.pub_date || plus10,
+      scripts_deadline: plus10,
+      videos_deadline: plus10,
+    }).eq("id", data);
     return { clientId: data, error };
   },
   async updateClient(sb: SupabaseClient, id: number, updates: Partial<Client>) {
