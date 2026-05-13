@@ -270,6 +270,59 @@ function DashboardInner() {
     setOpenNewFor(null);
   }
 
+  function targetForCalendarMonth(cm: ClientMonth, ym: string): number {
+    if (cm.calendar_split && cm.calendar_split[ym] !== undefined && cm.calendar_split[ym] !== null) {
+      return cm.calendar_split[ym];
+    }
+    const { start: monthStart, end: monthEnd } = ymRange(ym);
+    const cStart = cm.start_date;
+    const cEnd = cm.end_date;
+    const overlapStart = monthStart > cStart ? monthStart : cStart;
+    const overlapEnd = monthEnd < cEnd ? monthEnd : cEnd;
+    if (overlapStart > overlapEnd) return 0;
+    const overlapDays = daysBetween(overlapStart, overlapEnd) + 1;
+    const totalDays = Math.max(1, daysBetween(cStart, cEnd) + 1);
+    const pkg = cm.package || 0;
+    return Math.round((pkg * overlapDays) / totalDays);
+  }
+
+  function publishedInCalendarMonth(clientId: number, monthNumber: number, ym: string): number {
+    const { start, end } = ymRange(ym);
+    return allScripts.filter(
+      (s) =>
+        s.client_id === clientId &&
+        s.month_number === monthNumber &&
+        s.video_status === "published" &&
+        typeof s.pub_date === "string" &&
+        s.pub_date >= start &&
+        s.pub_date <= end
+    ).length;
+  }
+
+  async function saveCalendarTarget(cmId: number, ym: string, newTarget: number) {
+    setSavingPlanId(cmId);
+    const cm = clientMonths.find((m) => m.id === cmId);
+    if (!cm) {
+      setSavingPlanId(null);
+      return;
+    }
+    const split = { ...(cm.calendar_split || {}), [ym]: newTarget };
+    const { error } = await db.upsertClientMonth(supabase, {
+      id: cm.id,
+      client_id: cm.client_id,
+      month_number: cm.month_number,
+      calendar_split: split,
+    } as any);
+    if (error) {
+      alert(`Не удалось сохранить target: ${error.message || error}`);
+    } else {
+      const cmResult = await db.getClientMonths(supabase);
+      setClientMonths(cmResult?.data || []);
+    }
+    setSavingPlanId(null);
+    setEditingPlanId(null);
+  }
+
   const publishedForMonth = (clientId: number, monthNumber: number): number =>
     allScripts.filter((s) => s.client_id === clientId && s.month_number === monthNumber && s.video_status === "published").length;
   const readyForMonth = (clientId: number, monthNumber: number): number =>
@@ -303,8 +356,8 @@ function DashboardInner() {
   } else {
     kpiClients = rowsForMonth.length;
     kpiClientsTag = `активных в ${ymLabel(selectedMonth)}`;
-    kpiTotalPlan = rowsForMonth.reduce((s, r) => s + (r.month.package || 0), 0);
-    kpiTotalPub = rowsForMonth.reduce((s, r) => s + publishedForMonth(r.client.id, r.month.month_number), 0);
+    kpiTotalPlan = rowsForMonth.reduce((s, r) => s + targetForCalendarMonth(r.month, selectedMonth), 0);
+    kpiTotalPub = rowsForMonth.reduce((s, r) => s + publishedInCalendarMonth(r.client.id, r.month.month_number, selectedMonth), 0);
     kpiInMontage = rowsForMonth.reduce((s, r) => s + inMontageForMonth(r.client.id, r.month.month_number), 0);
     kpiReady = rowsForMonth.reduce((s, r) => s + readyForMonth(r.client.id, r.month.month_number), 0);
   }
@@ -491,26 +544,33 @@ function DashboardInner() {
                   <tr style={{ color: "var(--t2)", textAlign: "left" }}>
                     <th style={{ padding: "6px 8px", fontWeight: 600 }}>Клиент</th>
                     <th style={{ padding: "6px 8px", fontWeight: 600 }}>Тимлид</th>
+                    <th style={{ padding: "6px 8px", fontWeight: 600, textAlign: "center" }}>Пакет</th>
                     <th style={{ padding: "6px 8px", fontWeight: 600, textAlign: "center" }}>М-№</th>
                     <th style={{ padding: "6px 8px", fontWeight: 600 }}>Период</th>
-                    <th style={{ padding: "6px 8px", fontWeight: 600, textAlign: "center" }}>План</th>
-                    <th style={{ padding: "6px 8px", fontWeight: 600, textAlign: "center" }}>Сделано</th>
-                    <th style={{ padding: "6px 8px", fontWeight: 600, textAlign: "center" }}>Готово</th>
-                    <th style={{ padding: "6px 8px", fontWeight: 600, textAlign: "center" }}>Монтаж</th>
+                    <th style={{ padding: "6px 8px", fontWeight: 600, textAlign: "center" }}>
+                      На {ymLabel(selectedMonth).split(" ")[0]}
+                    </th>
+                    <th style={{ padding: "6px 8px", fontWeight: 600, textAlign: "center" }}>
+                      Сделано в {ymLabel(selectedMonth).split(" ")[0]}
+                    </th>
+                    <th style={{ padding: "6px 8px", fontWeight: 600, textAlign: "center" }}>Осталось</th>
+                    <th style={{ padding: "6px 8px", fontWeight: 600, textAlign: "center" }}>Всего по M</th>
                     <th style={{ padding: "6px 8px", fontWeight: 600 }}>Прогресс</th>
                     <th style={{ padding: "6px 8px", fontWeight: 600, textAlign: "center" }}>Действия</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rowsForMonth.map(({ client: c, month: m }) => {
-                    const pub = publishedForMonth(c.id, m.month_number);
-                    const ready = readyForMonth(c.id, m.month_number);
-                    const montage = inMontageForMonth(c.id, m.month_number);
                     const pkg = m.package || 0;
-                    const pct = pkg > 0 ? Math.min(100, Math.round((pub / pkg) * 100)) : 0;
+                    const targetMonth = targetForCalendarMonth(m, selectedMonth);
+                    const doneMonth = publishedInCalendarMonth(c.id, m.month_number, selectedMonth);
+                    const remainingMonth = Math.max(0, targetMonth - doneMonth);
+                    const totalPub = publishedForMonth(c.id, m.month_number);
+                    const pct = targetMonth > 0 ? Math.min(100, Math.round((doneMonth / targetMonth) * 100)) : 0;
                     const daysLeft = m.end_date ? daysBetween(todayIso, m.end_date) : null;
                     const barColor =
                       pct >= 100 ? "var(--gr)" : pct >= 50 ? "var(--cy)" : pct > 0 ? "var(--or)" : "var(--rd)";
+                    const isCustomTarget = !!(m.calendar_split && m.calendar_split[selectedMonth] !== undefined && m.calendar_split[selectedMonth] !== null);
                     let statusBadge: React.ReactNode = (
                       <span style={{ color: "var(--t2)" }}>{daysLeft !== null ? `${daysLeft}д` : ""}</span>
                     );
@@ -527,21 +587,20 @@ function DashboardInner() {
                           {c.name} {c.surname || ""}
                         </td>
                         <td style={{ padding: "8px", color: "var(--t2)" }}>{c.teamlead?.name || "—"}</td>
-                        <td style={{ padding: "8px", textAlign: "center", color: "var(--cy)", fontWeight: 700 }}>М{m.month_number}</td>
-                        <td style={{ padding: "8px", color: "var(--t2)" }}>
-                          {fmtDate(m.start_date)} → {fmtDate(m.end_date)} <span style={{ marginLeft: 6 }}>{statusBadge}</span>
-                        </td>
-                        <td style={{ padding: "8px", textAlign: "center" }}>
-                          {editingPlanId === m.id ? (
+                        <td
+                          style={{ padding: "8px", textAlign: "center" }}
+                          title="Размер пакета этого контрактного месяца"
+                        >
+                          {editingPlanId === m.id && editingPlanValue.startsWith("pkg:") ? (
                             <input
                               type="number"
                               autoFocus
                               min={0}
                               max={999}
-                              value={editingPlanValue}
-                              onChange={(e) => setEditingPlanValue(e.target.value)}
+                              value={editingPlanValue.slice(4)}
+                              onChange={(e) => setEditingPlanValue("pkg:" + e.target.value)}
                               onBlur={() => {
-                                const n = parseInt(editingPlanValue, 10);
+                                const n = parseInt(editingPlanValue.slice(4), 10);
                                 if (!Number.isNaN(n) && n !== pkg) savePlan(m.id, n);
                                 else setEditingPlanId(null);
                               }}
@@ -550,7 +609,60 @@ function DashboardInner() {
                                 if (e.key === "Escape") setEditingPlanId(null);
                               }}
                               style={{
-                                width: 56,
+                                width: 50,
+                                padding: "2px 6px",
+                                borderRadius: 4,
+                                border: "1px solid var(--cy)",
+                                background: "var(--bg2)",
+                                color: "var(--t1)",
+                                fontSize: 12,
+                                textAlign: "center",
+                              }}
+                            />
+                          ) : (
+                            <span
+                              onClick={() => {
+                                setEditingPlanId(m.id);
+                                setEditingPlanValue("pkg:" + String(pkg));
+                              }}
+                              style={{
+                                cursor: "pointer",
+                                padding: "2px 6px",
+                                borderRadius: 4,
+                                fontWeight: 700,
+                                color: "var(--t1)",
+                                background: "var(--bg2)",
+                              }}
+                              title="Кликни — отредактируй пакет контрактного месяца"
+                            >
+                              {pkg}
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ padding: "8px", textAlign: "center", color: "var(--cy)", fontWeight: 700 }}>М{m.month_number}</td>
+                        <td style={{ padding: "8px", color: "var(--t2)" }}>
+                          {fmtDate(m.start_date)} → {fmtDate(m.end_date)} <span style={{ marginLeft: 6 }}>{statusBadge}</span>
+                        </td>
+                        <td style={{ padding: "8px", textAlign: "center" }}>
+                          {editingPlanId === m.id && editingPlanValue.startsWith("tgt:") ? (
+                            <input
+                              type="number"
+                              autoFocus
+                              min={0}
+                              max={999}
+                              value={editingPlanValue.slice(4)}
+                              onChange={(e) => setEditingPlanValue("tgt:" + e.target.value)}
+                              onBlur={() => {
+                                const n = parseInt(editingPlanValue.slice(4), 10);
+                                if (!Number.isNaN(n) && n !== targetMonth) saveCalendarTarget(m.id, selectedMonth, n);
+                                else setEditingPlanId(null);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                                if (e.key === "Escape") setEditingPlanId(null);
+                              }}
+                              style={{
+                                width: 50,
                                 padding: "2px 6px",
                                 borderRadius: 4,
                                 border: "1px solid var(--cy)",
@@ -566,7 +678,7 @@ function DashboardInner() {
                             <span
                               onClick={() => {
                                 setEditingPlanId(m.id);
-                                setEditingPlanValue(String(pkg));
+                                setEditingPlanValue("tgt:" + String(targetMonth));
                               }}
                               style={{
                                 cursor: "pointer",
@@ -574,17 +686,22 @@ function DashboardInner() {
                                 borderRadius: 4,
                                 fontWeight: 700,
                                 color: "var(--t1)",
-                                background: "var(--bg2)",
+                                background: isCustomTarget ? "rgba(124,92,252,0.15)" : "var(--bg2)",
+                                border: isCustomTarget ? "1px dashed var(--pu, #7c5cfc)" : "none",
                               }}
-                              title="Кликни — отредактируй"
+                              title={
+                                isCustomTarget
+                                  ? "Ручной override на этот календарный месяц. Кликни — измени."
+                                  : "Авто: пропорционально дням контракта. Кликни — задай свой target."
+                              }
                             >
-                              {pkg}
+                              {targetMonth}
                             </span>
                           )}
                         </td>
-                        <td style={{ padding: "8px", textAlign: "center", color: "var(--gr)", fontWeight: 700 }}>{pub}</td>
-                        <td style={{ padding: "8px", textAlign: "center", color: "var(--cy)" }}>{ready}</td>
-                        <td style={{ padding: "8px", textAlign: "center", color: "var(--or)" }}>{montage}</td>
+                        <td style={{ padding: "8px", textAlign: "center", color: "var(--gr)", fontWeight: 700 }}>{doneMonth}</td>
+                        <td style={{ padding: "8px", textAlign: "center", color: remainingMonth > 0 ? "var(--or)" : "var(--gr)" }}>{remainingMonth}</td>
+                        <td style={{ padding: "8px", textAlign: "center", color: "var(--t2)", fontSize: 10 }}>{totalPub}/{pkg}</td>
                         <td style={{ padding: "8px", minWidth: 120 }}>
                           <div className="flex items-center gap-2">
                             <div style={{ flex: 1, height: 6, borderRadius: 3, background: "var(--brd)", overflow: "hidden" }}>
@@ -677,11 +794,45 @@ function DashboardInner() {
                     );
                   })}
                 </tbody>
+                {rowsForMonth.length > 0 && (
+                  <tfoot>
+                    <tr style={{ borderTop: "2px solid var(--brd)", color: "var(--t1)", fontWeight: 700 }}>
+                      <td style={{ padding: "10px 8px" }} colSpan={5}>
+                        ИТОГО за {ymLabel(selectedMonth)}
+                      </td>
+                      <td style={{ padding: "10px 8px", textAlign: "center", color: "var(--cy)" }}>
+                        {rowsForMonth.reduce((s, r) => s + targetForCalendarMonth(r.month, selectedMonth), 0)}
+                      </td>
+                      <td style={{ padding: "10px 8px", textAlign: "center", color: "var(--gr)" }}>
+                        {rowsForMonth.reduce((s, r) => s + publishedInCalendarMonth(r.client.id, r.month.month_number, selectedMonth), 0)}
+                      </td>
+                      <td style={{ padding: "10px 8px", textAlign: "center", color: "var(--or)" }}>
+                        {Math.max(
+                          0,
+                          rowsForMonth.reduce(
+                            (s, r) =>
+                              s +
+                              Math.max(
+                                0,
+                                targetForCalendarMonth(r.month, selectedMonth) -
+                                  publishedInCalendarMonth(r.client.id, r.month.month_number, selectedMonth)
+                              ),
+                            0
+                          )
+                        )}
+                      </td>
+                      <td colSpan={3}></td>
+                    </tr>
+                  </tfoot>
+                )}
               </table>
             </div>
           )}
           <div style={{ marginTop: 10, fontSize: 10, color: "var(--t3)" }}>
-            Клик по «План» → редактирование. Кнопка «✓ Закрыть» — пометить М закрытым. «+ М(N+1)» — открыть следующий контрактный месяц.
+            «Пакет» — общий размер контрактного месяца. «На {ymLabel(selectedMonth).split(" ")[0]}» — таргет именно в этом календарном месяце
+            (автоматом пропорционально дням; клик — задай свой). «Сделано» — published с pub_date в этом месяце.
+            «Осталось» = target − сделано. «Всего по M» — суммарный published за весь контрактный месяц.
+            Кнопка «✓ Закрыть» — пометить M закрытым. «+ М(N+1)» — открыть следующий контрактный месяц.
           </div>
         </div>
       )}

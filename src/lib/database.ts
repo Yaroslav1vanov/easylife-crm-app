@@ -31,6 +31,7 @@ export type ClientMonth = {
   status: "active" | "closed" | "cancelled";
   closed_at: string | null;
   note: string | null;
+  calendar_split: Record<string, number> | null;
 };
 
 const db = {
