@@ -200,17 +200,7 @@ function DashboardInner() {
 
   async function savePlan(cmId: number, newPkg: number) {
     setSavingPlanId(cmId);
-    const cm = clientMonths.find((m) => m.id === cmId);
-    if (!cm) {
-      setSavingPlanId(null);
-      return;
-    }
-    const { error } = await db.upsertClientMonth(supabase, {
-      id: cm.id,
-      client_id: cm.client_id,
-      month_number: cm.month_number,
-      package: newPkg,
-    } as any);
+    const { error } = await db.updateClientMonth(supabase, cmId, { package: newPkg });
     if (error) {
       alert(`Не удалось сохранить план: ${error.message || error}`);
     } else {
@@ -307,12 +297,7 @@ function DashboardInner() {
       return;
     }
     const split = { ...(cm.calendar_split || {}), [ym]: newTarget };
-    const { error } = await db.upsertClientMonth(supabase, {
-      id: cm.id,
-      client_id: cm.client_id,
-      month_number: cm.month_number,
-      calendar_split: split,
-    } as any);
+    const { error } = await db.updateClientMonth(supabase, cmId, { calendar_split: split });
     if (error) {
       alert(`Не удалось сохранить target: ${error.message || error}`);
     } else {

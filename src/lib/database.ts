@@ -141,6 +141,10 @@ const db = {
       .upsert(row, { onConflict: "client_id,month_number" });
     return { error };
   },
+  async updateClientMonth(sb: SupabaseClient, id: number, fields: Partial<ClientMonth>) {
+    const { error } = await sb.from("client_months").update(fields).eq("id", id);
+    return { error };
+  },
   async closeClientMonth(sb: SupabaseClient, id: number) {
     const today = new Date().toISOString().split("T")[0];
     const { error } = await sb
