@@ -99,6 +99,15 @@ function DashboardInner() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [showAllViolations, setShowAllViolations] = useState(false);
+  const [editingPlanId, setEditingPlanId] = useState<number | null>(null);
+  const [editingPlanValue, setEditingPlanValue] = useState<string>("");
+  const [savingPlanId, setSavingPlanId] = useState<number | null>(null);
+  const [openNewFor, setOpenNewFor] = useState<{ clientId: number; nextN: number; defaultStart: string; defaultPkg: number } | null>(null);
+  const [openNewForm, setOpenNewForm] = useState<{ start_date: string; end_date: string; pkg: string }>({
+    start_date: "",
+    end_date: "",
+    pkg: "30",
+  });
   const router = useRouter();
   const supabase = createClient();
   const today = new Date();
@@ -188,6 +197,78 @@ function DashboardInner() {
     }
     return null;
   };
+
+  async function savePlan(cmId: number, newPkg: number) {
+    setSavingPlanId(cmId);
+    const cm = clientMonths.find((m) => m.id === cmId);
+    if (!cm) {
+      setSavingPlanId(null);
+      return;
+    }
+    const { error } = await db.upsertClientMonth(supabase, {
+      id: cm.id,
+      client_id: cm.client_id,
+      month_number: cm.month_number,
+      package: newPkg,
+    } as any);
+    if (error) {
+      alert(`Не удалось сохранить план: ${error.message || error}`);
+    } else {
+      const cmResult = await db.getClientMonths(supabase);
+      setClientMonths(cmResult?.data || []);
+    }
+    setSavingPlanId(null);
+    setEditingPlanId(null);
+  }
+
+  async function closeMonth(cmId: number) {
+    if (!confirm("Закрыть этот контрактный месяц? Статус станет 'closed'.")) return;
+    const { error } = await db.closeClientMonth(supabase, cmId);
+    if (error) {
+      alert(`Ошибка: ${error.message || error}`);
+      return;
+    }
+    const cmResult = await db.getClientMonths(supabase);
+    setClientMonths(cmResult?.data || []);
+  }
+
+  async function reopenMonth(cmId: number) {
+    if (!confirm("Снова открыть этот месяц (status='active')?")) return;
+    const { error } = await db.reopenClientMonth(supabase, cmId);
+    if (error) {
+      alert(`Ошибка: ${error.message || error}`);
+      return;
+    }
+    const cmResult = await db.getClientMonths(supabase);
+    setClientMonths(cmResult?.data || []);
+  }
+
+  async function createNextMonth() {
+    if (!openNewFor) return;
+    const start = openNewForm.start_date || openNewFor.defaultStart;
+    let end = openNewForm.end_date;
+    if (!end) {
+      const d = new Date(start);
+      d.setDate(d.getDate() + 30);
+      end = d.toISOString().slice(0, 10);
+    }
+    const pkg = parseInt(openNewForm.pkg, 10) || openNewFor.defaultPkg;
+    const { error } = await db.upsertClientMonth(supabase, {
+      client_id: openNewFor.clientId,
+      month_number: openNewFor.nextN,
+      start_date: start,
+      end_date: end,
+      package: pkg,
+      status: "active",
+    } as any);
+    if (error) {
+      alert(`Не удалось создать месяц: ${error.message || error}`);
+      return;
+    }
+    const cmResult = await db.getClientMonths(supabase);
+    setClientMonths(cmResult?.data || []);
+    setOpenNewFor(null);
+  }
 
   const publishedForMonth = (clientId: number, monthNumber: number): number =>
     allScripts.filter((s) => s.client_id === clientId && s.month_number === monthNumber && s.video_status === "published").length;
@@ -417,6 +498,7 @@ function DashboardInner() {
                     <th style={{ padding: "6px 8px", fontWeight: 600, textAlign: "center" }}>Готово</th>
                     <th style={{ padding: "6px 8px", fontWeight: 600, textAlign: "center" }}>Монтаж</th>
                     <th style={{ padding: "6px 8px", fontWeight: 600 }}>Прогресс</th>
+                    <th style={{ padding: "6px 8px", fontWeight: 600, textAlign: "center" }}>Действия</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -449,7 +531,57 @@ function DashboardInner() {
                         <td style={{ padding: "8px", color: "var(--t2)" }}>
                           {fmtDate(m.start_date)} → {fmtDate(m.end_date)} <span style={{ marginLeft: 6 }}>{statusBadge}</span>
                         </td>
-                        <td style={{ padding: "8px", textAlign: "center", fontWeight: 700, color: "var(--t1)" }}>{pkg}</td>
+                        <td style={{ padding: "8px", textAlign: "center" }}>
+                          {editingPlanId === m.id ? (
+                            <input
+                              type="number"
+                              autoFocus
+                              min={0}
+                              max={999}
+                              value={editingPlanValue}
+                              onChange={(e) => setEditingPlanValue(e.target.value)}
+                              onBlur={() => {
+                                const n = parseInt(editingPlanValue, 10);
+                                if (!Number.isNaN(n) && n !== pkg) savePlan(m.id, n);
+                                else setEditingPlanId(null);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                                if (e.key === "Escape") setEditingPlanId(null);
+                              }}
+                              style={{
+                                width: 56,
+                                padding: "2px 6px",
+                                borderRadius: 4,
+                                border: "1px solid var(--cy)",
+                                background: "var(--bg2)",
+                                color: "var(--t1)",
+                                fontSize: 12,
+                                textAlign: "center",
+                              }}
+                            />
+                          ) : savingPlanId === m.id ? (
+                            <span style={{ color: "var(--t3)" }}>...</span>
+                          ) : (
+                            <span
+                              onClick={() => {
+                                setEditingPlanId(m.id);
+                                setEditingPlanValue(String(pkg));
+                              }}
+                              style={{
+                                cursor: "pointer",
+                                padding: "2px 6px",
+                                borderRadius: 4,
+                                fontWeight: 700,
+                                color: "var(--t1)",
+                                background: "var(--bg2)",
+                              }}
+                              title="Кликни — отредактируй"
+                            >
+                              {pkg}
+                            </span>
+                          )}
+                        </td>
                         <td style={{ padding: "8px", textAlign: "center", color: "var(--gr)", fontWeight: 700 }}>{pub}</td>
                         <td style={{ padding: "8px", textAlign: "center", color: "var(--cy)" }}>{ready}</td>
                         <td style={{ padding: "8px", textAlign: "center", color: "var(--or)" }}>{montage}</td>
@@ -463,6 +595,84 @@ function DashboardInner() {
                             </span>
                           </div>
                         </td>
+                        <td style={{ padding: "8px", textAlign: "center", whiteSpace: "nowrap" }}>
+                          {m.status === "active" ? (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                closeMonth(m.id);
+                              }}
+                              style={{
+                                border: "1px solid var(--gr)",
+                                background: "rgba(62,207,142,0.1)",
+                                color: "var(--gr)",
+                                padding: "3px 8px",
+                                borderRadius: 4,
+                                fontSize: 10,
+                                fontWeight: 600,
+                                cursor: "pointer",
+                              }}
+                              title="Закрыть месяц (status=closed)"
+                            >
+                              ✓ Закрыть
+                            </button>
+                          ) : (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                reopenMonth(m.id);
+                              }}
+                              style={{
+                                border: "1px solid var(--t3)",
+                                background: "transparent",
+                                color: "var(--t2)",
+                                padding: "3px 8px",
+                                borderRadius: 4,
+                                fontSize: 10,
+                                fontWeight: 600,
+                                cursor: "pointer",
+                              }}
+                              title="Снова открыть (status=active)"
+                            >
+                              Открыть
+                            </button>
+                          )}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const defaultStart = m.end_date;
+                              const d = new Date(defaultStart);
+                              d.setDate(d.getDate() + 1);
+                              setOpenNewFor({
+                                clientId: c.id,
+                                nextN: m.month_number + 1,
+                                defaultStart: d.toISOString().slice(0, 10),
+                                defaultPkg: pkg,
+                              });
+                              const endDefault = new Date(d);
+                              endDefault.setDate(endDefault.getDate() + 30);
+                              setOpenNewForm({
+                                start_date: d.toISOString().slice(0, 10),
+                                end_date: endDefault.toISOString().slice(0, 10),
+                                pkg: String(pkg),
+                              });
+                            }}
+                            style={{
+                              marginLeft: 4,
+                              border: "1px solid var(--brd)",
+                              background: "transparent",
+                              color: "var(--t2)",
+                              padding: "3px 8px",
+                              borderRadius: 4,
+                              fontSize: 10,
+                              fontWeight: 600,
+                              cursor: "pointer",
+                            }}
+                            title="Открыть следующий контрактный месяц для клиента"
+                          >
+                            + М{m.month_number + 1}
+                          </button>
+                        </td>
                       </tr>
                     );
                   })}
@@ -471,7 +681,119 @@ function DashboardInner() {
             </div>
           )}
           <div style={{ marginTop: 10, fontSize: 10, color: "var(--t3)" }}>
-            Read-only MVP. Редактирование плана и закрытие месяцев — следующим шагом.
+            Клик по «План» → редактирование. Кнопка «✓ Закрыть» — пометить М закрытым. «+ М(N+1)» — открыть следующий контрактный месяц.
+          </div>
+        </div>
+      )}
+
+      {openNewFor && (
+        <div
+          onClick={() => setOpenNewFor(null)}
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.6)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 100,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="card"
+            style={{ minWidth: 340, padding: 20 }}
+          >
+            <div style={{ fontWeight: 700, marginBottom: 14, color: "var(--t1)" }}>
+              Открыть М{openNewFor.nextN} для клиента ID {openNewFor.clientId}
+            </div>
+            <label style={{ display: "block", marginBottom: 10, fontSize: 11, color: "var(--t2)" }}>
+              Старт:
+              <input
+                type="date"
+                value={openNewForm.start_date}
+                onChange={(e) => setOpenNewForm({ ...openNewForm, start_date: e.target.value })}
+                style={{
+                  display: "block",
+                  marginTop: 4,
+                  width: "100%",
+                  padding: "6px 10px",
+                  background: "var(--bg2)",
+                  color: "var(--t1)",
+                  border: "1px solid var(--brd)",
+                  borderRadius: 4,
+                }}
+              />
+            </label>
+            <label style={{ display: "block", marginBottom: 10, fontSize: 11, color: "var(--t2)" }}>
+              Дедлайн закрытия:
+              <input
+                type="date"
+                value={openNewForm.end_date}
+                onChange={(e) => setOpenNewForm({ ...openNewForm, end_date: e.target.value })}
+                style={{
+                  display: "block",
+                  marginTop: 4,
+                  width: "100%",
+                  padding: "6px 10px",
+                  background: "var(--bg2)",
+                  color: "var(--t1)",
+                  border: "1px solid var(--brd)",
+                  borderRadius: 4,
+                }}
+              />
+            </label>
+            <label style={{ display: "block", marginBottom: 14, fontSize: 11, color: "var(--t2)" }}>
+              Пакет (роликов):
+              <input
+                type="number"
+                min={1}
+                value={openNewForm.pkg}
+                onChange={(e) => setOpenNewForm({ ...openNewForm, pkg: e.target.value })}
+                style={{
+                  display: "block",
+                  marginTop: 4,
+                  width: "100%",
+                  padding: "6px 10px",
+                  background: "var(--bg2)",
+                  color: "var(--t1)",
+                  border: "1px solid var(--brd)",
+                  borderRadius: 4,
+                }}
+              />
+            </label>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button
+                onClick={() => setOpenNewFor(null)}
+                style={{
+                  background: "transparent",
+                  border: "1px solid var(--brd)",
+                  color: "var(--t2)",
+                  padding: "6px 14px",
+                  borderRadius: 4,
+                  cursor: "pointer",
+                }}
+              >
+                Отмена
+              </button>
+              <button
+                onClick={createNextMonth}
+                style={{
+                  background: "var(--cy)",
+                  border: "none",
+                  color: "#000",
+                  padding: "6px 14px",
+                  borderRadius: 4,
+                  cursor: "pointer",
+                  fontWeight: 600,
+                }}
+              >
+                Открыть месяц
+              </button>
+            </div>
           </div>
         </div>
       )}
