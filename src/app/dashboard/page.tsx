@@ -330,12 +330,30 @@ function DashboardInner() {
       (s) => s.client_id === clientId && s.month_number === monthNumber && s.video_status === "inProgress" && s.script_status === "approved"
     ).length;
 
-  const rowsForMonth: { client: Client; month: ClientMonth }[] = isAllTime
-    ? []
-    : clients
-        .map((c) => ({ client: c, month: activeMonthFor(c.id, selectedMonth) }))
-        .filter((r): r is { client: Client; month: ClientMonth } => r.month !== null)
-        .sort((a, b) => a.client.id - b.client.id);
+  const rowsForMonth: { client: Client; month: ClientMonth }[] = [];
+  if (!isAllTime) {
+    const { start, end } = ymRange(selectedMonth);
+    for (const c of clients) {
+      const list = monthsForClient(c.id);
+      const overlapping = list.filter(
+        (m) =>
+          typeof m.start_date === "string" &&
+          typeof m.end_date === "string" &&
+          m.start_date <= end &&
+          m.end_date >= start
+      );
+      if (overlapping.length > 0) {
+        for (const m of overlapping) rowsForMonth.push({ client: c, month: m });
+      } else if (selectedMonth >= currentYM) {
+        // Overdue active fallback — show on current/future tabs if their last active month already passed
+        const overdue = list
+          .filter((m) => m.status === "active" && typeof m.end_date === "string" && m.end_date < start)
+          .sort((a, b) => b.month_number - a.month_number)[0];
+        if (overdue) rowsForMonth.push({ client: c, month: overdue });
+      }
+    }
+    rowsForMonth.sort((a, b) => a.client.id - b.client.id || a.month.month_number - b.month.month_number);
+  }
 
   let kpiClients: number;
   let kpiClientsTag: string;
@@ -469,9 +487,13 @@ function DashboardInner() {
     ...monthsList.map((ym) => ({ value: ym, label: ymLabel(ym) + (ym === currentYM ? " (сейчас)" : "") })),
   ];
 
-  // Contracts ending within next 7 days (or already overdue but still active) — for the decision widget
+  // Contracts ending within next 7 days (or already overdue but still active) — for the decision widget.
+  // Hide a row if the same client already has a later contractual month (decision was made: renewed).
+  const hasLaterMonth = (clientId: number, monthNumber: number) =>
+    clientMonths.some((other) => other.client_id === clientId && other.month_number > monthNumber);
   const endingSoon = clientMonths
     .filter((m) => m.status === "active" && typeof m.end_date === "string")
+    .filter((m) => !hasLaterMonth(m.client_id, m.month_number))
     .map((m) => ({ m, days: daysBetween(todayIso, m.end_date), client: clients.find((c) => c.id === m.client_id) }))
     .filter((x) => x.days <= 7 && !!x.client)
     .sort((a, b) => a.days - b.days);
