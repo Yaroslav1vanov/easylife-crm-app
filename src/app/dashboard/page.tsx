@@ -288,6 +288,21 @@ function DashboardInner() {
     return Math.round((pkg * overlapDays) / totalDays);
   }
 
+  function expectedByToday(cm: ClientMonth, ym: string): { pub: number; made: number } {
+    const target = targetForCalendarMonth(cm, ym);
+    if (target === 0) return { pub: 0, made: 0 };
+    const { start: monthStart, end: monthEnd } = ymRange(ym);
+    const overlapStart = monthStart > cm.start_date ? monthStart : cm.start_date;
+    const overlapEnd = monthEnd < cm.end_date ? monthEnd : cm.end_date;
+    if (overlapStart > overlapEnd) return { pub: 0, made: 0 };
+    const totalDays = daysBetween(overlapStart, overlapEnd) + 1;
+    const todayClamped = todayIso > overlapEnd ? overlapEnd : todayIso < overlapStart ? overlapStart : todayIso;
+    const daysElapsed = daysBetween(overlapStart, todayClamped) + 1;
+    const expPub = Math.round((target * daysElapsed) / totalDays);
+    const expMade = Math.min(target, expPub + 3);
+    return { pub: expPub, made: expMade };
+  }
+
   function publishedInCalendarMonth(clientId: number, monthNumber: number, ym: string): number {
     const { start, end } = ymRange(ym);
     return allScripts.filter(
@@ -702,6 +717,12 @@ function DashboardInner() {
                     <th style={{ padding: "6px 8px", fontWeight: 600, textAlign: "center" }}>
                       На {ymLabel(selectedMonth).split(" ")[0]}
                     </th>
+                    <th
+                      style={{ padding: "6px 8px", fontWeight: 600, textAlign: "center" }}
+                      title="По темпу: сколько опубл/готов должно быть к сегодня"
+                    >
+                      К сегодня
+                    </th>
                     <th style={{ padding: "6px 8px", fontWeight: 600, textAlign: "center" }}>
                       Готово в {ymLabel(selectedMonth).split(" ")[0]}
                     </th>
@@ -857,6 +878,23 @@ function DashboardInner() {
                             </span>
                           )}
                         </td>
+                        <td style={{ padding: "8px", textAlign: "center" }} title="По темпу: должно быть опубл / готов к сегодня">
+                          {(() => {
+                            const exp = expectedByToday(m, selectedMonth);
+                            const pubLag = exp.pub - pubMonth;
+                            const madeLag = exp.made - madeMonth;
+                            const pubColor = pubLag <= 0 ? "var(--gr)" : pubLag <= 2 ? "var(--or)" : "var(--rd)";
+                            const madeColor = madeLag <= 0 ? "var(--gr)" : madeLag <= 2 ? "var(--or)" : "var(--rd)";
+                            return (
+                              <span style={{ fontSize: 10, fontFamily: "monospace" }}>
+                                <span style={{ color: pubColor, fontWeight: 700 }}>{exp.pub}</span>
+                                <span style={{ color: "var(--t3)" }}>опубл / </span>
+                                <span style={{ color: madeColor, fontWeight: 700 }}>{exp.made}</span>
+                                <span style={{ color: "var(--t3)" }}>готов</span>
+                              </span>
+                            );
+                          })()}
+                        </td>
                         <td style={{ padding: "8px", textAlign: "center", color: "var(--cy)", fontWeight: 700 }}>{madeMonth}</td>
                         <td style={{ padding: "8px", textAlign: "center", color: "var(--gr)", fontWeight: 700 }}>{pubMonth}</td>
                         <td
@@ -972,6 +1010,13 @@ function DashboardInner() {
                       </td>
                       <td style={{ padding: "10px 8px", textAlign: "center", color: "var(--cy)" }}>
                         {rowsForMonth.reduce((s, r) => s + targetForCalendarMonth(r.month, selectedMonth), 0)}
+                      </td>
+                      <td style={{ padding: "10px 8px", textAlign: "center", fontSize: 10, fontFamily: "monospace", color: "var(--t2)" }}>
+                        {(() => {
+                          const sumPub = rowsForMonth.reduce((s, r) => s + expectedByToday(r.month, selectedMonth).pub, 0);
+                          const sumMade = rowsForMonth.reduce((s, r) => s + expectedByToday(r.month, selectedMonth).made, 0);
+                          return `${sumPub}/${sumMade}`;
+                        })()}
                       </td>
                       <td style={{ padding: "10px 8px", textAlign: "center", color: "var(--cy)" }}>
                         {rowsForMonth.reduce((s, r) => s + madeInCalendarMonth(r.client.id, r.month.month_number, selectedMonth), 0)}
