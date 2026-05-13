@@ -21,6 +21,17 @@ export type ChecklistTask = {
   status: string; responsible_id: number | null; deadline: string | null;
   responsible?: TeamMember;
 };
+export type ClientMonth = {
+  id: number;
+  client_id: number;
+  month_number: number;
+  start_date: string;
+  end_date: string;
+  package: number;
+  status: "active" | "closed" | "cancelled";
+  closed_at: string | null;
+  note: string | null;
+};
 
 const db = {
   // Profile
@@ -112,6 +123,37 @@ const db = {
       .lt("deadline", today)
       .order("deadline");
     return (data || []) as (ChecklistTask & { client: { name: string; surname: string } })[];
+  },
+
+  // Client contractual months — one row per (client, month_number)
+  async getClientMonths(sb: SupabaseClient) {
+    const { data, error } = await sb.from("client_months").select("*").order("client_id").order("month_number");
+    if (error) {
+      // Soft fail when migration not yet applied — dashboard then shows fallback.
+      return { data: [] as ClientMonth[], missing: true as boolean, error };
+    }
+    return { data: (data || []) as ClientMonth[], missing: false as boolean, error: null as any };
+  },
+  async upsertClientMonth(sb: SupabaseClient, row: Partial<ClientMonth> & { client_id: number; month_number: number }) {
+    const { error } = await sb
+      .from("client_months")
+      .upsert(row, { onConflict: "client_id,month_number" });
+    return { error };
+  },
+  async closeClientMonth(sb: SupabaseClient, id: number) {
+    const today = new Date().toISOString().split("T")[0];
+    const { error } = await sb
+      .from("client_months")
+      .update({ status: "closed", closed_at: today })
+      .eq("id", id);
+    return { error };
+  },
+  async reopenClientMonth(sb: SupabaseClient, id: number) {
+    const { error } = await sb
+      .from("client_months")
+      .update({ status: "active", closed_at: null })
+      .eq("id", id);
+    return { error };
   },
 };
 
