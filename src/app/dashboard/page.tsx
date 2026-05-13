@@ -353,33 +353,51 @@ function DashboardInner() {
     kpiReady = allScripts.filter((s) => s.video_status === "ready").length;
   } else {
     kpiClients = rowsForMonth.length;
-    kpiClientsTag = `активных в ${ymLabel(selectedMonth)}`;
+    kpiClientsTag = `в работе в ${ymLabel(selectedMonth)}`;
     kpiTotalPlan = rowsForMonth.reduce((s, r) => s + targetForCalendarMonth(r.month, selectedMonth), 0);
     kpiTotalPub = rowsForMonth.reduce((s, r) => s + publishedInCalendarMonth(r.client.id, r.month.month_number, selectedMonth), 0);
     kpiInMontage = rowsForMonth.reduce((s, r) => s + inMontageForMonth(r.client.id, r.month.month_number), 0);
     kpiReady = rowsForMonth.reduce((s, r) => s + readyForMonth(r.client.id, r.month.month_number), 0);
   }
+  const kpiMadeMonth = isAllTime
+    ? allScripts.filter((s) => s.video_status === "ready" || s.video_status === "published").length
+    : rowsForMonth.reduce((s, r) => s + madeInCalendarMonth(r.client.id, r.month.month_number, selectedMonth), 0);
   const vidGap = Math.max(0, kpiTotalPlan - kpiTotalPub);
 
   const stats = [
-    { icon: "👥", l: "КЛИЕНТОВ", val: kpiClients, tag: kpiClientsTag, tagColor: "var(--cy)", ck: () => router.push("/dashboard/clients") },
     {
-      icon: "📝",
-      l: "СЦЕНАРИЕВ",
-      val: kpiScriptApproved,
-      valSub: `/ ${allScripts.length}`,
-      tag: kpiScriptApproved >= allScripts.length ? "✓ Все готовы" : "В работе",
-      tagColor: kpiScriptApproved >= allScripts.length ? "var(--gr)" : "var(--or)",
-      bar: true,
-      barPct: allScripts.length > 0 ? (kpiScriptApproved / allScripts.length) * 100 : 0,
-      barColor: "var(--gr)",
-      ck: () => router.push("/dashboard/scripts"),
+      icon: "👥",
+      l: "КЛИЕНТОВ",
+      val: kpiClients,
+      tag: kpiClientsTag,
+      tagColor: "var(--cy)",
+      ck: () => router.push("/dashboard/clients"),
+    },
+    {
+      icon: "🎯",
+      l: isAllTime ? "ВСЕГО ВИДЕО" : `НА ${ymLabel(selectedMonth).split(" ")[0].toUpperCase()}`,
+      val: kpiTotalPlan,
+      tag: "Таргет",
+      tagColor: "var(--cy)",
+      ck: () => {},
     },
     {
       icon: "🎬",
+      l: "СДЕЛАНО",
+      val: kpiMadeMonth,
+      valSub: `/ ${kpiTotalPlan}`,
+      tag: kpiTotalPlan > 0 && kpiMadeMonth >= kpiTotalPlan ? "✓ Цель" : "В работе",
+      tagColor: kpiTotalPlan > 0 && kpiMadeMonth >= kpiTotalPlan ? "var(--gr)" : "var(--or)",
+      bar: true,
+      barPct: kpiTotalPlan > 0 ? Math.min(100, (kpiMadeMonth / kpiTotalPlan) * 100) : 0,
+      barColor: "var(--cy)",
+      ck: () => {},
+    },
+    {
+      icon: "🎞",
       l: "В МОНТАЖЕ",
       val: kpiInMontage,
-      valSub: `+ ${kpiReady} готово`,
+      valSub: `+ ${kpiReady} готовых`,
       tag: kpiInMontage > 0 ? "В работе" : "—",
       tagColor: kpiInMontage > 0 ? "var(--or)" : "var(--t3)",
       bar: true,
@@ -392,12 +410,12 @@ function DashboardInner() {
       l: "ОПУБЛИКОВАНО",
       val: kpiTotalPub,
       valSub: `/ ${kpiTotalPlan}`,
-      tag: vidGap > 0 ? `Отстаём на ${vidGap}` : "✓ В норме",
+      tag: vidGap > 0 ? `Отстаём ${vidGap}` : "✓ В норме",
       tagColor: vidGap > 0 ? "var(--rd)" : "var(--gr)",
       bar: true,
       barPct: kpiTotalPlan > 0 ? (kpiTotalPub / kpiTotalPlan) * 100 : 0,
       barColor: vidGap > 0 ? "var(--rd)" : "var(--gr)",
-      ck: () => router.push("/dashboard/montage"),
+      ck: () => {},
     },
   ];
 
@@ -505,7 +523,7 @@ function DashboardInner() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-3">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 mb-3">
         {stats.map((s, i) => (
           <div key={i} onClick={s.ck} className="card cursor-pointer">
             <div className="flex justify-between items-center mb-2">
@@ -529,7 +547,7 @@ function DashboardInner() {
       {!isAllTime && (
         <div className="card mb-3">
           <div className="text-xs font-bold mb-3" style={{ color: "var(--t1)" }}>
-            📅 Контрактные месяцы, активные в {ymLabel(selectedMonth)} ({rowsForMonth.length})
+            📅 Контрактные месяцы, активные в {ymLabel(selectedMonth)}
           </div>
           {rowsForMonth.length === 0 ? (
             <div style={{ padding: 12, color: "var(--t2)", fontSize: 12 }}>
