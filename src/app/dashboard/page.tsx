@@ -469,6 +469,13 @@ function DashboardInner() {
     ...monthsList.map((ym) => ({ value: ym, label: ymLabel(ym) + (ym === currentYM ? " (сейчас)" : "") })),
   ];
 
+  // Contracts ending within next 7 days (or already overdue but still active) — for the decision widget
+  const endingSoon = clientMonths
+    .filter((m) => m.status === "active" && typeof m.end_date === "string")
+    .map((m) => ({ m, days: daysBetween(todayIso, m.end_date), client: clients.find((c) => c.id === m.client_id) }))
+    .filter((x) => x.days <= 7 && !!x.client)
+    .sort((a, b) => a.days - b.days);
+
   return (
     <div>
       {migrationMissing && (
@@ -543,6 +550,101 @@ function DashboardInner() {
           </div>
         ))}
       </div>
+
+      {endingSoon.length > 0 && (
+        <div
+          className="card mb-3"
+          style={{
+            background: "rgba(245,166,35,0.05)",
+            border: "1px solid rgba(245,166,35,0.4)",
+          }}
+        >
+          <div className="text-xs font-bold mb-3" style={{ color: "var(--or)" }}>
+            ⏰ Заканчиваются в ближайшие 7 дней — решите по продлению ({endingSoon.length})
+          </div>
+          {endingSoon.map(({ m, days, client }) => {
+            const cn = `${client!.name} ${client!.surname || ""}`.trim();
+            const dayLabel =
+              days < 0
+                ? `🔴 просрочка ${-days}д`
+                : days === 0
+                ? "🔴 СЕГОДНЯ"
+                : days <= 2
+                ? `🔴 через ${days}д`
+                : days <= 5
+                ? `⏰ через ${days}д`
+                : `через ${days}д`;
+            const dayColor = days < 0 ? "var(--rd)" : days <= 2 ? "var(--rd)" : days <= 5 ? "var(--or)" : "var(--t2)";
+            return (
+              <div
+                key={m.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  padding: "8px 4px",
+                  borderTop: "1px solid var(--brd)",
+                  fontSize: 12,
+                }}
+              >
+                <span style={{ color: "var(--t1)", fontWeight: 600, flex: 1, cursor: "pointer" }} onClick={() => router.push(`/dashboard/clients/${client!.id}`)}>
+                  {cn}
+                </span>
+                <span style={{ color: "var(--cy)", fontWeight: 700, minWidth: 36 }}>М{m.month_number}</span>
+                <span style={{ color: "var(--t2)", minWidth: 90 }}>{fmtDate(m.end_date)}</span>
+                <span style={{ color: dayColor, fontWeight: 700, minWidth: 110, textAlign: "left" }}>{dayLabel}</span>
+                <button
+                  onClick={() => {
+                    const defaultStart = m.end_date;
+                    const d = new Date(defaultStart);
+                    d.setDate(d.getDate() + 1);
+                    setOpenNewFor({
+                      clientId: client!.id,
+                      nextN: m.month_number + 1,
+                      defaultStart: d.toISOString().slice(0, 10),
+                      defaultPkg: m.package,
+                    });
+                    const endDefault = new Date(d);
+                    endDefault.setDate(endDefault.getDate() + 30);
+                    setOpenNewForm({
+                      start_date: d.toISOString().slice(0, 10),
+                      end_date: endDefault.toISOString().slice(0, 10),
+                      pkg: String(m.package),
+                    });
+                  }}
+                  style={{
+                    border: "1px solid var(--cy)",
+                    background: "rgba(34,211,238,0.1)",
+                    color: "var(--cy)",
+                    padding: "4px 10px",
+                    borderRadius: 4,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  + М{m.month_number + 1} продлить
+                </button>
+                <button
+                  onClick={() => closeMonth(m.id)}
+                  style={{
+                    border: "1px solid var(--gr)",
+                    background: "rgba(62,207,142,0.1)",
+                    color: "var(--gr)",
+                    padding: "4px 10px",
+                    borderRadius: 4,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  ✓ Закрыть
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {!isAllTime && (
         <div className="card mb-3">
