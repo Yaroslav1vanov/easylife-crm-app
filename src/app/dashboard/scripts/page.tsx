@@ -16,11 +16,9 @@ export default function ScriptsPage() {
   async function load() {
     const cls = await db.getClients(supabase);
     setClients(cls);
-    const all: (Script & { clientName: string })[] = [];
-    for (const c of cls) {
-      const s = await db.getScripts(supabase, c.id);
-      s.forEach(sc => all.push({ ...sc, clientName: `${c.name} ${c.surname || ""}`.trim() }));
-    }
+    const byClient = new Map(cls.map((c) => [c.id, `${c.name} ${c.surname || ""}`.trim()]));
+    const all = (await db.getScriptsForClients(supabase, cls.map((c) => c.id)))
+      .map((sc) => ({ ...sc, clientName: byClient.get(sc.client_id) || "—" }));
     setAllScripts(all); setLoading(false);
   }
 

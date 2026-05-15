@@ -19,9 +19,10 @@ export default function ClientsPage() {
   async function load() {
     const [cls, tm] = await Promise.all([db.getClients(supabase), db.getTeam(supabase)]);
     setClients(cls); setTeam(tm);
+    const allScripts = await db.getScriptsForClients(supabase, cls.map((c) => c.id));
     const sc: Record<number, { pub: number; scr: number; total: number }> = {};
     for (const c of cls) {
-      const s = await db.getScripts(supabase, c.id);
+      const s = allScripts.filter((x) => x.client_id === c.id);
       sc[c.id] = { pub: s.filter(x => x.video_status === "published").length, scr: s.filter(x => x.script_status === "approved").length, total: s.length };
     }
     setScripts(sc); setLoading(false);

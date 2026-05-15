@@ -105,6 +105,16 @@ const db = {
     const { data } = await sb.from("scripts").select("*").eq("client_id", clientId).order("order_num");
     return (data || []) as Script[];
   },
+  async getScriptsForClients(sb: SupabaseClient, clientIds: number[]) {
+    if (clientIds.length === 0) return [] as Script[];
+    const { data } = await sb
+      .from("scripts")
+      .select("*")
+      .in("client_id", clientIds)
+      .order("client_id")
+      .order("order_num");
+    return (data || []) as Script[];
+  },
   async getAllScripts(sb: SupabaseClient) {
     const { data } = await sb.from("scripts").select("*, client:clients(name, surname)").order("client_id").order("order_num");
     return (data || []) as (Script & { client: { name: string; surname: string } })[];
@@ -175,6 +185,17 @@ const db = {
     const { data, error } = await sb.from("client_months").select("*").order("client_id").order("month_number");
     if (error) {
       // Soft fail when migration not yet applied — dashboard then shows fallback.
+      return { data: [] as ClientMonth[], missing: true as boolean, error };
+    }
+    return { data: (data || []) as ClientMonth[], missing: false as boolean, error: null as any };
+  },
+  async getClientMonthsForClient(sb: SupabaseClient, clientId: number) {
+    const { data, error } = await sb
+      .from("client_months")
+      .select("*")
+      .eq("client_id", clientId)
+      .order("month_number");
+    if (error) {
       return { data: [] as ClientMonth[], missing: true as boolean, error };
     }
     return { data: (data || []) as ClientMonth[], missing: false as boolean, error: null as any };

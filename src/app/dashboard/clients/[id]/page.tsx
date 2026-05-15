@@ -33,12 +33,10 @@ export default function ClientDetailPage() {
       db.getChecklist(supabase, clientId),
       db.getTeam(supabase),
       db.getProfile(supabase),
-      db.getClientMonths(supabase),
+      db.getClientMonthsForClient(supabase, clientId),
     ]);
     setClient(c); setScripts(s); setChecklist(ch); setTeam(tm);
-    if (cmRes?.data) {
-      setClientMonths(cmRes.data.filter((m) => m.client_id === clientId).sort((a, b) => a.month_number - b.month_number));
-    }
+    if (cmRes?.data) setClientMonths(cmRes.data);
     if (profile) setUserRole(profile.role);
     setLoading(false);
   }

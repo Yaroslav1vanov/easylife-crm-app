@@ -16,8 +16,9 @@ export default function MontagePage() {
   async function load() {
     const cls = await db.getClients(supabase);
     setClients(cls);
+    const allScripts = await db.getScriptsForClients(supabase, cls.map((c) => c.id));
     const sc: Record<number, Script[]> = {};
-    for (const c of cls) { sc[c.id] = await db.getScripts(supabase, c.id); }
+    for (const c of cls) { sc[c.id] = allScripts.filter((s) => s.client_id === c.id); }
     setScriptsByClient(sc); setLoading(false);
   }
 

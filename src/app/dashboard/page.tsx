@@ -128,11 +128,7 @@ function DashboardInner() {
         setOverdueTasks(tasks || []);
         setClientMonths(cmResult?.data || []);
         setMigrationMissing(!!cmResult?.missing);
-        const scripts: Script[] = [];
-        for (const c of cls || []) {
-          const s = await db.getScripts(supabase, c.id);
-          if (s) scripts.push(...s);
-        }
+        const scripts = await db.getScriptsForClients(supabase, (cls || []).map((c) => c.id));
         setAllScripts(scripts);
       } catch (e: any) {
         setLoadError(e?.message || String(e));
@@ -263,11 +259,7 @@ function DashboardInner() {
     const cmResult = await db.getClientMonths(supabase);
     setClientMonths(cmResult?.data || []);
     // Refresh scripts so card totals update
-    const scripts: Script[] = [];
-    for (const c of clients) {
-      const s = await db.getScripts(supabase, c.id);
-      if (s) scripts.push(...s);
-    }
+    const scripts = await db.getScriptsForClients(supabase, clients.map((c) => c.id));
     setAllScripts(scripts);
     setOpenNewFor(null);
   }

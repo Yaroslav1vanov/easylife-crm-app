@@ -42,17 +42,17 @@ export default function ReportsPage() {
   async function loadData() {
     const cls = await db.getClients(supabase);
     setClients(cls);
-    const scripts: typeof allScripts = [];
-    for (const c of cls) {
-      const s = await db.getScripts(supabase, c.id);
-      scripts.push(...s.map(sc => ({
+    const byClient = new Map(cls.map((c) => [c.id, c]));
+    const scripts: typeof allScripts = (await db.getScriptsForClients(supabase, cls.map((c) => c.id))).map(sc => {
+      const c = byClient.get(sc.client_id)!;
+      return {
         ...sc,
         clientName: `${c.name} ${c.surname || ""}`.trim(),
         montager: c.montager?.name || "—",
         teamlead: c.teamlead?.name || "—",
         pkg: c.package,
-      })));
-    }
+      };
+    });
     setAllScripts(scripts);
 
     // Default to current month
