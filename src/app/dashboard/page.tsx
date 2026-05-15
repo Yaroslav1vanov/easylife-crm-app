@@ -208,7 +208,6 @@ function DashboardInner() {
   }
 
   async function closeMonth(cmId: number) {
-    if (!confirm("Закрыть этот контрактный месяц? Статус станет 'closed'.")) return;
     const { error } = await db.closeClientMonth(supabase, cmId);
     if (error) {
       alert(`Ошибка: ${error.message || error}`);
