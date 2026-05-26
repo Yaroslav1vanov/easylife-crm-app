@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS public.client_months (
   start_date    DATE NOT NULL,                         -- when this contractual month opens
   end_date      DATE NOT NULL,                         -- contractual deadline
   package       INT  NOT NULL,                         -- target video count for this month
-  status        TEXT NOT NULL DEFAULT 'active',        -- 'active' | 'closed' | 'cancelled'
+  status        TEXT NOT NULL DEFAULT 'active',        -- 'active' | 'planned' | 'closed' | 'cancelled'
   closed_at     DATE NULL,                             -- when actually marked closed
   note          TEXT,                                  -- free-form badge / comment
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),

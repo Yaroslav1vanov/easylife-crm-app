@@ -29,7 +29,7 @@ export type ClientMonth = {
   start_date: string;
   end_date: string;
   package: number;
-  status: "active" | "closed" | "cancelled";
+  status: "active" | "planned" | "closed" | "cancelled";
   closed_at: string | null;
   note: string | null;
   calendar_split: Record<string, number> | null;

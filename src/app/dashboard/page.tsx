@@ -51,6 +51,11 @@ function daysBetween(a: string, b: string): number {
     return 0;
   }
 }
+function addDaysIso(s: string, days: number): string {
+  const d = new Date(s);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
 
 class ErrorBoundary extends React.Component<
   { children: React.ReactNode },
@@ -174,13 +179,15 @@ function DashboardInner() {
   const monthsForClient = (clientId: number): ClientMonth[] =>
     clientMonths.filter((cm) => cm.client_id === clientId).sort((a, b) => a.month_number - b.month_number);
 
+  const shouldCountMonth = (m: ClientMonth) => m.status !== "planned" && m.status !== "cancelled";
+
   const activeMonthFor = (clientId: number, ym: string): ClientMonth | null => {
     if (ym === "all") return null;
     const { start, end } = ymRange(ym);
     const list = monthsForClient(clientId);
     if (list.length === 0) return null;
     const overlapping = list.filter(
-      (m) => typeof m.start_date === "string" && typeof m.end_date === "string" && m.start_date <= end && m.end_date >= start
+      (m) => shouldCountMonth(m) && typeof m.start_date === "string" && typeof m.end_date === "string" && m.start_date <= end && m.end_date >= start
     );
     if (overlapping.length > 0) {
       return overlapping.find((m) => m.status === "active") || overlapping[overlapping.length - 1];
@@ -208,10 +215,25 @@ function DashboardInner() {
   }
 
   async function closeMonth(cmId: number) {
+    const current = clientMonths.find((m) => m.id === cmId);
     const { error } = await db.closeClientMonth(supabase, cmId);
     if (error) {
       alert(`Ошибка: ${error.message || error}`);
       return;
+    }
+    if (current) {
+      const next = clientMonths.find((m) => m.client_id === current.client_id && m.month_number === current.month_number + 1 && m.status === "planned");
+      if (next) {
+        const start = addDaysIso(todayIso, 1);
+        const end = addDaysIso(start, 30);
+        const { error: nextErr } = await db.updateClientMonth(supabase, next.id, {
+          status: "active",
+          start_date: start,
+          end_date: end,
+          calendar_split: null,
+        });
+        if (nextErr) alert(`Месяц закрыт, но не удалось активировать следующий: ${nextErr.message || nextErr}`);
+      }
     }
     const cmResult = await db.getClientMonths(supabase);
     setClientMonths(cmResult?.data || []);
@@ -219,10 +241,18 @@ function DashboardInner() {
 
   async function reopenMonth(cmId: number) {
     if (!confirm("Снова открыть этот месяц (status='active')?")) return;
+    const current = clientMonths.find((m) => m.id === cmId);
     const { error } = await db.reopenClientMonth(supabase, cmId);
     if (error) {
       alert(`Ошибка: ${error.message || error}`);
       return;
+    }
+    if (current) {
+      const next = clientMonths.find((m) => m.client_id === current.client_id && m.month_number === current.month_number + 1 && m.status === "active");
+      if (next) {
+        const { error: nextErr } = await db.updateClientMonth(supabase, next.id, { status: "planned" });
+        if (nextErr) alert(`Месяц открыт, но не удалось вернуть следующий в planned: ${nextErr.message || nextErr}`);
+      }
     }
     const cmResult = await db.getClientMonths(supabase);
     setClientMonths(cmResult?.data || []);
@@ -238,13 +268,15 @@ function DashboardInner() {
       end = d.toISOString().slice(0, 10);
     }
     const pkg = parseInt(openNewForm.pkg, 10) || openNewFor.defaultPkg;
+    const prevMonth = clientMonths.find((m) => m.client_id === openNewFor.clientId && m.month_number === openNewFor.nextN - 1);
+    const status: ClientMonth["status"] = prevMonth && prevMonth.status !== "closed" ? "planned" : "active";
     const { error } = await db.upsertClientMonth(supabase, {
       client_id: openNewFor.clientId,
       month_number: openNewFor.nextN,
       start_date: start,
       end_date: end,
       package: pkg,
-      status: "active",
+      status,
     } as any);
     if (error) {
       alert(`Не удалось создать месяц: ${error.message || error}`);
@@ -355,6 +387,7 @@ function DashboardInner() {
       const list = monthsForClient(c.id);
       const overlapping = list.filter(
         (m) =>
+          shouldCountMonth(m) &&
           typeof m.start_date === "string" &&
           typeof m.end_date === "string" &&
           m.start_date <= end &&
@@ -515,6 +548,11 @@ function DashboardInner() {
     .map((m) => ({ m, days: daysBetween(todayIso, m.end_date), client: clients.find((c) => c.id === m.client_id) }))
     .filter((x) => x.days <= 7 && !!x.client)
     .sort((a, b) => a.days - b.days);
+  const plannedRenewals = clientMonths
+    .filter((m) => m.status === "planned")
+    .map((m) => ({ m, client: clients.find((c) => c.id === m.client_id), prev: clientMonths.find((p) => p.client_id === m.client_id && p.month_number === m.month_number - 1) }))
+    .filter((x) => !!x.client)
+    .sort((a, b) => a.m.end_date.localeCompare(b.m.end_date));
 
   return (
     <div>
@@ -686,6 +724,48 @@ function DashboardInner() {
         </div>
       )}
 
+      {plannedRenewals.length > 0 && (
+        <div
+          className="card mb-3"
+          style={{
+            background: "rgba(124,92,252,0.06)",
+            border: "1px solid rgba(124,92,252,0.35)",
+          }}
+        >
+          <div className="text-xs font-bold mb-3" style={{ color: "var(--pu, #a78bfa)" }}>
+            🕓 Запланированные продления — начнутся после закрытия прошлого месяца ({plannedRenewals.length})
+          </div>
+          {plannedRenewals.map(({ m, client, prev }) => {
+            const cn = `${client!.name} ${client!.surname || ""}`.trim();
+            const prevPub = prev ? publishedForMonth(client!.id, prev.month_number) : 0;
+            const prevLeft = prev ? Math.max(0, (prev.package || 0) - prevPub) : 0;
+            return (
+              <div
+                key={m.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  padding: "8px 4px",
+                  borderTop: "1px solid var(--brd)",
+                  fontSize: 12,
+                }}
+              >
+                <span style={{ color: "var(--t1)", fontWeight: 600, flex: 1, cursor: "pointer" }} onClick={() => router.push(`/dashboard/clients/${client!.id}`)}>
+                  {cn}
+                </span>
+                <span style={{ color: "var(--cy)", fontWeight: 700, minWidth: 36 }}>М{m.month_number}</span>
+                <span style={{ color: "var(--t2)", flex: 1 }}>
+                  ждёт закрытия М{m.month_number - 1}
+                  {prev ? ` · осталось ${prevLeft} из ${prev.package}` : ""}
+                </span>
+                <span style={{ color: "var(--t3)" }}>пакет {m.package}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {!isAllTime && (
         <div className="card mb-3">
           <div className="text-xs font-bold mb-3" style={{ color: "var(--t1)" }}>
@@ -745,6 +825,7 @@ function DashboardInner() {
                       <span style={{ color: "var(--t2)" }}>{daysLeft !== null ? `${daysLeft}д` : ""}</span>
                     );
                     if (m.status === "closed") statusBadge = <span style={{ color: "var(--gr)", fontWeight: 700 }}>✅</span>;
+                    else if (m.status === "planned") statusBadge = <span style={{ color: "var(--pu, #a78bfa)", fontWeight: 700 }}>🕓 planned</span>;
                     else if (m.status === "cancelled") statusBadge = <span style={{ color: "var(--t3)" }}>—</span>;
                     else if (daysLeft !== null && daysLeft < 0) statusBadge = <span style={{ color: "var(--rd)", fontWeight: 700 }}>🔴 просрочка {-daysLeft}д</span>;
                     else if (daysLeft !== null && daysLeft <= 5) statusBadge = <span style={{ color: "var(--or)", fontWeight: 700 }}>⏰ {daysLeft}д</span>;
@@ -1078,6 +1159,25 @@ function DashboardInner() {
             <div style={{ fontWeight: 700, marginBottom: 14, color: "var(--t1)" }}>
               Открыть М{openNewFor.nextN} для клиента ID {openNewFor.clientId}
             </div>
+            {(() => {
+              const prev = clientMonths.find((m) => m.client_id === openNewFor.clientId && m.month_number === openNewFor.nextN - 1);
+              if (!prev || prev.status === "closed") return null;
+              return (
+                <div
+                  style={{
+                    marginBottom: 12,
+                    padding: "8px 10px",
+                    borderRadius: 6,
+                    background: "rgba(124,92,252,0.1)",
+                    border: "1px solid rgba(124,92,252,0.35)",
+                    color: "var(--t2)",
+                    fontSize: 11,
+                  }}
+                >
+                  М{openNewFor.nextN} будет создан как <b style={{ color: "var(--pu, #a78bfa)" }}>planned</b> и начнёт считаться только после закрытия М{openNewFor.nextN - 1}.
+                </div>
+              );
+            })()}
             <label style={{ display: "block", marginBottom: 10, fontSize: 11, color: "var(--t2)" }}>
               Старт:
               <input
@@ -1159,7 +1259,10 @@ function DashboardInner() {
                   fontWeight: 600,
                 }}
               >
-                Открыть месяц
+                {(() => {
+                  const prev = clientMonths.find((m) => m.client_id === openNewFor.clientId && m.month_number === openNewFor.nextN - 1);
+                  return prev && prev.status !== "closed" ? "Запланировать месяц" : "Открыть месяц";
+                })()}
               </button>
             </div>
           </div>
@@ -1184,7 +1287,7 @@ function DashboardInner() {
                       {c.name} {c.surname || ""}
                       {months.length > 0 && (
                         <span style={{ marginLeft: 8, fontSize: 9, color: "var(--t3)" }}>
-                          {months.map((m) => (m.status === "closed" ? `М${m.month_number}✅` : `М${m.month_number}🟡`)).join(" ")}
+                          {months.map((m) => (m.status === "closed" ? `М${m.month_number}✅` : m.status === "planned" ? `М${m.month_number}🕓` : `М${m.month_number}🟡`)).join(" ")}
                         </span>
                       )}
                     </span>
