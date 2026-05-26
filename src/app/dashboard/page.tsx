@@ -342,13 +342,16 @@ function DashboardInner() {
   function madeInCalendarMonth(clientId: number, monthNumber: number, ym: string): number {
     const { start, end } = ymRange(ym);
     return allScripts.filter(
-      (s) =>
-        s.client_id === clientId &&
-        s.month_number === monthNumber &&
-        (s.video_status === "ready" || s.video_status === "published") &&
-        typeof s.ready_at === "string" &&
-        s.ready_at >= start &&
-        s.ready_at <= end
+      (s) => {
+        if (s.client_id !== clientId || s.month_number !== monthNumber) return false;
+        if (s.video_status === "published") {
+          return typeof s.pub_date === "string" && s.pub_date >= start && s.pub_date <= end;
+        }
+        if (s.video_status === "ready") {
+          return typeof s.ready_at === "string" && s.ready_at >= start && s.ready_at <= end;
+        }
+        return false;
+      }
     ).length;
   }
 
@@ -1128,7 +1131,7 @@ function DashboardInner() {
           )}
           <div style={{ marginTop: 10, fontSize: 10, color: "var(--t3)" }}>
             «Пакет» — размер контрактного месяца. «На X» — таргет на этот календарный месяц (авто-пропорция, клик — override).
-            <b>«Готово в X»</b> = ролики ready+published, у которых ready_at в этом месяце (то есть когда тимлид смонтировал).
+            <b>«Готово в X»</b> = ролики ready с ready_at в этом месяце + published с pub_date в этом месяце.
             <b>«Опубл. в X»</b> = published с pub_date в этом месяце. <b>«Буфер»</b> = Готово − Опубл.; норма ≥ +3.
             «Осталось» = На X − Готово. «Всего по M» — итог published за весь контракт.
           </div>
