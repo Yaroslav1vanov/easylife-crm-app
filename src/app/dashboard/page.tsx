@@ -465,7 +465,14 @@ function DashboardInner() {
   const kpiMadeMonth = isAllTime
     ? allScripts.filter((s) => s.video_status === "ready" || s.video_status === "published").length
     : rowsForMonth.reduce((s, r) => s + madeInCalendarMonth(r.client.id, r.month.month_number, selectedMonth), 0);
-  const vidGap = Math.max(0, kpiTotalPlan - kpiTotalPub);
+  const kpiExpectedPubToday = isAllTime
+    ? kpiTotalPlan
+    : rowsForMonth.reduce((s, r) => s + expectedByToday(r.month, selectedMonth).pub, 0);
+  const kpiExpectedMadeToday = isAllTime
+    ? kpiTotalPlan
+    : rowsForMonth.reduce((s, r) => s + expectedByToday(r.month, selectedMonth).made, 0);
+  const madeTodayLag = Math.max(0, kpiExpectedMadeToday - kpiMadeMonth);
+  const pubTodayLag = Math.max(0, kpiExpectedPubToday - kpiTotalPub);
 
   const stats = [
     {
@@ -486,14 +493,14 @@ function DashboardInner() {
     },
     {
       icon: "🎬",
-      l: "СДЕЛАНО",
+      l: "СМОНТИРОВАНО",
       val: kpiMadeMonth,
-      valSub: `/ ${kpiTotalPlan}`,
-      tag: kpiTotalPlan > 0 && kpiMadeMonth >= kpiTotalPlan ? "✓ Цель" : "В работе",
-      tagColor: kpiTotalPlan > 0 && kpiMadeMonth >= kpiTotalPlan ? "var(--gr)" : "var(--or)",
+      valSub: isAllTime ? `/ ${kpiTotalPlan}` : `/ ${kpiExpectedMadeToday} к сегодня`,
+      tag: madeTodayLag > 0 ? `Отстаём ${madeTodayLag}` : "✓ По плану",
+      tagColor: madeTodayLag > 0 ? "var(--rd)" : "var(--gr)",
       bar: true,
-      barPct: kpiTotalPlan > 0 ? Math.min(100, (kpiMadeMonth / kpiTotalPlan) * 100) : 0,
-      barColor: "var(--cy)",
+      barPct: kpiExpectedMadeToday > 0 ? Math.min(100, (kpiMadeMonth / kpiExpectedMadeToday) * 100) : 0,
+      barColor: madeTodayLag > 0 ? "var(--rd)" : "var(--cy)",
       ck: () => {},
     },
     {
@@ -512,12 +519,12 @@ function DashboardInner() {
       icon: "✅",
       l: "ОПУБЛИКОВАНО",
       val: kpiTotalPub,
-      valSub: `/ ${kpiTotalPlan}`,
-      tag: vidGap > 0 ? `Отстаём ${vidGap}` : "✓ В норме",
-      tagColor: vidGap > 0 ? "var(--rd)" : "var(--gr)",
+      valSub: isAllTime ? `/ ${kpiTotalPlan}` : `/ ${kpiExpectedPubToday} к сегодня`,
+      tag: pubTodayLag > 0 ? `Отстаём ${pubTodayLag}` : "✓ По плану",
+      tagColor: pubTodayLag > 0 ? "var(--rd)" : "var(--gr)",
       bar: true,
-      barPct: kpiTotalPlan > 0 ? (kpiTotalPub / kpiTotalPlan) * 100 : 0,
-      barColor: vidGap > 0 ? "var(--rd)" : "var(--gr)",
+      barPct: kpiExpectedPubToday > 0 ? Math.min(100, (kpiTotalPub / kpiExpectedPubToday) * 100) : 0,
+      barColor: pubTodayLag > 0 ? "var(--rd)" : "var(--gr)",
       ck: () => {},
     },
   ];
@@ -908,7 +915,7 @@ function DashboardInner() {
                       К сегодня
                     </th>
                     <th style={{ padding: "6px 8px", fontWeight: 600, textAlign: "center" }}>
-                      Готово в {ymLabel(selectedMonth).split(" ")[0]}
+                      Смонтировано в {ymLabel(selectedMonth).split(" ")[0]}
                     </th>
                     <th style={{ padding: "6px 8px", fontWeight: 600, textAlign: "center" }}>
                       Опубл. в {ymLabel(selectedMonth).split(" ")[0]}
@@ -926,6 +933,9 @@ function DashboardInner() {
                     const targetMonth = targetForCalendarMonth(m, selectedMonth);
                     const madeMonth = madeInCalendarMonth(c.id, m.month_number, selectedMonth);
                     const pubMonth = publishedInCalendarMonth(c.id, m.month_number, selectedMonth);
+                    const expectedToday = expectedByToday(m, selectedMonth);
+                    const madeLag = expectedToday.made - madeMonth;
+                    const pubLag = expectedToday.pub - pubMonth;
                     const buffer = madeMonth - pubMonth;
                     const remainingMonth = Math.max(0, targetMonth - madeMonth);
                     const totalPub = publishedForMonth(c.id, m.month_number);
@@ -1066,23 +1076,44 @@ function DashboardInner() {
                         </td>
                         <td style={{ padding: "8px", textAlign: "center" }} title="По темпу: должно быть опубл / готов к сегодня">
                           {(() => {
-                            const exp = expectedByToday(m, selectedMonth);
-                            const pubLag = exp.pub - pubMonth;
-                            const madeLag = exp.made - madeMonth;
                             const pubColor = pubLag <= 0 ? "var(--gr)" : pubLag <= 2 ? "var(--or)" : "var(--rd)";
                             const madeColor = madeLag <= 0 ? "var(--gr)" : madeLag <= 2 ? "var(--or)" : "var(--rd)";
                             return (
                               <span style={{ fontSize: 10, fontFamily: "monospace" }}>
-                                <span style={{ color: pubColor, fontWeight: 700 }}>{exp.pub}</span>
+                                <span style={{ color: pubColor, fontWeight: 700 }}>{expectedToday.pub}</span>
                                 <span style={{ color: "var(--t3)" }}>опубл / </span>
-                                <span style={{ color: madeColor, fontWeight: 700 }}>{exp.made}</span>
-                                <span style={{ color: "var(--t3)" }}>готов</span>
+                                <span style={{ color: madeColor, fontWeight: 700 }}>{expectedToday.made}</span>
+                                <span style={{ color: "var(--t3)" }}>смонт.</span>
                               </span>
                             );
                           })()}
                         </td>
-                        <td style={{ padding: "8px", textAlign: "center", color: "var(--cy)", fontWeight: 700 }}>{madeMonth}</td>
-                        <td style={{ padding: "8px", textAlign: "center", color: "var(--gr)", fontWeight: 700 }}>{pubMonth}</td>
+                        <td style={{ padding: "8px", textAlign: "center" }}>
+                          <div style={{ color: "var(--cy)", fontWeight: 700 }}>{madeMonth}</div>
+                          <div
+                            style={{
+                              fontSize: 9,
+                              fontFamily: "monospace",
+                              color: madeLag > 0 ? "var(--rd)" : "var(--gr)",
+                            }}
+                            title="Разница с планом на сегодня"
+                          >
+                            {madeLag > 0 ? `-${madeLag}` : `+${Math.abs(madeLag)}`}
+                          </div>
+                        </td>
+                        <td style={{ padding: "8px", textAlign: "center" }}>
+                          <div style={{ color: "var(--gr)", fontWeight: 700 }}>{pubMonth}</div>
+                          <div
+                            style={{
+                              fontSize: 9,
+                              fontFamily: "monospace",
+                              color: pubLag > 0 ? "var(--rd)" : "var(--gr)",
+                            }}
+                            title="Разница с планом на сегодня"
+                          >
+                            {pubLag > 0 ? `-${pubLag}` : `+${Math.abs(pubLag)}`}
+                          </div>
+                        </td>
                         <td
                           style={{
                             padding: "8px",
@@ -1242,9 +1273,9 @@ function DashboardInner() {
           )}
           <div style={{ marginTop: 10, fontSize: 10, color: "var(--t3)" }}>
             «Пакет» — размер контрактного месяца. «На X» — таргет на этот календарный месяц (авто-пропорция, клик — override).
-            <b>«Готово в X»</b> = ролики ready/published с ready_at в этом месяце, если ready_at пустой — fallback на pub_date.
-            <b>«Опубл. в X»</b> = published с pub_date в этом месяце. <b>«Буфер»</b> = Готово − Опубл.; норма ≥ +3.
-            «Осталось» = На X − Готово. «Всего по M» — итог published за весь контракт.
+            <b>«Смонтировано в X»</b> = ролики ready/published с ready_at в этом месяце, если ready_at пустой — fallback на pub_date.
+            <b>«Опубл. в X»</b> = published с pub_date в этом месяце. Маленькая цифра под фактом — разница с планом на сегодня.
+            <b>«Буфер»</b> = Смонтировано − Опубл.; норма ≥ +3. «Осталось» = На X − Смонтировано. «Всего по M» — итог published за весь контракт.
           </div>
         </div>
       )}
