@@ -56,6 +56,13 @@ function addDaysIso(s: string, days: number): string {
   d.setDate(d.getDate() + days);
   return d.toISOString().slice(0, 10);
 }
+function firstPublishedDate(scripts: Script[], clientId: number, monthNumber: number): string | null {
+  const dates = scripts
+    .filter((s) => s.client_id === clientId && s.month_number === monthNumber && s.video_status === "published" && typeof s.pub_date === "string")
+    .map((s) => s.pub_date as string)
+    .sort();
+  return dates[0] || null;
+}
 
 class ErrorBoundary extends React.Component<
   { children: React.ReactNode },
@@ -179,7 +186,12 @@ function DashboardInner() {
   const monthsForClient = (clientId: number): ClientMonth[] =>
     clientMonths.filter((cm) => cm.client_id === clientId).sort((a, b) => a.month_number - b.month_number);
 
-  const shouldCountMonth = (m: ClientMonth) => m.status !== "planned" && m.status !== "cancelled";
+  const shouldCountMonth = (m: ClientMonth) => m.status === "active" || m.status === "closed";
+  const onboardingRows = clientMonths
+    .filter((m) => m.status === "onboarding")
+    .map((m) => ({ m, client: clients.find((c) => c.id === m.client_id) }))
+    .filter((x) => !!x.client)
+    .sort((a, b) => a.m.start_date.localeCompare(b.m.start_date));
 
   const activeMonthFor = (clientId: number, ym: string): ClientMonth | null => {
     if (ym === "all") return null;
@@ -237,6 +249,27 @@ function DashboardInner() {
     }
     const cmResult = await db.getClientMonths(supabase);
     setClientMonths(cmResult?.data || []);
+  }
+
+  async function startProduction(cm: ClientMonth, client: Client) {
+    const firstPub = firstPublishedDate(allScripts, client.id, cm.month_number);
+    const start = firstPub || todayIso;
+    const end = addDaysIso(start, 30);
+    const { error } = await db.updateClientMonth(supabase, cm.id, {
+      status: "active",
+      start_date: start,
+      end_date: end,
+      calendar_split: null,
+    });
+    if (error) {
+      alert(`Не удалось запустить производство: ${error.message || error}`);
+      return;
+    }
+    await db.updateClient(supabase, client.id, { first_pub_date: start } as Partial<Client>);
+    const cmResult = await db.getClientMonths(supabase);
+    setClientMonths(cmResult?.data || []);
+    const cls = await db.getClients(supabase);
+    setClients(cls || []);
   }
 
   async function reopenMonth(cmId: number) {
@@ -727,6 +760,85 @@ function DashboardInner() {
         </div>
       )}
 
+      {!isAllTime && onboardingRows.length > 0 && (
+        <div
+          className="card mb-3"
+          style={{
+            background: "rgba(91,141,239,0.06)",
+            border: "1px solid rgba(91,141,239,0.35)",
+          }}
+        >
+          <div className="text-xs font-bold mb-3" style={{ color: "var(--cy)" }}>
+            🧩 Онбординг — подготовка до первой публикации ({onboardingRows.length})
+          </div>
+          {onboardingRows.map(({ m, client }) => {
+            const c = client!;
+            const ideal = addDaysIso(c.start_date || m.start_date, 10);
+            const hard = addDaysIso(c.start_date || m.start_date, 15);
+            const hardDays = daysBetween(todayIso, hard);
+            const cScripts = allScripts.filter((s) => s.client_id === c.id && s.month_number === m.month_number);
+            const approved = cScripts.filter((s) => s.script_status === "approved").length;
+            const ready = cScripts.filter((s) => s.video_status === "ready").length;
+            const published = cScripts.filter((s) => s.video_status === "published").length;
+            const firstPub = firstPublishedDate(allScripts, c.id, m.month_number);
+            const statusText =
+              hardDays < 0
+                ? `🔴 просрочка ${-hardDays}д`
+                : hardDays === 0
+                ? "🔴 крайний день"
+                : hardDays <= 3
+                ? `⏰ осталось ${hardDays}д`
+                : `осталось ${hardDays}д`;
+            const statusColor = hardDays <= 0 ? "var(--rd)" : hardDays <= 3 ? "var(--or)" : "var(--t2)";
+            return (
+              <div
+                key={m.id}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "minmax(180px,1.2fr) minmax(210px,1.4fr) minmax(150px,1fr) auto",
+                  gap: 12,
+                  alignItems: "center",
+                  padding: "9px 4px",
+                  borderTop: "1px solid var(--brd)",
+                  fontSize: 12,
+                }}
+              >
+                <span style={{ color: "var(--t1)", fontWeight: 700, cursor: "pointer" }} onClick={() => router.push(`/dashboard/clients/${c.id}`)}>
+                  {c.name} {c.surname || ""}
+                </span>
+                <span style={{ color: "var(--t2)" }}>
+                  первая публикация: <b style={{ color: "var(--t1)" }}>{fmtDate(ideal)}</b> / край <b style={{ color: "var(--t1)" }}>{fmtDate(hard)}</b>
+                  <span style={{ marginLeft: 8, color: statusColor, fontWeight: 700 }}>{statusText}</span>
+                </span>
+                <span style={{ color: "var(--t2)" }}>
+                  сценарии {approved} · ready {ready} · published {published}
+                </span>
+                <button
+                  onClick={() => startProduction(m, c)}
+                  disabled={!firstPub && published === 0}
+                  title={firstPub || published > 0 ? "Начать производственный месяц с даты первой публикации" : "Сначала отметьте первую публикацию и дату pub_date"}
+                  style={{
+                    border: "1px solid " + (firstPub || published > 0 ? "var(--cy)" : "var(--brd)"),
+                    background: firstPub || published > 0 ? "rgba(34,211,238,0.1)" : "transparent",
+                    color: firstPub || published > 0 ? "var(--cy)" : "var(--t3)",
+                    padding: "4px 10px",
+                    borderRadius: 4,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: firstPub || published > 0 ? "pointer" : "not-allowed",
+                  }}
+                >
+                  ▶ В производство
+                </button>
+              </div>
+            );
+          })}
+          <div style={{ marginTop: 10, fontSize: 10, color: "var(--t3)" }}>
+            Онбординг не попадает в план публикаций. План 1 публикация в день начнётся только после запуска производства.
+          </div>
+        </div>
+      )}
+
       {plannedRenewals.length > 0 && (
         <div
           className="card mb-3"
@@ -828,6 +940,7 @@ function DashboardInner() {
                       <span style={{ color: "var(--t2)" }}>{daysLeft !== null ? `${daysLeft}д` : ""}</span>
                     );
                     if (m.status === "closed") statusBadge = <span style={{ color: "var(--gr)", fontWeight: 700 }}>✅</span>;
+                    else if (m.status === "onboarding") statusBadge = <span style={{ color: "var(--cy)", fontWeight: 700 }}>🧩 onboarding</span>;
                     else if (m.status === "planned") statusBadge = <span style={{ color: "var(--pu, #a78bfa)", fontWeight: 700 }}>🕓 planned</span>;
                     else if (m.status === "cancelled") statusBadge = <span style={{ color: "var(--t3)" }}>—</span>;
                     else if (daysLeft !== null && daysLeft < 0) statusBadge = <span style={{ color: "var(--rd)", fontWeight: 700 }}>🔴 просрочка {-daysLeft}д</span>;
@@ -1290,7 +1403,7 @@ function DashboardInner() {
                       {c.name} {c.surname || ""}
                       {months.length > 0 && (
                         <span style={{ marginLeft: 8, fontSize: 9, color: "var(--t3)" }}>
-                          {months.map((m) => (m.status === "closed" ? `М${m.month_number}✅` : m.status === "planned" ? `М${m.month_number}🕓` : `М${m.month_number}🟡`)).join(" ")}
+                          {months.map((m) => (m.status === "closed" ? `М${m.month_number}✅` : m.status === "onboarding" ? `М${m.month_number}🧩` : m.status === "planned" ? `М${m.month_number}🕓` : `М${m.month_number}🟡`)).join(" ")}
                         </span>
                       )}
                     </span>

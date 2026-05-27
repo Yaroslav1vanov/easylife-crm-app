@@ -441,12 +441,16 @@ export default function ClientDetailPage() {
                 const pubCount = totalPubByMonth[m.month_number] || 0;
                 const isClosed = m.status === "closed";
                 const isCancel = m.status === "cancelled";
+                const isOnboarding = m.status === "onboarding";
                 const daysLeft = Math.round((new Date(m.end_date).getTime() - new Date(today).getTime()) / 86400000);
                 let badge = "";
                 let badgeColor = "var(--t2)";
                 if (isClosed) {
                   badge = "✅ закрыт";
                   badgeColor = "var(--gr)";
+                } else if (isOnboarding) {
+                  badge = "🧩 онбординг";
+                  badgeColor = "var(--cy)";
                 } else if (isCancel) {
                   badge = "— отменён";
                   badgeColor = "var(--t3)";

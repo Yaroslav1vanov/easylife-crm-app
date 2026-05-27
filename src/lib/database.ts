@@ -29,7 +29,7 @@ export type ClientMonth = {
   start_date: string;
   end_date: string;
   package: number;
-  status: "active" | "planned" | "closed" | "cancelled";
+  status: "onboarding" | "active" | "planned" | "closed" | "cancelled";
   closed_at: string | null;
   note: string | null;
   calendar_split: Record<string, number> | null;
@@ -90,6 +90,7 @@ const db = {
       scripts_deadline: plus10,
       videos_deadline: plus10,
     }).eq("id", data);
+    await sb.from("client_months").update({ status: "onboarding" }).eq("client_id", data).eq("month_number", 1);
     return { clientId: data, error };
   },
   async updateClient(sb: SupabaseClient, id: number, updates: Partial<Client>) {
