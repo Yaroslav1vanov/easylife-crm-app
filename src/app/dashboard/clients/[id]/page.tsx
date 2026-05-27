@@ -86,6 +86,12 @@ export default function ClientDetailPage() {
   const pct = checklist.length > 0 ? Math.round(doneTasks / checklist.length * 100) : 0;
   const months = Array.from(new Set(scripts.map(s => s.month_number))).sort();
   const monthScripts = scripts.filter(s => s.month_number === viewMonth);
+  const monthPub = monthScripts.filter(s => s.video_status === "published").length;
+  const monthReady = monthScripts.filter(s => s.video_status === "ready").length;
+  const monthInMontage = monthScripts.filter(s => s.video_status === "inProgress" && s.script_status === "approved").length;
+  const monthReviewVids = monthScripts.filter(s => s.video_status === "review").length;
+  const monthApprovedUnpublished = monthScripts.filter(s => s.script_status === "approved" && s.video_status !== "published");
+  const monthPublished = monthScripts.filter(s => s.video_status === "published");
 
   const scStatuses = [{ value: "notStarted", label: "Не начато" }, { value: "inProgress", label: "В работе" }, { value: "review", label: "На утверждение" }, { value: "approved", label: "Утверждён" }];
   const viStatuses = [{ value: "notStarted", label: "—" }, { value: "inProgress", label: "В работе" }, { value: "review", label: "На утверждение" }, { value: "ready", label: "Готово" }, { value: "published", label: "Опубликовано" }];
@@ -506,7 +512,7 @@ export default function ClientDetailPage() {
               })}
             </div>
             <div style={{ marginTop: 8, fontSize: 10, color: "var(--t3)" }}>
-              Клик по M переключает фильтр скриптов ниже на этот месяц. Открытие новых M / закрытие — на главном дашборде.
+              Клик по M переключает фильтр сценариев и видео ниже на этот месяц. Открытие новых M / закрытие — на главном дашборде.
             </div>
           </div>
         );
@@ -520,8 +526,8 @@ export default function ClientDetailPage() {
         ))}
       </div>
 
-      {/* Month selector (for scripts) */}
-      {tab === "scripts" && (
+      {/* Month selector */}
+      {["scripts", "montage", "published"].includes(tab) && (
         <div className="flex gap-1 mb-3 flex-wrap items-center">
           {months.map(m => (
             <button key={m} onClick={() => setViewMonth(m)} className="px-3 py-1 rounded-lg text-[10px] font-semibold"
@@ -605,10 +611,10 @@ export default function ClientDetailPage() {
         <div>
           <div className="flex gap-3 mb-3 pb-3" style={{ borderBottom: "1px solid var(--brd)" }}>
             {[
-              { l: "В работе", v: inMontage, c: "var(--or)" },
-              { l: "На утверждении", v: reviewVids, c: "var(--yl)" },
-              { l: "Готово", v: ready, c: "var(--cy)" },
-              { l: "Осталось", v: Math.max(0, totalScripts - pub - ready - inMontage - reviewVids), c: "var(--t3)" },
+              { l: "В работе", v: monthInMontage, c: "var(--or)" },
+              { l: "На утверждении", v: monthReviewVids, c: "var(--yl)" },
+              { l: "Готово", v: monthReady, c: "var(--cy)" },
+              { l: "Осталось", v: Math.max(0, monthScripts.length - monthPub - monthReady - monthInMontage - monthReviewVids), c: "var(--t3)" },
             ].map((s, i) => (
               <div key={i} className="text-center flex-1 py-2 rounded-lg" style={{ background: `${s.c}08`, border: `1px solid ${s.c}20` }}>
                 <div className="text-lg font-bold font-mono" style={{ color: s.c }}>{s.v}</div>
@@ -616,7 +622,7 @@ export default function ClientDetailPage() {
               </div>
             ))}
           </div>
-          {scripts.filter(s => s.script_status === "approved" && s.video_status !== "published").map(s => (
+          {monthApprovedUnpublished.map(s => (
             <div key={s.id} className="card mb-1" style={{ padding: "8px 12px" }}>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-mono" style={{ color: "var(--cy)" }}>#{s.order_num}</span>
@@ -628,8 +634,8 @@ export default function ClientDetailPage() {
               </div>
             </div>
           ))}
-          {scripts.filter(s => s.script_status === "approved" && s.video_status !== "published").length === 0 && (
-            <div className="text-xs text-center py-8" style={{ color: "var(--t3)" }}>Все ролики опубликованы</div>
+          {monthApprovedUnpublished.length === 0 && (
+            <div className="text-xs text-center py-8" style={{ color: "var(--t3)" }}>Все ролики этого месяца опубликованы</div>
           )}
         </div>
       )}
@@ -639,10 +645,8 @@ export default function ClientDetailPage() {
         <div>
           <div className="flex gap-3 mb-3 pb-3" style={{ borderBottom: "1px solid var(--brd)" }}>
             {[
-              { l: "Опубликовано", v: pub, c: "var(--gr)" },
-              { l: "Осталось", v: totalScripts - pub, c: "var(--t3)" },
-              ...(expectedPub > 0 ? [{ l: "Ожидается", v: expectedPub, c: pubOnTrack ? "var(--gr)" : "var(--rd)" }] : []),
-              ...(expectedPub > 0 ? [{ l: pubOnTrack ? "✓ В норме" : "Отставание", v: pubOnTrack ? 0 : expectedPub - pub, c: pubOnTrack ? "var(--gr)" : "var(--rd)" }] : []),
+              { l: "Опубликовано", v: monthPub, c: "var(--gr)" },
+              { l: "Осталось", v: monthScripts.length - monthPub, c: "var(--t3)" },
             ].map((s, i) => (
               <div key={i} className="text-center flex-1 py-2 rounded-lg" style={{ background: `${s.c}08`, border: `1px solid ${s.c}20` }}>
                 <div className="text-lg font-bold font-mono" style={{ color: s.c }}>{s.l === "✓ В норме" ? "✓" : s.v}</div>
@@ -651,9 +655,9 @@ export default function ClientDetailPage() {
             ))}
           </div>
           <div className="h-2 rounded-full mb-3" style={{ background: "var(--brd)" }}>
-            <div className="h-full rounded-full" style={{ width: `${totalScripts > 0 ? pub / totalScripts * 100 : 0}%`, background: "linear-gradient(90deg, var(--cy), var(--gr))" }} />
+            <div className="h-full rounded-full" style={{ width: `${monthScripts.length > 0 ? monthPub / monthScripts.length * 100 : 0}%`, background: "linear-gradient(90deg, var(--cy), var(--gr))" }} />
           </div>
-          {scripts.filter(s => s.video_status === "published").map(s => {
+          {monthPublished.map(s => {
             const isExp = expandedScript === s.id;
             return (
               <div key={s.id} className="card mb-1" style={{ padding: 0 }}>
@@ -695,8 +699,8 @@ export default function ClientDetailPage() {
               </div>
             );
           })}
-          {scripts.filter(s => s.video_status === "published").length === 0 && (
-            <div className="text-xs text-center py-8" style={{ color: "var(--t3)" }}>Нет опубликованных роликов</div>
+          {monthPublished.length === 0 && (
+            <div className="text-xs text-center py-8" style={{ color: "var(--t3)" }}>Нет опубликованных роликов за этот месяц</div>
           )}
         </div>
       )}

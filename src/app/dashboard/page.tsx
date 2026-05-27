@@ -377,11 +377,9 @@ function DashboardInner() {
     return allScripts.filter(
       (s) => {
         if (s.client_id !== clientId || s.month_number !== monthNumber) return false;
-        if (s.video_status === "published") {
-          return typeof s.pub_date === "string" && s.pub_date >= start && s.pub_date <= end;
-        }
-        if (s.video_status === "ready") {
-          return typeof s.ready_at === "string" && s.ready_at >= start && s.ready_at <= end;
+        if (s.video_status === "ready" || s.video_status === "published") {
+          const madeAt = typeof s.ready_at === "string" ? s.ready_at : s.pub_date;
+          return typeof madeAt === "string" && madeAt >= start && madeAt <= end;
         }
         return false;
       }
@@ -1244,7 +1242,7 @@ function DashboardInner() {
           )}
           <div style={{ marginTop: 10, fontSize: 10, color: "var(--t3)" }}>
             «Пакет» — размер контрактного месяца. «На X» — таргет на этот календарный месяц (авто-пропорция, клик — override).
-            <b>«Готово в X»</b> = ролики ready с ready_at в этом месяце + published с pub_date в этом месяце.
+            <b>«Готово в X»</b> = ролики ready/published с ready_at в этом месяце, если ready_at пустой — fallback на pub_date.
             <b>«Опубл. в X»</b> = published с pub_date в этом месяце. <b>«Буфер»</b> = Готово − Опубл.; норма ≥ +3.
             «Осталось» = На X − Готово. «Всего по M» — итог published за весь контракт.
           </div>
