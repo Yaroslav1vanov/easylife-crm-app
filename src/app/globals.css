@@ -5,17 +5,17 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@600;700;800&display=swap');
 
 :root {
-  --bg: #070b14; --bg2: #0c1220; --card: #111827; --cardH: #162032;
-  --side: #0a0f1c; --inp: #0f1629; --brd: #1e293b;
-  --t1: #e2e8f0; --t2: #64748b; --t3: #475569;
-  --cy: #22d3ee; --pu: #a855f7; --or: #f97316; --gr: #10b981;
-  --rd: #ef4444; --yl: #eab308; --pk: #ec4899;
-  --cyd: rgba(34,211,238,0.1); --pud: rgba(168,85,247,0.1);
-  --ord: rgba(249,115,22,0.1); --grd: rgba(16,185,129,0.1);
+  --bg: #0a0118; --bg2: #140329; --page-bg: radial-gradient(circle at 75% -10%, #250a44 0%, #0a0118 55%); --card: rgba(123,63,228,.075); --cardH: rgba(123,63,228,.13);
+  --side: #0d0220; --inp: rgba(10,1,24,.78); --brd: rgba(157,107,255,.17);
+  --t1: #ffffff; --t2: #a890d0; --t3: #77658f;
+  --cy: #42d4f4; --pu: #9d6bff; --or: #ffae42; --gr: #a8e063;
+  --rd: #ff5c7a; --yl: #f5c451; --pk: #ec4899;
+  --cyd: rgba(66,212,244,.1); --pud: rgba(157,107,255,.12);
+  --ord: rgba(255,174,66,.1); --grd: rgba(168,224,99,.1);
 }
 
 [data-theme="light"] {
-  --bg: #f8fafc; --bg2: #f1f5f9; --card: #ffffff; --cardH: #f8fafc;
+  --bg: #f8fafc; --bg2: #f1f5f9; --page-bg: #f8fafc; --card: #ffffff; --cardH: #f8fafc;
   --side: #ffffff; --inp: #f1f5f9; --brd: #e2e8f0;
   --t1: #0f172a; --t2: #64748b; --t3: #94a3b8;
   --cy: #0891b2; --pu: #9333ea; --or: #ea580c; --gr: #059669;
@@ -25,19 +25,50 @@
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { background: var(--bg); color: var(--t1); font-family: 'Inter', -apple-system, sans-serif; transition: background .3s, color .3s; -webkit-font-smoothing: antialiased; }
+body { background: var(--page-bg); color: var(--t1); font-family: 'Inter', -apple-system, sans-serif; transition: background .3s, color .3s; -webkit-font-smoothing: antialiased; }
 ::-webkit-scrollbar { width: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--brd); border-radius: 10px; }
 
-.brand-gradient { background: linear-gradient(135deg, var(--cy), var(--pu)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-.card { background: var(--card); border: 1px solid var(--brd); border-radius: 14px; padding: 14px; transition: all .2s; }
-.card:hover { box-shadow: 0 0 12px rgba(34,211,238,0.04); }
+.brand-gradient { background: linear-gradient(135deg, var(--gr), var(--cy)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+.card { background: var(--card); backdrop-filter: blur(8px); border: 1px solid var(--brd); border-radius: 14px; padding: 14px; transition: all .2s; }
+.card:hover { border-color: rgba(157,107,255,.36); box-shadow: 0 12px 32px rgba(76,29,149,.12); }
 .badge { padding: 3px 7px; border-radius: 6px; font-size: 9px; font-weight: 700; letter-spacing: .3px; text-transform: uppercase; white-space: nowrap; }
 
 .nav-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 8px; border: none; cursor: pointer; width: 100%; text-align: left; font-size: 12px; font-weight: 500; transition: all .2s; border-left: 3px solid transparent; background: transparent; color: var(--t2); }
-.nav-item:hover { background: var(--cyd); color: var(--cy); }
-.nav-item.active { background: var(--cyd); border-left-color: var(--cy); color: var(--cy); }
+.nav-item:hover { background: rgba(157,107,255,.1); color: var(--t1); }
+.nav-item.active { background: linear-gradient(90deg, rgba(123,63,228,.9), rgba(123,63,228,.38)); border-left-color: var(--gr); color: #fff; }
+.app-sidebar { box-shadow: 12px 0 34px rgba(5,0,18,.16); }
+.app-logo { font-family: 'Unbounded', sans-serif; letter-spacing: -.4px; }
+
+/* Dashboard redesign */
+.dashboard-v2 { font-family: 'Manrope', sans-serif; }
+.dashboard-v2-header { padding: 7px 3px 9px; }
+.dashboard-v2-header h1 { font-family: 'Unbounded', sans-serif; font-size: 22px; letter-spacing: -.5px; }
+.dashboard-v2-periods { background: rgba(123,63,228,.06); border: 1px solid var(--brd); border-radius: 14px; backdrop-filter: blur(8px); }
+.dashboard-v2-periods button { transition: background .18s, border-color .18s, color .18s; }
+.dashboard-v2-kpi { gap: 12px; }
+.dashboard-v2-kpi { background: rgba(123,63,228,.075); border-radius: 17px; min-height: 118px; padding: 17px; }
+.dashboard-v2-kpi:hover { border-color: rgba(157,107,255,.46); transform: translateY(-2px); }
+.dashboard-v2-kpi > div:nth-child(3) span:first-child { font-family: 'Unbounded', sans-serif; font-size: 24px; letter-spacing: -.4px; }
+.dashboard-v2 > .card { border-radius: 17px; }
+.dashboard-v2 table thead { text-transform: uppercase; letter-spacing: .25px; }
+.dashboard-v2 table tbody tr { transition: background .14s; }
+.dashboard-v2 table tbody tr:hover { background: rgba(157,107,255,.045); }
+
+/* Client detail redesign */
+.client-detail-v2 { font-family: 'Manrope', sans-serif; }
+.client-detail-v2-hero { background: linear-gradient(135deg, rgba(123,63,228,.2), rgba(10,1,24,.44)) !important; border-color: rgba(157,107,255,.28); overflow: hidden; position: relative; }
+.client-detail-v2-hero::before { background: linear-gradient(90deg, var(--pu), var(--cy), transparent); content: ""; height: 3px; inset: 0 0 auto; position: absolute; }
+.client-detail-v2-hero .text-xl { font-family: 'Unbounded', sans-serif; font-size: 18px; letter-spacing: -.45px; }
+.client-detail-v2-stats .card { background: rgba(123,63,228,.075); border-radius: 15px; padding: 14px !important; }
+.client-detail-v2 > .card { border-radius: 16px; }
+.client-detail-v2 input, .client-detail-v2 select, .client-detail-v2 textarea { border-color: rgba(157,107,255,.18) !important; }
+.client-detail-v2 input:focus, .client-detail-v2 select:focus, .client-detail-v2 textarea:focus { border-color: var(--pu) !important; }
+.client-detail-v2 button { transition: border-color .16s, background .16s, color .16s, transform .16s; }
+.client-detail-v2 button:hover { transform: translateY(-1px); }
+.client-detail-v2 .border-b { background: rgba(123,63,228,.055); border: 1px solid var(--brd); border-radius: 12px; padding: 3px 6px 0; }
+.client-detail-v2 .border-b button { border-radius: 8px 8px 0 0; }
 
 /* Clients page redesign */
 .clients-v2 { font-family: 'Manrope', sans-serif; }

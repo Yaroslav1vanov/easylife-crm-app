@@ -79,9 +79,9 @@ export function Sidebar({ userRole }: { userRole: string }) {
   }
 
   return (
-    <aside style={{ position:"fixed",left:0,top:0,height:"100vh",width:190,display:"flex",flexDirection:"column",borderRight:"1px solid var(--brd)",background:"var(--side)",zIndex:50 }}>
+    <aside className="app-sidebar" style={{ position:"fixed",left:0,top:0,height:"100vh",width:190,display:"flex",flexDirection:"column",borderRight:"1px solid var(--brd)",background:"var(--side)",zIndex:50 }}>
       <div style={{ padding:"12px",borderBottom:"1px solid var(--brd)" }}>
-        <div style={{ fontSize:14,fontWeight:700 }}><span style={{ color:"var(--t1)" }}>Easy</span><span className="brand-gradient">Life</span><span style={{ color:"var(--t1)" }}> AI</span></div>
+        <div className="app-logo" style={{ fontSize:14,fontWeight:700 }}><span style={{ color:"var(--t1)" }}>Easy</span><span className="brand-gradient">Life</span><span style={{ color:"var(--t1)" }}> AI</span></div>
       </div>
       <nav style={{ flex:1,padding:"6px",display:"flex",flexDirection:"column",gap:1 }}>
         {navItems.map(item => (

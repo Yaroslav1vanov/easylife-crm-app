@@ -596,7 +596,7 @@ function DashboardInner() {
     .sort((a, b) => a.m.end_date.localeCompare(b.m.end_date));
 
   return (
-    <div>
+    <div className="dashboard-v2">
       {migrationMissing && (
         <div
           className="card mb-3"
@@ -609,7 +609,7 @@ function DashboardInner() {
         </div>
       )}
 
-      <div className="card mb-3 flex justify-between items-start">
+      <div className="dashboard-v2-header mb-3 flex justify-between items-start">
         <div>
           <h1 className="text-lg font-extrabold" style={{ color: "var(--t1)" }}>Главный дашборд</h1>
           <p className="text-xs mt-1" style={{ color: "var(--t2)" }}>
@@ -622,7 +622,7 @@ function DashboardInner() {
         </div>
       </div>
 
-      <div className="card mb-3" style={{ overflowX: "auto", padding: "8px 12px" }}>
+      <div className="dashboard-v2-periods mb-3" style={{ overflowX: "auto", padding: "8px 12px" }}>
         <div style={{ display: "flex", gap: 6, minWidth: "max-content" }}>
           {tabs.map((t) => {
             const active = t.value === selectedMonth;
@@ -649,9 +649,9 @@ function DashboardInner() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 mb-3">
+      <div className="dashboard-v2-kpis grid grid-cols-2 lg:grid-cols-5 gap-2 mb-3">
         {stats.map((s, i) => (
-          <div key={i} onClick={s.ck} className="card cursor-pointer">
+          <div key={i} onClick={s.ck} className="card dashboard-v2-kpi cursor-pointer">
             <div className="flex justify-between items-center mb-2">
               <span className="text-base">{s.icon}</span>
               <span className="text-[9px] font-semibold" style={{ color: s.tagColor }}>{s.tag}</span>

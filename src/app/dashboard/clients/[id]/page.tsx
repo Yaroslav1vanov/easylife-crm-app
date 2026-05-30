@@ -143,7 +143,7 @@ export default function ClientDetailPage() {
   ];
 
   return (
-    <div>
+    <div className="client-detail-v2">
       <div className="flex justify-between items-center mb-2">
         <button onClick={() => router.back()} className="flex items-center gap-1 text-xs" style={{ color: "var(--cy)", background: "none", border: "none", cursor: "pointer" }}>← Назад</button>
         {userRole === "admin" && <button onClick={async () => { if (confirm("Удалить клиента? Все данные будут потеряны.")) { await db.deleteClient(supabase, clientId); router.push("/dashboard/clients"); } }}
@@ -154,7 +154,7 @@ export default function ClientDetailPage() {
       </div>
 
       {/* Hero Card */}
-      <div className="card mb-3" style={{ padding: "20px", borderRadius: 18, background: "linear-gradient(135deg, var(--card), var(--bg2))" }}>
+      <div className="card client-detail-v2-hero mb-3" style={{ padding: "20px", borderRadius: 18, background: "linear-gradient(135deg, var(--card), var(--bg2))" }}>
         <div className="flex items-center gap-4 flex-wrap">
           <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-2xl font-extrabold shrink-0"
             style={{ background: c.avatar_url ? `url(${c.avatar_url}) center/cover` : "linear-gradient(135deg, var(--pud), var(--cyd))", color: "var(--pu)", border: "2px solid var(--brd)" }}>
@@ -201,7 +201,7 @@ export default function ClientDetailPage() {
       </div>
 
       {/* Circular Stats with status details */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2 mb-3">
+      <div className="client-detail-v2-stats grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2 mb-3">
         {/* Чеклист */}
         {(() => {
           const r = 30; const circ = 2 * Math.PI * r; const pctV = pct / 100;
