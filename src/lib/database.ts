@@ -5,6 +5,7 @@ export type TeamMember = { id: number; profile_id: string | null; name: string; 
 export type Client = {
   id: number; name: string; surname: string; niche: string; product: string; phone: string;
   avg_check: string; instagram: string; tiktok: string; youtube: string; avatar_url: string;
+  metricool_blog_id?: number | null; platforms?: string[] | null;
   package: number; montager_id: number | null; teamlead_id: number | null; priority: string;
   stage: string; start_date: string; pub_date: string | null; scripts_deadline: string | null;
   videos_deadline: string | null; first_pub_date: string | null; target_audience: string;
@@ -33,6 +34,16 @@ export type ClientMonth = {
   closed_at: string | null;
   note: string | null;
   calendar_split: Record<string, number> | null;
+};
+export type SocialSnapshot = {
+  id: number;
+  client_id: number;
+  platform: "ig" | "tt" | "yt";
+  snapshot_date: string;
+  followers: number | null;
+  reach_30d: number | null;
+  engagement_rate: number | null;
+  created_at: string;
 };
 
 const db = {
@@ -96,6 +107,17 @@ const db = {
   async updateClient(sb: SupabaseClient, id: number, updates: Partial<Client>) {
     const { error } = await sb.from("clients").update({ ...updates, updated_at: new Date().toISOString() }).eq("id", id);
     return { error };
+  },
+  async getSocialSnapshots(sb: SupabaseClient, clientIds: number[]) {
+    if (clientIds.length === 0) return [] as SocialSnapshot[];
+    const { data, error } = await sb
+      .from("social_snapshots")
+      .select("*")
+      .in("client_id", clientIds)
+      .order("snapshot_date", { ascending: false });
+    // Soft fail until the Metricool migration is applied.
+    if (error) return [] as SocialSnapshot[];
+    return (data || []) as SocialSnapshot[];
   },
   async deleteClient(sb: SupabaseClient, id: number) {
     return sb.from("clients").delete().eq("id", id);

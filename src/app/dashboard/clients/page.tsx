@@ -1,13 +1,158 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
-import db, { Client, TeamMember } from "@/lib/database";
+import db, { Client, ClientMonth, Script, SocialSnapshot, TeamMember } from "@/lib/database";
+
+type Platform = "ig" | "tt" | "yt";
+type ClientProduction = { pub: number; ready: number; scr: number; total: number; month: ClientMonth | null };
+
+const platformMeta: Record<Platform, { short: string; label: string; color: string }> = {
+  ig: { short: "IG", label: "Instagram", color: "#e1306c" },
+  tt: { short: "TT", label: "TikTok", color: "#25f4ee" },
+  yt: { short: "YT", label: "Shorts", color: "#ff5c7a" },
+};
+const platforms: Platform[] = ["ig", "tt", "yt"];
+const clientAccents = ["#7b3fe4", "#42d4f4", "#a8e063", "#ffae42", "#ff5c7a", "#9d6bff"];
+
+function initials(name: string) {
+  return name.split(" ").filter(Boolean).map((part) => part[0]).join("").slice(0, 2).toUpperCase() || "—";
+}
+
+function compactNumber(value: number | null | undefined) {
+  if (value === null || value === undefined) return "—";
+  return new Intl.NumberFormat("ru-RU", { notation: "compact", maximumFractionDigits: 1 }).format(value);
+}
+
+function formatSnapshotDate(value?: string) {
+  if (!value) return "данных пока нет";
+  return new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" }).format(new Date(`${value}T00:00:00`));
+}
+
+function activePlatforms(client: Client, snapshots: SocialSnapshot[]): Platform[] {
+  const configured = (client.platforms || []).filter((p): p is Platform => platforms.includes(p as Platform));
+  const inferred: Platform[] = [
+    ...(client.instagram ? ["ig" as Platform] : []),
+    ...(client.tiktok ? ["tt" as Platform] : []),
+    ...(client.youtube ? ["yt" as Platform] : []),
+    ...snapshots.map((s) => s.platform),
+  ];
+  return Array.from(new Set([...configured, ...inferred]));
+}
+
+function socialMetric(snapshots: SocialSnapshot[], platform: Platform) {
+  const rows = snapshots
+    .filter((s) => s.platform === platform)
+    .sort((a, b) => b.snapshot_date.localeCompare(a.snapshot_date));
+  const latest = rows[0];
+  if (!latest) return { latest: null, growth: null };
+  const target = new Date(`${latest.snapshot_date}T00:00:00`);
+  target.setDate(target.getDate() - 30);
+  const targetDate = target.toISOString().slice(0, 10);
+  const previous = rows.find((row) => row.snapshot_date <= targetDate);
+  const growth = previous?.followers && latest.followers !== null
+    ? ((latest.followers - previous.followers) / previous.followers) * 100
+    : null;
+  return { latest, growth };
+}
+
+function ClientCard({
+  client,
+  production,
+  snapshots,
+  accent,
+  onOpen,
+}: {
+  client: Client;
+  production: ClientProduction;
+  snapshots: SocialSnapshot[];
+  accent: string;
+  onOpen: () => void;
+}) {
+  const available = useMemo(() => activePlatforms(client, snapshots), [client, snapshots]);
+  const [selected, setSelected] = useState<Platform>(available[0] || "ig");
+  useEffect(() => {
+    if (!available.includes(selected)) setSelected(available[0] || "ig");
+  }, [available, selected]);
+
+  const { latest, growth } = socialMetric(snapshots, selected);
+  const isOnboarding = production.month?.status === "onboarding" || client.stage === "Онбординг";
+  const plan = production.total || production.month?.package || client.package || 0;
+  const progress = plan > 0 ? Math.min(100, Math.round((production.ready / plan) * 100)) : 0;
+  const fullName = `${client.name} ${client.surname || ""}`.trim();
+
+  return (
+    <article className="client-v2-card" style={{ "--client-accent": accent } as React.CSSProperties}>
+      <div className="client-v2-head">
+        <div
+          className="client-v2-avatar"
+          style={{ background: client.avatar_url ? `url(${client.avatar_url}) center/cover` : `linear-gradient(135deg, ${accent}, rgba(123,63,228,.42))` }}
+        >
+          {!client.avatar_url && initials(fullName)}
+          <span className={`client-v2-status-dot ${isOnboarding ? "onboarding" : "production"}`} />
+        </div>
+        <div className="client-v2-title">
+          <h2>{fullName}</h2>
+          <p>{client.niche || "Ниша не указана"}</p>
+        </div>
+        <span className={`client-v2-status ${isOnboarding ? "onboarding" : "production"}`}>
+          {isOnboarding ? "онбординг" : "производство"}
+        </span>
+      </div>
+
+      <div className="client-v2-platform-tabs">
+        {platforms.map((platform) => {
+          const meta = platformMeta[platform];
+          const enabled = available.includes(platform);
+          return (
+            <button
+              key={platform}
+              type="button"
+              disabled={!enabled}
+              onClick={() => setSelected(platform)}
+              className={`client-v2-platform ${selected === platform && enabled ? "active" : ""}`}
+              style={{ "--platform-color": meta.color } as React.CSSProperties}
+            >
+              <i /> {meta.short} <span>{meta.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="client-v2-social">
+        <div><b>{compactNumber(latest?.followers)}</b><span>подписчики</span></div>
+        <div><b>{compactNumber(latest?.reach_30d)}</b><span>охват / мес</span></div>
+        <div><b>{latest?.engagement_rate !== null && latest?.engagement_rate !== undefined ? `${latest.engagement_rate}%` : "—"}</b><span>ER</span></div>
+        <div><b className={growth === null ? "" : growth >= 0 ? "positive" : "negative"}>{growth === null ? "—" : `${growth >= 0 ? "+" : ""}${growth.toFixed(1)}%`}</b><span>рост 30д</span></div>
+        <small>Metricool · обновлено {formatSnapshotDate(latest?.snapshot_date)}</small>
+      </div>
+
+      <div className="client-v2-production">
+        <div><b><em>{production.ready}</em>/{plan}</b><span>ролики</span></div>
+        <div><b><strong>{production.scr}</strong>/{plan}</b><span>сценарии</span></div>
+        <div><b>{production.month?.package || client.package}</b><span>пакет</span></div>
+      </div>
+
+      <div className="client-v2-progress">
+        <div><span>Прогресс месяца{production.month ? ` · M${production.month.month_number}` : ""}</span><b>{progress}%</b></div>
+        <i><span style={{ width: `${progress}%` }} /></i>
+      </div>
+
+      <footer className="client-v2-footer">
+        <span><i>{initials(client.montager?.name || "—")}</i>{client.montager?.name || "Монтажёр —"}</span>
+        <span><i>{initials(client.teamlead?.name || "—")}</i>{client.teamlead?.name || "Тимлид —"}</span>
+        <button type="button" onClick={onOpen}>Открыть →</button>
+      </footer>
+    </article>
+  );
+}
 
 export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [team, setTeam] = useState<TeamMember[]>([]);
-  const [scripts, setScripts] = useState<Record<number, { pub: number; scr: number; total: number }>>({});
+  const [scripts, setScripts] = useState<Script[]>([]);
+  const [clientMonths, setClientMonths] = useState<ClientMonth[]>([]);
+  const [snapshots, setSnapshots] = useState<SocialSnapshot[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ name: "", surname: "", niche: "", package: 30, montager_id: 0, teamlead_id: 0, start_date: new Date().toISOString().split("T")[0], pub_date: "" });
@@ -18,14 +163,18 @@ export default function ClientsPage() {
 
   async function load() {
     const [cls, tm] = await Promise.all([db.getClients(supabase), db.getTeam(supabase)]);
-    setClients(cls); setTeam(tm);
-    const allScripts = await db.getScriptsForClients(supabase, cls.map((c) => c.id));
-    const sc: Record<number, { pub: number; scr: number; total: number }> = {};
-    for (const c of cls) {
-      const s = allScripts.filter((x) => x.client_id === c.id);
-      sc[c.id] = { pub: s.filter(x => x.video_status === "published").length, scr: s.filter(x => x.script_status === "approved").length, total: s.length };
-    }
-    setScripts(sc); setLoading(false);
+    const ids = cls.map((c) => c.id);
+    const [allScripts, monthsResult, social] = await Promise.all([
+      db.getScriptsForClients(supabase, ids),
+      db.getClientMonths(supabase),
+      db.getSocialSnapshots(supabase, ids),
+    ]);
+    setClients(cls);
+    setTeam(tm);
+    setScripts(allScripts);
+    setClientMonths(monthsResult.data || []);
+    setSnapshots(social);
+    setLoading(false);
   }
 
   async function handleCreate() {
@@ -45,21 +194,40 @@ export default function ClientsPage() {
 
   const montagers = team.filter(t => t.member_type === "montager");
   const leads = team.filter(t => t.member_type === "teamlead" || t.member_type === "admin");
+  const latestSync = snapshots.map((s) => s.snapshot_date).sort().at(-1);
+
+  function productionFor(clientId: number): ClientProduction {
+    const months = clientMonths.filter((m) => m.client_id === clientId && m.status !== "cancelled");
+    const month = months.find((m) => m.status === "active")
+      || months.find((m) => m.status === "onboarding")
+      || months.sort((a, b) => b.month_number - a.month_number)[0]
+      || null;
+    const rows = scripts.filter((script) => script.client_id === clientId && (!month || script.month_number === month.month_number));
+    return {
+      pub: rows.filter((script) => script.video_status === "published").length,
+      ready: rows.filter((script) => script.video_status === "ready" || script.video_status === "published").length,
+      scr: rows.filter((script) => script.script_status === "approved").length,
+      total: rows.length,
+      month,
+    };
+  }
 
   return (
-    <div>
-      <div className="flex justify-between items-center mb-4">
+    <div className="clients-v2">
+      <div className="clients-v2-top">
         <div>
-          <h1 className="text-lg font-bold" style={{ color: "var(--t1)" }}>Клиенты ({clients.length})</h1>
-          <p className="text-xs" style={{ color: "var(--t2)" }}>Все клиенты в работе</p>
+          <h1>Клиенты <span>({clients.length})</span></h1>
+          <p>Клиенты в работе, контент и соц-статистика</p>
         </div>
-        <button onClick={() => setShowAdd(true)} className="px-4 py-2 rounded-xl text-xs font-semibold text-white"
-          style={{ background: "linear-gradient(135deg, var(--cy), var(--pu))" }}>+ Клиент</button>
+        <button type="button" onClick={() => setShowAdd(true)}>+ Клиент</button>
       </div>
 
-      {/* Add client modal */}
+      <div className="clients-v2-sync">
+        <i /> Статистика Metricool · {latestSync ? `обновлено ${formatSnapshotDate(latestSync)}` : "подключение ожидает настройки"}
+      </div>
+
       {showAdd && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.7)" }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.72)" }}>
           <div className="card w-full max-w-lg max-h-[90vh] overflow-auto" style={{ padding: 20 }}>
             <div className="flex justify-between items-center mb-4">
               <span className="text-sm font-bold" style={{ color: "var(--t1)" }}>Новый клиент</span>
@@ -77,11 +245,9 @@ export default function ClientsPage() {
                 <label className="block text-[9px] font-semibold tracking-wider mb-1" style={{ color: "var(--cy)" }}>ПАКЕТ (РИЛСОВ)</label>
                 <div className="flex gap-1 flex-wrap">
                   {[10, 15, 30, 60, 90].map(p => (
-                    <button key={p} onClick={() => setForm(prev => ({ ...prev, package: p }))}
+                    <button key={p} type="button" onClick={() => setForm(prev => ({ ...prev, package: p }))}
                       className="px-3 py-1 rounded text-xs" style={{ border: `1px solid ${form.package === p ? "var(--cy)" : "var(--brd)"}`, background: form.package === p ? "var(--cyd)" : "transparent", color: form.package === p ? "var(--cy)" : "var(--t2)", cursor: "pointer" }}>{p}</button>
                   ))}
-                  <input type="number" value={form.package} onChange={e => setForm(p => ({ ...p, package: parseInt(e.target.value) || 0 }))}
-                    className="w-16 px-2 py-1 rounded text-xs outline-none" style={{ background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)" }} placeholder="Своё" />
                 </div>
               </div>
               <div>
@@ -117,42 +283,17 @@ export default function ClientsPage() {
         </div>
       )}
 
-      {/* Client cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-        {clients.map(c => {
-          const s = scripts[c.id] || { pub: 0, scr: 0, total: 0 };
-          return (
-            <div key={c.id} onClick={() => router.push(`/dashboard/clients/${c.id}`)}
-              className="card cursor-pointer text-center" style={{ padding: "20px 16px", borderRadius: 20 }}>
-              <div className="w-16 h-16 rounded-2xl mx-auto mb-3 flex items-center justify-center text-2xl font-extrabold"
-                style={{ background: c.avatar_url ? `url(${c.avatar_url}) center/cover` : "linear-gradient(135deg, var(--pud), var(--cyd))", color: "var(--pu)", border: "2px solid var(--brd)" }}>
-                {!c.avatar_url && <>{c.name[0]}{(c.surname || "")[0] || ""}</>}
-              </div>
-              <div className="mb-1"><span className="badge" style={{ background: "var(--cyd)", color: "var(--cy)" }}>{c.niche || "—"}</span></div>
-              <div className="mb-1"><span className="badge" style={{ background: "var(--pud)", color: "var(--pu)" }}>{c.stage}</span></div>
-              <div className="text-lg font-extrabold mb-2" style={{ color: "var(--t1)" }}>{c.name} {c.surname}</div>
-              {/* Socials */}
-              <div className="flex gap-1.5 justify-center mb-3">
-                {c.instagram && <a href={c.instagram.startsWith("http") ? c.instagram : `https://${c.instagram}`} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="px-3 py-1 rounded-lg text-[10px] font-medium" style={{ border: "1px solid var(--brd)", color: "var(--t1)", background: "var(--bg2)", textDecoration: "none" }}>📷 Instagram</a>}
-                {c.tiktok && <a href={c.tiktok.startsWith("http") ? c.tiktok : `https://${c.tiktok}`} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="px-3 py-1 rounded-lg text-[10px] font-medium" style={{ border: "1px solid var(--brd)", color: "var(--t1)", background: "var(--bg2)", textDecoration: "none" }}>🎵 TikTok</a>}
-              </div>
-              {/* Stats */}
-              <div className="grid grid-cols-3 gap-1.5">
-                {[{ v: `${s.pub}/${s.total}`, l: "РОЛИКИ", c: "var(--pu)" }, { v: `${s.scr}/${s.total}`, l: "СЦЕНАРИИ", c: "var(--gr)" }, { v: `${c.package}`, l: "ПАКЕТ", c: "var(--cy)" }].map((st, i) => (
-                  <div key={i} className="py-2 rounded-xl" style={{ background: "var(--bg2)", border: "1px solid var(--brd)" }}>
-                    <div className="text-sm font-bold font-mono" style={{ color: st.c }}>{st.v}</div>
-                    <div className="text-[7px] font-semibold tracking-wider" style={{ color: "var(--t3)" }}>{st.l}</div>
-                  </div>
-                ))}
-              </div>
-              <div className="flex justify-center gap-3 mt-2 pt-2 text-[9px]" style={{ borderTop: "1px solid var(--brd)", color: "var(--t3)" }}>
-                <span>📦 {c.package}</span>
-                <span>🎬 {c.montager?.name || "—"}</span>
-                <span>👤 {c.teamlead?.name || "—"}</span>
-              </div>
-            </div>
-          );
-        })}
+      <div className="clients-v2-grid">
+        {clients.map((client, index) => (
+          <ClientCard
+            key={client.id}
+            client={client}
+            production={productionFor(client.id)}
+            snapshots={snapshots.filter((snapshot) => snapshot.client_id === client.id)}
+            accent={clientAccents[index % clientAccents.length]}
+            onOpen={() => router.push(`/dashboard/clients/${client.id}`)}
+          />
+        ))}
       </div>
     </div>
   );

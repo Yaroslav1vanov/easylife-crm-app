@@ -323,7 +323,7 @@ export default function ClientDetailPage() {
         <div className="flex justify-between items-center mb-3">
           <span className="text-[10px] font-bold tracking-wider" style={{ color: "var(--t1)" }}>КАРТОЧКА КЛИЕНТА</span>
           {!editing ? (
-            <button onClick={() => { setEditData({ name: c.name, surname: c.surname, niche: c.niche, phone: c.phone, product: c.product, avg_check: c.avg_check, package: c.package, montager_id: c.montager_id, teamlead_id: c.teamlead_id, priority: c.priority, stage: c.stage }); setEditing(true); }}
+            <button onClick={() => { setEditData({ name: c.name, surname: c.surname, niche: c.niche, phone: c.phone, product: c.product, avg_check: c.avg_check, avatar_url: c.avatar_url, package: c.package, montager_id: c.montager_id, teamlead_id: c.teamlead_id, priority: c.priority, stage: c.stage }); setEditing(true); }}
               className="text-[9px] px-3 py-1 rounded-lg font-semibold" style={{ border: "1px solid var(--cy)", color: "var(--cy)", background: "transparent", cursor: "pointer" }}>✏️ Редактировать</button>
           ) : (
             <div className="flex gap-1">
@@ -334,7 +334,7 @@ export default function ClientDetailPage() {
         </div>
         {editing ? (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-            {[["ИМЯ", "name"], ["ФАМИЛИЯ", "surname"], ["НИША", "niche"], ["ТЕЛЕФОН", "phone"], ["ПРОДУКТ", "product"], ["СР. ЧЕК", "avg_check"]].map(([l, k]) => (
+            {[["ИМЯ", "name"], ["ФАМИЛИЯ", "surname"], ["НИША", "niche"], ["ТЕЛЕФОН", "phone"], ["ПРОДУКТ", "product"], ["СР. ЧЕК", "avg_check"], ["ССЫЛКА НА АВАТАР", "avatar_url"]].map(([l, k]) => (
               <div key={k}><label className="block text-[8px] font-semibold tracking-wider mb-1" style={{ color: "var(--cy)" }}>{l}</label>
                 <input value={editData[k] || ""} onChange={e => setEditData((p: any) => ({ ...p, [k]: e.target.value }))}
                   className="w-full px-3 py-2 rounded-lg text-xs outline-none" style={{ background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)" }} /></div>
