@@ -4,6 +4,7 @@ import { useRouter, useParams } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
 import db, { Client, Script, ChecklistTask, TeamMember, ClientMonth, OnboardingProgress } from "@/lib/database";
 import AvatarUploader from "@/components/AvatarUploader";
+import ClientMonthsTimeline from "@/components/ClientMonthsTimeline";
 
 export default function ClientDetailPage() {
   const { id } = useParams();
@@ -569,93 +570,19 @@ export default function ClientDetailPage() {
         })()}
       </div>
 
-      {/* Contractual months timeline */}
-      {clientMonths.length > 0 && (() => {
-        const today = new Date().toISOString().slice(0, 10);
-        const totalPubByMonth: Record<number, number> = {};
-        for (const s of scripts) {
-          if (s.video_status === "published") {
-            totalPubByMonth[s.month_number] = (totalPubByMonth[s.month_number] || 0) + 1;
-          }
-        }
-        return (
-          <div className="card mb-3" style={{ padding: 14 }}>
-            <div className="text-xs font-bold mb-2" style={{ color: "var(--t1)" }}>📅 Контрактные месяцы</div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {clientMonths.map((m) => {
-                const pubCount = totalPubByMonth[m.month_number] || 0;
-                const isClosed = m.status === "closed";
-                const isCancel = m.status === "cancelled";
-                const isOnboarding = m.status === "onboarding";
-                const daysLeft = Math.round((new Date(m.end_date).getTime() - new Date(today).getTime()) / 86400000);
-                let badge = "";
-                let badgeColor = "var(--t2)";
-                if (isClosed) {
-                  badge = "✅ закрыт";
-                  badgeColor = "var(--gr)";
-                } else if (isOnboarding) {
-                  badge = "🧩 онбординг";
-                  badgeColor = "var(--cy)";
-                } else if (isCancel) {
-                  badge = "— отменён";
-                  badgeColor = "var(--t3)";
-                } else if (daysLeft < 0) {
-                  badge = `🔴 просрочка ${-daysLeft}д`;
-                  badgeColor = "var(--rd)";
-                } else if (daysLeft <= 5) {
-                  badge = `⏰ ${daysLeft}д`;
-                  badgeColor = "var(--or)";
-                } else {
-                  badge = `${daysLeft}д`;
-                  badgeColor = "var(--cy)";
-                }
-                const pct = m.package > 0 ? Math.min(100, Math.round((pubCount / m.package) * 100)) : 0;
-                const isActiveTab = viewMonth === m.month_number;
-                return (
-                  <button
-                    key={m.id}
-                    onClick={() => setViewMonth(m.month_number)}
-                    style={{
-                      flex: "1 1 200px",
-                      minWidth: 200,
-                      textAlign: "left",
-                      padding: 10,
-                      borderRadius: 8,
-                      border: isActiveTab ? "2px solid var(--cy)" : "1px solid var(--brd)",
-                      background: isActiveTab ? "rgba(34,211,238,0.06)" : "var(--bg2)",
-                      cursor: "pointer",
-                      color: "var(--t1)",
-                    }}
-                  >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                      <span style={{ fontWeight: 700, color: "var(--cy)", fontSize: 13 }}>М{m.month_number}</span>
-                      <span style={{ fontSize: 10, color: badgeColor, fontWeight: 600 }}>{badge}</span>
-                    </div>
-                    <div style={{ fontSize: 10, color: "var(--t2)", marginBottom: 4 }}>
-                      {m.start_date} → {m.end_date}
-                    </div>
-                    <div style={{ fontSize: 11, fontFamily: "monospace", color: "var(--t1)", marginBottom: 4 }}>
-                      {pubCount}/{m.package} опубликовано
-                    </div>
-                    <div style={{ height: 4, borderRadius: 2, background: "var(--brd)", overflow: "hidden" }}>
-                      <div
-                        style={{
-                          width: `${pct}%`,
-                          height: "100%",
-                          background: pct >= 100 ? "var(--gr)" : pct >= 50 ? "var(--cy)" : pct > 0 ? "var(--or)" : "var(--rd)",
-                        }}
-                      />
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-            <div style={{ marginTop: 8, fontSize: 10, color: "var(--t3)" }}>
-              Клик по M переключает фильтр сценариев и видео ниже на этот месяц. Открытие новых M / закрытие — на главном дашборде.
-            </div>
-          </div>
-        );
-      })()}
+      {/* Contractual months timeline — теперь полностью редактируемый */}
+      {clientMonths.length > 0 && (
+        <ClientMonthsTimeline
+          clientId={clientId}
+          clientName={`${c.name} ${c.surname || ""}`.trim()}
+          clientMonths={clientMonths}
+          scripts={scripts}
+          activeMonth={viewMonth}
+          onActivateMonth={(m) => setViewMonth(m)}
+          onChange={async () => { await load(); }}
+          todayIso={new Date().toISOString().slice(0, 10)}
+        />
+      )}
 
       {/* Tabs */}
       <div className="flex gap-0 border-b mb-3 overflow-x-auto" style={{ borderColor: "var(--brd)" }}>
