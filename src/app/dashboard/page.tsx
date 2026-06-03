@@ -132,6 +132,8 @@ type MonthsBlockProps = {
   team: TeamMember[];
   todayIso: string;
   selectedMonth: string;
+  setSelectedMonth: (v: string) => void;
+  currentYM: string;
   onChange: () => Promise<void> | void;
   onOpen: (clientId: number) => void;
 };
@@ -431,13 +433,28 @@ function MonthsBlock(p: MonthsBlockProps) {
   return (
     <div className="card" style={{ padding: 18, borderRadius: 18, marginBottom: 18 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
-        <h3 style={{ fontSize: 14, fontWeight: 800, color: "var(--t1)" }}>
+        <h3 style={{ fontSize: 14, fontWeight: 800, color: "var(--t1)", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           Контрактные месяцы и продления
           {renewingNow > 0 && (
-            <span style={{ marginLeft: 8, padding: "2px 7px", borderRadius: 6, background: "rgba(255,174,66,0.15)", color: "var(--or)", fontSize: 10, fontWeight: 700 }}>
+            <span style={{ padding: "2px 7px", borderRadius: 6, background: "rgba(255,174,66,0.15)", color: "var(--or)", fontSize: 10, fontWeight: 700 }}>
               {renewingNow} требует продления
             </span>
           )}
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 8px", borderRadius: 9, background: "rgba(123,63,228,0.08)", border: "1px solid var(--brd)" }}>
+            <button onClick={() => p.setSelectedMonth(ymShift(p.selectedMonth, -1))}
+              style={{ background: "transparent", border: "none", color: "var(--t2)", cursor: "pointer", padding: 2, display: "flex", alignItems: "center" }}>
+              <ChevronLeft size={12} />
+            </button>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--t1)", minWidth: 76, textAlign: "center", letterSpacing: 0.2 }}>{ymLabel(p.selectedMonth)}</span>
+            {p.selectedMonth !== p.currentYM && (
+              <button onClick={() => p.setSelectedMonth(p.currentYM)} title="Текущий месяц"
+                style={{ background: "transparent", border: "none", color: "var(--cy)", cursor: "pointer", fontSize: 9, fontWeight: 700, padding: "1px 4px" }}>сейчас</button>
+            )}
+            <button onClick={() => p.setSelectedMonth(ymShift(p.selectedMonth, 1))}
+              style={{ background: "transparent", border: "none", color: "var(--t2)", cursor: "pointer", padding: 2, display: "flex", alignItems: "center" }}>
+              <ChevronRight size={12} />
+            </button>
+          </span>
         </h3>
         <div style={{ fontSize: 10, color: "var(--t3)", fontWeight: 600 }}>
           {activeRows.length} активных в работе
@@ -561,6 +578,8 @@ type ClientsBlockProps = {
   filterMenuOpen: null | "status" | "pkg" | "montager" | "teamlead" | "sort"; setFilterMenuOpen: (v: any) => void;
   collapsedTotals: boolean; setCollapsedTotals: (v: boolean) => void;
   selectedMonth: string;
+  setSelectedMonth: (v: string) => void;
+  currentYM: string;
   onOpen: (clientId: number) => void;
 };
 
@@ -738,9 +757,25 @@ function ClientsBlock(p: ClientsBlockProps) {
       {/* Header + Toolbar */}
       <div style={{ marginBottom: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 10 }}>
-          <h3 style={{ fontSize: 14, fontWeight: 800, color: "var(--t1)" }}>
+          <h3 style={{ fontSize: 14, fontWeight: 800, color: "var(--t1)", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             Клиенты в работе
-            <span style={{ marginLeft: 8, padding: "2px 7px", borderRadius: 6, background: "rgba(157,107,255,0.15)", color: "var(--pu)", fontSize: 10, fontWeight: 700 }}>{new Set(filtered.map(r => r.c.id)).size} клиентов</span>
+            <span style={{ padding: "2px 7px", borderRadius: 6, background: "rgba(157,107,255,0.15)", color: "var(--pu)", fontSize: 10, fontWeight: 700 }}>{new Set(filtered.map(r => r.c.id)).size} клиентов</span>
+            {/* Локальный period picker — синхронизован с глобальным */}
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 8px", borderRadius: 9, background: "rgba(123,63,228,0.08)", border: "1px solid var(--brd)", marginLeft: 4 }}>
+              <button onClick={() => p.setSelectedMonth(ymShift(p.selectedMonth, -1))}
+                style={{ background: "transparent", border: "none", color: "var(--t2)", cursor: "pointer", padding: 2, display: "flex", alignItems: "center" }}>
+                <ChevronLeft size={12} />
+              </button>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "var(--t1)", minWidth: 76, textAlign: "center", letterSpacing: 0.2 }}>{ymLabel(p.selectedMonth)}</span>
+              {p.selectedMonth !== p.currentYM && (
+                <button onClick={() => p.setSelectedMonth(p.currentYM)} title="Текущий месяц"
+                  style={{ background: "transparent", border: "none", color: "var(--cy)", cursor: "pointer", fontSize: 9, fontWeight: 700, padding: "1px 4px" }}>сейчас</button>
+              )}
+              <button onClick={() => p.setSelectedMonth(ymShift(p.selectedMonth, 1))}
+                style={{ background: "transparent", border: "none", color: "var(--t2)", cursor: "pointer", padding: 2, display: "flex", alignItems: "center" }}>
+                <ChevronRight size={12} />
+              </button>
+            </span>
           </h3>
           {/* View toggle */}
           <div style={{ display: "flex", background: "rgba(123,63,228,0.06)", border: "1px solid var(--brd)", borderRadius: 10, padding: 3 }}>
@@ -1653,7 +1688,8 @@ function DashboardInner() {
         scripts={scripts}
         team={team}
         todayIso={todayIso}
-        selectedMonth={selectedMonth}
+        selectedMonth={selectedMonth} setSelectedMonth={setSelectedMonth}
+        currentYM={currentYM}
         onChange={async () => {
           const cmRes = await db.getClientMonths(supabase);
           setClientMonths(cmRes?.data || []);
@@ -1678,7 +1714,8 @@ function DashboardInner() {
         sortBy={sortBy} setSortBy={setSortBy}
         filterMenuOpen={filterMenuOpen} setFilterMenuOpen={setFilterMenuOpen}
         collapsedTotals={collapsedTotals} setCollapsedTotals={setCollapsedTotals}
-        selectedMonth={selectedMonth}
+        selectedMonth={selectedMonth} setSelectedMonth={setSelectedMonth}
+        currentYM={currentYM}
         onOpen={(id) => router.push(`/dashboard/clients/${id}`)}
       />
 
