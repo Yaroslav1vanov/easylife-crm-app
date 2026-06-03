@@ -634,7 +634,7 @@ type ClientsBlockProps = {
   filterPkg: "all" | number; setFilterPkg: (v: any) => void;
   filterMontager: "all" | number; setFilterMontager: (v: any) => void;
   filterTeamlead: "all" | number; setFilterTeamlead: (v: any) => void;
-  sortBy: "progress" | "deadline" | "name" | "plan"; setSortBy: (v: any) => void;
+  sortBy: "progress" | "deadline" | "name" | "plan" | "month"; setSortBy: (v: any) => void;
   filterMenuOpen: null | "status" | "pkg" | "montager" | "teamlead" | "sort"; setFilterMenuOpen: (v: any) => void;
   collapsedTotals: boolean; setCollapsedTotals: (v: boolean) => void;
   selectedMonth: string;
@@ -699,10 +699,11 @@ function ClientsBlock(p: ClientsBlockProps) {
   // сортировка
   const sorted = useMemo(() => {
     const arr = [...filtered];
-    if (p.sortBy === "progress") arr.sort((a, b) => a.progressPct - b.progressPct); // меньше прогресс — выше (приоритет)
+    if (p.sortBy === "progress") arr.sort((a, b) => a.progressPct - b.progressPct);
     else if (p.sortBy === "deadline") arr.sort((a, b) => a.cm.end_date.localeCompare(b.cm.end_date));
     else if (p.sortBy === "name") arr.sort((a, b) => `${a.c.name} ${a.c.surname || ""}`.localeCompare(`${b.c.name} ${b.c.surname || ""}`));
     else if (p.sortBy === "plan") arr.sort((a, b) => b.plan - a.plan);
+    else if (p.sortBy === "month") arr.sort((a, b) => a.cm.month_number - b.cm.month_number || `${a.c.name}`.localeCompare(`${b.c.name}`));
     return arr;
   }, [filtered, p.sortBy]);
 
@@ -889,12 +890,13 @@ function ClientsBlock(p: ClientsBlockProps) {
           />
           <div style={{ flex: 1 }} />
           <Dropdown kind="sort" label="Сорт."
-            current={p.sortBy === "progress" ? "По прогрессу" : p.sortBy === "deadline" ? "По дедлайну" : p.sortBy === "name" ? "По имени" : "По плану"}
+            current={p.sortBy === "progress" ? "По прогрессу" : p.sortBy === "deadline" ? "По дедлайну" : p.sortBy === "name" ? "По имени" : p.sortBy === "month" ? "По M" : "По плану"}
             options={[
               { v: "progress", l: "По прогрессу" },
               { v: "deadline", l: "По дедлайну" },
               { v: "name", l: "По имени" },
               { v: "plan", l: "По плану (больше)" },
+              { v: "month", l: "📅 По M (группировка)" },
             ]}
             onSelect={p.setSortBy}
           />
@@ -920,10 +922,28 @@ function ClientsBlock(p: ClientsBlockProps) {
               </tr>
             </thead>
             <tbody>
-              {sorted.map(r => {
-                const PIcon = r.pace.icon === "up" ? TrendingUp : r.pace.icon === "down" ? TrendingDown : Minus;
-                return (
-                  <tr key={r.c.id}
+              {(() => {
+                const out: React.ReactNode[] = [];
+                let lastGroup: number | null = null;
+                for (const r of sorted) {
+                  // Group header — только в режиме сортировки "По M"
+                  if (p.sortBy === "month" && lastGroup !== r.cm.month_number) {
+                    lastGroup = r.cm.month_number;
+                    const inGroup = sorted.filter(x => x.cm.month_number === r.cm.month_number);
+                    const groupPkg = inGroup.reduce((s, x) => s + (x.cm.package || 0), 0);
+                    const groupRemaining = inGroup.reduce((s, x) => s + x.remaining, 0);
+                    out.push(
+                      <tr key={`grp-${r.cm.month_number}`} style={{ background: "rgba(157,107,255,0.10)" }}>
+                        <td colSpan={12} style={{ padding: "10px 8px", fontSize: 11, fontWeight: 800, color: "var(--pu)", letterSpacing: 0.3, borderBottom: "1px solid rgba(157,107,255,0.2)" }}>
+                          📅 M{r.cm.month_number} — {inGroup.length} {inGroup.length === 1 ? "клиент" : inGroup.length < 5 ? "клиента" : "клиентов"}
+                          <span style={{ marginLeft: 12, color: "var(--t3)", fontWeight: 600 }}>пакет {groupPkg} · осталось {groupRemaining}</span>
+                        </td>
+                      </tr>
+                    );
+                  }
+                  const PIcon = r.pace.icon === "up" ? TrendingUp : r.pace.icon === "down" ? TrendingDown : Minus;
+                  out.push(
+                    <tr key={`row-${r.cm.id}`}
                     onClick={() => p.onOpen(r.c.id)}
                     style={{ borderBottom: "1px solid rgba(157,107,255,0.08)", cursor: "pointer", transition: "background .12s" }}
                     onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(157,107,255,0.04)")}
@@ -994,8 +1014,10 @@ function ClientsBlock(p: ClientsBlockProps) {
                       <span style={{ color: "var(--t3)", fontSize: 14 }}>⋮</span>
                     </td>
                   </tr>
-                );
-              })}
+                  );
+                }
+                return out;
+              })()}
               {sorted.length === 0 && (
                 <tr><td colSpan={13} style={{ padding: "40px 8px", textAlign: "center", color: "var(--t3)", fontSize: 12 }}>
                   Никого не найдено по фильтрам
@@ -1042,7 +1064,7 @@ function ClientsBlock(p: ClientsBlockProps) {
           {sorted.map(r => {
             const PIcon = r.pace.icon === "up" ? TrendingUp : r.pace.icon === "down" ? TrendingDown : Minus;
             return (
-              <button key={r.c.id} onClick={() => p.onOpen(r.c.id)}
+              <button key={r.cm.id} onClick={() => p.onOpen(r.c.id)}
                 style={{ textAlign: "left", padding: 12, borderRadius: 14, background: "rgba(0,0,0,0.22)", border: "1px solid var(--brd)", cursor: "pointer", display: "flex", flexDirection: "column", gap: 10 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
                   <Avatar name={`${r.c.name} ${r.c.surname || ""}`} src={r.c.avatar_url} size={36} />
