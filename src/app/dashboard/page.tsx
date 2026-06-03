@@ -981,6 +981,7 @@ function DashboardInner() {
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [taskFilter, setTaskFilter] = useState<"all" | number>("all"); // team_member id or "all"
   const [taskFilterOpen, setTaskFilterOpen] = useState(false);
+  const [expandedTask, setExpandedTask] = useState<"onboarding" | "scripts" | "montage" | "publish" | null>(null);
   // Clients table
   const [clientsView, setClientsView] = useState<"table" | "cards">("table");
   const [searchQuery, setSearchQuery] = useState("");
@@ -1178,25 +1179,83 @@ function DashboardInner() {
     };
   }, [clients, clientMonths, scripts, team, overdueTasks, onbProgresses, selectedMonth]);
 
-  /* ===== Задачи отфильтрованные по сотруднику ===== */
-  const tasksFiltered = useMemo(() => {
-    if (taskFilter === "all") {
-      return {
-        onboardingPending: data.onboardingPendingTotal,
-        scriptsWork: data.scriptsInProg + data.scriptsReview,
-        videosMontage: data.videosMontage,
-        videosReady: data.videosReady,
-      };
-    }
-    const load = data.teamLoad.find(x => x.tm.id === taskFilter);
-    if (!load) return { onboardingPending: 0, scriptsWork: 0, videosMontage: 0, videosReady: 0 };
-    return {
-      onboardingPending: load.onboardingPending,
-      scriptsWork: load.scriptsInProg + load.scriptsReview,
-      videosMontage: load.videosMontage,
-      videosReady: load.videosReady,
+  /* ===== Задачи отфильтрованные по сотруднику с разбивкой по клиентам ===== */
+  type TaskClientItem = { client: Client; count: number };
+  const tasksByClient = useMemo(() => {
+    // Фильтр клиентов: если выбран сотрудник — только его клиенты
+    const tm = taskFilter === "all" ? null : team.find(t => t.id === taskFilter) || null;
+    const isMyClient = (c: Client) => !tm || c.montager_id === tm.id || c.teamlead_id === tm.id;
+    const isMyClientById = (cid: number) => {
+      const c = clients.find(x => x.id === cid);
+      return c ? isMyClient(c) : false;
     };
-  }, [taskFilter, data]);
+
+    // Онбординг — берём только тех у кого pending > 0 + фильтр
+    const onboarding: TaskClientItem[] = onbProgresses
+      .filter(o => o.pending_tasks > 0 && isMyClientById(o.client_id))
+      .map(o => ({ client: clients.find(c => c.id === o.client_id)!, count: o.pending_tasks }))
+      .filter(x => !!x.client)
+      .sort((a, b) => b.count - a.count);
+
+    // Активные клиент-месяцы (чтобы считать только сценарии текущего активного месяца)
+    const activeMonthByClient = new Map<number, ClientMonth>();
+    for (const cm of data.activeMonths) {
+      activeMonthByClient.set(cm.client_id, cm);
+    }
+    const isInActiveMonth = (s: Script) => {
+      const cm = activeMonthByClient.get(s.client_id);
+      return cm && s.month_number === cm.month_number;
+    };
+
+    // Сценарии в работе (inProgress + review) — по клиентам
+    const scriptsMap = new Map<number, number>();
+    for (const s of scripts) {
+      if (!isInActiveMonth(s)) continue;
+      if (!isMyClientById(s.client_id)) continue;
+      if (s.script_status === "inProgress" || s.script_status === "review") {
+        scriptsMap.set(s.client_id, (scriptsMap.get(s.client_id) || 0) + 1);
+      }
+    }
+    const scriptsWork: TaskClientItem[] = Array.from(scriptsMap.entries())
+      .map(([cid, count]) => ({ client: clients.find(c => c.id === cid)!, count }))
+      .filter(x => !!x.client)
+      .sort((a, b) => b.count - a.count);
+
+    // Монтаж
+    const montageMap = new Map<number, number>();
+    for (const s of scripts) {
+      if (!isInActiveMonth(s)) continue;
+      if (!isMyClientById(s.client_id)) continue;
+      if (s.script_status === "approved" && s.video_status === "inProgress") {
+        montageMap.set(s.client_id, (montageMap.get(s.client_id) || 0) + 1);
+      }
+    }
+    const montage: TaskClientItem[] = Array.from(montageMap.entries())
+      .map(([cid, count]) => ({ client: clients.find(c => c.id === cid)!, count }))
+      .filter(x => !!x.client)
+      .sort((a, b) => b.count - a.count);
+
+    // Опубликовать (video_status=ready)
+    const publishMap = new Map<number, number>();
+    for (const s of scripts) {
+      if (!isInActiveMonth(s)) continue;
+      if (!isMyClientById(s.client_id)) continue;
+      if (s.video_status === "ready") {
+        publishMap.set(s.client_id, (publishMap.get(s.client_id) || 0) + 1);
+      }
+    }
+    const publish: TaskClientItem[] = Array.from(publishMap.entries())
+      .map(([cid, count]) => ({ client: clients.find(c => c.id === cid)!, count }))
+      .filter(x => !!x.client)
+      .sort((a, b) => b.count - a.count);
+
+    const sum = (arr: TaskClientItem[]) => arr.reduce((s, x) => s + x.count, 0);
+    return {
+      onboarding, scriptsWork, montage, publish,
+      onboardingClients: onboarding.length, scriptsClients: scriptsWork.length, montageClients: montage.length, publishClients: publish.length,
+      onboardingTotal: sum(onboarding), scriptsTotal: sum(scriptsWork), montageTotal: sum(montage), publishTotal: sum(publish),
+    };
+  }, [taskFilter, team, clients, onbProgresses, scripts, data.activeMonths]);
 
   if (loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--t2)" }}>Загрузка…</div>;
   if (loadError) return <div style={{ padding: 24, color: "#f87171", fontFamily: "monospace", fontSize: 12 }}>Load error: {loadError}</div>;
@@ -1484,7 +1543,7 @@ function DashboardInner() {
             <h3 style={{ fontSize: 14, fontWeight: 800, color: "var(--t1)" }}>
               Что нужно сделать
               {(() => {
-                const total = tasksFiltered.onboardingPending + tasksFiltered.scriptsWork + tasksFiltered.videosMontage + tasksFiltered.videosReady;
+                const total = tasksByClient.onboardingTotal + tasksByClient.scriptsTotal + tasksByClient.montageTotal + tasksByClient.publishTotal;
                 return total > 0 && <span style={{ marginLeft: 8, padding: "2px 7px", borderRadius: 6, background: "rgba(157,107,255,0.15)", color: "var(--pu)", fontSize: 10, fontWeight: 700 }}>{total}</span>;
               })()}
             </h3>
@@ -1510,21 +1569,59 @@ function DashboardInner() {
             </div>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-            {[
-              { Icon: Rocket, label: "Онбординг доделать", count: tasksFiltered.onboardingPending, color: "#ffae42", path: "/dashboard/clients" },
-              { Icon: FileCheck2, label: "Написать/утвердить сценарии", count: tasksFiltered.scriptsWork, color: "#42d4f4", path: "/dashboard/scripts" },
-              { Icon: Scissors, label: "Смонтировать", count: tasksFiltered.videosMontage, color: "#9d6bff", path: "/dashboard/montage" },
-              { Icon: Send, label: "Опубликовать", count: tasksFiltered.videosReady, color: "#a8e063", path: "/dashboard/montage" },
-            ].map(it => {
+            {([
+              { id: "onboarding", Icon: Rocket, label: "Онбординг доделать", color: "#ffae42",
+                items: tasksByClient.onboarding, total: tasksByClient.onboardingTotal, clientsCount: tasksByClient.onboardingClients,
+                clientPath: (id: number) => `/dashboard/clients/${id}/onboarding` },
+              { id: "scripts", Icon: FileCheck2, label: "Написать/утвердить сценарии", color: "#42d4f4",
+                items: tasksByClient.scriptsWork, total: tasksByClient.scriptsTotal, clientsCount: tasksByClient.scriptsClients,
+                clientPath: (id: number) => `/dashboard/clients/${id}` },
+              { id: "montage", Icon: Scissors, label: "Смонтировать", color: "#9d6bff",
+                items: tasksByClient.montage, total: tasksByClient.montageTotal, clientsCount: tasksByClient.montageClients,
+                clientPath: (id: number) => `/dashboard/clients/${id}` },
+              { id: "publish", Icon: Send, label: "Опубликовать", color: "#a8e063",
+                items: tasksByClient.publish, total: tasksByClient.publishTotal, clientsCount: tasksByClient.publishClients,
+                clientPath: (id: number) => `/dashboard/clients/${id}` },
+            ] as const).map(it => {
               const I = it.Icon;
+              const isExpanded = expandedTask === it.id;
+              const hasItems = it.items.length > 0;
               return (
-                <button key={it.label} onClick={() => router.push(it.path)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 11px", borderRadius: 10, background: "rgba(0,0,0,0.18)", border: "1px solid transparent", cursor: "pointer", textAlign: "left", transition: "all .15s" }} onMouseEnter={(e) => (e.currentTarget.style.borderColor = it.color)} onMouseLeave={(e) => (e.currentTarget.style.borderColor = "transparent")}>
-                  <div style={{ width: 32, height: 32, borderRadius: 9, background: `${it.color}22`, color: it.color, display: "flex", alignItems: "center", justifyContent: "center", border: `1px solid ${it.color}33` }}>
-                    <I size={15} strokeWidth={1.8} />
-                  </div>
-                  <div style={{ flex: 1, fontSize: 12, fontWeight: 700, color: "var(--t1)" }}>{it.label}</div>
-                  <div style={{ minWidth: 26, height: 22, padding: "0 7px", background: it.count > 0 ? it.color : "rgba(255,255,255,0.06)", color: it.count > 0 ? "#0a0118" : "var(--t3)", borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800 }}>{it.count}</div>
-                </button>
+                <div key={it.id} style={{ background: "rgba(0,0,0,0.18)", borderRadius: 10, border: `1px solid ${isExpanded ? it.color + "55" : "transparent"}`, transition: "all .15s" }}>
+                  <button onClick={() => setExpandedTask(isExpanded ? null : (hasItems ? it.id as any : null))}
+                    disabled={!hasItems}
+                    style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 11px", border: "none", background: "transparent", cursor: hasItems ? "pointer" : "default", textAlign: "left" }}>
+                    <div style={{ width: 32, height: 32, borderRadius: 9, background: `${it.color}22`, color: it.color, display: "flex", alignItems: "center", justifyContent: "center", border: `1px solid ${it.color}33`, flexShrink: 0 }}>
+                      <I size={15} strokeWidth={1.8} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "var(--t1)" }}>{it.label}</div>
+                      {hasItems && <div style={{ fontSize: 10, color: "var(--t3)", marginTop: 1 }}>{it.clientsCount} {it.clientsCount === 1 ? "клиент" : it.clientsCount < 5 ? "клиента" : "клиентов"}</div>}
+                    </div>
+                    <div style={{ minWidth: 26, height: 22, padding: "0 7px", background: it.total > 0 ? it.color : "rgba(255,255,255,0.06)", color: it.total > 0 ? "#0a0118" : "var(--t3)", borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, flexShrink: 0 }}>{it.total}</div>
+                    {hasItems && <ChevronDown size={13} style={{ color: "var(--t3)", transform: isExpanded ? "rotate(180deg)" : "rotate(0)", transition: "transform .2s", flexShrink: 0 }} />}
+                  </button>
+                  {/* Раскрытый список клиентов */}
+                  {isExpanded && hasItems && (
+                    <div style={{ padding: "0 8px 8px", display: "flex", flexDirection: "column", gap: 4, borderTop: `1px solid ${it.color}22`, marginTop: 4, paddingTop: 8 }}>
+                      {it.items.map(({ client, count }) => (
+                        <button key={client.id}
+                          onClick={() => router.push(it.clientPath(client.id))}
+                          style={{ display: "flex", alignItems: "center", gap: 9, padding: "7px 8px", borderRadius: 8, background: "transparent", border: "none", cursor: "pointer", textAlign: "left", transition: "background .12s" }}
+                          onMouseEnter={(e) => (e.currentTarget.style.background = `${it.color}14`)}
+                          onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
+                          <Avatar name={`${client.name} ${client.surname || ""}`} src={client.avatar_url} size={26} />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--t1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{client.name} {client.surname || ""}</div>
+                            {client.niche && <div style={{ fontSize: 8, color: "var(--t3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{client.niche}</div>}
+                          </div>
+                          <div style={{ minWidth: 22, height: 18, padding: "0 6px", background: it.color + "22", color: it.color, borderRadius: 5, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800 }}>{count}</div>
+                          <ArrowRight size={11} style={{ color: it.color, opacity: 0.6 }} />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               );
             })}
           </div>
