@@ -14,6 +14,20 @@ const RU_MONTHS_GEN = ["января", "февраля", "марта", "апре
 const RU_MONTHS = ["январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"];
 
 function ymOfDate(d: Date) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; }
+function daysBetween(a: string, b: string) {
+  return Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000);
+}
+function targetForCalendarMonth(cm: { start_date: string; end_date: string; package: number; calendar_split?: Record<string, number> | null }, ym: string): number {
+  if (cm.calendar_split && cm.calendar_split[ym] !== undefined && cm.calendar_split[ym] !== null) {
+    return cm.calendar_split[ym];
+  }
+  const { start: ms, end: me } = ymRange(ym);
+  const overlapStart = cm.start_date > ms ? cm.start_date : ms;
+  const overlapEnd = cm.end_date < me ? cm.end_date : me;
+  const overlapDays = Math.max(0, daysBetween(overlapStart, overlapEnd) + 1);
+  const totalDays = Math.max(1, daysBetween(cm.start_date, cm.end_date) + 1);
+  return Math.round(((cm.package || 0) * overlapDays) / totalDays);
+}
 function ymShift(ym: string, delta: number) {
   const [y, m] = ym.split("-").map(Number);
   return ymOfDate(new Date(y, m - 1 + delta, 1));
@@ -160,13 +174,15 @@ export default function ScriptsPage() {
     return out;
   }, [filteredScripts]);
 
-  /* KPI cards — план = сумма package активных CM в периоде (это "сколько нужно сделать") */
+  /* KPI cards — план = пропорция package на выбранный календарный месяц
+     (planned контракты не считаем — клиент с planned M ещё не "в работе") */
   const kpis = useMemo(() => {
     let plan = 0;
     if (selectedMonth === "all") {
-      // Для "всё время" план = сумма пакетов всех client_months (с фильтром по клиенту)
+      // Всё время = сумма всех package (с фильтром клиента), исключая planned/cancelled
       for (const cm of clientMonths) {
         if (clientFilter !== "all" && cm.client_id !== clientFilter) continue;
+        if (cm.status === "planned" || cm.status === "cancelled") continue;
         plan += cm.package || 0;
       }
     } else {
@@ -174,7 +190,8 @@ export default function ScriptsPage() {
       for (const cm of clientMonths) {
         if (cm.start_date > me || cm.end_date < ms) continue;
         if (clientFilter !== "all" && cm.client_id !== clientFilter) continue;
-        plan += cm.package || 0;
+        if (cm.status === "planned" || cm.status === "cancelled") continue;
+        plan += targetForCalendarMonth(cm, selectedMonth);
       }
     }
     return {

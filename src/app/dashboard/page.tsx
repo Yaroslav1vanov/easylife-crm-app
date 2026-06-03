@@ -42,6 +42,25 @@ function fmtDateShort(s: string | null | undefined) {
 function daysBetween(a: string, b: string) {
   return Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000);
 }
+
+/**
+ * Пропорциональный план на календарный месяц.
+ * Если M-период начинается 10 июня и кончается 9 июля с pkg=30, то на июнь = 30 * 21/30 = 21.
+ * Если calendar_split[ym] задан вручную — используем его (override).
+ */
+function targetForCalendarMonth(cm: { start_date: string; end_date: string; package: number; calendar_split?: Record<string, number> | null }, ym: string): number {
+  if (cm.calendar_split && cm.calendar_split[ym] !== undefined && cm.calendar_split[ym] !== null) {
+    return cm.calendar_split[ym];
+  }
+  const { start: ms, end: me } = ymRange(ym);
+  const overlapStart = cm.start_date > ms ? cm.start_date : ms;
+  const overlapEnd = cm.end_date < me ? cm.end_date : me;
+  const overlapDays = Math.max(0, daysBetween(overlapStart, overlapEnd) + 1);
+  const totalDays = Math.max(1, daysBetween(cm.start_date, cm.end_date) + 1);
+  const pkg = cm.package || 0;
+  return Math.round((pkg * overlapDays) / totalDays);
+}
+
 function greeting(d: Date) {
   const h = d.getHours();
   if (h < 5) return "Доброй ночи";
@@ -641,7 +660,8 @@ function ClientsBlock(p: ClientsBlockProps) {
       const c = p.clients.find(x => x.id === cm.client_id);
       if (!c) continue;
       const list = p.scripts.filter(s => s.client_id === c.id && s.month_number === cm.month_number);
-      const plan = cm.package || list.length || 1;
+      // План на выбранный календарный месяц = пропорция от пакета (а не весь пакет M)
+      const plan = targetForCalendarMonth(cm, p.selectedMonth);
       const scrApproved = list.filter(s => s.script_status === "approved").length;
       const montage = list.filter(s => s.script_status === "approved" && (s.video_status === "inProgress" || s.video_status === "ready" || s.video_status === "published")).length;
       const ready = list.filter(s => s.video_status === "ready" || s.video_status === "published").length;
@@ -1156,10 +1176,11 @@ function DashboardInner() {
   /* ===== Derived ===== */
   const data = useMemo(() => {
     const { start: ms, end: me } = periodRange;
-    // Активные = active + closed + planned + onboarding в выбранном периоде
-    // (planned тоже считаем — это уже подписанный контракт, просто ждёт старта)
+    // Активные = active + closed + onboarding в выбранном периоде.
+    // planned НЕ включаем — это будущий контракт, пока активный M не закрыт он не должен
+    // считаться в плане/pipeline. Появится когда закроется предыдущий M.
     const activeMonths = clientMonths.filter(cm =>
-      (cm.status === "active" || cm.status === "closed" || cm.status === "planned" || cm.status === "onboarding") &&
+      (cm.status === "active" || cm.status === "closed" || cm.status === "onboarding") &&
       cm.start_date <= me && cm.end_date >= ms
     );
     const activeClientIds = new Set(activeMonths.map(m => m.client_id));
@@ -1171,7 +1192,8 @@ function DashboardInner() {
       .map(o => ({ progress: o, client: clients.find(c => c.id === o.client_id) }))
       .filter(x => !!x.client) as { progress: OnboardingProgress; client: Client }[];
 
-    const planRolls = activeMonths.reduce((s, m) => s + (m.package || 0), 0);
+    // Пропорциональный план на выбранный календарный месяц
+    const planRolls = activeMonths.reduce((s, m) => s + targetForCalendarMonth(m, selectedMonth), 0);
 
     const scriptsByClientMonth = (cm: ClientMonth) =>
       scripts.filter(s => s.client_id === cm.client_id && s.month_number === cm.month_number);
