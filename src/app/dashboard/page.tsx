@@ -2,1498 +2,1192 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
-import db, { Client, Script, ClientMonth } from "@/lib/database";
+import db, { Client, Script, ClientMonth, TeamMember, Profile, OnboardingProgress } from "@/lib/database";
+import Avatar from "@/components/Avatar";
+import {
+  Users, Film, AlertCircle, CalendarCheck, Rocket,
+  Plus, Calendar as CalendarIcon, ChevronLeft, ChevronRight, ChevronDown,
+  FileCheck2, Scissors, Send, ArrowRight, Filter,
+  TrendingUp, TrendingDown, Minus,
+  type LucideIcon,
+} from "lucide-react";
 
-const RU_MONTHS = ["янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
+/* ----- helpers ----- */
+const RU_MONTHS = ["январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"];
+const RU_MONTHS_GEN = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
+const RU_WEEKDAYS = ["воскресенье", "понедельник", "вторник", "среда", "четверг", "пятница", "суббота"];
 
-function ymLabel(ym: string): string {
-  const parts = ym.split("-");
-  const y = parseInt(parts[0] || "0", 10);
-  const m = parseInt(parts[1] || "0", 10);
-  if (!y || !m || m < 1 || m > 12) return ym;
-  return `${RU_MONTHS[m - 1]} ${y}`;
+function ymOfDate(d: Date) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; }
+function ymShift(ym: string, delta: number) {
+  const [y, m] = ym.split("-").map(Number);
+  return ymOfDate(new Date(y, m - 1 + delta, 1));
 }
-function ymOfDate(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
-function ymShift(ym: string, monthsDelta: number): string {
-  const parts = ym.split("-");
-  const y = parseInt(parts[0] || "0", 10);
-  const m = parseInt(parts[1] || "0", 10);
-  if (!y || !m) return ym;
-  return ymOfDate(new Date(y, m - 1 + monthsDelta, 1));
-}
-function ymRange(ym: string): { start: string; end: string } {
-  const parts = ym.split("-");
-  const y = parseInt(parts[0] || "0", 10);
-  const m = parseInt(parts[1] || "0", 10);
-  if (!y || !m || m < 1 || m > 12) {
-    return { start: "1900-01-01", end: "2999-12-31" };
-  }
+function ymRange(ym: string) {
+  const [y, m] = ym.split("-").map(Number);
   const start = `${y}-${String(m).padStart(2, "0")}-01`;
   const lastDay = new Date(y, m, 0).getDate();
   const end = `${y}-${String(m).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
   return { start, end };
 }
-function fmtDate(s: string | null | undefined): string {
+function ymLabel(ym: string) { const [y, m] = ym.split("-").map(Number); return `${RU_MONTHS[m - 1]} ${y}`; }
+function shortYm(ym: string) { const [y, m] = ym.split("-").map(Number); return `${RU_MONTHS[m - 1].slice(0, 3)} ${y}`; }
+function fmtDateShort(s: string | null | undefined) {
   if (!s) return "—";
-  const parts = String(s).slice(0, 10).split("-");
-  if (parts.length < 3) return String(s);
-  const m = parseInt(parts[1], 10);
-  const d = parseInt(parts[2], 10);
-  if (!m || !d || m < 1 || m > 12) return String(s);
-  return `${d} ${RU_MONTHS[m - 1]}`;
+  const [, mm, dd] = String(s).slice(0, 10).split("-");
+  const m = parseInt(mm, 10), d = parseInt(dd, 10);
+  if (!m || !d) return String(s);
+  return `${d} ${RU_MONTHS_GEN[m - 1]}`;
 }
-function daysBetween(a: string, b: string): number {
-  try {
-    return Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000);
-  } catch {
-    return 0;
-  }
+function daysBetween(a: string, b: string) {
+  return Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000);
 }
-function addDaysIso(s: string, days: number): string {
-  const d = new Date(s);
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
+function greeting(d: Date) {
+  const h = d.getHours();
+  if (h < 5) return "Доброй ночи";
+  if (h < 12) return "Доброе утро";
+  if (h < 18) return "Добрый день";
+  return "Добрый вечер";
 }
-function firstPublishedDate(scripts: Script[], clientId: number, monthNumber: number): string | null {
-  const dates = scripts
-    .filter((s) => s.client_id === clientId && s.month_number === monthNumber && s.video_status === "published" && typeof s.pub_date === "string")
-    .map((s) => s.pub_date as string)
-    .sort();
-  return dates[0] || null;
+function todayFullRu(d: Date) {
+  return `${d.getDate()} ${RU_MONTHS_GEN[d.getMonth()]} ${d.getFullYear()}, ${RU_WEEKDAYS[d.getDay()]}`;
 }
 
-class ErrorBoundary extends React.Component<
-  { children: React.ReactNode },
-  { error: Error | null; info: string | null }
-> {
-  constructor(props: { children: React.ReactNode }) {
-    super(props);
-    this.state = { error: null, info: null };
-  }
-  static getDerivedStateFromError(error: Error) {
-    return { error, info: null };
-  }
-  componentDidCatch(error: Error, info: { componentStack?: string }) {
-    this.setState({ error, info: info?.componentStack || null });
-    // eslint-disable-next-line no-console
-    console.error("[Dashboard ErrorBoundary]", error, info);
-  }
-  render() {
-    if (this.state.error) {
-      return (
-        <div style={{ padding: 24, color: "#f87171", fontFamily: "monospace", fontSize: 12, whiteSpace: "pre-wrap" }}>
-          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>
-            Dashboard error — please screenshot and send back:
+/* темп: где должны быть vs где есть (в % или в роликах) */
+function paceOf(start: string, end: string, today: string, doneCount: number, planCount: number) {
+  if (planCount <= 0) return { delta: 0, expected: 0, actualPct: 0, expectedPct: 0, label: "—", color: "var(--t3)", icon: "neutral" as const };
+  const totalDays = Math.max(1, daysBetween(start, end) + 1);
+  const elapsed = Math.max(0, Math.min(totalDays, daysBetween(start, today) + 1));
+  const expectedPct = (elapsed / totalDays) * 100;
+  const actualPct = (doneCount / planCount) * 100;
+  const expected = Math.round((elapsed / totalDays) * planCount);
+  const delta = doneCount - expected; // > 0 опережаем, < 0 отстаём
+  let label = "по плану";
+  let color = "var(--gr)";
+  let icon: "up" | "down" | "neutral" = "neutral";
+  if (delta >= 2) { label = `опережаем +${delta}`; color = "var(--gr)"; icon = "up"; }
+  else if (delta >= -1) { label = "по плану"; color = "var(--cy)"; icon = "neutral"; }
+  else if (delta >= -3) { label = `отстаём ${delta}`; color = "var(--or)"; icon = "down"; }
+  else { label = `отстаём ${delta}`; color = "var(--rd)"; icon = "down"; }
+  return { delta, expected, actualPct, expectedPct, label, color, icon };
+}
+
+/* ----- KPI карточка ----- */
+type KPIProps = {
+  title: string;
+  value: string;
+  caption: string;
+  Icon: LucideIcon;
+  color: string;
+  progress?: number;
+  attention?: boolean;
+  onClick?: () => void;
+};
+
+function KPICard({ title, value, caption, Icon, color, progress, attention, onClick }: KPIProps) {
+  return (
+    <div onClick={onClick} style={{
+      background: "rgba(123,63,228,0.075)",
+      backdropFilter: "blur(8px)",
+      border: `1px solid ${attention ? "rgba(255,92,122,0.35)" : "var(--brd)"}`,
+      borderRadius: 18,
+      padding: 17,
+      minHeight: 122,
+      display: "flex", flexDirection: "column", justifyContent: "space-between",
+      transition: "all .2s",
+      cursor: onClick ? "pointer" : "default",
+    }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
+        <div style={{
+          width: 38, height: 38, borderRadius: 11,
+          background: `${color}22`, color,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          border: `1px solid ${color}44`,
+        }}>
+          <Icon size={18} strokeWidth={1.8} />
+        </div>
+      </div>
+      <div>
+        <div style={{ fontSize: 11, color: "var(--t3)", fontWeight: 600, marginBottom: 4, lineHeight: 1.2 }}>{title}</div>
+        <div style={{
+          fontFamily: "'Unbounded', sans-serif", fontSize: 26, fontWeight: 800,
+          color: attention ? "var(--rd)" : "var(--t1)", letterSpacing: -0.5, lineHeight: 1, marginBottom: 4,
+        }}>{value}</div>
+        <div style={{ fontSize: 10, color: attention ? "var(--rd)" : "var(--t2)", fontWeight: 600 }}>{caption}</div>
+      </div>
+      {typeof progress === "number" && (
+        <div style={{ height: 4, borderRadius: 2, background: "rgba(255,255,255,0.06)", overflow: "hidden", marginTop: 8 }}>
+          <div style={{ width: `${Math.max(0, Math.min(100, progress))}%`, height: "100%", background: color, borderRadius: 2, transition: "width .3s" }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ===== Таблица клиентов ===== */
+type ClientsBlockProps = {
+  clients: Client[];
+  clientMonths: ClientMonth[];
+  scripts: Script[];
+  team: TeamMember[];
+  todayIso: string;
+  overdueClientIds: Set<number>;
+  view: "table" | "cards";
+  setView: (v: "table" | "cards") => void;
+  searchQuery: string; setSearchQuery: (v: string) => void;
+  filterStatus: "all" | "working" | "overdue" | "paused"; setFilterStatus: (v: any) => void;
+  filterPkg: "all" | number; setFilterPkg: (v: any) => void;
+  filterMontager: "all" | number; setFilterMontager: (v: any) => void;
+  filterTeamlead: "all" | number; setFilterTeamlead: (v: any) => void;
+  sortBy: "progress" | "deadline" | "name" | "plan"; setSortBy: (v: any) => void;
+  filterMenuOpen: null | "status" | "pkg" | "montager" | "teamlead" | "sort"; setFilterMenuOpen: (v: any) => void;
+  collapsedTotals: boolean; setCollapsedTotals: (v: boolean) => void;
+  selectedMonth: string;
+  onOpen: (clientId: number) => void;
+};
+
+type ClientRow = {
+  c: Client; cm: ClientMonth;
+  plan: number; scrApproved: number; montage: number; ready: number; published: number;
+  remaining: number; progressPct: number; daysToEnd: number; daysTotal: number;
+  isOverdue: boolean; isPaused: boolean;
+  status: "overdue" | "working" | "paused" | "done";
+  pace: ReturnType<typeof paceOf>;
+};
+
+function ClientsBlock(p: ClientsBlockProps) {
+  const rows = useMemo<ClientRow[]>(() => {
+    const out: ClientRow[] = [];
+    for (const c of p.clients) {
+      const cm = p.clientMonths.find(m => m.client_id === c.id);
+      if (!cm) continue;
+      const list = p.scripts.filter(s => s.client_id === c.id && s.month_number === cm.month_number);
+      const plan = cm.package || list.length || 1;
+      const scrApproved = list.filter(s => s.script_status === "approved").length;
+      const montage = list.filter(s => s.script_status === "approved" && (s.video_status === "inProgress" || s.video_status === "ready" || s.video_status === "published")).length;
+      const ready = list.filter(s => s.video_status === "ready" || s.video_status === "published").length;
+      const published = list.filter(s => s.video_status === "published").length;
+      const remaining = Math.max(0, plan - published);
+      const progressPct = Math.round((published / plan) * 100);
+      const daysToEnd = daysBetween(p.todayIso, cm.end_date);
+      const daysTotal = Math.max(1, daysBetween(cm.start_date, cm.end_date) + 1);
+      const isOverdue = daysToEnd < 0 || p.overdueClientIds.has(c.id);
+      const isPaused = cm.status === "planned" || cm.status === "cancelled";
+      const status: ClientRow["status"] = isOverdue ? "overdue" : isPaused ? "paused" : published >= plan ? "done" : "working";
+      const pace = paceOf(cm.start_date, cm.end_date, p.todayIso, published, plan);
+      out.push({ c, cm, plan, scrApproved, montage, ready, published, remaining, progressPct, daysToEnd, daysTotal, isOverdue, isPaused, status, pace });
+    }
+    return out;
+  }, [p.clients, p.clientMonths, p.scripts, p.todayIso, p.overdueClientIds]);
+
+  // фильтры
+  const filtered = useMemo(() => {
+    const q = p.searchQuery.trim().toLowerCase();
+    return rows.filter(r => {
+      if (q) {
+        const hay = `${r.c.name} ${r.c.surname || ""} ${r.c.niche || ""} ${r.c.product || ""}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      if (p.filterStatus !== "all" && r.status !== p.filterStatus) return false;
+      if (p.filterPkg !== "all" && r.cm.package !== p.filterPkg) return false;
+      if (p.filterMontager !== "all" && r.c.montager_id !== p.filterMontager) return false;
+      if (p.filterTeamlead !== "all" && r.c.teamlead_id !== p.filterTeamlead) return false;
+      return true;
+    });
+  }, [rows, p.searchQuery, p.filterStatus, p.filterPkg, p.filterMontager, p.filterTeamlead]);
+
+  // сортировка
+  const sorted = useMemo(() => {
+    const arr = [...filtered];
+    if (p.sortBy === "progress") arr.sort((a, b) => a.progressPct - b.progressPct); // меньше прогресс — выше (приоритет)
+    else if (p.sortBy === "deadline") arr.sort((a, b) => a.cm.end_date.localeCompare(b.cm.end_date));
+    else if (p.sortBy === "name") arr.sort((a, b) => `${a.c.name} ${a.c.surname || ""}`.localeCompare(`${b.c.name} ${b.c.surname || ""}`));
+    else if (p.sortBy === "plan") arr.sort((a, b) => b.plan - a.plan);
+    return arr;
+  }, [filtered, p.sortBy]);
+
+  // итоги
+  const totals = useMemo(() => {
+    const t = { plan: 0, scr: 0, montage: 0, ready: 0, published: 0, remaining: 0 };
+    for (const r of sorted) {
+      t.plan += r.plan; t.scr += r.scrApproved; t.montage += r.montage;
+      t.ready += r.ready; t.published += r.published; t.remaining += r.remaining;
+    }
+    return t;
+  }, [sorted]);
+
+  // список пакетов из реальных данных
+  const pkgOptions = useMemo(() => {
+    const set = new Set<number>(rows.map(r => r.cm.package).filter(Boolean));
+    return Array.from(set).sort((a, b) => a - b);
+  }, [rows]);
+
+  // монтажёры и тимлиды
+  const montagers = useMemo(() => {
+    const ids = new Set(p.clients.map(c => c.montager_id).filter(Boolean) as number[]);
+    return p.team.filter(t => ids.has(t.id));
+  }, [p.clients, p.team]);
+  const teamleads = useMemo(() => {
+    const ids = new Set(p.clients.map(c => c.teamlead_id).filter(Boolean) as number[]);
+    return p.team.filter(t => ids.has(t.id));
+  }, [p.clients, p.team]);
+
+  const filtersActive = p.filterStatus !== "all" || p.filterPkg !== "all" || p.filterMontager !== "all" || p.filterTeamlead !== "all" || p.searchQuery.trim().length > 0;
+
+  // helper для dropdown
+  const Dropdown = ({ kind, label, current, options, onSelect }: {
+    kind: NonNullable<ClientsBlockProps["filterMenuOpen"]>;
+    label: string;
+    current: string;
+    options: { v: any; l: string }[];
+    onSelect: (v: any) => void;
+  }) => (
+    <div style={{ position: "relative" }}>
+      <button onClick={() => p.setFilterMenuOpen(p.filterMenuOpen === kind ? null : kind)}
+        style={{
+          padding: "8px 12px", borderRadius: 10,
+          background: "rgba(123,63,228,0.08)", border: "1px solid var(--brd)",
+          color: "var(--t1)", fontSize: 11, fontWeight: 600,
+          cursor: "pointer", display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap",
+        }}>
+        <span style={{ color: "var(--t3)" }}>{label}:</span> {current}
+        <ChevronDown size={11} strokeWidth={2} />
+      </button>
+      {p.filterMenuOpen === kind && (
+        <div style={{
+          position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 30,
+          minWidth: 180, background: "var(--side)", border: "1px solid var(--brd)",
+          borderRadius: 10, padding: 4, boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
+          maxHeight: 280, overflowY: "auto",
+        }}>
+          {options.map(opt => (
+            <button key={String(opt.v)} onClick={() => { onSelect(opt.v); p.setFilterMenuOpen(null); }}
+              className="nav-item" style={{ fontSize: 11, padding: "7px 10px" }}>
+              {opt.l}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  const statusBadge = (s: ClientRow["status"]) => {
+    const map = {
+      overdue:  { bg: "rgba(255,92,122,0.15)", fg: "var(--rd)", l: "🔴 Просрочка" },
+      working:  { bg: "rgba(66,212,244,0.12)", fg: "var(--cy)", l: "🟦 В работе" },
+      paused:   { bg: "rgba(245,196,81,0.12)", fg: "var(--yl)", l: "⏸ На паузе" },
+      done:     { bg: "rgba(168,224,99,0.12)", fg: "var(--gr)", l: "✓ Готово" },
+    } as const;
+    const m = map[s];
+    return (
+      <span style={{ padding: "4px 8px", borderRadius: 7, background: m.bg, color: m.fg, fontSize: 10, fontWeight: 700, whiteSpace: "nowrap" }}>{m.l}</span>
+    );
+  };
+
+  const StageCell = ({ done, plan, color }: { done: number; plan: number; color: string }) => {
+    const pct = plan > 0 ? Math.round((done / plan) * 100) : 0;
+    return (
+      <div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 3 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: "var(--t1)" }}>{done}/{plan}</span>
+          <span style={{ fontSize: 9, color: "var(--t3)", fontWeight: 600 }}>{pct}%</span>
+        </div>
+        <div style={{ height: 4, borderRadius: 2, background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
+          <div style={{ width: `${pct}%`, height: "100%", background: color, borderRadius: 2 }} />
+        </div>
+      </div>
+    );
+  };
+
+  const RingProgress = ({ pct, color }: { pct: number; color: string }) => {
+    const r = 16; const circ = 2 * Math.PI * r;
+    return (
+      <div style={{ position: "relative", width: 38, height: 38 }}>
+        <svg width="38" height="38" style={{ transform: "rotate(-90deg)" }}>
+          <circle cx="19" cy="19" r={r} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="3" />
+          <circle cx="19" cy="19" r={r} fill="none" stroke={color} strokeWidth="3" strokeDasharray={circ} strokeDashoffset={circ - (pct / 100) * circ} strokeLinecap="round" />
+        </svg>
+        <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800, fontFamily: "monospace", color: "var(--t1)" }}>{pct}%</div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="card" style={{ padding: 18, borderRadius: 18 }}>
+      {/* Header + Toolbar */}
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 10 }}>
+          <h3 style={{ fontSize: 14, fontWeight: 800, color: "var(--t1)" }}>
+            Клиенты в работе
+            <span style={{ marginLeft: 8, padding: "2px 7px", borderRadius: 6, background: "rgba(157,107,255,0.15)", color: "var(--pu)", fontSize: 10, fontWeight: 700 }}>{filtered.length}{filtered.length !== p.clients.length ? ` / ${p.clients.length}` : ""}</span>
+          </h3>
+          {/* View toggle */}
+          <div style={{ display: "flex", background: "rgba(123,63,228,0.06)", border: "1px solid var(--brd)", borderRadius: 10, padding: 3 }}>
+            <button onClick={() => p.setView("table")}
+              style={{ padding: "6px 12px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 700, background: p.view === "table" ? "var(--pu)" : "transparent", color: p.view === "table" ? "#fff" : "var(--t2)" }}>
+              ☰ Таблица
+            </button>
+            <button onClick={() => p.setView("cards")}
+              style={{ padding: "6px 12px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 700, background: p.view === "cards" ? "var(--pu)" : "transparent", color: p.view === "cards" ? "#fff" : "var(--t2)" }}>
+              ▦ Карточки
+            </button>
           </div>
-          <div style={{ marginBottom: 8 }}>{String(this.state.error.message || this.state.error)}</div>
-          <div style={{ opacity: 0.7 }}>{this.state.error.stack || ""}</div>
-          {this.state.info && (
-            <div style={{ marginTop: 12, opacity: 0.5 }}>
-              <div>Component stack:</div>
-              <div>{this.state.info}</div>
-            </div>
+        </div>
+        {/* Toolbar row */}
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          {/* Search */}
+          <div style={{ position: "relative", flex: "1 1 220px", maxWidth: 320 }}>
+            <input
+              placeholder="🔍  Поиск клиента..."
+              value={p.searchQuery}
+              onChange={(e) => p.setSearchQuery(e.target.value)}
+              style={{
+                width: "100%", padding: "9px 12px", borderRadius: 10,
+                background: "rgba(0,0,0,0.25)", border: "1px solid var(--brd)",
+                color: "var(--t1)", fontSize: 12, outline: "none",
+              }}
+            />
+          </div>
+          <Dropdown kind="status" label="Статус"
+            current={p.filterStatus === "all" ? "Все" : p.filterStatus === "working" ? "В работе" : p.filterStatus === "overdue" ? "Просрочка" : "На паузе"}
+            options={[
+              { v: "all", l: "Все" }, { v: "working", l: "В работе" },
+              { v: "overdue", l: "Просрочка" }, { v: "paused", l: "На паузе" },
+            ]}
+            onSelect={p.setFilterStatus}
+          />
+          <Dropdown kind="pkg" label="Пакет"
+            current={p.filterPkg === "all" ? "Все" : `${p.filterPkg} роликов`}
+            options={[{ v: "all", l: "Все пакеты" }, ...pkgOptions.map(pk => ({ v: pk, l: `${pk} роликов` }))]}
+            onSelect={p.setFilterPkg}
+          />
+          <Dropdown kind="montager" label="Монтажёр"
+            current={p.filterMontager === "all" ? "Все" : (p.team.find(t => t.id === p.filterMontager)?.name || "—")}
+            options={[{ v: "all", l: "Все" }, ...montagers.map(t => ({ v: t.id, l: t.name }))]}
+            onSelect={p.setFilterMontager}
+          />
+          <Dropdown kind="teamlead" label="Тимлид"
+            current={p.filterTeamlead === "all" ? "Все" : (p.team.find(t => t.id === p.filterTeamlead)?.name || "—")}
+            options={[{ v: "all", l: "Все" }, ...teamleads.map(t => ({ v: t.id, l: t.name }))]}
+            onSelect={p.setFilterTeamlead}
+          />
+          <div style={{ flex: 1 }} />
+          <Dropdown kind="sort" label="Сорт."
+            current={p.sortBy === "progress" ? "По прогрессу" : p.sortBy === "deadline" ? "По дедлайну" : p.sortBy === "name" ? "По имени" : "По плану"}
+            options={[
+              { v: "progress", l: "По прогрессу" },
+              { v: "deadline", l: "По дедлайну" },
+              { v: "name", l: "По имени" },
+              { v: "plan", l: "По плану (больше)" },
+            ]}
+            onSelect={p.setSortBy}
+          />
+          {filtersActive && (
+            <button onClick={() => {
+              p.setSearchQuery(""); p.setFilterStatus("all"); p.setFilterPkg("all"); p.setFilterMontager("all"); p.setFilterTeamlead("all");
+            }} style={{ padding: "8px 10px", borderRadius: 10, background: "transparent", border: "1px solid var(--brd)", color: "var(--rd)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+              ✕ Сбросить
+            </button>
           )}
         </div>
-      );
+      </div>
+
+      {/* TABLE VIEW */}
+      {p.view === "table" && (
+        <div style={{ overflowX: "auto", marginLeft: -8, marginRight: -8 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1200 }}>
+            <thead>
+              <tr style={{ fontSize: 9, color: "var(--t3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                {["Клиент", "Пакет", "Период", "План", "Сценарии", "Монтаж", "Готово", "Опубликовано", "Осталось", "Прогресс", "Статус", "Дедлайн", ""].map((h, i) => (
+                  <th key={i} style={{ textAlign: "left", padding: "10px 8px", borderBottom: "1px solid var(--brd)", fontWeight: 700 }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map(r => {
+                const PIcon = r.pace.icon === "up" ? TrendingUp : r.pace.icon === "down" ? TrendingDown : Minus;
+                return (
+                  <tr key={r.c.id}
+                    onClick={() => p.onOpen(r.c.id)}
+                    style={{ borderBottom: "1px solid rgba(157,107,255,0.08)", cursor: "pointer", transition: "background .12s" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(157,107,255,0.04)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
+                    {/* Клиент */}
+                    <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 200 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <Avatar name={`${r.c.name} ${r.c.surname || ""}`} src={r.c.avatar_url} size={36} />
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--t1)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 170 }}>
+                            {r.c.name} {r.c.surname || ""}
+                          </div>
+                          <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 170 }}>
+                            {r.c.niche || r.c.product || "—"}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    {/* Пакет */}
+                    <td style={{ padding: "12px 8px", verticalAlign: "middle", fontSize: 11, color: "var(--t2)", fontWeight: 600, whiteSpace: "nowrap" }}>
+                      {r.cm.package} роликов/мес
+                    </td>
+                    {/* Период */}
+                    <td style={{ padding: "12px 8px", verticalAlign: "middle", whiteSpace: "nowrap" }}>
+                      <div style={{ fontSize: 11, color: "var(--t1)", fontWeight: 600 }}>{fmtDateShort(r.cm.start_date)} — {fmtDateShort(r.cm.end_date)}</div>
+                      <div style={{ fontSize: 9, color: r.daysToEnd < 0 ? "var(--rd)" : "var(--t3)", fontWeight: 600, marginTop: 1 }}>
+                        {r.daysToEnd < 0 ? `просрочка ${-r.daysToEnd}д` : `${r.daysToEnd} дней`}
+                      </div>
+                    </td>
+                    {/* План */}
+                    <td style={{ padding: "12px 8px", verticalAlign: "middle", fontFamily: "'Unbounded', sans-serif", fontSize: 16, fontWeight: 800, color: "var(--t1)" }}>
+                      {r.plan}
+                    </td>
+                    {/* Сценарии */}
+                    <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 110 }}><StageCell done={r.scrApproved} plan={r.plan} color="#42d4f4" /></td>
+                    {/* Монтаж */}
+                    <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 110 }}><StageCell done={r.montage} plan={r.plan} color="#ffae42" /></td>
+                    {/* Готово */}
+                    <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 110 }}><StageCell done={r.ready} plan={r.plan} color="#a8e063" /></td>
+                    {/* Опубликовано */}
+                    <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 110 }}><StageCell done={r.published} plan={r.plan} color="#9d6bff" /></td>
+                    {/* Осталось */}
+                    <td style={{ padding: "12px 8px", verticalAlign: "middle" }}>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: "var(--t1)", fontFamily: "monospace" }}>{r.remaining}</div>
+                      <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 600 }}>{r.plan > 0 ? Math.round((r.remaining / r.plan) * 100) : 0}%</div>
+                    </td>
+                    {/* Прогресс */}
+                    <td style={{ padding: "12px 8px", verticalAlign: "middle" }}>
+                      <RingProgress pct={r.progressPct} color={r.progressPct >= 70 ? "#a8e063" : r.progressPct >= 40 ? "#42d4f4" : "#ffae42"} />
+                    </td>
+                    {/* Статус */}
+                    <td style={{ padding: "12px 8px", verticalAlign: "middle" }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 3, alignItems: "flex-start" }}>
+                        {statusBadge(r.status)}
+                        <span style={{ fontSize: 9, color: r.pace.color, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 3 }}>
+                          <PIcon size={9} strokeWidth={2.2} /> {r.pace.label}
+                        </span>
+                      </div>
+                    </td>
+                    {/* Дедлайн */}
+                    <td style={{ padding: "12px 8px", verticalAlign: "middle", whiteSpace: "nowrap" }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--t1)" }}>{fmtDateShort(r.cm.end_date)}</div>
+                      <div style={{ fontSize: 9, color: r.daysToEnd < 0 ? "var(--rd)" : "var(--t3)", fontWeight: 600 }}>
+                        {r.daysToEnd < 0 ? `${-r.daysToEnd} дн. просрочки` : `${r.daysToEnd} дней`}
+                      </div>
+                    </td>
+                    {/* Action */}
+                    <td style={{ padding: "12px 4px", verticalAlign: "middle", textAlign: "center" }}>
+                      <span style={{ color: "var(--t3)", fontSize: 14 }}>⋮</span>
+                    </td>
+                  </tr>
+                );
+              })}
+              {sorted.length === 0 && (
+                <tr><td colSpan={13} style={{ padding: "40px 8px", textAlign: "center", color: "var(--t3)", fontSize: 12 }}>
+                  Никого не найдено по фильтрам
+                </td></tr>
+              )}
+            </tbody>
+            {/* TOTALS */}
+            {sorted.length > 0 && !p.collapsedTotals && (
+              <tfoot>
+                <tr style={{ borderTop: "2px solid var(--brd)", background: "rgba(123,63,228,0.06)" }}>
+                  <td style={{ padding: "14px 8px", fontSize: 11, fontWeight: 800, color: "var(--t1)" }}>
+                    Итого на {ymLabel(p.selectedMonth)}
+                  </td>
+                  <td style={{ padding: "14px 8px", fontSize: 11, color: "var(--t2)", fontWeight: 600 }}>{sorted.length} клиентов</td>
+                  <td />
+                  <td style={{ padding: "14px 8px", fontFamily: "'Unbounded', sans-serif", fontSize: 14, fontWeight: 800, color: "var(--pu)" }}>{totals.plan}</td>
+                  <td style={{ padding: "14px 8px" }}><StageCell done={totals.scr} plan={totals.plan} color="#42d4f4" /></td>
+                  <td style={{ padding: "14px 8px" }}><StageCell done={totals.montage} plan={totals.plan} color="#ffae42" /></td>
+                  <td style={{ padding: "14px 8px" }}><StageCell done={totals.ready} plan={totals.plan} color="#a8e063" /></td>
+                  <td style={{ padding: "14px 8px" }}><StageCell done={totals.published} plan={totals.plan} color="#9d6bff" /></td>
+                  <td style={{ padding: "14px 8px" }}>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: "var(--t1)", fontFamily: "monospace" }}>{totals.remaining}</div>
+                    <div style={{ fontSize: 9, color: "var(--t3)" }}>{totals.plan > 0 ? Math.round((totals.remaining / totals.plan) * 100) : 0}%</div>
+                  </td>
+                  <td style={{ padding: "14px 8px" }}>
+                    <RingProgress pct={totals.plan > 0 ? Math.round((totals.published / totals.plan) * 100) : 0} color="#9d6bff" />
+                  </td>
+                  <td colSpan={3} />
+                </tr>
+              </tfoot>
+            )}
+          </table>
+          <div style={{ textAlign: "right", paddingTop: 8 }}>
+            <button onClick={() => p.setCollapsedTotals(!p.collapsedTotals)}
+              style={{ background: "transparent", border: "none", color: "var(--t3)", fontSize: 10, fontWeight: 600, cursor: "pointer" }}>
+              {p.collapsedTotals ? "Показать итоги ↓" : "Свернуть итоги ↑"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* CARDS VIEW */}
+      {p.view === "cards" && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 10 }}>
+          {sorted.map(r => {
+            const PIcon = r.pace.icon === "up" ? TrendingUp : r.pace.icon === "down" ? TrendingDown : Minus;
+            return (
+              <button key={r.c.id} onClick={() => p.onOpen(r.c.id)}
+                style={{ textAlign: "left", padding: 12, borderRadius: 14, background: "rgba(0,0,0,0.22)", border: "1px solid var(--brd)", cursor: "pointer", display: "flex", flexDirection: "column", gap: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                  <Avatar name={`${r.c.name} ${r.c.surname || ""}`} src={r.c.avatar_url} size={36} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "var(--t1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.c.name} {r.c.surname || ""}</div>
+                    <div style={{ fontSize: 9, fontWeight: 700, color: r.pace.color, textTransform: "uppercase", marginTop: 2, letterSpacing: 0.4, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                      <PIcon size={9} strokeWidth={2.2} /> {r.pace.label}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 600 }}>
+                  M{r.cm.month_number} · {fmtDateShort(r.cm.start_date)} — {fmtDateShort(r.cm.end_date)} · {r.daysToEnd < 0 ? "просрочен" : `${r.daysToEnd} дн.`}
+                </div>
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                    <span style={{ fontSize: 10, color: "var(--t2)", fontWeight: 600 }}>{r.published}/{r.plan}</span>
+                    <span style={{ fontSize: 10, color: r.progressPct >= 70 ? "var(--gr)" : r.progressPct >= 40 ? "var(--cy)" : "var(--or)", fontWeight: 700 }}>{r.progressPct}%</span>
+                  </div>
+                  <div style={{ height: 5, borderRadius: 3, background: "rgba(255,255,255,0.06)", overflow: "hidden", position: "relative" }}>
+                    <div style={{ position: "absolute", left: `${r.pace.expectedPct}%`, top: -2, bottom: -2, width: 2, background: "rgba(255,255,255,0.35)", zIndex: 2 }} />
+                    <div style={{ width: `${r.progressPct}%`, height: "100%", background: r.progressPct >= 70 ? "linear-gradient(90deg, var(--gr), var(--cy))" : r.progressPct >= 40 ? "var(--cy)" : "var(--or)", borderRadius: 3, transition: "width .3s" }} />
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ===== ErrorBoundary ===== */
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: Error | null }> {
+  constructor(p: any) { super(p); this.state = { error: null }; }
+  static getDerivedStateFromError(e: Error) { return { error: e }; }
+  render() {
+    if (this.state.error) {
+      return <div style={{ padding: 24, color: "#f87171", fontFamily: "monospace", fontSize: 12, whiteSpace: "pre-wrap" }}>
+        <div style={{ fontWeight: 700, marginBottom: 8 }}>Dashboard error</div>
+        <div>{String(this.state.error.message || this.state.error)}</div>
+        <div style={{ opacity: 0.6, marginTop: 12 }}>{this.state.error.stack}</div>
+      </div>;
     }
     return this.props.children;
   }
 }
 
+/* ===== Main ===== */
 function DashboardInner() {
-  const [clients, setClients] = useState<Client[]>([]);
-  const [allScripts, setAllScripts] = useState<Script[]>([]);
-  const [overdueTasks, setOverdueTasks] = useState<any[]>([]);
-  const [clientMonths, setClientMonths] = useState<ClientMonth[]>([]);
-  const [migrationMissing, setMigrationMissing] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [showAllViolations, setShowAllViolations] = useState(false);
-  const [editingPlanId, setEditingPlanId] = useState<number | null>(null);
-  const [editingPlanValue, setEditingPlanValue] = useState<string>("");
-  const [savingPlanId, setSavingPlanId] = useState<number | null>(null);
-  const [openNewFor, setOpenNewFor] = useState<{ clientId: number; nextN: number; defaultStart: string; defaultPkg: number } | null>(null);
-  const [openNewForm, setOpenNewForm] = useState<{ start_date: string; end_date: string; pkg: string }>({
-    start_date: "",
-    end_date: "",
-    pkg: "30",
-  });
   const router = useRouter();
   const supabase = createClient();
   const today = new Date();
-  const todayStr = today.toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" });
   const currentYM = ymOfDate(today);
   const todayIso = today.toISOString().slice(0, 10);
-  const [selectedMonth, setSelectedMonth] = useState<string>(currentYM);
+
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [scripts, setScripts] = useState<Script[]>([]);
+  const [clientMonths, setClientMonths] = useState<ClientMonth[]>([]);
+  const [team, setTeam] = useState<TeamMember[]>([]);
+  const [overdueTasks, setOverdueTasks] = useState<any[]>([]);
+  const [onbProgresses, setOnbProgresses] = useState<OnboardingProgress[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [selectedMonth, setSelectedMonth] = useState(currentYM);
+  const [showAddMenu, setShowAddMenu] = useState(false);
+  const [taskFilter, setTaskFilter] = useState<"all" | number>("all"); // team_member id or "all"
+  const [taskFilterOpen, setTaskFilterOpen] = useState(false);
+  // Clients table
+  const [clientsView, setClientsView] = useState<"table" | "cards">("table");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterStatus, setFilterStatus] = useState<"all" | "working" | "overdue" | "paused">("all");
+  const [filterPkg, setFilterPkg] = useState<"all" | number>("all");
+  const [filterMontager, setFilterMontager] = useState<"all" | number>("all");
+  const [filterTeamlead, setFilterTeamlead] = useState<"all" | number>("all");
+  const [sortBy, setSortBy] = useState<"progress" | "deadline" | "name" | "plan">("progress");
+  const [filterMenuOpen, setFilterMenuOpen] = useState<null | "status" | "pkg" | "montager" | "teamlead" | "sort">(null);
+  const [collapsedTotals, setCollapsedTotals] = useState(false);
 
   useEffect(() => {
     (async () => {
       try {
-        const [cls, tasks, cmResult] = await Promise.all([
+        const [p, cls, t, tasks, cmRes, onb] = await Promise.all([
+          db.getProfile(supabase),
           db.getClients(supabase),
+          db.getTeam(supabase),
           db.getAllOverdueTasks(supabase),
           db.getClientMonths(supabase),
+          db.getAllOnboardingProgress(supabase),
         ]);
+        setProfile(p);
         setClients(cls || []);
+        setTeam(t || []);
         setOverdueTasks(tasks || []);
-        setClientMonths(cmResult?.data || []);
-        setMigrationMissing(!!cmResult?.missing);
-        const scripts = await db.getScriptsForClients(supabase, (cls || []).map((c) => c.id));
-        setAllScripts(scripts);
+        setClientMonths(cmRes?.data || []);
+        setOnbProgresses(onb || []);
+        const scr = await db.getScriptsForClients(supabase, (cls || []).map(c => c.id));
+        setScripts(scr);
       } catch (e: any) {
         setLoadError(e?.message || String(e));
       } finally {
         setLoading(false);
       }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const monthsList = useMemo(() => {
-    const months = new Set<string>();
-    months.add(currentYM);
-    months.add(ymShift(currentYM, 1));
-    months.add(ymShift(currentYM, 2));
-    for (const c of clients) {
-      if (typeof c.start_date === "string" && c.start_date.length >= 7) {
-        months.add(c.start_date.slice(0, 7));
-      }
-    }
-    for (const cm of clientMonths) {
-      if (typeof cm.start_date === "string" && cm.start_date.length >= 7) {
-        months.add(cm.start_date.slice(0, 7));
-      }
-      if (typeof cm.end_date === "string" && cm.end_date.length >= 7) {
-        months.add(cm.end_date.slice(0, 7));
-      }
-    }
-    return Array.from(months).filter((s) => /^\d{4}-\d{2}$/.test(s)).sort();
-  }, [clients, clientMonths, currentYM]);
+  /* ===== Я как member команды (для автофильтра) ===== */
+  const myTeamMember = useMemo(() => {
+    if (!profile) return null;
+    return team.find(t => t.profile_id === profile.id) || null;
+  }, [team, profile]);
 
-  if (loading) return <div style={{ color: "var(--t2)", padding: 40, textAlign: "center" }}>Загрузка...</div>;
-  if (loadError) {
-    return (
-      <div style={{ padding: 24, color: "#f87171", fontFamily: "monospace", fontSize: 12 }}>
-        Load error: {loadError}
-      </div>
+  // Если я teamlead/montager/scriptwriter — авто-фильтр на меня при первом рендере
+  useEffect(() => {
+    if (!profile || !myTeamMember) return;
+    if (profile.role === "owner" || profile.role === "admin") return;
+    setTaskFilter(myTeamMember.id);
+  }, [profile, myTeamMember]);
+
+  /* ===== Period ===== */
+  const periodRange = ymRange(selectedMonth);
+
+  /* ===== Derived ===== */
+  const data = useMemo(() => {
+    const { start: ms, end: me } = periodRange;
+    const activeMonths = clientMonths.filter(cm =>
+      (cm.status === "active" || cm.status === "closed") &&
+      cm.start_date <= me && cm.end_date >= ms
     );
-  }
+    const activeClientIds = new Set(activeMonths.map(m => m.client_id));
+    const activeClients = clients.filter(c => activeClientIds.has(c.id));
 
-  const isAllTime = selectedMonth === "all";
+    // onboarding в фазе (pending > 0)
+    const onboardingActive = onbProgresses.filter(o => o.pending_tasks > 0);
+    const onboardingClients = onboardingActive
+      .map(o => ({ progress: o, client: clients.find(c => c.id === o.client_id) }))
+      .filter(x => !!x.client) as { progress: OnboardingProgress; client: Client }[];
 
-  const monthsForClient = (clientId: number): ClientMonth[] =>
-    clientMonths.filter((cm) => cm.client_id === clientId).sort((a, b) => a.month_number - b.month_number);
+    const planRolls = activeMonths.reduce((s, m) => s + (m.package || 0), 0);
 
-  const shouldCountMonth = (m: ClientMonth) => m.status === "active" || m.status === "closed";
-  const onboardingRows = clientMonths
-    .filter((m) => m.status === "onboarding")
-    .map((m) => ({ m, client: clients.find((c) => c.id === m.client_id) }))
-    .filter((x) => !!x.client)
-    .sort((a, b) => a.m.start_date.localeCompare(b.m.start_date));
+    const scriptsByClientMonth = (cm: ClientMonth) =>
+      scripts.filter(s => s.client_id === cm.client_id && s.month_number === cm.month_number);
 
-  const activeMonthFor = (clientId: number, ym: string): ClientMonth | null => {
-    if (ym === "all") return null;
-    const { start, end } = ymRange(ym);
-    const list = monthsForClient(clientId);
-    if (list.length === 0) return null;
-    const overlapping = list.filter(
-      (m) => shouldCountMonth(m) && typeof m.start_date === "string" && typeof m.end_date === "string" && m.start_date <= end && m.end_date >= start
+    let scriptsApproved = 0, scriptsReview = 0, scriptsInProg = 0, videosMontage = 0, videosReady = 0, videosPublished = 0;
+    for (const cm of activeMonths) {
+      const list = scriptsByClientMonth(cm);
+      for (const s of list) {
+        if (s.script_status === "approved") scriptsApproved++;
+        else if (s.script_status === "review") scriptsReview++;
+        else if (s.script_status === "inProgress") scriptsInProg++;
+        if (s.video_status === "published") videosPublished++;
+        else if (s.video_status === "ready") videosReady++;
+        else if (s.video_status === "inProgress" && s.script_status === "approved") videosMontage++;
+      }
+    }
+    // суммарный pending по онбордингу
+    const onboardingPendingTotal = onbProgresses.reduce((s, o) => s + (o.pending_tasks || 0), 0);
+
+    // contracts ending
+    const contractsEnding = clientMonths
+      .filter(cm => (cm.status === "active" || cm.status === "onboarding") && cm.end_date >= todayIso)
+      .sort((a, b) => a.end_date.localeCompare(b.end_date))
+      .slice(0, 6);
+    const endingThisPeriod = clientMonths.filter(cm =>
+      cm.status === "active" && cm.end_date >= ms && cm.end_date <= me
     );
-    if (overlapping.length > 0) {
-      return overlapping.find((m) => m.status === "active") || overlapping[overlapping.length - 1];
-    }
-    if (ym >= currentYM) {
-      const overdue = list
-        .filter((m) => m.status === "active" && typeof m.end_date === "string" && m.end_date < start)
-        .sort((a, b) => b.month_number - a.month_number)[0];
-      if (overdue) return overdue;
-    }
-    return null;
-  };
-
-  async function savePlan(cmId: number, newPkg: number) {
-    setSavingPlanId(cmId);
-    const { error } = await db.updateClientMonth(supabase, cmId, { package: newPkg });
-    if (error) {
-      alert(`Не удалось сохранить план: ${error.message || error}`);
-    } else {
-      const cmResult = await db.getClientMonths(supabase);
-      setClientMonths(cmResult?.data || []);
-    }
-    setSavingPlanId(null);
-    setEditingPlanId(null);
-  }
-
-  async function closeMonth(cmId: number) {
-    const current = clientMonths.find((m) => m.id === cmId);
-    const { error } = await db.closeClientMonth(supabase, cmId);
-    if (error) {
-      alert(`Ошибка: ${error.message || error}`);
-      return;
-    }
-    if (current) {
-      const next = clientMonths.find((m) => m.client_id === current.client_id && m.month_number === current.month_number + 1 && m.status === "planned");
-      if (next) {
-        const start = addDaysIso(todayIso, 1);
-        const end = addDaysIso(start, 30);
-        const { error: nextErr } = await db.updateClientMonth(supabase, next.id, {
-          status: "active",
-          start_date: start,
-          end_date: end,
-          calendar_split: null,
-        });
-        if (nextErr) alert(`Месяц закрыт, но не удалось активировать следующий: ${nextErr.message || nextErr}`);
-      }
-    }
-    const cmResult = await db.getClientMonths(supabase);
-    setClientMonths(cmResult?.data || []);
-  }
-
-  async function startProduction(cm: ClientMonth, client: Client) {
-    const firstPub = firstPublishedDate(allScripts, client.id, cm.month_number);
-    const start = firstPub || todayIso;
-    const end = addDaysIso(start, 30);
-    const { error } = await db.updateClientMonth(supabase, cm.id, {
-      status: "active",
-      start_date: start,
-      end_date: end,
-      calendar_split: null,
-    });
-    if (error) {
-      alert(`Не удалось запустить производство: ${error.message || error}`);
-      return;
-    }
-    await db.updateClient(supabase, client.id, { first_pub_date: start } as Partial<Client>);
-    const cmResult = await db.getClientMonths(supabase);
-    setClientMonths(cmResult?.data || []);
-    const cls = await db.getClients(supabase);
-    setClients(cls || []);
-  }
-
-  async function reopenMonth(cmId: number) {
-    if (!confirm("Снова открыть этот месяц (status='active')?")) return;
-    const current = clientMonths.find((m) => m.id === cmId);
-    const { error } = await db.reopenClientMonth(supabase, cmId);
-    if (error) {
-      alert(`Ошибка: ${error.message || error}`);
-      return;
-    }
-    if (current) {
-      const next = clientMonths.find((m) => m.client_id === current.client_id && m.month_number === current.month_number + 1 && m.status === "active");
-      if (next) {
-        const { error: nextErr } = await db.updateClientMonth(supabase, next.id, { status: "planned" });
-        if (nextErr) alert(`Месяц открыт, но не удалось вернуть следующий в planned: ${nextErr.message || nextErr}`);
-      }
-    }
-    const cmResult = await db.getClientMonths(supabase);
-    setClientMonths(cmResult?.data || []);
-  }
-
-  async function createNextMonth() {
-    if (!openNewFor) return;
-    const start = openNewForm.start_date || openNewFor.defaultStart;
-    let end = openNewForm.end_date;
-    if (!end) {
-      const d = new Date(start);
-      d.setDate(d.getDate() + 30);
-      end = d.toISOString().slice(0, 10);
-    }
-    const pkg = parseInt(openNewForm.pkg, 10) || openNewFor.defaultPkg;
-    const prevMonth = clientMonths.find((m) => m.client_id === openNewFor.clientId && m.month_number === openNewFor.nextN - 1);
-    const status: ClientMonth["status"] = prevMonth && prevMonth.status !== "closed" ? "planned" : "active";
-    const { error } = await db.upsertClientMonth(supabase, {
-      client_id: openNewFor.clientId,
-      month_number: openNewFor.nextN,
-      start_date: start,
-      end_date: end,
-      package: pkg,
-      status,
-    } as any);
-    if (error) {
-      alert(`Не удалось создать месяц: ${error.message || error}`);
-      return;
-    }
-    // Also create the N empty scripts so the client page (and tim leads) see them.
-    const { error: scriptsErr } = await db.addScriptsForMonth(supabase, openNewFor.clientId, openNewFor.nextN, pkg);
-    if (scriptsErr) {
-      alert(`М создан, но не удалось создать ${pkg} скриптов: ${scriptsErr.message || scriptsErr}`);
-    }
-    const cmResult = await db.getClientMonths(supabase);
-    setClientMonths(cmResult?.data || []);
-    // Refresh scripts so card totals update
-    const scripts = await db.getScriptsForClients(supabase, clients.map((c) => c.id));
-    setAllScripts(scripts);
-    setOpenNewFor(null);
-  }
-
-  function targetForCalendarMonth(cm: ClientMonth, ym: string): number {
-    if (cm.calendar_split && cm.calendar_split[ym] !== undefined && cm.calendar_split[ym] !== null) {
-      return cm.calendar_split[ym];
-    }
-    const { start: monthStart, end: monthEnd } = ymRange(ym);
-    const cStart = cm.start_date;
-    const cEnd = cm.end_date;
-    const overlapStart = monthStart > cStart ? monthStart : cStart;
-    const overlapEnd = monthEnd < cEnd ? monthEnd : cEnd;
-    if (overlapStart > overlapEnd) return 0;
-    const overlapDays = daysBetween(overlapStart, overlapEnd) + 1;
-    const totalDays = Math.max(1, daysBetween(cStart, cEnd) + 1);
-    const pkg = cm.package || 0;
-    return Math.round((pkg * overlapDays) / totalDays);
-  }
-
-  function expectedByToday(cm: ClientMonth, ym: string): { pub: number; made: number } {
-    const target = targetForCalendarMonth(cm, ym);
-    if (target === 0) return { pub: 0, made: 0 };
-    const { start: monthStart, end: monthEnd } = ymRange(ym);
-    const overlapStart = monthStart > cm.start_date ? monthStart : cm.start_date;
-    const overlapEnd = monthEnd < cm.end_date ? monthEnd : cm.end_date;
-    if (overlapStart > overlapEnd) return { pub: 0, made: 0 };
-    const totalDays = daysBetween(overlapStart, overlapEnd) + 1;
-    const todayClamped = todayIso > overlapEnd ? overlapEnd : todayIso < overlapStart ? overlapStart : todayIso;
-    const daysElapsed = daysBetween(overlapStart, todayClamped) + 1;
-    const expPub = Math.round((target * daysElapsed) / totalDays);
-    const expMade = Math.min(target, expPub + 3);
-    return { pub: expPub, made: expMade };
-  }
-
-  function publishedInCalendarMonth(clientId: number, monthNumber: number, ym: string): number {
-    const { start, end } = ymRange(ym);
-    return allScripts.filter(
-      (s) =>
-        s.client_id === clientId &&
-        s.month_number === monthNumber &&
-        s.video_status === "published" &&
-        typeof s.pub_date === "string" &&
-        s.pub_date >= start &&
-        s.pub_date <= end
-    ).length;
-  }
-
-  function madeInCalendarMonth(clientId: number, monthNumber: number, ym: string): number {
-    const { start, end } = ymRange(ym);
-    return allScripts.filter(
-      (s) => {
-        if (s.client_id !== clientId || s.month_number !== monthNumber) return false;
-        if (s.video_status === "ready" || s.video_status === "published") {
-          const madeAt = typeof s.ready_at === "string" ? s.ready_at : s.pub_date;
-          return typeof madeAt === "string" && madeAt >= start && madeAt <= end;
-        }
-        return false;
-      }
-    ).length;
-  }
-
-  async function saveCalendarTarget(cmId: number, ym: string, newTarget: number) {
-    setSavingPlanId(cmId);
-    const cm = clientMonths.find((m) => m.id === cmId);
-    if (!cm) {
-      setSavingPlanId(null);
-      return;
-    }
-    const split = { ...(cm.calendar_split || {}), [ym]: newTarget };
-    const { error } = await db.updateClientMonth(supabase, cmId, { calendar_split: split });
-    if (error) {
-      alert(`Не удалось сохранить target: ${error.message || error}`);
-    } else {
-      const cmResult = await db.getClientMonths(supabase);
-      setClientMonths(cmResult?.data || []);
-    }
-    setSavingPlanId(null);
-    setEditingPlanId(null);
-  }
-
-  const publishedForMonth = (clientId: number, monthNumber: number): number =>
-    allScripts.filter((s) => s.client_id === clientId && s.month_number === monthNumber && s.video_status === "published").length;
-  const readyForMonth = (clientId: number, monthNumber: number): number =>
-    allScripts.filter((s) => s.client_id === clientId && s.month_number === monthNumber && s.video_status === "ready").length;
-  const inMontageForMonth = (clientId: number, monthNumber: number): number =>
-    allScripts.filter(
-      (s) => s.client_id === clientId && s.month_number === monthNumber && s.video_status === "inProgress" && s.script_status === "approved"
+    const renewedCount = endingThisPeriod.filter(cm =>
+      clientMonths.some(x => x.client_id === cm.client_id && x.month_number > cm.month_number)
     ).length;
 
-  const rowsForMonth: { client: Client; month: ClientMonth }[] = [];
-  if (!isAllTime) {
-    const { start, end } = ymRange(selectedMonth);
-    for (const c of clients) {
-      const list = monthsForClient(c.id);
-      const overlapping = list.filter(
-        (m) =>
-          shouldCountMonth(m) &&
-          typeof m.start_date === "string" &&
-          typeof m.end_date === "string" &&
-          m.start_date <= end &&
-          m.end_date >= start
-      );
-      if (overlapping.length > 0) {
-        for (const m of overlapping) rowsForMonth.push({ client: c, month: m });
-      } else if (selectedMonth >= currentYM) {
-        // Overdue active fallback — show on current/future tabs if their last active month already passed
-        const overdue = list
-          .filter((m) => m.status === "active" && typeof m.end_date === "string" && m.end_date < start)
-          .sort((a, b) => b.month_number - a.month_number)[0];
-        if (overdue) rowsForMonth.push({ client: c, month: overdue });
-      }
+    // attention
+    const overdueClientIds = new Set(overdueTasks.map((t: any) => t.client_id));
+    const attentionClients: Array<{ client: Client; reason: string; severity: "red" | "yellow" }> = [];
+    for (const c of activeClients) {
+      const cm = activeMonths.find(m => m.client_id === c.id);
+      if (!cm) continue;
+      const list = scriptsByClientMonth(cm);
+      const pub = list.filter(s => s.video_status === "published");
+      const lastPub = pub.map(s => s.pub_date as string | null).filter(Boolean).sort().pop() as string | undefined;
+      const daysFromPub = lastPub ? daysBetween(lastPub, todayIso) : 999;
+      const daysToEnd = daysBetween(todayIso, cm.end_date);
+      const rollsLeft = (cm.package || 0) - pub.length;
+      if (overdueClientIds.has(c.id)) attentionClients.push({ client: c, reason: `Просрочка задач`, severity: "red" });
+      else if (daysFromPub > 7 && pub.length > 0) attentionClients.push({ client: c, reason: `Нет публикаций ${daysFromPub} дн.`, severity: "red" });
+      else if (pub.length === 0 && daysBetween(cm.start_date, todayIso) > 7) attentionClients.push({ client: c, reason: `Ни одной публикации с начала месяца`, severity: "red" });
+      else if (rollsLeft > 0 && daysToEnd <= 7 && daysToEnd >= 0 && rollsLeft > daysToEnd) attentionClients.push({ client: c, reason: `Осталось ${rollsLeft} видео / ${daysToEnd} дн.`, severity: "yellow" });
     }
-    rowsForMonth.sort((a, b) => a.client.id - b.client.id || a.month.month_number - b.month.month_number);
-  }
+    attentionClients.sort((a, b) => (a.severity === "red" ? -1 : 1) - (b.severity === "red" ? -1 : 1));
 
-  let kpiClients: number;
-  let kpiClientsTag: string;
-  let kpiTotalPlan: number;
-  let kpiTotalPub: number;
-  let kpiInMontage: number;
-  let kpiReady: number;
-  const kpiScriptApproved = allScripts.filter((s) => s.script_status === "approved").length;
-  if (isAllTime) {
-    kpiClients = clients.length;
-    kpiClientsTag = `${clients.filter((c) => c.stage === "Производство").length} в производстве`;
-    kpiTotalPlan = allScripts.length;
-    kpiTotalPub = allScripts.filter((s) => s.video_status === "published").length;
-    kpiInMontage = allScripts.filter((s) => s.video_status === "inProgress" && s.script_status === "approved").length;
-    kpiReady = allScripts.filter((s) => s.video_status === "ready").length;
-  } else {
-    kpiClients = rowsForMonth.length;
-    kpiClientsTag = `в работе в ${ymLabel(selectedMonth)}`;
-    kpiTotalPlan = rowsForMonth.reduce((s, r) => s + targetForCalendarMonth(r.month, selectedMonth), 0);
-    kpiTotalPub = rowsForMonth.reduce((s, r) => s + publishedInCalendarMonth(r.client.id, r.month.month_number, selectedMonth), 0);
-    kpiInMontage = rowsForMonth.reduce((s, r) => s + inMontageForMonth(r.client.id, r.month.month_number), 0);
-    kpiReady = rowsForMonth.reduce((s, r) => s + readyForMonth(r.client.id, r.month.month_number), 0);
-  }
-  const kpiMadeMonth = isAllTime
-    ? allScripts.filter((s) => s.video_status === "ready" || s.video_status === "published").length
-    : rowsForMonth.reduce((s, r) => s + madeInCalendarMonth(r.client.id, r.month.month_number, selectedMonth), 0);
-  const kpiExpectedPubToday = isAllTime
-    ? kpiTotalPlan
-    : rowsForMonth.reduce((s, r) => s + expectedByToday(r.month, selectedMonth).pub, 0);
-  const kpiExpectedMadeToday = isAllTime
-    ? kpiTotalPlan
-    : rowsForMonth.reduce((s, r) => s + expectedByToday(r.month, selectedMonth).made, 0);
-  const madeTodayLag = Math.max(0, kpiExpectedMadeToday - kpiMadeMonth);
-  const pubTodayLag = Math.max(0, kpiExpectedPubToday - kpiTotalPub);
+    // pace по pipeline целиком: среднее ожидание = средняя доля прошедшего времени по активным CM
+    let totalExpectedVideos = 0;
+    for (const cm of activeMonths) {
+      const totalDays = Math.max(1, daysBetween(cm.start_date, cm.end_date) + 1);
+      const elapsed = Math.max(0, Math.min(totalDays, daysBetween(cm.start_date, todayIso) + 1));
+      totalExpectedVideos += (cm.package || 0) * (elapsed / totalDays);
+    }
+    const expectedNow = Math.round(totalExpectedVideos);
+    const pipelinePace = paceOf(ms, me, todayIso, videosPublished, expectedNow); // упрощённо
+    // более точно — считаем delta по pkg
+    const pipelineDelta = videosPublished - expectedNow;
 
-  const stats = [
-    {
-      icon: "👥",
-      l: "КЛИЕНТОВ",
-      val: kpiClients,
-      tag: kpiClientsTag,
-      tagColor: "var(--cy)",
-      ck: () => router.push("/dashboard/clients"),
-    },
-    {
-      icon: "🎯",
-      l: isAllTime ? "ВСЕГО ВИДЕО" : `НА ${ymLabel(selectedMonth).split(" ")[0].toUpperCase()}`,
-      val: kpiTotalPlan,
-      tag: "Таргет",
-      tagColor: "var(--cy)",
-      ck: () => {},
-    },
-    {
-      icon: "🎬",
-      l: "СМОНТИРОВАНО",
-      val: kpiMadeMonth,
-      valSub: isAllTime ? `/ ${kpiTotalPlan}` : `/ ${kpiExpectedMadeToday} к сегодня`,
-      tag: madeTodayLag > 0 ? `Отстаём ${madeTodayLag}` : "✓ По плану",
-      tagColor: madeTodayLag > 0 ? "var(--rd)" : "var(--gr)",
-      bar: true,
-      barPct: kpiExpectedMadeToday > 0 ? Math.min(100, (kpiMadeMonth / kpiExpectedMadeToday) * 100) : 0,
-      barColor: madeTodayLag > 0 ? "var(--rd)" : "var(--cy)",
-      ck: () => {},
-    },
-    {
-      icon: "🎞",
-      l: "В МОНТАЖЕ",
-      val: kpiInMontage,
-      valSub: `+ ${kpiReady} готовых`,
-      tag: kpiInMontage > 0 ? "В работе" : "—",
-      tagColor: kpiInMontage > 0 ? "var(--or)" : "var(--t3)",
-      bar: true,
-      barPct: kpiTotalPlan > 0 ? ((kpiInMontage + kpiReady) / kpiTotalPlan) * 100 : 0,
-      barColor: "var(--or)",
-      ck: () => router.push("/dashboard/montage"),
-    },
-    {
-      icon: "✅",
-      l: "ОПУБЛИКОВАНО",
-      val: kpiTotalPub,
-      valSub: isAllTime ? `/ ${kpiTotalPlan}` : `/ ${kpiExpectedPubToday} к сегодня`,
-      tag: pubTodayLag > 0 ? `Отстаём ${pubTodayLag}` : "✓ По плану",
-      tagColor: pubTodayLag > 0 ? "var(--rd)" : "var(--gr)",
-      bar: true,
-      barPct: kpiExpectedPubToday > 0 ? Math.min(100, (kpiTotalPub / kpiExpectedPubToday) * 100) : 0,
-      barColor: pubTodayLag > 0 ? "var(--rd)" : "var(--gr)",
-      ck: () => {},
-    },
-  ];
-
-  const violations: { client: string; msg: string; days: number; cid: number; severity: string }[] = [];
-  if (isAllTime) {
-    for (const c of clients) {
-      const cScripts = allScripts.filter((s) => s.client_id === c.id);
-      const cPub = cScripts.filter((s) => s.video_status === "published").length;
-      const cReady = cScripts.filter((s) => s.video_status === "ready").length;
-      const cScrApp = cScripts.filter((s) => s.script_status === "approved").length;
-      const scrBuffer = cScrApp - cPub;
-      if (c.first_pub_date) {
-        const daysSinceFirst = Math.round((today.getTime() - new Date(c.first_pub_date).getTime()) / 86400000);
-        if (daysSinceFirst >= 0) {
-          const expectedByNow = Math.min(daysSinceFirst + 1, c.package || 0);
-          if (cPub < expectedByNow) {
-            violations.push({
-              client: c.name,
-              msg: `Ролики: ${cPub} из ${expectedByNow} ожид.`,
-              days: expectedByNow - cPub,
-              cid: c.id,
-              severity: "high",
-            });
+    // загрузка по команде — конкретные задачи (не %)
+    type TeamLoad = {
+      tm: TeamMember;
+      role: "scriptwriter" | "teamlead" | "montager" | "other";
+      clientsCount: number;
+      scriptsInProg: number;
+      scriptsReview: number;
+      shotsNeeded: number;
+      videosMontage: number;
+      videosReady: number;
+      onboardingPending: number;
+      clientIds: number[];
+      done: number;
+      totalPlan: number;
+      loadPct: number;
+    };
+    const teamLoad: TeamLoad[] = team.map(tm => {
+      const myClientsAsMontager = activeClients.filter(c => c.montager_id === tm.id);
+      const myClientsAsTL = activeClients.filter(c => c.teamlead_id === tm.id);
+      const isMont = myClientsAsMontager.length > 0;
+      const isTL = myClientsAsTL.length > 0;
+      const isScript = /сценар|script/i.test(tm.role_title || "") || tm.member_type === "scriptwriter";
+      const role: TeamLoad["role"] = isScript ? "scriptwriter" : (isMont && !isTL) ? "montager" : isTL ? "teamlead" : "other";
+      const myClientIds = Array.from(new Set([...myClientsAsMontager, ...myClientsAsTL].map(c => c.id)));
+      const myMonths = activeMonths.filter(cm => myClientIds.includes(cm.client_id));
+      let scrInProg = 0, scrRev = 0, sh = 0, vm = 0, vr = 0;
+      let totalPlan = 0, done = 0;
+      for (const cm of myMonths) {
+        const list = scriptsByClientMonth(cm);
+        totalPlan += cm.package || 0;
+        for (const s of list) {
+          if (s.script_status === "inProgress") scrInProg++;
+          if (s.script_status === "review") scrRev++;
+          if (s.script_status === "approved" && s.video_status === "notStarted") sh++;
+          if (s.script_status === "approved" && s.video_status === "inProgress") vm++;
+          if (s.video_status === "ready") vr++;
+          // done: для монтажёра — published+ready; для остальных — approved сценариев
+          if (role === "montager") {
+            if (s.video_status === "published" || s.video_status === "ready") done++;
+          } else {
+            if (s.script_status === "approved") done++;
           }
         }
       }
-      if (c.scripts_deadline && scrBuffer < 5 && cPub < (c.package || 0)) {
-        violations.push({
-          client: c.name,
-          msg: `Запас сценариев: ${scrBuffer} (мин. 5)`,
-          days: 5 - scrBuffer,
-          cid: c.id,
-          severity: scrBuffer < 0 ? "high" : "med",
-        });
-      }
-      if (c.videos_deadline && cReady < 3 && cPub < (c.package || 0)) {
-        violations.push({
-          client: c.name,
-          msg: `Запас роликов: ${cReady} готовых (мин. 3)`,
-          days: 3 - cReady,
-          cid: c.id,
-          severity: cReady === 0 ? "high" : "med",
-        });
-      }
+      const loadPct = totalPlan > 0 ? Math.round((done / totalPlan) * 100) : 0;
+      // онбординг pending по клиентам этого сотрудника
+      const onboardingPending = onbProgresses
+        .filter(o => myClientIds.includes(o.client_id))
+        .reduce((s, o) => s + (o.pending_tasks || 0), 0);
+      return { tm, role, clientsCount: myClientIds.length, scriptsInProg: scrInProg, scriptsReview: scrRev, shotsNeeded: sh, videosMontage: vm, videosReady: vr, onboardingPending, clientIds: myClientIds, done, totalPlan, loadPct };
+    }).filter(x => x.clientsCount > 0)
+      .sort((a, b) => b.totalPlan - a.totalPlan);
+
+    return {
+      activeClients, activeMonths, planRolls,
+      scriptsApproved, scriptsReview, scriptsInProg,
+      videosMontage, videosReady, videosPublished,
+      contractsEnding, endingThisPeriod, renewedCount,
+      attentionClients, teamLoad,
+      onboardingClients, onboardingPendingTotal,
+      expectedNow, pipelineDelta, pipelinePace,
+    };
+  }, [clients, clientMonths, scripts, team, overdueTasks, onbProgresses, selectedMonth]);
+
+  /* ===== Задачи отфильтрованные по сотруднику ===== */
+  const tasksFiltered = useMemo(() => {
+    if (taskFilter === "all") {
+      return {
+        onboardingPending: data.onboardingPendingTotal,
+        scriptsWork: data.scriptsInProg + data.scriptsReview,
+        videosMontage: data.videosMontage,
+        videosReady: data.videosReady,
+      };
     }
-    violations.sort((a, b) => b.days - a.days);
-  }
+    const load = data.teamLoad.find(x => x.tm.id === taskFilter);
+    if (!load) return { onboardingPending: 0, scriptsWork: 0, videosMontage: 0, videosReady: 0 };
+    return {
+      onboardingPending: load.onboardingPending,
+      scriptsWork: load.scriptsInProg + load.scriptsReview,
+      videosMontage: load.videosMontage,
+      videosReady: load.videosReady,
+    };
+  }, [taskFilter, data]);
 
-  const tabs = [
-    { value: "all", label: "Все время" },
-    ...monthsList.map((ym) => ({ value: ym, label: ymLabel(ym) + (ym === currentYM ? " (сейчас)" : "") })),
-  ];
+  if (loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--t2)" }}>Загрузка…</div>;
+  if (loadError) return <div style={{ padding: 24, color: "#f87171", fontFamily: "monospace", fontSize: 12 }}>Load error: {loadError}</div>;
 
-  // Contracts ending within next 7 days (or already overdue but still active) — for the decision widget.
-  // Hide a row if the same client already has a later contractual month (decision was made: renewed).
-  const hasLaterMonth = (clientId: number, monthNumber: number) =>
-    clientMonths.some((other) => other.client_id === clientId && other.month_number > monthNumber);
-  const endingSoon = clientMonths
-    .filter((m) => m.status === "active" && typeof m.end_date === "string")
-    .filter((m) => !hasLaterMonth(m.client_id, m.month_number))
-    .map((m) => ({ m, days: daysBetween(todayIso, m.end_date), client: clients.find((c) => c.id === m.client_id) }))
-    .filter((x) => x.days <= 7 && !!x.client)
-    .sort((a, b) => a.days - b.days);
-  const plannedRenewals = clientMonths
-    .filter((m) => m.status === "planned")
-    .map((m) => ({ m, client: clients.find((c) => c.id === m.client_id), prev: clientMonths.find((p) => p.client_id === m.client_id && p.month_number === m.month_number - 1) }))
-    .filter((x) => !!x.client)
-    .sort((a, b) => a.m.end_date.localeCompare(b.m.end_date));
+  const me = profile?.name || (profile?.email?.split("@")[0]) || "друг";
+  const overdueCount = data.attentionClients.filter(a => a.severity === "red").length;
+  const PaceIcon = data.pipelinePace.icon === "up" ? TrendingUp : data.pipelinePace.icon === "down" ? TrendingDown : Minus;
 
   return (
-    <div className="dashboard-v2">
-      {migrationMissing && (
-        <div
-          className="card mb-3"
-          style={{ background: "rgba(245,166,35,0.08)", border: "1px solid rgba(245,166,35,0.4)", color: "var(--t1)" }}
-        >
-          <div style={{ fontWeight: 700, marginBottom: 4 }}>⚠️ Таблица client_months ещё не создана</div>
-          <div style={{ fontSize: 12, color: "var(--t2)" }}>
-            Запустите <code>MIGRATION_2026-05-12_monthly_plans.sql</code> в Supabase SQL Editor.
-          </div>
-        </div>
-      )}
-
-      <div className="dashboard-v2-header mb-3 flex justify-between items-start">
+    <div className="dashboard-v3" style={{ fontFamily: "'Manrope', sans-serif" }}>
+      {/* ===== HEADER ===== */}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, marginBottom: 22, flexWrap: "wrap" }}>
         <div>
-          <h1 className="text-lg font-extrabold" style={{ color: "var(--t1)" }}>Главный дашборд</h1>
-          <p className="text-xs mt-1" style={{ color: "var(--t2)" }}>
-            {isAllTime ? "Все клиенты — общая картина" : `Состояние за ${ymLabel(selectedMonth)}`}
-          </p>
+          <h1 style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 24, fontWeight: 800, color: "var(--t1)", letterSpacing: -0.6, lineHeight: 1.15 }}>
+            {greeting(today)}, {me.split(" ")[0]}! <span style={{ display: "inline-block" }}>👋</span>
+          </h1>
+          <div style={{ fontSize: 12, color: "var(--t3)", marginTop: 4, fontWeight: 500 }}>{todayFullRu(today)}</div>
         </div>
-        <div className="text-right">
-          <div className="text-[9px] font-semibold tracking-wider" style={{ color: "var(--cy)" }}>СЕГОДНЯ</div>
-          <div className="text-sm font-bold" style={{ color: "var(--t1)" }}>{todayStr}</div>
-        </div>
-      </div>
-
-      <div className="dashboard-v2-periods mb-3" style={{ overflowX: "auto", padding: "8px 12px" }}>
-        <div style={{ display: "flex", gap: 6, minWidth: "max-content" }}>
-          {tabs.map((t) => {
-            const active = t.value === selectedMonth;
-            return (
-              <button
-                key={t.value}
-                onClick={() => setSelectedMonth(t.value)}
-                style={{
-                  border: "1px solid " + (active ? "var(--cy)" : "var(--brd)"),
-                  background: active ? "rgba(34,211,238,0.12)" : "transparent",
-                  color: active ? "var(--cy)" : "var(--t1)",
-                  padding: "6px 12px",
-                  borderRadius: 6,
-                  fontSize: 11,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {t.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="dashboard-v2-kpis grid grid-cols-2 lg:grid-cols-5 gap-2 mb-3">
-        {stats.map((s, i) => (
-          <div key={i} onClick={s.ck} className="card dashboard-v2-kpi cursor-pointer">
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-base">{s.icon}</span>
-              <span className="text-[9px] font-semibold" style={{ color: s.tagColor }}>{s.tag}</span>
-            </div>
-            <div className="text-[9px] font-semibold tracking-wider" style={{ color: "var(--t2)" }}>{s.l}</div>
-            <div className="flex items-baseline gap-1">
-              <span className="text-2xl font-extrabold font-mono" style={{ color: "var(--t1)" }}>{s.val}</span>
-              {(s as any).valSub && <span className="text-xs" style={{ color: "var(--t3)" }}>{(s as any).valSub}</span>}
-            </div>
-            {(s as any).bar && (
-              <div className="h-1.5 rounded-full mt-2" style={{ background: "var(--brd)" }}>
-                <div className="h-full rounded-full transition-all" style={{ width: `${(s as any).barPct}%`, background: (s as any).barColor }} />
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 12, background: "rgba(123,63,228,0.08)", border: "1px solid var(--brd)" }}>
+            <button onClick={() => setSelectedMonth(s => ymShift(s, -1))} style={{ background: "transparent", border: "none", color: "var(--t2)", cursor: "pointer", padding: 4, display: "flex", alignItems: "center" }}><ChevronLeft size={14} /></button>
+            <CalendarIcon size={14} style={{ color: "var(--t3)" }} />
+            <span style={{ fontSize: 12, fontWeight: 700, color: "var(--t1)", minWidth: 90, textAlign: "center" }}>{ymLabel(selectedMonth)}</span>
+            {selectedMonth !== currentYM && <button onClick={() => setSelectedMonth(currentYM)} title="Текущий месяц" style={{ background: "transparent", border: "none", color: "var(--cy)", cursor: "pointer", fontSize: 10, fontWeight: 700, padding: "2px 6px" }}>сейчас</button>}
+            <button onClick={() => setSelectedMonth(s => ymShift(s, 1))} style={{ background: "transparent", border: "none", color: "var(--t2)", cursor: "pointer", padding: 4, display: "flex", alignItems: "center" }}><ChevronRight size={14} /></button>
+          </div>
+          <div style={{ position: "relative" }}>
+            <button onClick={() => setShowAddMenu(v => !v)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 18px", borderRadius: 12, background: "linear-gradient(135deg, var(--pu), #7b3fe4)", color: "#fff", border: "none", cursor: "pointer", fontSize: 12, fontWeight: 800, letterSpacing: 0.3, boxShadow: "0 8px 24px rgba(123,63,228,0.35)" }}>
+              <Plus size={15} strokeWidth={2.5} /> Добавить
+            </button>
+            {showAddMenu && (
+              <div style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", zIndex: 20, minWidth: 200, background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 12, padding: 6, boxShadow: "0 12px 40px rgba(0,0,0,0.5)" }}>
+                {[
+                  { label: "Клиента", icon: Users, path: "/dashboard/clients" },
+                  { label: "Сценарий", icon: FileCheck2, path: "/dashboard/scripts" },
+                ].map(it => {
+                  const I = it.icon;
+                  return (
+                    <button key={it.label} onClick={() => { setShowAddMenu(false); router.push(it.path); }} className="nav-item" style={{ fontSize: 12, padding: "9px 10px", gap: 9 }}>
+                      <I size={14} strokeWidth={1.8} /> {it.label}
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
-        ))}
+        </div>
       </div>
 
-      {endingSoon.length > 0 && (
-        <div
-          className="card mb-3"
-          style={{
-            background: "rgba(245,166,35,0.05)",
-            border: "1px solid rgba(245,166,35,0.4)",
-          }}
-        >
-          <div className="text-xs font-bold mb-3" style={{ color: "var(--or)" }}>
-            ⏰ Заканчиваются в ближайшие 7 дней — решите по продлению ({endingSoon.length})
-          </div>
-          {endingSoon.map(({ m, days, client }) => {
-            const cn = `${client!.name} ${client!.surname || ""}`.trim();
-            const dayLabel =
-              days < 0
-                ? `🔴 просрочка ${-days}д`
-                : days === 0
-                ? "🔴 СЕГОДНЯ"
-                : days <= 2
-                ? `🔴 через ${days}д`
-                : days <= 5
-                ? `⏰ через ${days}д`
-                : `через ${days}д`;
-            const dayColor = days < 0 ? "var(--rd)" : days <= 2 ? "var(--rd)" : days <= 5 ? "var(--or)" : "var(--t2)";
-            return (
-              <div
-                key={m.id}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                  padding: "8px 4px",
-                  borderTop: "1px solid var(--brd)",
-                  fontSize: 12,
-                }}
-              >
-                <span style={{ color: "var(--t1)", fontWeight: 600, flex: 1, cursor: "pointer" }} onClick={() => router.push(`/dashboard/clients/${client!.id}`)}>
-                  {cn}
-                </span>
-                <span style={{ color: "var(--cy)", fontWeight: 700, minWidth: 36 }}>М{m.month_number}</span>
-                <span style={{ color: "var(--t2)", minWidth: 90 }}>{fmtDate(m.end_date)}</span>
-                <span style={{ color: dayColor, fontWeight: 700, minWidth: 110, textAlign: "left" }}>{dayLabel}</span>
-                <button
-                  onClick={() => {
-                    const defaultStart = m.end_date;
-                    const d = new Date(defaultStart);
-                    d.setDate(d.getDate() + 1);
-                    setOpenNewFor({
-                      clientId: client!.id,
-                      nextN: m.month_number + 1,
-                      defaultStart: d.toISOString().slice(0, 10),
-                      defaultPkg: m.package,
-                    });
-                    const endDefault = new Date(d);
-                    endDefault.setDate(endDefault.getDate() + 30);
-                    setOpenNewForm({
-                      start_date: d.toISOString().slice(0, 10),
-                      end_date: endDefault.toISOString().slice(0, 10),
-                      pkg: String(m.package),
-                    });
-                  }}
-                  style={{
-                    border: "1px solid var(--cy)",
-                    background: "rgba(34,211,238,0.1)",
-                    color: "var(--cy)",
-                    padding: "4px 10px",
-                    borderRadius: 4,
-                    fontSize: 11,
-                    fontWeight: 600,
-                    cursor: "pointer",
-                  }}
-                >
-                  + М{m.month_number + 1} продлить
-                </button>
-                <button
-                  onClick={() => closeMonth(m.id)}
-                  style={{
-                    border: "1px solid var(--gr)",
-                    background: "rgba(62,207,142,0.1)",
-                    color: "var(--gr)",
-                    padding: "4px 10px",
-                    borderRadius: 4,
-                    fontSize: 11,
-                    fontWeight: 600,
-                    cursor: "pointer",
-                  }}
-                >
-                  ✓ Закрыть
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      )}
+      {/* ===== KPI ROW (без MRR) ===== */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 18 }} className="dashboard-v3-kpi">
+        <KPICard title="Всего клиентов" value={String(data.activeClients.length)} caption={`активных + ${data.onboardingClients.length} на онбординге`} Icon={Users} color="#42d4f4" />
+        <KPICard title="На онбординге" value={String(data.onboardingClients.length)} caption={data.onboardingClients.length === 0 ? "никто не онбордится" : `в фазе вхождения`} Icon={Rocket} color="#ffae42" onClick={data.onboardingClients.length ? () => { const el = document.getElementById("onboarding-section"); el?.scrollIntoView({ behavior: "smooth" }); } : undefined} />
+        <KPICard title="Роликов в работе" value={String(data.planRolls)} caption={`план на ${shortYm(selectedMonth)}`} Icon={Film} color="#9d6bff" />
+        <KPICard title="Просрочено" value={String(overdueCount)} caption={overdueCount === 0 ? "всё под контролем" : "клиентов требуют внимания"} Icon={AlertCircle} color="#ff5c7a" attention={overdueCount > 0} />
+      </div>
 
-      {!isAllTime && onboardingRows.length > 0 && (
-        <div
-          className="card mb-3"
-          style={{
-            background: "rgba(91,141,239,0.06)",
-            border: "1px solid rgba(91,141,239,0.35)",
-          }}
-        >
-          <div className="text-xs font-bold mb-3" style={{ color: "var(--cy)" }}>
-            🧩 Онбординг — подготовка до первой публикации ({onboardingRows.length})
-          </div>
-          {onboardingRows.map(({ m, client }) => {
-            const c = client!;
-            const ideal = addDaysIso(c.start_date || m.start_date, 10);
-            const hard = addDaysIso(c.start_date || m.start_date, 15);
-            const hardDays = daysBetween(todayIso, hard);
-            const cScripts = allScripts.filter((s) => s.client_id === c.id && s.month_number === m.month_number);
-            const approved = cScripts.filter((s) => s.script_status === "approved").length;
-            const ready = cScripts.filter((s) => s.video_status === "ready").length;
-            const published = cScripts.filter((s) => s.video_status === "published").length;
-            const firstPub = firstPublishedDate(allScripts, c.id, m.month_number);
-            const statusText =
-              hardDays < 0
-                ? `🔴 просрочка ${-hardDays}д`
-                : hardDays === 0
-                ? "🔴 крайний день"
-                : hardDays <= 3
-                ? `⏰ осталось ${hardDays}д`
-                : `осталось ${hardDays}д`;
-            const statusColor = hardDays <= 0 ? "var(--rd)" : hardDays <= 3 ? "var(--or)" : "var(--t2)";
-            return (
-              <div
-                key={m.id}
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "minmax(180px,1.2fr) minmax(210px,1.4fr) minmax(150px,1fr) auto",
-                  gap: 12,
-                  alignItems: "center",
-                  padding: "9px 4px",
-                  borderTop: "1px solid var(--brd)",
-                  fontSize: 12,
-                }}
-              >
-                <span style={{ color: "var(--t1)", fontWeight: 700, cursor: "pointer" }} onClick={() => router.push(`/dashboard/clients/${c.id}`)}>
-                  {c.name} {c.surname || ""}
-                </span>
-                <span style={{ color: "var(--t2)" }}>
-                  первая публикация: <b style={{ color: "var(--t1)" }}>{fmtDate(ideal)}</b> / край <b style={{ color: "var(--t1)" }}>{fmtDate(hard)}</b>
-                  <span style={{ marginLeft: 8, color: statusColor, fontWeight: 700 }}>{statusText}</span>
-                </span>
-                <span style={{ color: "var(--t2)" }}>
-                  сценарии {approved} · ready {ready} · published {published}
-                </span>
-                <button
-                  onClick={() => startProduction(m, c)}
-                  disabled={!firstPub && published === 0}
-                  title={firstPub || published > 0 ? "Начать производственный месяц с даты первой публикации" : "Сначала отметьте первую публикацию и дату pub_date"}
-                  style={{
-                    border: "1px solid " + (firstPub || published > 0 ? "var(--cy)" : "var(--brd)"),
-                    background: firstPub || published > 0 ? "rgba(34,211,238,0.1)" : "transparent",
-                    color: firstPub || published > 0 ? "var(--cy)" : "var(--t3)",
-                    padding: "4px 10px",
-                    borderRadius: 4,
-                    fontSize: 11,
-                    fontWeight: 600,
-                    cursor: firstPub || published > 0 ? "pointer" : "not-allowed",
-                  }}
-                >
-                  ▶ В производство
-                </button>
-              </div>
-            );
-          })}
-          <div style={{ marginTop: 10, fontSize: 10, color: "var(--t3)" }}>
-            Онбординг не попадает в план публикаций. План 1 публикация в день начнётся только после запуска производства.
-          </div>
-        </div>
-      )}
-
-      {plannedRenewals.length > 0 && (
-        <div
-          className="card mb-3"
-          style={{
-            background: "rgba(124,92,252,0.06)",
-            border: "1px solid rgba(124,92,252,0.35)",
-          }}
-        >
-          <div className="text-xs font-bold mb-3" style={{ color: "var(--pu, #a78bfa)" }}>
-            🕓 Запланированные продления — начнутся после закрытия прошлого месяца ({plannedRenewals.length})
-          </div>
-          {plannedRenewals.map(({ m, client, prev }) => {
-            const cn = `${client!.name} ${client!.surname || ""}`.trim();
-            const prevPub = prev ? publishedForMonth(client!.id, prev.month_number) : 0;
-            const prevLeft = prev ? Math.max(0, (prev.package || 0) - prevPub) : 0;
-            return (
-              <div
-                key={m.id}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                  padding: "8px 4px",
-                  borderTop: "1px solid var(--brd)",
-                  fontSize: 12,
-                }}
-              >
-                <span style={{ color: "var(--t1)", fontWeight: 600, flex: 1, cursor: "pointer" }} onClick={() => router.push(`/dashboard/clients/${client!.id}`)}>
-                  {cn}
-                </span>
-                <span style={{ color: "var(--cy)", fontWeight: 700, minWidth: 36 }}>М{m.month_number}</span>
-                <span style={{ color: "var(--t2)", flex: 1 }}>
-                  ждёт закрытия М{m.month_number - 1}
-                  {prev ? ` · осталось ${prevLeft} из ${prev.package}` : ""}
-                </span>
-                <span style={{ color: "var(--t3)" }}>пакет {m.package}</span>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {!isAllTime && (
-        <div className="card mb-3">
-          <div className="text-xs font-bold mb-3" style={{ color: "var(--t1)" }}>
-            📅 Контрактные месяцы, активные в {ymLabel(selectedMonth)}
-          </div>
-          {rowsForMonth.length === 0 ? (
-            <div style={{ padding: 12, color: "var(--t2)", fontSize: 12 }}>
-              Нет активных контрактных месяцев в этом периоде.
+      {/* ===== ONBOARDING SECTION ===== */}
+      {data.onboardingClients.length > 0 && (
+        <div id="onboarding-section" className="card" style={{ padding: 18, borderRadius: 18, marginBottom: 18, borderColor: "rgba(255,174,66,0.3)", background: "linear-gradient(135deg, rgba(255,174,66,0.06), rgba(123,63,228,0.04))" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <Rocket size={18} style={{ color: "#ffae42" }} strokeWidth={1.8} />
+              <h3 style={{ fontSize: 14, fontWeight: 800, color: "var(--t1)" }}>
+                На онбординге
+                <span style={{ marginLeft: 8, padding: "2px 7px", borderRadius: 6, background: "rgba(255,174,66,0.18)", color: "#ffae42", fontSize: 10, fontWeight: 700 }}>{data.onboardingClients.length}</span>
+              </h3>
             </div>
-          ) : (
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", fontSize: 11, borderCollapse: "collapse" }}>
-                <thead>
-                  <tr style={{ color: "var(--t2)", textAlign: "left" }}>
-                    <th style={{ padding: "6px 8px", fontWeight: 600 }}>Клиент</th>
-                    <th style={{ padding: "6px 8px", fontWeight: 600 }}>Тимлид</th>
-                    <th style={{ padding: "6px 8px", fontWeight: 600, textAlign: "center" }}>Пакет</th>
-                    <th style={{ padding: "6px 8px", fontWeight: 600, textAlign: "center" }}>М-№</th>
-                    <th style={{ padding: "6px 8px", fontWeight: 600 }}>Период</th>
-                    <th style={{ padding: "6px 8px", fontWeight: 600, textAlign: "center" }}>
-                      На {ymLabel(selectedMonth).split(" ")[0]}
-                    </th>
-                    <th
-                      style={{ padding: "6px 8px", fontWeight: 600, textAlign: "center" }}
-                      title="По темпу: сколько опубл/готов должно быть к сегодня"
-                    >
-                      К сегодня
-                    </th>
-                    <th style={{ padding: "6px 8px", fontWeight: 600, textAlign: "center" }}>
-                      Готово в {ymLabel(selectedMonth).split(" ")[0]}
-                    </th>
-                    <th style={{ padding: "6px 8px", fontWeight: 600, textAlign: "center" }}>
-                      Опубл. в {ymLabel(selectedMonth).split(" ")[0]}
-                    </th>
-                    <th style={{ padding: "6px 8px", fontWeight: 600, textAlign: "center" }}>Буфер</th>
-                    <th style={{ padding: "6px 8px", fontWeight: 600, textAlign: "center" }}>Осталось</th>
-                    <th style={{ padding: "6px 8px", fontWeight: 600, textAlign: "center" }}>Всего по M</th>
-                    <th style={{ padding: "6px 8px", fontWeight: 600 }}>Прогресс</th>
-                    <th style={{ padding: "6px 8px", fontWeight: 600, textAlign: "center" }}>Действия</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rowsForMonth.map(({ client: c, month: m }) => {
-                    const pkg = m.package || 0;
-                    const targetMonth = targetForCalendarMonth(m, selectedMonth);
-                    const madeMonth = madeInCalendarMonth(c.id, m.month_number, selectedMonth);
-                    const pubMonth = publishedInCalendarMonth(c.id, m.month_number, selectedMonth);
-                    const buffer = madeMonth - pubMonth;
-                    const remainingMonth = Math.max(0, targetMonth - madeMonth);
-                    const totalPub = publishedForMonth(c.id, m.month_number);
-                    const pct = targetMonth > 0 ? Math.min(100, Math.round((madeMonth / targetMonth) * 100)) : 0;
-                    const daysLeft = m.end_date ? daysBetween(todayIso, m.end_date) : null;
-                    const barColor =
-                      pct >= 100 ? "var(--gr)" : pct >= 50 ? "var(--cy)" : pct > 0 ? "var(--or)" : "var(--rd)";
-                    const isCustomTarget = !!(m.calendar_split && m.calendar_split[selectedMonth] !== undefined && m.calendar_split[selectedMonth] !== null);
-                    let statusBadge: React.ReactNode = (
-                      <span style={{ color: "var(--t2)" }}>{daysLeft !== null ? `${daysLeft}д` : ""}</span>
-                    );
-                    if (m.status === "closed") statusBadge = <span style={{ color: "var(--gr)", fontWeight: 700 }}>✅</span>;
-                    else if (m.status === "onboarding") statusBadge = <span style={{ color: "var(--cy)", fontWeight: 700 }}>🧩 onboarding</span>;
-                    else if (m.status === "planned") statusBadge = <span style={{ color: "var(--pu, #a78bfa)", fontWeight: 700 }}>🕓 planned</span>;
-                    else if (m.status === "cancelled") statusBadge = <span style={{ color: "var(--t3)" }}>—</span>;
-                    else if (daysLeft !== null && daysLeft < 0) statusBadge = <span style={{ color: "var(--rd)", fontWeight: 700 }}>🔴 просрочка {-daysLeft}д</span>;
-                    else if (daysLeft !== null && daysLeft <= 5) statusBadge = <span style={{ color: "var(--or)", fontWeight: 700 }}>⏰ {daysLeft}д</span>;
-                    return (
-                      <tr key={m.id} style={{ borderTop: "1px solid var(--brd)" }}>
-                        <td
-                          style={{ padding: "8px", cursor: "pointer", color: "var(--t1)", fontWeight: 600 }}
-                          onClick={() => router.push(`/dashboard/clients/${c.id}`)}
-                        >
-                          {c.name} {c.surname || ""}
-                        </td>
-                        <td style={{ padding: "8px", color: "var(--t2)" }}>{c.teamlead?.name || "—"}</td>
-                        <td
-                          style={{ padding: "8px", textAlign: "center" }}
-                          title="Размер пакета этого контрактного месяца"
-                        >
-                          {editingPlanId === m.id && editingPlanValue.startsWith("pkg:") ? (
-                            <input
-                              type="number"
-                              autoFocus
-                              min={0}
-                              max={999}
-                              value={editingPlanValue.slice(4)}
-                              onChange={(e) => setEditingPlanValue("pkg:" + e.target.value)}
-                              onBlur={() => {
-                                const n = parseInt(editingPlanValue.slice(4), 10);
-                                if (!Number.isNaN(n) && n !== pkg) savePlan(m.id, n);
-                                else setEditingPlanId(null);
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                                if (e.key === "Escape") setEditingPlanId(null);
-                              }}
-                              style={{
-                                width: 50,
-                                padding: "2px 6px",
-                                borderRadius: 4,
-                                border: "1px solid var(--cy)",
-                                background: "var(--bg2)",
-                                color: "var(--t1)",
-                                fontSize: 12,
-                                textAlign: "center",
-                              }}
-                            />
-                          ) : (
-                            <span
-                              onClick={() => {
-                                setEditingPlanId(m.id);
-                                setEditingPlanValue("pkg:" + String(pkg));
-                              }}
-                              style={{
-                                cursor: "pointer",
-                                padding: "2px 6px",
-                                borderRadius: 4,
-                                fontWeight: 700,
-                                color: "var(--t1)",
-                                background: "var(--bg2)",
-                              }}
-                              title="Кликни — отредактируй пакет контрактного месяца"
-                            >
-                              {pkg}
-                            </span>
-                          )}
-                        </td>
-                        <td style={{ padding: "8px", textAlign: "center", color: "var(--cy)", fontWeight: 700 }}>М{m.month_number}</td>
-                        <td style={{ padding: "8px", color: "var(--t2)" }}>
-                          {fmtDate(m.start_date)} → {fmtDate(m.end_date)} <span style={{ marginLeft: 6 }}>{statusBadge}</span>
-                        </td>
-                        <td style={{ padding: "8px", textAlign: "center" }}>
-                          {editingPlanId === m.id && editingPlanValue.startsWith("tgt:") ? (
-                            <input
-                              type="number"
-                              autoFocus
-                              min={0}
-                              max={999}
-                              value={editingPlanValue.slice(4)}
-                              onChange={(e) => setEditingPlanValue("tgt:" + e.target.value)}
-                              onBlur={() => {
-                                const n = parseInt(editingPlanValue.slice(4), 10);
-                                if (!Number.isNaN(n) && n !== targetMonth) saveCalendarTarget(m.id, selectedMonth, n);
-                                else setEditingPlanId(null);
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                                if (e.key === "Escape") setEditingPlanId(null);
-                              }}
-                              style={{
-                                width: 50,
-                                padding: "2px 6px",
-                                borderRadius: 4,
-                                border: "1px solid var(--cy)",
-                                background: "var(--bg2)",
-                                color: "var(--t1)",
-                                fontSize: 12,
-                                textAlign: "center",
-                              }}
-                            />
-                          ) : savingPlanId === m.id ? (
-                            <span style={{ color: "var(--t3)" }}>...</span>
-                          ) : (
-                            <span
-                              onClick={() => {
-                                setEditingPlanId(m.id);
-                                setEditingPlanValue("tgt:" + String(targetMonth));
-                              }}
-                              style={{
-                                cursor: "pointer",
-                                padding: "2px 6px",
-                                borderRadius: 4,
-                                fontWeight: 700,
-                                color: "var(--t1)",
-                                background: isCustomTarget ? "rgba(124,92,252,0.15)" : "var(--bg2)",
-                                border: isCustomTarget ? "1px dashed var(--pu, #7c5cfc)" : "none",
-                              }}
-                              title={
-                                isCustomTarget
-                                  ? "Ручной override на этот календарный месяц. Кликни — измени."
-                                  : "Авто: пропорционально дням контракта. Кликни — задай свой target."
-                              }
-                            >
-                              {targetMonth}
-                            </span>
-                          )}
-                        </td>
-                        <td style={{ padding: "8px", textAlign: "center" }} title="По темпу: должно быть опубл / готов к сегодня">
-                          {(() => {
-                            const exp = expectedByToday(m, selectedMonth);
-                            const pubLag = exp.pub - pubMonth;
-                            const madeLag = exp.made - madeMonth;
-                            const pubColor = pubLag <= 0 ? "var(--gr)" : pubLag <= 2 ? "var(--or)" : "var(--rd)";
-                            const madeColor = madeLag <= 0 ? "var(--gr)" : madeLag <= 2 ? "var(--or)" : "var(--rd)";
-                            return (
-                              <span style={{ fontSize: 10, fontFamily: "monospace" }}>
-                                <span style={{ color: pubColor, fontWeight: 700 }}>{exp.pub}</span>
-                                <span style={{ color: "var(--t3)" }}>опубл / </span>
-                                <span style={{ color: madeColor, fontWeight: 700 }}>{exp.made}</span>
-                                <span style={{ color: "var(--t3)" }}>готов</span>
-                              </span>
-                            );
-                          })()}
-                        </td>
-                        <td style={{ padding: "8px", textAlign: "center", color: "var(--cy)", fontWeight: 700 }}>{madeMonth}</td>
-                        <td style={{ padding: "8px", textAlign: "center", color: "var(--gr)", fontWeight: 700 }}>{pubMonth}</td>
-                        <td
-                          style={{
-                            padding: "8px",
-                            textAlign: "center",
-                            fontWeight: 700,
-                            color: buffer >= 3 ? "var(--gr)" : buffer >= 1 ? "var(--or)" : "var(--rd)",
-                          }}
-                          title="Готово − Опубликовано. Минимум 3 — буфер тимлида"
-                        >
-                          {buffer >= 0 ? `+${buffer}` : buffer}
-                        </td>
-                        <td style={{ padding: "8px", textAlign: "center", color: remainingMonth > 0 ? "var(--or)" : "var(--gr)" }}>{remainingMonth}</td>
-                        <td style={{ padding: "8px", textAlign: "center", color: "var(--t2)", fontSize: 10 }}>{totalPub}/{pkg}</td>
-                        <td style={{ padding: "8px", minWidth: 120 }}>
-                          <div className="flex items-center gap-2">
-                            <div style={{ flex: 1, height: 6, borderRadius: 3, background: "var(--brd)", overflow: "hidden" }}>
-                              <div style={{ width: `${pct}%`, height: "100%", background: barColor }} />
-                            </div>
-                            <span style={{ color: "var(--t2)", fontSize: 10, fontFamily: "monospace", minWidth: 36, textAlign: "right" }}>
-                              {pct}%
-                            </span>
-                          </div>
-                        </td>
-                        <td style={{ padding: "8px", textAlign: "center", whiteSpace: "nowrap" }}>
-                          {m.status === "active" ? (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                closeMonth(m.id);
-                              }}
-                              style={{
-                                border: "1px solid var(--gr)",
-                                background: "rgba(62,207,142,0.1)",
-                                color: "var(--gr)",
-                                padding: "3px 8px",
-                                borderRadius: 4,
-                                fontSize: 10,
-                                fontWeight: 600,
-                                cursor: "pointer",
-                              }}
-                              title="Закрыть месяц (status=closed)"
-                            >
-                              ✓ Закрыть
-                            </button>
-                          ) : (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                reopenMonth(m.id);
-                              }}
-                              style={{
-                                border: "1px solid var(--t3)",
-                                background: "transparent",
-                                color: "var(--t2)",
-                                padding: "3px 8px",
-                                borderRadius: 4,
-                                fontSize: 10,
-                                fontWeight: 600,
-                                cursor: "pointer",
-                              }}
-                              title="Снова открыть (status=active)"
-                            >
-                              Открыть
-                            </button>
-                          )}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const defaultStart = m.end_date;
-                              const d = new Date(defaultStart);
-                              d.setDate(d.getDate() + 1);
-                              setOpenNewFor({
-                                clientId: c.id,
-                                nextN: m.month_number + 1,
-                                defaultStart: d.toISOString().slice(0, 10),
-                                defaultPkg: pkg,
-                              });
-                              const endDefault = new Date(d);
-                              endDefault.setDate(endDefault.getDate() + 30);
-                              setOpenNewForm({
-                                start_date: d.toISOString().slice(0, 10),
-                                end_date: endDefault.toISOString().slice(0, 10),
-                                pkg: String(pkg),
-                              });
-                            }}
-                            style={{
-                              marginLeft: 4,
-                              border: "1px solid var(--brd)",
-                              background: "transparent",
-                              color: "var(--t2)",
-                              padding: "3px 8px",
-                              borderRadius: 4,
-                              fontSize: 10,
-                              fontWeight: 600,
-                              cursor: "pointer",
-                            }}
-                            title="Открыть следующий контрактный месяц для клиента"
-                          >
-                            + М{m.month_number + 1}
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-                {rowsForMonth.length > 0 && (
-                  <tfoot>
-                    <tr style={{ borderTop: "2px solid var(--brd)", color: "var(--t1)", fontWeight: 700 }}>
-                      <td style={{ padding: "10px 8px" }} colSpan={5}>
-                        ИТОГО за {ymLabel(selectedMonth)}
-                      </td>
-                      <td style={{ padding: "10px 8px", textAlign: "center", color: "var(--cy)" }}>
-                        {rowsForMonth.reduce((s, r) => s + targetForCalendarMonth(r.month, selectedMonth), 0)}
-                      </td>
-                      <td style={{ padding: "10px 8px", textAlign: "center", fontSize: 10, fontFamily: "monospace", color: "var(--t2)" }}>
-                        {(() => {
-                          const sumPub = rowsForMonth.reduce((s, r) => s + expectedByToday(r.month, selectedMonth).pub, 0);
-                          const sumMade = rowsForMonth.reduce((s, r) => s + expectedByToday(r.month, selectedMonth).made, 0);
-                          return `${sumPub}/${sumMade}`;
-                        })()}
-                      </td>
-                      <td style={{ padding: "10px 8px", textAlign: "center", color: "var(--cy)" }}>
-                        {rowsForMonth.reduce((s, r) => s + madeInCalendarMonth(r.client.id, r.month.month_number, selectedMonth), 0)}
-                      </td>
-                      <td style={{ padding: "10px 8px", textAlign: "center", color: "var(--gr)" }}>
-                        {rowsForMonth.reduce((s, r) => s + publishedInCalendarMonth(r.client.id, r.month.month_number, selectedMonth), 0)}
-                      </td>
-                      <td style={{ padding: "10px 8px", textAlign: "center", color: "var(--t2)" }}>
-                        {(() => {
-                          const totalMade = rowsForMonth.reduce((s, r) => s + madeInCalendarMonth(r.client.id, r.month.month_number, selectedMonth), 0);
-                          const totalPubMonth = rowsForMonth.reduce((s, r) => s + publishedInCalendarMonth(r.client.id, r.month.month_number, selectedMonth), 0);
-                          const buf = totalMade - totalPubMonth;
-                          return buf >= 0 ? `+${buf}` : `${buf}`;
-                        })()}
-                      </td>
-                      <td style={{ padding: "10px 8px", textAlign: "center", color: "var(--or)" }}>
-                        {Math.max(
-                          0,
-                          rowsForMonth.reduce(
-                            (s, r) =>
-                              s +
-                              Math.max(
-                                0,
-                                targetForCalendarMonth(r.month, selectedMonth) -
-                                  madeInCalendarMonth(r.client.id, r.month.month_number, selectedMonth)
-                              ),
-                            0
-                          )
-                        )}
-                      </td>
-                      <td colSpan={3}></td>
-                    </tr>
-                  </tfoot>
-                )}
-              </table>
-            </div>
-          )}
-          <div style={{ marginTop: 10, fontSize: 10, color: "var(--t3)" }}>
-            «Пакет» — размер контрактного месяца. «На X» — таргет на этот календарный месяц (авто-пропорция, клик — override).
-            <b>«Готово в X»</b> = ролики ready/published с ready_at в этом месяце, если ready_at пустой — fallback на pub_date.
-            <b>«Опубл. в X»</b> = published с pub_date в этом месяце. <b>«Буфер»</b> = Готово − Опубл.; норма ≥ +3.
-            «Осталось» = На X − Готово. «Всего по M» — итог published за весь контракт.
           </div>
-        </div>
-      )}
-
-      {openNewFor && (
-        <div
-          onClick={() => setOpenNewFor(null)}
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: "rgba(0,0,0,0.6)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 100,
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="card"
-            style={{ minWidth: 340, padding: 20 }}
-          >
-            <div style={{ fontWeight: 700, marginBottom: 14, color: "var(--t1)" }}>
-              Открыть М{openNewFor.nextN} для клиента ID {openNewFor.clientId}
-            </div>
-            {(() => {
-              const prev = clientMonths.find((m) => m.client_id === openNewFor.clientId && m.month_number === openNewFor.nextN - 1);
-              if (!prev || prev.status === "closed") return null;
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 10 }}>
+            {data.onboardingClients.map(({ client: c, progress: p }) => {
+              const startedDays = Math.max(0, daysBetween(((c as any).created_at as string) || todayIso, todayIso));
+              const daysTotal = 10;
+              const daysLeft = Math.max(0, daysTotal - startedDays);
+              const dayProgressPct = Math.min(100, Math.round((startedDays / daysTotal) * 100));
+              const taskProgress = p.progress_pct || 0;
+              // pace по онбордингу
+              const expectedDone = Math.round((startedDays / daysTotal) * (p.total_tasks - p.skipped_tasks));
+              const realDone = p.done_tasks;
+              const delta = realDone - expectedDone;
+              const paceLabel = delta >= 0 ? `опережает +${delta}` : `отстаёт ${delta}`;
+              const paceColor = delta >= 0 ? "var(--gr)" : delta >= -2 ? "var(--or)" : "var(--rd)";
               return (
-                <div
-                  style={{
-                    marginBottom: 12,
-                    padding: "8px 10px",
-                    borderRadius: 6,
-                    background: "rgba(124,92,252,0.1)",
-                    border: "1px solid rgba(124,92,252,0.35)",
-                    color: "var(--t2)",
-                    fontSize: 11,
-                  }}
-                >
-                  М{openNewFor.nextN} будет создан как <b style={{ color: "var(--pu, #a78bfa)" }}>planned</b> и начнёт считаться только после закрытия М{openNewFor.nextN - 1}.
-                </div>
-              );
-            })()}
-            <label style={{ display: "block", marginBottom: 10, fontSize: 11, color: "var(--t2)" }}>
-              Старт:
-              <input
-                type="date"
-                value={openNewForm.start_date}
-                onChange={(e) => setOpenNewForm({ ...openNewForm, start_date: e.target.value })}
-                style={{
-                  display: "block",
-                  marginTop: 4,
-                  width: "100%",
-                  padding: "6px 10px",
-                  background: "var(--bg2)",
-                  color: "var(--t1)",
-                  border: "1px solid var(--brd)",
-                  borderRadius: 4,
-                }}
-              />
-            </label>
-            <label style={{ display: "block", marginBottom: 10, fontSize: 11, color: "var(--t2)" }}>
-              Дедлайн закрытия:
-              <input
-                type="date"
-                value={openNewForm.end_date}
-                onChange={(e) => setOpenNewForm({ ...openNewForm, end_date: e.target.value })}
-                style={{
-                  display: "block",
-                  marginTop: 4,
-                  width: "100%",
-                  padding: "6px 10px",
-                  background: "var(--bg2)",
-                  color: "var(--t1)",
-                  border: "1px solid var(--brd)",
-                  borderRadius: 4,
-                }}
-              />
-            </label>
-            <label style={{ display: "block", marginBottom: 14, fontSize: 11, color: "var(--t2)" }}>
-              Пакет (роликов):
-              <input
-                type="number"
-                min={1}
-                value={openNewForm.pkg}
-                onChange={(e) => setOpenNewForm({ ...openNewForm, pkg: e.target.value })}
-                style={{
-                  display: "block",
-                  marginTop: 4,
-                  width: "100%",
-                  padding: "6px 10px",
-                  background: "var(--bg2)",
-                  color: "var(--t1)",
-                  border: "1px solid var(--brd)",
-                  borderRadius: 4,
-                }}
-              />
-            </label>
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              <button
-                onClick={() => setOpenNewFor(null)}
-                style={{
-                  background: "transparent",
-                  border: "1px solid var(--brd)",
-                  color: "var(--t2)",
-                  padding: "6px 14px",
-                  borderRadius: 4,
-                  cursor: "pointer",
-                }}
-              >
-                Отмена
-              </button>
-              <button
-                onClick={createNextMonth}
-                style={{
-                  background: "var(--cy)",
-                  border: "none",
-                  color: "#000",
-                  padding: "6px 14px",
-                  borderRadius: 4,
-                  cursor: "pointer",
-                  fontWeight: 600,
-                }}
-              >
-                {(() => {
-                  const prev = clientMonths.find((m) => m.client_id === openNewFor.clientId && m.month_number === openNewFor.nextN - 1);
-                  return prev && prev.status !== "closed" ? "Запланировать месяц" : "Открыть месяц";
-                })()}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {isAllTime && (
-        <>
-          <div className="card mb-3">
-            <div className="text-xs font-bold mb-3" style={{ color: "var(--t1)" }}>📊 Прогресс по клиентам</div>
-            {clients.map((c) => {
-              const cScripts = allScripts.filter((s) => s.client_id === c.id);
-              const cPub = cScripts.filter((s) => s.video_status === "published").length;
-              const cReady = cScripts.filter((s) => s.video_status === "ready").length;
-              const cEdit = cScripts.filter((s) => s.video_status === "inProgress" && s.script_status === "approved").length;
-              const total = cScripts.length || 1;
-              const months = monthsForClient(c.id);
-              return (
-                <div key={c.id} onClick={() => router.push(`/dashboard/clients/${c.id}`)} className="mb-2 cursor-pointer">
-                  <div className="flex justify-between mb-1">
-                    <span className="text-xs font-medium" style={{ color: "var(--t1)" }}>
-                      {c.name} {c.surname || ""}
-                      {months.length > 0 && (
-                        <span style={{ marginLeft: 8, fontSize: 9, color: "var(--t3)" }}>
-                          {months.map((m) => (m.status === "closed" ? `М${m.month_number}✅` : m.status === "onboarding" ? `М${m.month_number}🧩` : m.status === "planned" ? `М${m.month_number}🕓` : `М${m.month_number}🟡`)).join(" ")}
-                        </span>
-                      )}
-                    </span>
-                    <span className="text-[10px] font-mono" style={{ color: "var(--t2)" }}>{cPub}/{cScripts.length}</span>
+                <button key={c.id} onClick={() => router.push(`/dashboard/clients/${c.id}/onboarding`)} style={{ textAlign: "left", padding: 12, borderRadius: 12, background: "rgba(0,0,0,0.22)", border: "1px solid var(--brd)", cursor: "pointer", display: "flex", flexDirection: "column", gap: 10 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <Avatar name={`${c.name} ${c.surname || ""}`} src={c.avatar_url} size={40} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--t1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name} {c.surname || ""}</div>
+                      <div style={{ fontSize: 9, fontWeight: 700, color: paceColor, textTransform: "uppercase", marginTop: 2, letterSpacing: 0.4 }}>{paceLabel}</div>
+                    </div>
+                    <div style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 18, fontWeight: 800, color: "#ffae42" }}>{taskProgress}%</div>
                   </div>
-                  <div className="flex h-2 rounded overflow-hidden" style={{ background: "var(--brd)" }}>
-                    {cPub > 0 && <div style={{ width: `${(cPub / total) * 100}%`, background: "var(--gr)" }} />}
-                    {cReady > 0 && <div style={{ width: `${(cReady / total) * 100}%`, background: "var(--cy)" }} />}
-                    {cEdit > 0 && <div style={{ width: `${(cEdit / total) * 100}%`, background: "var(--or)" }} />}
+                  <div>
+                    <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 600, marginBottom: 4 }}>
+                      Задачи: {p.done_tasks}/{p.total_tasks - p.skipped_tasks} · День {startedDays}/{daysTotal}
+                    </div>
+                    <div style={{ height: 5, borderRadius: 3, background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
+                      <div style={{ width: `${taskProgress}%`, height: "100%", background: "linear-gradient(90deg, #ffae42, #ff5c7a)", borderRadius: 3, transition: "width .3s" }} />
+                    </div>
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>
+        </div>
+      )}
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 mb-3">
-            <div className="card" style={{ borderColor: violations.length > 0 ? "rgba(239,68,68,0.3)" : "var(--brd)" }}>
-              <div className="flex items-center gap-1 mb-2">
-                <span style={{ color: "var(--rd)" }}>⚠️</span>
-                <span className="text-[11px] font-bold" style={{ color: violations.length > 0 ? "var(--rd)" : "var(--gr)" }}>
-                  {violations.length > 0 ? `НАРУШЕНИЯ СРОКОВ (${violations.length})` : "Всё по плану ✓"}
-                </span>
-              </div>
-              {violations.slice(0, showAllViolations ? violations.length : 6).map((v, i) => (
-                <div
-                  key={i}
-                  onClick={() => router.push(`/dashboard/clients/${v.cid}`)}
-                  className="flex items-center gap-1 py-1.5 px-2 rounded cursor-pointer text-xs"
-                  style={{ borderLeft: `3px solid ${v.severity === "high" ? "var(--rd)" : "var(--or)"}`, marginBottom: 2 }}
-                >
-                  <span className="font-semibold" style={{ color: "var(--t1)" }}>{v.client}</span>
-                  <span style={{ color: "var(--t2)", flex: 1 }}>— {v.msg}</span>
-                  <span
-                    className="badge"
-                    style={{
-                      background: v.severity === "high" ? "rgba(239,68,68,0.15)" : "rgba(249,115,22,0.15)",
-                      color: v.severity === "high" ? "var(--rd)" : "var(--or)",
-                      padding: "3px 8px",
-                      fontSize: 10,
-                      fontWeight: 700,
-                    }}
-                  >
-                    {v.severity === "high" ? `-${v.days}д` : `⚠ ${v.days}`}
-                  </span>
-                </div>
-              ))}
-              {violations.length > 6 && (
-                <button
-                  onClick={() => setShowAllViolations(!showAllViolations)}
-                  style={{ marginTop: 6, border: "none", background: "transparent", color: "var(--cy)", cursor: "pointer", fontSize: 11, fontWeight: 600 }}
-                >
-                  {showAllViolations ? "Свернуть ↑" : `Показать все ${violations.length} →`}
-                </button>
-              )}
-            </div>
-            <div className="card">
-              <div className="text-[11px] font-bold mb-2" style={{ color: "var(--t1)" }}>📋 ЗАДАЧИ ({overdueTasks.length})</div>
-              {overdueTasks.slice(0, 5).map((t: any, i: number) => (
-                <div
-                  key={i}
-                  onClick={() => router.push(`/dashboard/clients/${t.client_id}`)}
-                  className="flex items-center gap-1 py-1 px-1.5 rounded cursor-pointer text-xs"
-                  style={{ borderLeft: "3px solid var(--or)" }}
-                >
-                  <div style={{ flex: 1 }}>
-                    <div className="font-semibold" style={{ color: "var(--t1)" }}>{t.client?.name}</div>
-                    <div style={{ color: "var(--t2)", fontSize: 9 }}>{t.task_name}</div>
+      {/* ===== ROW 2: Attention + Pipeline ===== */}
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(360px, 1fr) 2fr", gap: 12, marginBottom: 18 }} className="dashboard-v3-row2">
+        <div className="card" style={{ padding: 18, borderRadius: 18 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+            <h3 style={{ fontSize: 14, fontWeight: 800, color: "var(--t1)" }}>
+              Требуют внимания
+              {data.attentionClients.length > 0 && <span style={{ marginLeft: 8, padding: "2px 7px", borderRadius: 6, background: "rgba(255,92,122,0.15)", color: "var(--rd)", fontSize: 10, fontWeight: 700 }}>{data.attentionClients.length}</span>}
+            </h3>
+          </div>
+          {data.attentionClients.length === 0 ? (
+            <div style={{ padding: "24px 12px", textAlign: "center", color: "var(--t3)", fontSize: 12 }}>🎉 Всё под контролем</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {data.attentionClients.slice(0, 4).map(({ client, reason, severity }) => (
+                <div key={client.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: 10, borderRadius: 12, background: "rgba(0,0,0,0.18)", borderLeft: `3px solid ${severity === "red" ? "var(--rd)" : "var(--yl)"}` }}>
+                  <Avatar name={`${client.name} ${client.surname || ""}`} src={client.avatar_url} size={36} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "var(--t1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{client.name} {client.surname || ""}</div>
+                    <div style={{ fontSize: 10, color: severity === "red" ? "var(--rd)" : "var(--yl)", fontWeight: 600, marginTop: 2 }}>{reason}</div>
                   </div>
-                  <span className="badge" style={{ background: "rgba(239,68,68,0.15)", color: "var(--rd)" }}>
-                    {t.deadline ? `-${Math.round((today.getTime() - new Date(t.deadline).getTime()) / 86400000)}д` : ""}
-                  </span>
+                  <button onClick={() => router.push(`/dashboard/clients/${client.id}`)} style={{ padding: "6px 11px", borderRadius: 8, background: "transparent", color: severity === "red" ? "var(--rd)" : "var(--yl)", border: `1px solid ${severity === "red" ? "var(--rd)" : "var(--yl)"}`, fontSize: 10, fontWeight: 700, cursor: "pointer" }}>Перейти</button>
                 </div>
               ))}
+              {data.attentionClients.length > 4 && <button onClick={() => router.push("/dashboard/clients")} style={{ padding: "8px", borderRadius: 8, background: "transparent", border: "none", color: "var(--t3)", fontSize: 11, cursor: "pointer", marginTop: 4 }}>Смотреть всех ({data.attentionClients.length}) →</button>}
+            </div>
+          )}
+        </div>
+
+        {/* Производство контента с pace */}
+        <div className="card" style={{ padding: 18, borderRadius: 18 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
+            <h3 style={{ fontSize: 14, fontWeight: 800, color: "var(--t1)" }}>Производство контента</h3>
+            <div style={{
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "5px 10px", borderRadius: 8,
+              background: `${data.pipelinePace.color}22`,
+              border: `1px solid ${data.pipelinePace.color}44`,
+              color: data.pipelinePace.color,
+              fontSize: 11, fontWeight: 700,
+            }}>
+              <PaceIcon size={12} strokeWidth={2.2} />
+              {data.pipelineDelta === 0
+                ? "Идём по плану"
+                : data.pipelineDelta > 0
+                ? `Опережаем на ${data.pipelineDelta} ${data.pipelineDelta === 1 ? "ролик" : data.pipelineDelta < 5 ? "ролика" : "роликов"}`
+                : `Отстаём на ${Math.abs(data.pipelineDelta)} ${Math.abs(data.pipelineDelta) === 1 ? "ролик" : Math.abs(data.pipelineDelta) < 5 ? "ролика" : "роликов"}`}
+              <span style={{ color: "var(--t3)", fontWeight: 600 }}>· сегодня ждём {data.expectedNow}</span>
             </div>
           </div>
-        </>
-      )}
+          {(() => {
+            const stages = [
+              { label: "План", val: data.planRolls, color: "#9d6bff", denom: data.planRolls },
+              { label: "Сценарии", val: data.scriptsApproved, color: "#42d4f4", denom: data.planRolls },
+              { label: "Монтаж", val: data.videosMontage, color: "#ffae42", denom: data.planRolls },
+              { label: "Готово", val: data.videosReady, color: "#a8e063", denom: data.planRolls },
+              { label: "Опубликовано", val: data.videosPublished, color: "#34a853", denom: data.planRolls },
+            ];
+            return (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 0, alignItems: "stretch" }}>
+                {stages.map((st, i) => (
+                  <div key={st.label} style={{ display: "flex", flexDirection: "column", padding: "0 8px", position: "relative" }}>
+                    <div style={{ fontSize: 10, color: "var(--t3)", fontWeight: 700, marginBottom: 6, letterSpacing: 0.3 }}>{st.label}</div>
+                    <div style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 28, fontWeight: 800, color: st.color, lineHeight: 1, marginBottom: 8 }}>{st.val}</div>
+                    <div style={{ height: 4, borderRadius: 2, background: "rgba(255,255,255,0.06)", overflow: "hidden", marginBottom: 4 }}>
+                      <div style={{ width: `${st.denom > 0 ? Math.round((st.val / st.denom) * 100) : 0}%`, height: "100%", background: st.color, borderRadius: 2 }} />
+                    </div>
+                    <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 600 }}>{st.denom > 0 ? Math.round((st.val / st.denom) * 100) : 0}%</div>
+                    {i < stages.length - 1 && <ArrowRight size={14} style={{ position: "absolute", right: -7, top: 18, color: "var(--t3)", background: "var(--card)", borderRadius: "50%" }} />}
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+        </div>
+      </div>
+
+      {/* ===== ROW 3: Команда + Контракты + Сегодня ===== */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 18 }} className="dashboard-v3-row3">
+        {/* Загрузка команды — теперь конкретные задачи */}
+        <div className="card" style={{ padding: 18, borderRadius: 18 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+            <h3 style={{ fontSize: 14, fontWeight: 800, color: "var(--t1)" }}>Загрузка по сотрудникам</h3>
+            <span style={{ fontSize: 10, color: "var(--t3)" }}>{shortYm(selectedMonth)}</span>
+          </div>
+          {data.teamLoad.length === 0 ? (
+            <div style={{ padding: 20, color: "var(--t3)", textAlign: "center", fontSize: 12 }}>Нет загрузки</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
+              {data.teamLoad.slice(0, 5).map((load) => {
+                const tags: { l: string; v: number; c: string }[] = [];
+                if (load.role === "scriptwriter" || load.role === "teamlead") {
+                  if (load.scriptsReview > 0) tags.push({ l: "на утв.", v: load.scriptsReview, c: "#42d4f4" });
+                  if (load.scriptsInProg > 0) tags.push({ l: "в работе", v: load.scriptsInProg, c: "#ffae42" });
+                }
+                if (load.role === "montager") {
+                  if (load.videosMontage > 0) tags.push({ l: "монтаж", v: load.videosMontage, c: "#9d6bff" });
+                  if (load.videosReady > 0) tags.push({ l: "готово", v: load.videosReady, c: "#a8e063" });
+                }
+                if (load.shotsNeeded > 0 && (load.role === "teamlead" || load.role === "scriptwriter")) {
+                  tags.push({ l: "снять", v: load.shotsNeeded, c: "#ff5c7a" });
+                }
+                const roleLabel = load.role === "scriptwriter" ? "Сценарист" : load.role === "montager" ? "Монтажёр" : load.role === "teamlead" ? "Тимлид" : load.tm.role_title || "Команда";
+                const pctColor = load.loadPct >= 80 ? "var(--gr)" : load.loadPct >= 50 ? "var(--cy)" : "var(--or)";
+                return (
+                  <button key={load.tm.id}
+                    onClick={() => { setTaskFilter(load.tm.id); }}
+                    style={{ display: "flex", alignItems: "center", gap: 10, padding: 8, borderRadius: 10, background: "transparent", border: "1px solid transparent", cursor: "pointer", textAlign: "left", transition: "background .15s" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(157,107,255,0.05)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                    title="Кликни — отфильтровать «Что нужно сделать»"
+                  >
+                    <Avatar name={load.tm.name} src={load.tm.avatar_url} size={36} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 2 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--t1)" }}>{load.tm.name}</div>
+                        <div style={{ fontSize: 11, fontWeight: 800, color: pctColor }}>
+                          <span style={{ color: "var(--t3)", fontWeight: 600 }}>{load.done}/{load.totalPlan}</span> · {load.loadPct}%
+                        </div>
+                      </div>
+                      <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 5 }}>{roleLabel} · {load.clientsCount} {load.clientsCount === 1 ? "клиент" : load.clientsCount < 5 ? "клиента" : "клиентов"}</div>
+                      <div style={{ height: 5, borderRadius: 3, background: "rgba(255,255,255,0.06)", overflow: "hidden", marginBottom: 6 }}>
+                        <div style={{ width: `${load.loadPct}%`, height: "100%", background: load.loadPct >= 80 ? "linear-gradient(90deg, var(--gr), var(--cy))" : load.loadPct >= 50 ? "var(--cy)" : "var(--or)", borderRadius: 3, transition: "width .3s" }} />
+                      </div>
+                      {tags.length === 0 ? (
+                        <div style={{ fontSize: 10, color: "var(--gr)", fontWeight: 600 }}>✓ всё закрыто</div>
+                      ) : (
+                        <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+                          {tags.map((t, i) => (
+                            <span key={i} style={{ fontSize: 10, padding: "2px 7px", borderRadius: 6, background: `${t.c}22`, color: t.c, fontWeight: 700 }}>
+                              {t.v} {t.l}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          <button onClick={() => router.push("/dashboard/team")} style={{ marginTop: 14, width: "100%", padding: "8px", borderRadius: 8, background: "transparent", border: "1px solid var(--brd)", color: "var(--t2)", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Вся команда →</button>
+        </div>
+
+        {/* Контракты */}
+        <div className="card" style={{ padding: 18, borderRadius: 18 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+            <h3 style={{ fontSize: 14, fontWeight: 800, color: "var(--t1)" }}>Контракты и продления</h3>
+          </div>
+          {data.contractsEnding.length === 0 ? (
+            <div style={{ padding: 20, color: "var(--t3)", textAlign: "center", fontSize: 12 }}>Ничего не заканчивается</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+              {data.contractsEnding.map(cm => {
+                const c = clients.find(x => x.id === cm.client_id);
+                if (!c) return null;
+                const daysToEnd = daysBetween(todayIso, cm.end_date);
+                const dotColor = daysToEnd < 0 ? "#ff5c7a" : daysToEnd <= 3 ? "#ff5c7a" : daysToEnd <= 7 ? "#ffae42" : daysToEnd <= 14 ? "#f5c451" : "#42d4f4";
+                const label = daysToEnd < 0 ? `Просрочка ${-daysToEnd} дн.` : daysToEnd === 0 ? "Сегодня" : `через ${daysToEnd} дн.`;
+                const labelColor = daysToEnd < 0 ? "var(--rd)" : daysToEnd <= 7 ? "var(--or)" : "var(--t2)";
+                return (
+                  <div key={cm.id} style={{ display: "flex", alignItems: "center", gap: 9, padding: "6px 4px", borderRadius: 8 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: dotColor, flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "var(--t1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name} {c.surname || ""}</div>
+                      <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 600, marginTop: 1 }}>M{cm.month_number} · {fmtDateShort(cm.start_date)} — {fmtDateShort(cm.end_date)}</div>
+                    </div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: labelColor, whiteSpace: "nowrap" }}>{label}</div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Что нужно сделать — с фильтром по сотруднику */}
+        <div className="card" style={{ padding: 18, borderRadius: 18 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
+            <h3 style={{ fontSize: 14, fontWeight: 800, color: "var(--t1)" }}>
+              Что нужно сделать
+              {(() => {
+                const total = tasksFiltered.onboardingPending + tasksFiltered.scriptsWork + tasksFiltered.videosMontage + tasksFiltered.videosReady;
+                return total > 0 && <span style={{ marginLeft: 8, padding: "2px 7px", borderRadius: 6, background: "rgba(157,107,255,0.15)", color: "var(--pu)", fontSize: 10, fontWeight: 700 }}>{total}</span>;
+              })()}
+            </h3>
+            {/* Фильтр сотрудника */}
+            <div style={{ position: "relative" }}>
+              <button onClick={() => setTaskFilterOpen(v => !v)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 9px", borderRadius: 8, background: "rgba(157,107,255,0.08)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                <Filter size={11} strokeWidth={1.8} />
+                {taskFilter === "all" ? "Все" : (team.find(t => t.id === taskFilter)?.name || "Сотрудник")}
+                <ChevronDown size={11} />
+              </button>
+              {taskFilterOpen && (
+                <div style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", zIndex: 20, minWidth: 180, background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 10, padding: 4, boxShadow: "0 12px 40px rgba(0,0,0,0.5)", maxHeight: 280, overflowY: "auto" }}>
+                  <button onClick={() => { setTaskFilter("all"); setTaskFilterOpen(false); }} className="nav-item" style={{ fontSize: 11, padding: "7px 9px", gap: 8 }}>
+                    <Users size={12} strokeWidth={1.8} /> Все
+                  </button>
+                  {team.map(tm => (
+                    <button key={tm.id} onClick={() => { setTaskFilter(tm.id); setTaskFilterOpen(false); }} className="nav-item" style={{ fontSize: 11, padding: "7px 9px", gap: 8 }}>
+                      <Avatar name={tm.name} src={tm.avatar_url} size={20} /> {tm.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+            {[
+              { Icon: Rocket, label: "Онбординг доделать", count: tasksFiltered.onboardingPending, color: "#ffae42", path: "/dashboard/clients" },
+              { Icon: FileCheck2, label: "Написать/утвердить сценарии", count: tasksFiltered.scriptsWork, color: "#42d4f4", path: "/dashboard/scripts" },
+              { Icon: Scissors, label: "Смонтировать", count: tasksFiltered.videosMontage, color: "#9d6bff", path: "/dashboard/montage" },
+              { Icon: Send, label: "Опубликовать", count: tasksFiltered.videosReady, color: "#a8e063", path: "/dashboard/montage" },
+            ].map(it => {
+              const I = it.Icon;
+              return (
+                <button key={it.label} onClick={() => router.push(it.path)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 11px", borderRadius: 10, background: "rgba(0,0,0,0.18)", border: "1px solid transparent", cursor: "pointer", textAlign: "left", transition: "all .15s" }} onMouseEnter={(e) => (e.currentTarget.style.borderColor = it.color)} onMouseLeave={(e) => (e.currentTarget.style.borderColor = "transparent")}>
+                  <div style={{ width: 32, height: 32, borderRadius: 9, background: `${it.color}22`, color: it.color, display: "flex", alignItems: "center", justifyContent: "center", border: `1px solid ${it.color}33` }}>
+                    <I size={15} strokeWidth={1.8} />
+                  </div>
+                  <div style={{ flex: 1, fontSize: 12, fontWeight: 700, color: "var(--t1)" }}>{it.label}</div>
+                  <div style={{ minWidth: 26, height: 22, padding: "0 7px", background: it.count > 0 ? it.color : "rgba(255,255,255,0.06)", color: it.count > 0 ? "#0a0118" : "var(--t3)", borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800 }}>{it.count}</div>
+                </button>
+              );
+            })}
+          </div>
+          {taskFilter !== "all" && (
+            <div style={{ marginTop: 12, fontSize: 10, color: "var(--t3)", textAlign: "center" }}>
+              Показаны задачи: <b style={{ color: "var(--pu)" }}>{team.find(t => t.id === taskFilter)?.name}</b>
+              <button onClick={() => setTaskFilter("all")} style={{ marginLeft: 6, background: "transparent", border: "none", color: "var(--cy)", cursor: "pointer", fontSize: 10, fontWeight: 700 }}>сбросить</button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ===== КЛИЕНТЫ В РАБОТЕ (таблица) ===== */}
+      <ClientsBlock
+        clients={data.activeClients}
+        clientMonths={data.activeMonths}
+        scripts={scripts}
+        team={team}
+        todayIso={todayIso}
+        overdueClientIds={new Set(overdueTasks.map((t: any) => t.client_id))}
+        view={clientsView} setView={setClientsView}
+        searchQuery={searchQuery} setSearchQuery={setSearchQuery}
+        filterStatus={filterStatus} setFilterStatus={setFilterStatus}
+        filterPkg={filterPkg} setFilterPkg={setFilterPkg}
+        filterMontager={filterMontager} setFilterMontager={setFilterMontager}
+        filterTeamlead={filterTeamlead} setFilterTeamlead={setFilterTeamlead}
+        sortBy={sortBy} setSortBy={setSortBy}
+        filterMenuOpen={filterMenuOpen} setFilterMenuOpen={setFilterMenuOpen}
+        collapsedTotals={collapsedTotals} setCollapsedTotals={setCollapsedTotals}
+        selectedMonth={selectedMonth}
+        onOpen={(id) => router.push(`/dashboard/clients/${id}`)}
+      />
+
+      <style jsx>{`
+        @media (max-width: 1280px) {
+          :global(.dashboard-v3-kpi) { grid-template-columns: repeat(4, 1fr) !important; }
+        }
+        @media (max-width: 1024px) {
+          :global(.dashboard-v3-kpi) { grid-template-columns: repeat(2, 1fr) !important; }
+          :global(.dashboard-v3-row2) { grid-template-columns: 1fr !important; }
+          :global(.dashboard-v3-row3) { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
     </div>
   );
 }
 
 export default function DashboardPage() {
-  return (
-    <ErrorBoundary>
-      <DashboardInner />
-    </ErrorBoundary>
-  );
+  return <ErrorBoundary><DashboardInner /></ErrorBoundary>;
 }

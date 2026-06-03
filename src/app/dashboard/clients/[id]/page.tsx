@@ -2,7 +2,8 @@
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
-import db, { Client, Script, ChecklistTask, TeamMember, ClientMonth } from "@/lib/database";
+import db, { Client, Script, ChecklistTask, TeamMember, ClientMonth, OnboardingProgress } from "@/lib/database";
+import AvatarUploader from "@/components/AvatarUploader";
 
 export default function ClientDetailPage() {
   const { id } = useParams();
@@ -12,11 +13,14 @@ export default function ClientDetailPage() {
   const [checklist, setChecklist] = useState<ChecklistTask[]>([]);
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [clientMonths, setClientMonths] = useState<ClientMonth[]>([]);
-  const [tab, setTab] = useState("plan");
+  const [onbProgress, setOnbProgress] = useState<OnboardingProgress | null>(null);
+  const [tab, setTab] = useState("scripts");
   const [editing, setEditing] = useState(false);
   const [editData, setEditData] = useState<any>({});
   const [editSocial, setEditSocial] = useState<string | null>(null);
   const [socialUrl, setSocialUrl] = useState("");
+  const [editingSheet, setEditingSheet] = useState(false);
+  const [sheetUrlInput, setSheetUrlInput] = useState("");
   const [expandedScript, setExpandedScript] = useState<number | null>(null);
   const [viewMonth, setViewMonth] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -27,17 +31,19 @@ export default function ClientDetailPage() {
   useEffect(() => { load(); }, [clientId]);
 
   async function load() {
-    const [c, s, ch, tm, profile, cmRes] = await Promise.all([
+    const [c, s, ch, tm, profile, cmRes, onb] = await Promise.all([
       db.getClient(supabase, clientId),
       db.getScripts(supabase, clientId),
       db.getChecklist(supabase, clientId),
       db.getTeam(supabase),
       db.getProfile(supabase),
       db.getClientMonthsForClient(supabase, clientId),
+      db.getOnboardingProgress(supabase, clientId),
     ]);
     setClient(c); setScripts(s); setChecklist(ch); setTeam(tm);
     if (cmRes?.data) setClientMonths(cmRes.data);
     if (profile) setUserRole(profile.role);
+    setOnbProgress(onb);
     setLoading(false);
   }
 
@@ -136,7 +142,6 @@ export default function ClientDetailPage() {
   const reviewVids = scripts.filter(s => s.video_status === "review").length;
 
   const tabs = [
-    { id: "plan", label: `Чеклист (${pct}%)` },
     { id: "scripts", label: `Сценарии (${scrApp}/${scripts.length})` },
     { id: "montage", label: `Монтаж (${inMontage + reviewVids + ready})` },
     { id: "published", label: `Опубликовано (${pub}/${totalScripts})` },
@@ -156,10 +161,14 @@ export default function ClientDetailPage() {
       {/* Hero Card */}
       <div className="card client-detail-v2-hero mb-3" style={{ padding: "20px", borderRadius: 18, background: "linear-gradient(135deg, var(--card), var(--bg2))" }}>
         <div className="flex items-center gap-4 flex-wrap">
-          <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-2xl font-extrabold shrink-0"
-            style={{ background: c.avatar_url ? `url(${c.avatar_url}) center/cover` : "linear-gradient(135deg, var(--pud), var(--cyd))", color: "var(--pu)", border: "2px solid var(--brd)" }}>
-            {!c.avatar_url && <>{c.name[0]}{(c.surname || "")[0] || ""}</>}
-          </div>
+          <AvatarUploader
+            currentUrl={c.avatar_url}
+            name={`${c.name} ${c.surname || ""}`}
+            pathPrefix="clients"
+            entityId={c.id}
+            size={72}
+            onUploaded={async (url) => { await updateClientField("avatar_url", url); }}
+          />
           <div className="flex-1 min-w-0">
             <div className="flex gap-1.5 flex-wrap mb-1">
               <span className="badge" style={{ background: "var(--cyd)", color: "var(--cy)" }}>{c.niche || "—"}</span>
@@ -197,6 +206,136 @@ export default function ClientDetailPage() {
                 className="px-3 py-1.5 rounded-lg text-[10px]" style={{ border: "1px solid var(--brd)", color: "var(--t3)", background: "transparent", cursor: "pointer" }}>{labels[key]} +</button>;
             })}
           </div>
+        </div>
+      </div>
+
+      {/* Onboarding Phase Block */}
+      {onbProgress && (() => {
+        const isPending = onbProgress.pending_tasks > 0;
+        const isCompleted = onbProgress.pending_tasks === 0 && onbProgress.done_tasks > 0;
+        return (
+          <div className="card mb-3" style={{
+            padding: 16,
+            borderRadius: 14,
+            border: `1px solid ${isPending ? "rgba(245,196,81,0.4)" : "rgba(168,224,99,0.3)"}`,
+            background: isPending
+              ? "linear-gradient(135deg, rgba(245,196,81,0.08), rgba(255,174,66,0.04))"
+              : "linear-gradient(135deg, rgba(168,224,99,0.08), rgba(168,224,99,0.02))",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 14, flex: 1, minWidth: 0 }}>
+                <div style={{
+                  minWidth: 44, height: 44, borderRadius: 12,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  background: isPending ? "rgba(245,196,81,0.18)" : "rgba(168,224,99,0.18)",
+                  color: isPending ? "var(--yl)" : "var(--gr)",
+                  fontSize: 22, fontWeight: 800,
+                }}>{isPending ? "🚀" : "✓"}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 11, color: "var(--t3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 2 }}>Фаза клиента</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: "var(--t1)" }}>
+                    {isPending ? `🟡 Онбординг — ${onbProgress.done_tasks}/${onbProgress.total_tasks - onbProgress.skipped_tasks} задач` : "🟢 Онбординг завершён · месячная работа"}
+                  </div>
+                  <div style={{ fontSize: 11, color: "var(--t2)", marginTop: 2 }}>
+                    {isPending
+                      ? `✅ ${onbProgress.done_tasks}  ·  ☐ ${onbProgress.pending_tasks}  ·  ⏭ ${onbProgress.skipped_tasks}${onbProgress.overdue_tasks > 0 ? `  ·  ⚠ ${onbProgress.overdue_tasks} просрочено` : ""}`
+                      : `Всё закрыто или пропущено · ${onbProgress.done_tasks} done · ${onbProgress.skipped_tasks} skipped`}
+                  </div>
+                </div>
+                {/* Mini progress bar */}
+                <div style={{ minWidth: 120, height: 8, borderRadius: 4, background: "rgba(255,255,255,0.05)", overflow: "hidden", position: "relative" }}>
+                  <div style={{ position: "absolute", inset: 0, width: `${onbProgress.progress_pct}%`, background: isPending ? "linear-gradient(90deg, var(--gr), var(--yl))" : "var(--gr)", borderRadius: 4, transition: ".3s" }} />
+                </div>
+                <span style={{ fontFamily: "monospace", fontSize: 16, fontWeight: 800, color: isPending ? "var(--yl)" : "var(--gr)", minWidth: 48 }}>{onbProgress.progress_pct}%</span>
+              </div>
+              <button onClick={() => router.push(`/dashboard/clients/${clientId}/onboarding`)} style={{
+                padding: "10px 18px", borderRadius: 10,
+                background: isPending ? "linear-gradient(135deg, var(--yl), var(--or))" : "var(--card)",
+                color: isPending ? "#0a0118" : "var(--t1)",
+                border: isPending ? "none" : "1px solid var(--brd)",
+                fontSize: 12, fontWeight: 800, cursor: "pointer", letterSpacing: 0.3,
+              }}>
+                {isPending ? "🚀 Открыть онбординг →" : "Открыть онбординг (история) →"}
+              </button>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Google Sheets URL block */}
+      <div className="card mb-3" style={{ padding: 14, borderRadius: 14, border: "1px solid var(--brd)", background: "linear-gradient(135deg, rgba(52,168,83,0.06), rgba(52,168,83,0.02))" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <div style={{
+            minWidth: 40, height: 40, borderRadius: 10,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            background: "rgba(52,168,83,0.15)", fontSize: 20,
+          }}>📊</div>
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <div style={{ fontSize: 10, color: "var(--t3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 4 }}>Google Sheet клиента</div>
+            {editingSheet ? (
+              <div style={{ display: "flex", gap: 6 }}>
+                <input
+                  autoFocus
+                  type="text"
+                  value={sheetUrlInput}
+                  onChange={(e) => setSheetUrlInput(e.target.value)}
+                  placeholder="https://docs.google.com/spreadsheets/d/..."
+                  style={{
+                    flex: 1, padding: "8px 10px", borderRadius: 8, fontSize: 12,
+                    background: "var(--bg)", border: "1px solid var(--brd)", color: "var(--t1)",
+                  }}
+                  onKeyDown={async (e) => {
+                    if (e.key === "Enter") {
+                      await updateClientField("sheet_url", sheetUrlInput.trim() || null);
+                      setEditingSheet(false);
+                    }
+                    if (e.key === "Escape") setEditingSheet(false);
+                  }}
+                />
+                <button onClick={async () => { await updateClientField("sheet_url", sheetUrlInput.trim() || null); setEditingSheet(false); }}
+                  style={{ padding: "8px 14px", borderRadius: 8, background: "var(--gr)", color: "#0a0118", border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                  Сохранить
+                </button>
+                <button onClick={() => setEditingSheet(false)}
+                  style={{ padding: "8px 12px", borderRadius: 8, background: "transparent", color: "var(--t3)", border: "1px solid var(--brd)", fontSize: 11, cursor: "pointer" }}>
+                  ✕
+                </button>
+              </div>
+            ) : c.sheet_url ? (
+              <a href={c.sheet_url} target="_blank" rel="noopener noreferrer"
+                style={{
+                  fontSize: 13, color: "var(--t1)", fontWeight: 600,
+                  display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                  textDecoration: "none",
+                }}
+                title={c.sheet_url}>
+                {c.sheet_url.replace(/^https?:\/\//, "").slice(0, 70)}{c.sheet_url.length > 76 ? "…" : ""}
+              </a>
+            ) : (
+              <div style={{ fontSize: 12, color: "var(--t3)", fontStyle: "italic" }}>Ссылка не добавлена</div>
+            )}
+          </div>
+          {!editingSheet && (
+            <div style={{ display: "flex", gap: 6 }}>
+              {c.sheet_url && (
+                <a href={c.sheet_url} target="_blank" rel="noopener noreferrer"
+                  style={{
+                    padding: "8px 14px", borderRadius: 8,
+                    background: "linear-gradient(135deg, #34a853, #1e8e3e)", color: "#fff",
+                    fontSize: 11, fontWeight: 800, textDecoration: "none", letterSpacing: 0.3,
+                  }}>
+                  Открыть ↗
+                </a>
+              )}
+              <button onClick={() => { setSheetUrlInput(c.sheet_url || ""); setEditingSheet(true); }}
+                style={{
+                  padding: "8px 12px", borderRadius: 8, background: "transparent",
+                  color: "var(--t2)", border: "1px solid var(--brd)", fontSize: 11, fontWeight: 600, cursor: "pointer",
+                }}>
+                {c.sheet_url ? "✎ Изменить" : "+ Добавить"}
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -334,7 +473,7 @@ export default function ClientDetailPage() {
         </div>
         {editing ? (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-            {[["ИМЯ", "name"], ["ФАМИЛИЯ", "surname"], ["НИША", "niche"], ["ТЕЛЕФОН", "phone"], ["ПРОДУКТ", "product"], ["СР. ЧЕК", "avg_check"], ["ССЫЛКА НА АВАТАР", "avatar_url"]].map(([l, k]) => (
+            {[["ИМЯ", "name"], ["ФАМИЛИЯ", "surname"], ["НИША", "niche"], ["ТЕЛЕФОН", "phone"], ["ПРОДУКТ", "product"], ["СР. ЧЕК", "avg_check"]].map(([l, k]) => (
               <div key={k}><label className="block text-[8px] font-semibold tracking-wider mb-1" style={{ color: "var(--cy)" }}>{l}</label>
                 <input value={editData[k] || ""} onChange={e => setEditData((p: any) => ({ ...p, [k]: e.target.value }))}
                   className="w-full px-3 py-2 rounded-lg text-xs outline-none" style={{ background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)" }} /></div>
@@ -705,48 +844,6 @@ export default function ClientDetailPage() {
         </div>
       )}
 
-      {/* Checklist tab */}
-      {tab === "plan" && (
-        <div>
-          <div className="flex gap-2 mb-3">
-            <button onClick={async () => { for (const t of checklist.filter(x => x.status !== "done")) { await db.updateTask(supabase, t.id, { status: "done" }); } load(); }}
-              className="px-3 py-1.5 rounded-lg text-[10px] font-semibold"
-              style={{ background: "var(--grd)", color: "var(--gr)", border: "1px solid var(--gr)", cursor: "pointer" }}>
-              ✓ Отметить все
-            </button>
-            <button onClick={async () => { for (const t of checklist.filter(x => x.status === "done")) { await db.updateTask(supabase, t.id, { status: "todo" }); } load(); }}
-              className="px-3 py-1.5 rounded-lg text-[10px]"
-              style={{ color: "var(--t3)", border: "1px solid var(--brd)", background: "transparent", cursor: "pointer" }}>
-              Сбросить все
-            </button>
-          </div>
-          {checklist.map((t, i) => {
-            const prevPhase = i > 0 ? checklist[i - 1].phase : "";
-            const showPhase = t.phase !== prevPhase;
-            const over = t.status !== "done" && t.deadline && daysDiff(t.deadline) > 0;
-            return (
-              <div key={t.id}>
-                {showPhase && <div className="text-[9px] font-bold tracking-wider mt-3 mb-1" style={{ color: "var(--cy)" }}>{t.phase}</div>}
-                <div className="flex items-center gap-2 py-1 px-1">
-                  <button onClick={() => toggleTask(t.id, t.status)} className="w-4 h-4 rounded shrink-0 flex items-center justify-center"
-                    style={{ border: `2px solid ${t.status === "done" ? "var(--gr)" : "var(--brd)"}`, background: t.status === "done" ? "var(--grd)" : "transparent", cursor: "pointer" }}>
-                    {t.status === "done" && <span style={{ color: "var(--gr)", fontSize: 10 }}>✓</span>}
-                  </button>
-                  <span className="flex-1 text-[10px]" style={{ color: t.status === "done" ? "var(--t3)" : "var(--t1)", textDecoration: t.status === "done" ? "line-through" : "none" }}>{t.task_name}</span>
-                  <select value={t.responsible_id || ""} onChange={e => updateTaskField(t.id, "responsible_id", parseInt(e.target.value) || null)}
-                    className="text-[8px] px-1 py-0.5 rounded outline-none" style={{ background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t2)", maxWidth: 80 }}>
-                    <option value="">—</option>
-                    {team.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                  </select>
-                  <input type="date" value={t.deadline || ""} onChange={e => updateTaskField(t.id, "deadline", e.target.value)}
-                    className="text-[9px] font-mono bg-transparent border-none outline-none cursor-pointer" style={{ color: over ? "var(--rd)" : "var(--t3)", width: 95 }} />
-                  {over && <span className="badge" style={{ background: "rgba(239,68,68,0.15)", color: "var(--rd)" }}>-{daysDiff(t.deadline!)}д</span>}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 }

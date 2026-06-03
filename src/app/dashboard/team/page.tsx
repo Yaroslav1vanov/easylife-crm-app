@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase-browser";
 import db, { TeamMember, Client } from "@/lib/database";
+import AvatarUploader from "@/components/AvatarUploader";
 
 export default function TeamPage() {
   const [team, setTeam] = useState<TeamMember[]>([]);
@@ -28,6 +29,11 @@ export default function TeamPage() {
 
   async function removeMember(id: number) {
     await db.deleteTeamMember(supabase, id); load();
+  }
+
+  async function updateAvatar(id: number, url: string | null) {
+    await db.updateTeamMember(supabase, id, { avatar_url: url });
+    load();
   }
 
   if (loading) return <div style={{ color: "var(--t2)", padding: 40, textAlign: "center" }}>Загрузка...</div>;
@@ -78,7 +84,14 @@ export default function TeamPage() {
         const assignedClients = clients.filter(c => c.montager_id === m.id || c.teamlead_id === m.id);
         return (
           <div key={m.id} className="card mb-1.5 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold" style={{ background: "var(--pud)", color: "var(--pu)" }}>{m.name[0]}</div>
+            <AvatarUploader
+              currentUrl={m.avatar_url}
+              name={m.name}
+              pathPrefix="team"
+              entityId={m.id}
+              size={48}
+              onUploaded={(url) => updateAvatar(m.id, url)}
+            />
             <div className="flex-1">
               <div className="text-xs font-semibold" style={{ color: "var(--t1)" }}>{m.name}</div>
               <div className="text-[10px]" style={{ color: "var(--t2)" }}>{m.role_title}</div>

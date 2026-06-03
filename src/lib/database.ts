@@ -1,7 +1,7 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 
 export type Profile = { id: string; email: string; name: string; role: string; avatar_url: string | null };
-export type TeamMember = { id: number; profile_id: string | null; name: string; role_title: string; member_type: string };
+export type TeamMember = { id: number; profile_id: string | null; name: string; role_title: string; member_type: string; avatar_url?: string | null };
 export type Client = {
   id: number; name: string; surname: string; niche: string; product: string; phone: string;
   avg_check: string; instagram: string; tiktok: string; youtube: string; avatar_url: string;
@@ -10,6 +10,7 @@ export type Client = {
   stage: string; start_date: string; pub_date: string | null; scripts_deadline: string | null;
   videos_deadline: string | null; first_pub_date: string | null; target_audience: string;
   problem: string; system_idea: string; global_result: string; top5_pains: string[];
+  sheet_url?: string | null;
   montager?: TeamMember; teamlead?: TeamMember;
 };
 export type Script = {
@@ -22,6 +23,20 @@ export type ChecklistTask = {
   id: number; client_id: number; phase: string; task_name: string; task_order: number;
   status: string; responsible_id: number | null; deadline: string | null;
   responsible?: TeamMember;
+  template_task_num?: string | null;
+  template_stage_id?: number | null;
+  template_day_end?: number | null;
+};
+export type OnboardingTemplateRow = {
+  id: number; stage_id: number; stage_title: string;
+  day_start: number; day_end: number;
+  task_num: string; task_title: string; task_order: number;
+  instruction: string | null;
+};
+export type OnboardingProgress = {
+  client_id: number;
+  total_tasks: number; done_tasks: number; skipped_tasks: number;
+  pending_tasks: number; overdue_tasks: number; progress_pct: number;
 };
 export type ClientMonth = {
   id: number;
@@ -63,6 +78,9 @@ const db = {
   async addTeamMember(sb: SupabaseClient, member: { name: string; role_title: string; member_type: string }) {
     const { data, error } = await sb.from("team_members").insert(member).select().single();
     return { data, error };
+  },
+  async updateTeamMember(sb: SupabaseClient, id: number, patch: Partial<Pick<TeamMember, "name" | "role_title" | "member_type" | "avatar_url">>) {
+    return sb.from("team_members").update(patch).eq("id", id);
   },
   async deleteTeamMember(sb: SupabaseClient, id: number) {
     return sb.from("team_members").delete().eq("id", id);
@@ -188,6 +206,48 @@ const db = {
   async getChecklist(sb: SupabaseClient, clientId: number) {
     const { data } = await sb.from("checklist_tasks").select("*, responsible:team_members(*)").eq("client_id", clientId).order("task_order");
     return (data || []) as ChecklistTask[];
+  },
+
+  // ===== ОНБОРДИНГ =====
+  async getOnboardingTemplate(sb: SupabaseClient) {
+    const { data } = await sb.from("onboarding_template").select("*").order("task_order");
+    return (data || []) as OnboardingTemplateRow[];
+  },
+  async getOnboardingTasks(sb: SupabaseClient, clientId: number) {
+    const { data } = await sb
+      .from("checklist_tasks")
+      .select("*")
+      .eq("client_id", clientId)
+      .like("phase", "onboarding-%")
+      .order("task_order");
+    return (data || []) as ChecklistTask[];
+  },
+  async getOnboardingProgress(sb: SupabaseClient, clientId: number) {
+    const { data } = await sb
+      .from("onboarding_progress")
+      .select("*")
+      .eq("client_id", clientId)
+      .maybeSingle();
+    return data as OnboardingProgress | null;
+  },
+  async getAllOnboardingProgress(sb: SupabaseClient) {
+    const { data, error } = await sb.from("onboarding_progress").select("*");
+    if (error) return [];
+    return (data || []) as OnboardingProgress[];
+  },
+  async setOnboardingTaskStatus(sb: SupabaseClient, taskId: number, status: "pending" | "done" | "skipped") {
+    const { error } = await sb.from("checklist_tasks").update({ status }).eq("id", taskId);
+    return { error };
+  },
+  async completeOnboarding(sb: SupabaseClient, clientId: number) {
+    // Все pending → skipped (онбординг помечается как завершённый)
+    const { error } = await sb
+      .from("checklist_tasks")
+      .update({ status: "skipped" })
+      .eq("client_id", clientId)
+      .like("phase", "onboarding-%")
+      .eq("status", "pending");
+    return { error };
   },
   async updateTask(sb: SupabaseClient, id: number, updates: Partial<ChecklistTask>) {
     const { error } = await sb.from("checklist_tasks").update(updates).eq("id", id);
