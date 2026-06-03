@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase-browser";
 import db, { Client, Script, ChecklistTask, TeamMember, ClientMonth, OnboardingProgress } from "@/lib/database";
 import AvatarUploader from "@/components/AvatarUploader";
 import ClientMonthsTimeline from "@/components/ClientMonthsTimeline";
+import ClientOverview from "@/components/ClientOverview";
 
 export default function ClientDetailPage() {
   const { id } = useParams();
@@ -159,56 +160,18 @@ export default function ClientDetailPage() {
         </button>}
       </div>
 
-      {/* Hero Card */}
-      <div className="card client-detail-v2-hero mb-3" style={{ padding: "20px", borderRadius: 18, background: "linear-gradient(135deg, var(--card), var(--bg2))" }}>
-        <div className="flex items-center gap-4 flex-wrap">
-          <AvatarUploader
-            currentUrl={c.avatar_url}
-            name={`${c.name} ${c.surname || ""}`}
-            pathPrefix="clients"
-            entityId={c.id}
-            size={72}
-            onUploaded={async (url) => { await updateClientField("avatar_url", url); }}
-          />
-          <div className="flex-1 min-w-0">
-            <div className="flex gap-1.5 flex-wrap mb-1">
-              <span className="badge" style={{ background: "var(--cyd)", color: "var(--cy)" }}>{c.niche || "—"}</span>
-              <span className="badge" style={{ background: "var(--pud)", color: "var(--pu)" }}>{c.stage}</span>
-            </div>
-            <div className="text-xl font-extrabold" style={{ color: "var(--t1)" }}>{c.name} {c.surname}</div>
-            <div className="flex gap-2 mt-1 flex-wrap text-[10px]" style={{ color: "var(--t2)" }}>
-              <span>монт. <b style={{ color: "var(--or)" }}>{c.montager?.name || "—"}</b></span>
-              <span>TL <b style={{ color: "var(--pu)" }}>{c.teamlead?.name || "—"}</b></span>
-              <span>📦 {c.package} рилсов</span>
-            </div>
-          </div>
-          {/* Socials */}
-          <div className="flex gap-1.5 flex-wrap">
-            {(["instagram", "tiktok", "youtube"] as const).map(key => {
-              const url = c[key];
-              const labels = { instagram: "📷 Instagram", tiktok: "🎵 TikTok", youtube: "▶️ YouTube" };
-              const colors = { instagram: "var(--pk)", tiktok: "var(--t1)", youtube: "var(--rd)" };
-              if (editSocial === key) {
-                return (
-                  <div key={key} className="flex items-center gap-1 rounded-lg px-2" style={{ border: "1px solid var(--cy)", background: "var(--inp)" }}>
-                    <input autoFocus value={socialUrl} onChange={e => setSocialUrl(e.target.value)}
-                      onKeyDown={e => { if (e.key === "Enter" && socialUrl) { updateClientField(key, socialUrl); setEditSocial(null); setSocialUrl(""); } if (e.key === "Escape") { setEditSocial(null); setSocialUrl(""); } }}
-                      placeholder={`Ссылка...`} className="text-[10px] py-1 bg-transparent outline-none w-36" style={{ color: "var(--t1)", border: "none" }} />
-                    <button onClick={() => { if (socialUrl) updateClientField(key, socialUrl); setEditSocial(null); setSocialUrl(""); }}
-                      className="text-[9px] px-2 py-0.5 rounded font-semibold" style={{ background: "var(--gr)", color: "#fff", border: "none", cursor: "pointer" }}>✓</button>
-                  </div>
-                );
-              }
-              if (url) {
-                return <a key={key} href={url.startsWith("http") ? url : `https://${url}`} target="_blank" rel="noopener noreferrer"
-                  className="px-3 py-1.5 rounded-lg text-[10px] font-semibold" style={{ border: `1px solid ${colors[key]}50`, background: `${colors[key]}12`, color: colors[key], textDecoration: "none" }}>{labels[key]} ↗</a>;
-              }
-              return <button key={key} onClick={() => { setEditSocial(key); setSocialUrl(""); }}
-                className="px-3 py-1.5 rounded-lg text-[10px]" style={{ border: "1px solid var(--brd)", color: "var(--t3)", background: "transparent", cursor: "pointer" }}>{labels[key]} +</button>;
-            })}
-          </div>
-        </div>
-      </div>
+      {/* Client Overview — Hero + KPI + Pipeline + 3-column */}
+      <ClientOverview
+        client={c}
+        clientMonths={clientMonths}
+        scripts={scripts}
+        team={team}
+        activeMonth={viewMonth}
+        todayIso={new Date().toISOString().slice(0, 10)}
+        onEdit={() => { setEditData({ name: c.name, surname: c.surname, niche: c.niche, phone: c.phone, product: c.product, avg_check: c.avg_check, package: c.package, montager_id: c.montager_id, teamlead_id: c.teamlead_id, priority: c.priority, stage: c.stage }); setEditing(true); }}
+        onAvatarChange={async (url) => { await updateClientField("avatar_url", url); }}
+        onActivateMonth={(m) => setViewMonth(m)}
+      />
 
       {/* Onboarding Phase Block */}
       {onbProgress && (() => {
@@ -338,236 +301,6 @@ export default function ClientDetailPage() {
             </div>
           )}
         </div>
-      </div>
-
-      {/* Circular Stats with status details */}
-      <div className="client-detail-v2-stats grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2 mb-3">
-        {/* Чеклист */}
-        {(() => {
-          const r = 30; const circ = 2 * Math.PI * r; const pctV = pct / 100;
-          const todoTasks = checklist.filter(t => t.status === "todo").length;
-          const progTasks = checklist.filter(t => t.status === "progress").length;
-          return (
-            <div className="card flex items-center gap-3" style={{ padding: 12 }}>
-              <div className="relative shrink-0">
-                <svg width="68" height="68" style={{ transform: "rotate(-90deg)" }}>
-                  <circle cx="34" cy="34" r={r} fill="none" stroke="var(--brd)" strokeWidth="4.5" />
-                  <circle cx="34" cy="34" r={r} fill="none" stroke="var(--cy)" strokeWidth="4.5" strokeDasharray={circ} strokeDashoffset={circ - pctV * circ} strokeLinecap="round" />
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-sm font-bold font-mono" style={{ color: "var(--t1)" }}>{pct}%</span>
-                </div>
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-[9px] font-bold tracking-wider mb-1.5" style={{ color: "var(--t1)" }}>ЧЕКЛИСТ</div>
-                {[{ l: "Сделано", v: doneTasks, c: "var(--gr)" }, { l: "В процессе", v: progTasks, c: "var(--or)" }, { l: "Осталось", v: todoTasks, c: "var(--t3)" }].map((s, i) => (
-                  <div key={i} className="flex justify-between" style={{ padding: "1px 0" }}>
-                    <span className="text-[9px]" style={{ color: "var(--t2)" }}>{s.l}</span>
-                    <span className="text-[10px] font-bold font-mono" style={{ color: s.c }}>{s.v}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-        })()}
-
-        {/* Сценарии */}
-        {(() => {
-          const r = 30; const circ = 2 * Math.PI * r; const pctV = scripts.length > 0 ? scrApp / scripts.length : 0;
-          const notStarted = scripts.filter(s => s.script_status === "notStarted").length;
-          const inProg = scripts.filter(s => s.script_status === "inProgress").length;
-          const inReview = scripts.filter(s => s.script_status === "review").length;
-          return (
-            <div className="card flex items-center gap-3" style={{ padding: 12 }}>
-              <div className="relative shrink-0">
-                <svg width="68" height="68" style={{ transform: "rotate(-90deg)" }}>
-                  <circle cx="34" cy="34" r={r} fill="none" stroke="var(--brd)" strokeWidth="4.5" />
-                  <circle cx="34" cy="34" r={r} fill="none" stroke="var(--gr)" strokeWidth="4.5" strokeDasharray={circ} strokeDashoffset={circ - pctV * circ} strokeLinecap="round" />
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-sm font-bold font-mono" style={{ color: "var(--t1)" }}>{scrApp}</span>
-                </div>
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-[9px] font-bold tracking-wider mb-1.5" style={{ color: "var(--t1)" }}>СЦЕНАРИИ</div>
-                {[{ l: "Утверждён", v: scrApp, c: "var(--gr)" }, { l: "На утвержд.", v: inReview, c: "var(--yl)" }, { l: "В работе", v: inProg, c: "var(--or)" }, { l: "Не начато", v: notStarted, c: "var(--t3)" }].map((s, i) => (
-                  <div key={i} className="flex justify-between" style={{ padding: "1px 0" }}>
-                    <span className="text-[9px]" style={{ color: "var(--t2)" }}>{s.l}</span>
-                    <span className="text-[10px] font-bold font-mono" style={{ color: s.c }}>{s.v}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-        })()}
-
-        {/* Монтаж */}
-        {(() => {
-          const r = 30; const circ = 2 * Math.PI * r;
-          const totalMontage = inMontage + reviewVids + ready;
-          const pctV = scripts.length > 0 ? totalMontage / Math.max(1, scripts.length - pub) : 0;
-          return (
-            <div className="card flex items-center gap-3" style={{ padding: 12 }}>
-              <div className="relative shrink-0">
-                <svg width="68" height="68" style={{ transform: "rotate(-90deg)" }}>
-                  <circle cx="34" cy="34" r={r} fill="none" stroke="var(--brd)" strokeWidth="4.5" />
-                  <circle cx="34" cy="34" r={r} fill="none" stroke="var(--or)" strokeWidth="4.5" strokeDasharray={circ} strokeDashoffset={circ - pctV * circ} strokeLinecap="round" />
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-sm font-bold font-mono" style={{ color: "var(--t1)" }}>{totalMontage}</span>
-                </div>
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-[9px] font-bold tracking-wider mb-1.5" style={{ color: "var(--t1)" }}>МОНТАЖ</div>
-                {[{ l: "Готово", v: ready, c: "var(--cy)" }, { l: "На утвержд.", v: reviewVids, c: "var(--yl)" }, { l: "В работе", v: inMontage, c: "var(--or)" }, { l: "Осталось", v: Math.max(0, totalScripts - pub - ready - inMontage - reviewVids), c: "var(--t3)" }].map((s, i) => (
-                  <div key={i} className="flex justify-between" style={{ padding: "1px 0" }}>
-                    <span className="text-[9px]" style={{ color: "var(--t2)" }}>{s.l}</span>
-                    <span className="text-[10px] font-bold font-mono" style={{ color: s.c }}>{s.v}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-        })()}
-
-        {/* Ролики */}
-        {(() => {
-          const r = 30; const circ = 2 * Math.PI * r; const pctV = scripts.length > 0 ? pub / scripts.length : 0;
-          return (
-            <div className="card flex items-center gap-3" style={{ padding: 12 }}>
-              <div className="relative shrink-0">
-                <svg width="68" height="68" style={{ transform: "rotate(-90deg)" }}>
-                  <circle cx="34" cy="34" r={r} fill="none" stroke="var(--brd)" strokeWidth="4.5" />
-                  <circle cx="34" cy="34" r={r} fill="none" stroke="var(--pu)" strokeWidth="4.5" strokeDasharray={circ} strokeDashoffset={circ - pctV * circ} strokeLinecap="round" />
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-sm font-bold font-mono" style={{ color: "var(--t1)" }}>{pub}</span>
-                </div>
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-[9px] font-bold tracking-wider mb-1.5" style={{ color: "var(--t1)" }}>РОЛИКИ</div>
-                {[{ l: "Опубликовано", v: pub, c: "var(--gr)" }, { l: "Ожидается", v: expectedPub, c: pubOnTrack ? "var(--gr)" : "var(--rd)" }, { l: "Осталось", v: totalScripts - pub, c: "var(--t3)" }].map((s, i) => (
-                  <div key={i} className="flex justify-between" style={{ padding: "1px 0" }}>
-                    <span className="text-[9px]" style={{ color: "var(--t2)" }}>{s.l}</span>
-                    <span className="text-[10px] font-bold font-mono" style={{ color: s.c }}>{s.v}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-        })()}
-      </div>
-
-      {/* Client Card */}
-      <div className="card mb-3">
-        <div className="flex justify-between items-center mb-3">
-          <span className="text-[10px] font-bold tracking-wider" style={{ color: "var(--t1)" }}>КАРТОЧКА КЛИЕНТА</span>
-          {!editing ? (
-            <button onClick={() => { setEditData({ name: c.name, surname: c.surname, niche: c.niche, phone: c.phone, product: c.product, avg_check: c.avg_check, avatar_url: c.avatar_url, package: c.package, montager_id: c.montager_id, teamlead_id: c.teamlead_id, priority: c.priority, stage: c.stage }); setEditing(true); }}
-              className="text-[9px] px-3 py-1 rounded-lg font-semibold" style={{ border: "1px solid var(--cy)", color: "var(--cy)", background: "transparent", cursor: "pointer" }}>✏️ Редактировать</button>
-          ) : (
-            <div className="flex gap-1">
-              <button onClick={saveEdit} className="text-[9px] px-3 py-1 rounded-lg font-semibold" style={{ background: "var(--gr)", color: "#fff", border: "none", cursor: "pointer" }}>Сохранить</button>
-              <button onClick={() => setEditing(false)} className="text-[9px] px-3 py-1 rounded-lg" style={{ border: "1px solid var(--brd)", color: "var(--t2)", background: "transparent", cursor: "pointer" }}>Отмена</button>
-            </div>
-          )}
-        </div>
-        {editing ? (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-            {[["ИМЯ", "name"], ["ФАМИЛИЯ", "surname"], ["НИША", "niche"], ["ТЕЛЕФОН", "phone"], ["ПРОДУКТ", "product"], ["СР. ЧЕК", "avg_check"]].map(([l, k]) => (
-              <div key={k}><label className="block text-[8px] font-semibold tracking-wider mb-1" style={{ color: "var(--cy)" }}>{l}</label>
-                <input value={editData[k] || ""} onChange={e => setEditData((p: any) => ({ ...p, [k]: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-lg text-xs outline-none" style={{ background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)" }} /></div>
-            ))}
-            <div>
-              <label className="block text-[8px] font-semibold tracking-wider mb-1" style={{ color: "var(--cy)" }}>ПАКЕТ (РИЛСОВ)</label>
-              <div className="flex gap-1">
-                {[15, 30, 60, 90].map(p => (
-                  <button key={p} onClick={() => setEditData((prev: any) => ({ ...prev, package: p }))}
-                    className="px-2 py-1 rounded text-[10px]" style={{ border: `1px solid ${editData.package === p ? "var(--cy)" : "var(--brd)"}`, background: editData.package === p ? "var(--cyd)" : "transparent", color: editData.package === p ? "var(--cy)" : "var(--t2)", cursor: "pointer" }}>{p}</button>
-                ))}
-                <input type="number" value={editData.package || ""} onChange={e => setEditData((p: any) => ({ ...p, package: parseInt(e.target.value) || 0 }))}
-                  className="w-16 px-2 py-1 rounded-lg text-xs outline-none" style={{ background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)" }} placeholder="Своё" />
-              </div>
-            </div>
-            <div>
-              <label className="block text-[8px] font-semibold tracking-wider mb-1" style={{ color: "var(--cy)" }}>МОНТАЖЁР</label>
-              <select value={editData.montager_id || ""} onChange={e => setEditData((p: any) => ({ ...p, montager_id: parseInt(e.target.value) || null }))}
-                className="w-full px-3 py-2 rounded-lg text-xs outline-none" style={{ background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)" }}>
-                <option value="">—</option>
-                {team.filter(t => t.member_type === "montager").map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-[8px] font-semibold tracking-wider mb-1" style={{ color: "var(--cy)" }}>TEAM LEAD</label>
-              <select value={editData.teamlead_id || ""} onChange={e => setEditData((p: any) => ({ ...p, teamlead_id: parseInt(e.target.value) || null }))}
-                className="w-full px-3 py-2 rounded-lg text-xs outline-none" style={{ background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)" }}>
-                <option value="">—</option>
-                {team.filter(t => t.member_type === "teamlead" || t.member_type === "admin").map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-[8px] font-semibold tracking-wider mb-1" style={{ color: "var(--cy)" }}>ЭТАП</label>
-              <select value={editData.stage || ""} onChange={e => setEditData((p: any) => ({ ...p, stage: e.target.value }))}
-                className="w-full px-3 py-2 rounded-lg text-xs outline-none" style={{ background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)" }}>
-                {["Онбординг", "Подготовка", "Распаковка", "Стратегия", "Сценарии", "Производство", "Запуск"].map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-            {[["ИМЯ", `${c.name} ${c.surname || ""}`], ["НИША", c.niche], ["ТЕЛЕФОН", c.phone], ["ПРОДУКТ", c.product], ["СР. ЧЕК", c.avg_check], ["ПАКЕТ", `${c.package} роликов`], ["МОНТАЖЁР", c.montager?.name || "—"], ["TEAM LEAD", c.teamlead?.name || "—"], ["СТАРТ", c.start_date], ["ПУБЛИКАЦИЯ", c.pub_date || "—"], ["ЭТАП", c.stage], ["ПРИОРИТЕТ", c.priority]].map(([l, v], i) => (
-              <div key={i}><div className="text-[8px] font-semibold tracking-wider" style={{ color: "var(--cy)" }}>{l}</div><div className="text-[11px] font-medium" style={{ color: "var(--t1)" }}>{v}</div></div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Deadlines — smart status */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-3">
-        {/* First pub date */}
-        {(() => {
-          const val = c.first_pub_date;
-          const isOk = pubOnTrack;
-          const statusText = !val ? "Не указана" : pubOnTrack ? `✓ ${pub} из ${expectedPub} ожид.` : `⚠ Отстаём: ${pub} из ${expectedPub} ожид.`;
-          const statusColor = !val ? "var(--t3)" : isOk ? "var(--gr)" : "var(--rd)";
-          return (
-            <div className="card" style={{ padding: 10, borderColor: !isOk && val ? "rgba(239,68,68,0.3)" : "var(--brd)" }}>
-              <div className="text-[8px] font-semibold tracking-wider mb-1" style={{ color: "var(--cy)" }}>ПЕРВАЯ ПУБЛИКАЦИЯ</div>
-              <input type="date" value={val || ""} onChange={e => updateClientField("first_pub_date", e.target.value)}
-                className="text-sm font-bold font-mono bg-transparent border-none outline-none cursor-pointer" style={{ color: statusColor }} />
-              <div className="text-[9px] mt-1" style={{ color: statusColor }}>{statusText}</div>
-            </div>
-          );
-        })()}
-        {/* Scripts deadline */}
-        {(() => {
-          const val = c.scripts_deadline;
-          const statusText = !val ? "Не указан" : scrOnTrack ? `✓ Запас: ${scrAhead} сцен. наперёд` : `⚠ Запас: ${scrAhead} (нужно мин. 5)`;
-          const statusColor = !val ? "var(--t3)" : scrOnTrack ? "var(--gr)" : scrAhead < 0 ? "var(--rd)" : "var(--or)";
-          return (
-            <div className="card" style={{ padding: 10, borderColor: !scrOnTrack && val ? "rgba(249,115,22,0.3)" : "var(--brd)" }}>
-              <div className="text-[8px] font-semibold tracking-wider mb-1" style={{ color: "var(--cy)" }}>ДЕДЛАЙН СЦЕНАРИЕВ</div>
-              <input type="date" value={val || ""} onChange={e => updateClientField("scripts_deadline", e.target.value)}
-                className="text-sm font-bold font-mono bg-transparent border-none outline-none cursor-pointer" style={{ color: statusColor }} />
-              <div className="text-[9px] mt-1" style={{ color: statusColor }}>{statusText}</div>
-            </div>
-          );
-        })()}
-        {/* Videos deadline */}
-        {(() => {
-          const val = c.videos_deadline;
-          const statusText = !val ? "Не указан" : vidOnTrack ? `✓ Готово: ${ready} роликов наперёд` : `⚠ Готово: ${ready} (нужно мин. 3)`;
-          const statusColor = !val ? "var(--t3)" : vidOnTrack ? "var(--gr)" : "var(--or)";
-          return (
-            <div className="card" style={{ padding: 10, borderColor: !vidOnTrack && val ? "rgba(249,115,22,0.3)" : "var(--brd)" }}>
-              <div className="text-[8px] font-semibold tracking-wider mb-1" style={{ color: "var(--cy)" }}>ДЕДЛАЙН РОЛИКОВ</div>
-              <input type="date" value={val || ""} onChange={e => updateClientField("videos_deadline", e.target.value)}
-                className="text-sm font-bold font-mono bg-transparent border-none outline-none cursor-pointer" style={{ color: statusColor }} />
-              <div className="text-[9px] mt-1" style={{ color: statusColor }}>{statusText}</div>
-            </div>
-          );
-        })()}
       </div>
 
       {/* Contractual months timeline — теперь полностью редактируемый */}
