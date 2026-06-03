@@ -15,7 +15,7 @@ export type Client = {
 };
 export type Script = {
   id: number; client_id: number; month_number: number; order_num: number; hook: string;
-  ref_url: string; transcription: string; hook_text: string; body_text: string; cta: string;
+  ref_url: string; ref_text?: string | null; transcription: string; hook_text: string; body_text: string; cta: string;
   description: string; script_status: string; video_status: string; pub_date: string | null;
   ready_at: string | null;
 };
