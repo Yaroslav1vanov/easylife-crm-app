@@ -660,8 +660,7 @@ function ClientsBlock(p: ClientsBlockProps) {
       const c = p.clients.find(x => x.id === cm.client_id);
       if (!c) continue;
       const list = p.scripts.filter(s => s.client_id === c.id && s.month_number === cm.month_number);
-      // План на выбранный календарный месяц = пропорция от пакета (а не весь пакет M)
-      const plan = targetForCalendarMonth(cm, p.selectedMonth);
+      const plan = cm.package || list.length || 1;
       const scrApproved = list.filter(s => s.script_status === "approved").length;
       const montage = list.filter(s => s.script_status === "approved" && (s.video_status === "inProgress" || s.video_status === "ready" || s.video_status === "published")).length;
       const ready = list.filter(s => s.video_status === "ready" || s.video_status === "published").length;
@@ -1192,8 +1191,8 @@ function DashboardInner() {
       .map(o => ({ progress: o, client: clients.find(c => c.id === o.client_id) }))
       .filter(x => !!x.client) as { progress: OnboardingProgress; client: Client }[];
 
-    // Пропорциональный план на выбранный календарный месяц
-    const planRolls = activeMonths.reduce((s, m) => s + targetForCalendarMonth(m, selectedMonth), 0);
+    // План = сумма полных пакетов M (пропорция временно откачена — нужно уточнение)
+    const planRolls = activeMonths.reduce((s, m) => s + (m.package || 0), 0);
 
     const scriptsByClientMonth = (cm: ClientMonth) =>
       scripts.filter(s => s.client_id === cm.client_id && s.month_number === cm.month_number);

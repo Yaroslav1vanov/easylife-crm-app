@@ -191,7 +191,7 @@ export default function ScriptsPage() {
         if (cm.start_date > me || cm.end_date < ms) continue;
         if (clientFilter !== "all" && cm.client_id !== clientFilter) continue;
         if (cm.status === "planned" || cm.status === "cancelled") continue;
-        plan += targetForCalendarMonth(cm, selectedMonth);
+        plan += cm.package || 0;
       }
     }
     return {
