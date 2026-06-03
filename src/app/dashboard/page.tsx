@@ -9,6 +9,7 @@ import {
   Plus, Calendar as CalendarIcon, ChevronLeft, ChevronRight, ChevronDown,
   FileCheck2, Scissors, Send, ArrowRight, Filter,
   TrendingUp, TrendingDown, Minus,
+  Check, RotateCcw, PlusCircle,
   type LucideIcon,
 } from "lucide-react";
 
@@ -117,6 +118,286 @@ function KPICard({ title, value, caption, Icon, color, progress, attention, onCl
       {typeof progress === "number" && (
         <div style={{ height: 4, borderRadius: 2, background: "rgba(255,255,255,0.06)", overflow: "hidden", marginTop: 8 }}>
           <div style={{ width: `${Math.max(0, Math.min(100, progress))}%`, height: "100%", background: color, borderRadius: 2, transition: "width .3s" }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ===== Контрактные месяцы и продления ===== */
+type MonthsBlockProps = {
+  clients: Client[];
+  clientMonths: ClientMonth[];
+  scripts: Script[];
+  team: TeamMember[];
+  todayIso: string;
+  selectedMonth: string;
+  onChange: () => Promise<void> | void;
+  onOpen: (clientId: number) => void;
+};
+
+function MonthsBlock(p: MonthsBlockProps) {
+  const supabase = createClient();
+  const [busy, setBusy] = useState<number | null>(null);
+  const [renewModal, setRenewModal] = useState<{
+    clientId: number;
+    nextN: number;
+    start_date: string;
+    end_date: string;
+    pkg: string;
+    prevStatus: string;
+  } | null>(null);
+  const [showAll, setShowAll] = useState(false);
+
+  // строки: один M-месяц на клиента, активный или ближайший в этом периоде
+  const rows = useMemo(() => {
+    const { start: ms, end: me } = ymRange(p.selectedMonth);
+    type Row = { c: Client; cm: ClientMonth; nextCm: ClientMonth | null; published: number; ready: number; plan: number; totalPub: number; totalPlan: number; daysToEnd: number };
+    const out: Row[] = [];
+    for (const c of p.clients) {
+      const all = p.clientMonths.filter(m => m.client_id === c.id).sort((a, b) => a.month_number - b.month_number);
+      if (all.length === 0) continue;
+      // активный M в выбранном периоде
+      const overlapping = all.filter(m =>
+        (m.status === "active" || m.status === "closed" || m.status === "onboarding") &&
+        m.start_date <= me && m.end_date >= ms
+      );
+      const cm = overlapping[overlapping.length - 1] || all[all.length - 1];
+      if (!cm) continue;
+      const nextCm = all.find(m => m.month_number === cm.month_number + 1) || null;
+      const list = p.scripts.filter(s => s.client_id === c.id && s.month_number === cm.month_number);
+      const published = list.filter(s => s.video_status === "published").length;
+      const ready = list.filter(s => s.video_status === "ready" || s.video_status === "published").length;
+      const plan = cm.package || 0;
+      const totalPub = p.scripts.filter(s => s.client_id === c.id && s.video_status === "published").length;
+      const totalPlan = all.reduce((s, m) => s + (m.package || 0), 0);
+      const daysToEnd = daysBetween(p.todayIso, cm.end_date);
+      out.push({ c, cm, nextCm, published, ready, plan, totalPub, totalPlan, daysToEnd });
+    }
+    // сортируем: сначала ending soon без next, потом по дням до конца
+    out.sort((a, b) => {
+      const aPri = a.nextCm ? 999 : a.daysToEnd;
+      const bPri = b.nextCm ? 999 : b.daysToEnd;
+      return aPri - bPri;
+    });
+    return out;
+  }, [p.clients, p.clientMonths, p.scripts, p.todayIso, p.selectedMonth]);
+
+  const renewing = rows.filter(r => !r.nextCm && r.daysToEnd <= 14).length;
+  const visible = showAll ? rows : rows.slice(0, 8);
+
+  async function closeMonth(cmId: number) {
+    setBusy(cmId);
+    const { error } = await db.closeClientMonth(supabase, cmId);
+    if (error) alert("Ошибка: " + (error.message || error));
+    await p.onChange();
+    setBusy(null);
+  }
+
+  async function reopenMonth(cmId: number) {
+    setBusy(cmId);
+    const { error } = await db.reopenClientMonth(supabase, cmId);
+    if (error) alert("Ошибка: " + (error.message || error));
+    await p.onChange();
+    setBusy(null);
+  }
+
+  function startRenew(r: typeof rows[0]) {
+    const start = new Date(r.cm.end_date); start.setDate(start.getDate() + 1);
+    const end = new Date(start); end.setDate(end.getDate() + 30);
+    setRenewModal({
+      clientId: r.c.id,
+      nextN: r.cm.month_number + 1,
+      start_date: start.toISOString().slice(0, 10),
+      end_date: end.toISOString().slice(0, 10),
+      pkg: String(r.cm.package || 20),
+      prevStatus: r.cm.status,
+    });
+  }
+
+  async function confirmRenew() {
+    if (!renewModal) return;
+    setBusy(-1);
+    const pkg = parseInt(renewModal.pkg, 10);
+    if (!pkg || pkg < 1) { alert("Укажи пакет"); setBusy(null); return; }
+    // если предыдущий месяц ещё active → новый planned; если closed → новый active
+    const status: ClientMonth["status"] = renewModal.prevStatus === "closed" ? "active" : "planned";
+    const { error } = await db.upsertClientMonth(supabase, {
+      client_id: renewModal.clientId,
+      month_number: renewModal.nextN,
+      start_date: renewModal.start_date,
+      end_date: renewModal.end_date,
+      package: pkg,
+      status,
+    });
+    if (error) { alert("Ошибка: " + (error.message || error)); setBusy(null); return; }
+    setRenewModal(null);
+    await p.onChange();
+    setBusy(null);
+  }
+
+  const statusBadge = (status: string, daysToEnd: number) => {
+    if (status === "closed") return { l: "✓ Закрыт", c: "var(--gr)", bg: "rgba(168,224,99,0.12)" };
+    if (status === "onboarding") return { l: "🧩 Онбординг", c: "var(--cy)", bg: "rgba(66,212,244,0.12)" };
+    if (status === "planned") return { l: "🕓 Запланирован", c: "var(--pu)", bg: "rgba(157,107,255,0.12)" };
+    if (status === "cancelled") return { l: "— Отменён", c: "var(--t3)", bg: "rgba(255,255,255,0.04)" };
+    if (daysToEnd < 0) return { l: "🔴 Просрочка", c: "var(--rd)", bg: "rgba(255,92,122,0.12)" };
+    if (daysToEnd <= 5) return { l: "⏰ Заканчивается", c: "var(--or)", bg: "rgba(255,174,66,0.12)" };
+    return { l: "🟢 Активен", c: "var(--gr)", bg: "rgba(168,224,99,0.12)" };
+  };
+
+  return (
+    <div className="card" style={{ padding: 18, borderRadius: 18, marginBottom: 18 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 800, color: "var(--t1)" }}>
+          Контрактные месяцы и продления
+          {renewing > 0 && (
+            <span style={{ marginLeft: 8, padding: "2px 7px", borderRadius: 6, background: "rgba(255,174,66,0.15)", color: "var(--or)", fontSize: 10, fontWeight: 700 }}>
+              {renewing} требует продления
+            </span>
+          )}
+        </h3>
+        <div style={{ fontSize: 10, color: "var(--t3)", fontWeight: 600 }}>{rows.length} активных контрактов</div>
+      </div>
+
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
+          <thead>
+            <tr style={{ fontSize: 9, color: "var(--t3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>
+              {["Клиент", "Тимлид", "Месяц", "Период", "Статус", "Прогресс этого месяца", "Всего по контракту", "Действия"].map((h, i) => (
+                <th key={i} style={{ textAlign: i >= 5 ? "center" : "left", padding: "10px 8px", borderBottom: "1px solid var(--brd)", fontWeight: 700 }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {visible.map(r => {
+              const tl = p.team.find(t => t.id === r.c.teamlead_id);
+              const badge = statusBadge(r.cm.status, r.daysToEnd);
+              const pct = r.plan > 0 ? Math.round((r.published / r.plan) * 100) : 0;
+              const barColor = pct >= 80 ? "var(--gr)" : pct >= 40 ? "var(--cy)" : pct > 0 ? "var(--or)" : "var(--rd)";
+              return (
+                <tr key={r.cm.id} style={{ borderBottom: "1px solid rgba(157,107,255,0.08)" }}>
+                  <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 200, cursor: "pointer" }} onClick={() => p.onOpen(r.c.id)}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <Avatar name={`${r.c.name} ${r.c.surname || ""}`} src={r.c.avatar_url} size={32} />
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--t1)" }}>{r.c.name} {r.c.surname || ""}</div>
+                        <div style={{ fontSize: 9, color: "var(--t3)" }}>{r.c.niche || "—"}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td style={{ padding: "12px 8px", verticalAlign: "middle", fontSize: 11, color: "var(--t2)", fontWeight: 600 }}>
+                    {tl ? <div style={{ display: "flex", alignItems: "center", gap: 6 }}><Avatar name={tl.name} src={tl.avatar_url} size={22} />{tl.name}</div> : "—"}
+                  </td>
+                  <td style={{ padding: "12px 8px", verticalAlign: "middle", textAlign: "center" }}>
+                    <span style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 16, fontWeight: 800, color: "var(--pu)" }}>M{r.cm.month_number}</span>
+                  </td>
+                  <td style={{ padding: "12px 8px", verticalAlign: "middle", whiteSpace: "nowrap" }}>
+                    <div style={{ fontSize: 11, color: "var(--t1)", fontWeight: 600 }}>{fmtDateShort(r.cm.start_date)} → {fmtDateShort(r.cm.end_date)}</div>
+                    <div style={{ fontSize: 9, color: r.daysToEnd < 0 ? "var(--rd)" : r.daysToEnd <= 5 ? "var(--or)" : "var(--t3)", fontWeight: 600, marginTop: 1 }}>
+                      {r.daysToEnd < 0 ? `просрочка ${-r.daysToEnd} дн.` : `осталось ${r.daysToEnd} дн.`}
+                    </div>
+                  </td>
+                  <td style={{ padding: "12px 8px", verticalAlign: "middle", textAlign: "center" }}>
+                    <span style={{ padding: "4px 8px", borderRadius: 7, background: badge.bg, color: badge.c, fontSize: 10, fontWeight: 700, whiteSpace: "nowrap" }}>{badge.l}</span>
+                  </td>
+                  <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 160 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                      <span style={{ fontSize: 10, fontFamily: "monospace", color: "var(--t1)", fontWeight: 700 }}>📤 {r.published} / {r.plan}</span>
+                      <span style={{ fontSize: 10, color: barColor, fontWeight: 700 }}>{pct}%</span>
+                    </div>
+                    <div style={{ height: 5, borderRadius: 3, background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
+                      <div style={{ width: `${pct}%`, height: "100%", background: barColor, borderRadius: 3 }} />
+                    </div>
+                    <div style={{ fontSize: 9, color: "var(--t3)", marginTop: 3 }}>готово {r.ready} · буфер +{Math.max(0, r.ready - r.published)}</div>
+                  </td>
+                  <td style={{ padding: "12px 8px", verticalAlign: "middle", textAlign: "center" }}>
+                    <div style={{ fontFamily: "monospace", fontSize: 12, fontWeight: 700, color: "var(--t1)" }}>{r.totalPub} / {r.totalPlan}</div>
+                    <div style={{ fontSize: 9, color: "var(--t3)" }}>за все месяцы</div>
+                  </td>
+                  <td style={{ padding: "12px 8px", verticalAlign: "middle", textAlign: "center", whiteSpace: "nowrap" }}>
+                    <div style={{ display: "inline-flex", gap: 5, flexWrap: "wrap", justifyContent: "center" }}>
+                      {r.cm.status === "active" || r.cm.status === "onboarding" ? (
+                        <button onClick={() => closeMonth(r.cm.id)} disabled={busy === r.cm.id}
+                          style={{ padding: "5px 9px", borderRadius: 7, background: "rgba(168,224,99,0.12)", border: "1px solid var(--gr)", color: "var(--gr)", fontSize: 10, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                          <Check size={10} strokeWidth={2.4} /> Закрыть
+                        </button>
+                      ) : r.cm.status === "closed" ? (
+                        <button onClick={() => reopenMonth(r.cm.id)} disabled={busy === r.cm.id}
+                          style={{ padding: "5px 9px", borderRadius: 7, background: "transparent", border: "1px solid var(--brd)", color: "var(--t2)", fontSize: 10, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                          <RotateCcw size={10} strokeWidth={2.4} /> Открыть
+                        </button>
+                      ) : null}
+                      {r.nextCm ? (
+                        <span style={{ padding: "5px 9px", borderRadius: 7, background: "rgba(157,107,255,0.12)", color: "var(--pu)", fontSize: 10, fontWeight: 700, border: "1px solid rgba(157,107,255,0.3)" }}>
+                          ✓ Продлён → M{r.nextCm.month_number}
+                        </span>
+                      ) : (
+                        <button onClick={() => startRenew(r)}
+                          style={{ padding: "5px 9px", borderRadius: 7, background: "linear-gradient(135deg, var(--cy), var(--pu))", border: "none", color: "#fff", fontSize: 10, fontWeight: 800, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                          <PlusCircle size={10} strokeWidth={2.4} /> + M{r.cm.month_number + 1}
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+            {visible.length === 0 && <tr><td colSpan={8} style={{ padding: 30, textAlign: "center", color: "var(--t3)", fontSize: 12 }}>Нет активных контрактов</td></tr>}
+          </tbody>
+        </table>
+      </div>
+
+      {rows.length > 8 && (
+        <div style={{ textAlign: "center", marginTop: 10 }}>
+          <button onClick={() => setShowAll(v => !v)}
+            style={{ padding: "6px 16px", borderRadius: 8, background: "transparent", border: "1px solid var(--brd)", color: "var(--t2)", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+            {showAll ? "Свернуть" : `Показать всех (${rows.length})`}
+          </button>
+        </div>
+      )}
+
+      {/* Renew modal */}
+      {renewModal && (
+        <div onClick={() => setRenewModal(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 16, padding: 24, width: "100%", maxWidth: 420 }}>
+            <h3 style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 18, fontWeight: 800, color: "var(--t1)", marginBottom: 4 }}>Открыть M{renewModal.nextN}</h3>
+            <p style={{ fontSize: 11, color: "var(--t3)", marginBottom: 18 }}>
+              {(() => {
+                const c = p.clients.find(c => c.id === renewModal.clientId);
+                return c ? `${c.name} ${c.surname || ""}` : "";
+              })()}
+            </p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+              <div>
+                <label style={{ fontSize: 9, color: "var(--t3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4, display: "block" }}>Начало</label>
+                <input type="date" value={renewModal.start_date} onChange={(e) => setRenewModal({ ...renewModal, start_date: e.target.value })}
+                  style={{ width: "100%", padding: "8px 10px", borderRadius: 8, background: "var(--bg)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 12 }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 9, color: "var(--t3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4, display: "block" }}>Окончание</label>
+                <input type="date" value={renewModal.end_date} onChange={(e) => setRenewModal({ ...renewModal, end_date: e.target.value })}
+                  style={{ width: "100%", padding: "8px 10px", borderRadius: 8, background: "var(--bg)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 12 }} />
+              </div>
+            </div>
+            <div style={{ marginBottom: 18 }}>
+              <label style={{ fontSize: 9, color: "var(--t3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4, display: "block" }}>Пакет (роликов в месяц)</label>
+              <input type="number" min={1} max={999} value={renewModal.pkg} onChange={(e) => setRenewModal({ ...renewModal, pkg: e.target.value })}
+                style={{ width: "100%", padding: "8px 10px", borderRadius: 8, background: "var(--bg)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 14, fontWeight: 700 }} />
+            </div>
+            <div style={{ fontSize: 10, color: "var(--t3)", marginBottom: 16, padding: 10, borderRadius: 8, background: "rgba(157,107,255,0.06)", border: "1px solid var(--brd)" }}>
+              {renewModal.prevStatus === "closed"
+                ? "Прошлый месяц закрыт → новый станет сразу active (работа уже идёт)"
+                : "Прошлый месяц ещё active → новый создастся как planned. Когда прошлый закроется — этот автоматически станет active."}
+            </div>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button onClick={() => setRenewModal(null)} style={{ padding: "8px 14px", borderRadius: 8, background: "transparent", border: "1px solid var(--brd)", color: "var(--t2)", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Отмена</button>
+              <button onClick={confirmRenew} disabled={busy === -1}
+                style={{ padding: "8px 18px", borderRadius: 8, background: "linear-gradient(135deg, var(--cy), var(--pu))", border: "none", color: "#fff", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>
+                {busy === -1 ? "..." : `Открыть M${renewModal.nextN}`}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -1152,6 +1433,21 @@ function DashboardInner() {
           )}
         </div>
       </div>
+
+      {/* ===== КОНТРАКТНЫЕ МЕСЯЦЫ И ПРОДЛЕНИЯ ===== */}
+      <MonthsBlock
+        clients={clients}
+        clientMonths={clientMonths}
+        scripts={scripts}
+        team={team}
+        todayIso={todayIso}
+        selectedMonth={selectedMonth}
+        onChange={async () => {
+          const cmRes = await db.getClientMonths(supabase);
+          setClientMonths(cmRes?.data || []);
+        }}
+        onOpen={(id) => router.push(`/dashboard/clients/${id}`)}
+      />
 
       {/* ===== КЛИЕНТЫ В РАБОТЕ (таблица) ===== */}
       <ClientsBlock
