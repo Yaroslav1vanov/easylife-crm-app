@@ -152,6 +152,17 @@ type MonthsRow = {
 function MonthsBlock(p: MonthsBlockProps) {
   const supabase = createClient();
   const [busy, setBusy] = useState<number | null>(null);
+  const [editingDate, setEditingDate] = useState<number | null>(null); // cm.id
+  const [editDateValue, setEditDateValue] = useState<string>("");
+
+  async function saveEndDate(cmId: number, newEndDate: string) {
+    setBusy(cmId);
+    const { error } = await db.updateClientMonth(supabase, cmId, { end_date: newEndDate });
+    if (error) alert("Ошибка: " + (error.message || error));
+    setEditingDate(null);
+    await p.onChange();
+    setBusy(null);
+  }
   const [renewModal, setRenewModal] = useState<{
     clientId: number;
     nextN: number;
@@ -310,7 +321,31 @@ function MonthsBlock(p: MonthsBlockProps) {
           <span style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 16, fontWeight: 800, color: "var(--pu)" }}>M{r.cm.month_number}</span>
         </td>
         <td style={{ padding: "12px 8px", verticalAlign: "middle", whiteSpace: "nowrap" }}>
-          <div style={{ fontSize: 11, color: "var(--t1)", fontWeight: 600 }}>{fmtDateShort(r.cm.start_date)} → {fmtDateShort(r.cm.end_date)}</div>
+          {editingDate === r.cm.id ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <span style={{ fontSize: 11, color: "var(--t2)" }}>{fmtDateShort(r.cm.start_date)} →</span>
+              <input
+                autoFocus
+                type="date"
+                value={editDateValue}
+                onChange={(e) => setEditDateValue(e.target.value)}
+                onBlur={() => { if (editDateValue && editDateValue !== r.cm.end_date) saveEndDate(r.cm.id, editDateValue); else setEditingDate(null); }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                  if (e.key === "Escape") setEditingDate(null);
+                }}
+                style={{ padding: "3px 6px", borderRadius: 5, background: "var(--bg)", border: "1px solid var(--cy)", color: "var(--t1)", fontSize: 11 }}
+              />
+            </div>
+          ) : (
+            <div
+              style={{ fontSize: 11, color: "var(--t1)", fontWeight: 600, cursor: "pointer" }}
+              title="Клик — изменить дату окончания"
+              onClick={(e) => { e.stopPropagation(); setEditDateValue(r.cm.end_date); setEditingDate(r.cm.id); }}
+            >
+              {fmtDateShort(r.cm.start_date)} → <span style={{ borderBottom: "1px dashed var(--t3)" }}>{fmtDateShort(r.cm.end_date)}</span> <span style={{ fontSize: 9, color: "var(--t3)", marginLeft: 4 }}>✎</span>
+            </div>
+          )}
           <div style={{ fontSize: 9, color: r.daysToEnd < 0 ? "var(--rd)" : r.daysToEnd <= 5 ? "var(--or)" : "var(--t3)", fontWeight: 600, marginTop: 1 }}>
             {r.daysToEnd < 0 ? `просрочка ${-r.daysToEnd} дн.` : `осталось ${r.daysToEnd} дн.`}
           </div>
@@ -1039,8 +1074,10 @@ function DashboardInner() {
   /* ===== Derived ===== */
   const data = useMemo(() => {
     const { start: ms, end: me } = periodRange;
+    // Активные = active + closed + planned + onboarding в выбранном периоде
+    // (planned тоже считаем — это уже подписанный контракт, просто ждёт старта)
     const activeMonths = clientMonths.filter(cm =>
-      (cm.status === "active" || cm.status === "closed") &&
+      (cm.status === "active" || cm.status === "closed" || cm.status === "planned" || cm.status === "onboarding") &&
       cm.start_date <= me && cm.end_date >= ms
     );
     const activeClientIds = new Set(activeMonths.map(m => m.client_id));
@@ -1440,7 +1477,7 @@ function DashboardInner() {
       </div>
 
       {/* ===== ROW 3: Команда + Контракты + Сегодня ===== */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 18 }} className="dashboard-v3-row3">
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 18 }} className="dashboard-v3-row3">
         {/* Загрузка команды — теперь конкретные задачи */}
         <div className="card" style={{ padding: 18, borderRadius: 18 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
@@ -1504,37 +1541,6 @@ function DashboardInner() {
             </div>
           )}
           <button onClick={() => router.push("/dashboard/team")} style={{ marginTop: 14, width: "100%", padding: "8px", borderRadius: 8, background: "transparent", border: "1px solid var(--brd)", color: "var(--t2)", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Вся команда →</button>
-        </div>
-
-        {/* Контракты */}
-        <div className="card" style={{ padding: 18, borderRadius: 18 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-            <h3 style={{ fontSize: 14, fontWeight: 800, color: "var(--t1)" }}>Контракты и продления</h3>
-          </div>
-          {data.contractsEnding.length === 0 ? (
-            <div style={{ padding: 20, color: "var(--t3)", textAlign: "center", fontSize: 12 }}>Ничего не заканчивается</div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-              {data.contractsEnding.map(cm => {
-                const c = clients.find(x => x.id === cm.client_id);
-                if (!c) return null;
-                const daysToEnd = daysBetween(todayIso, cm.end_date);
-                const dotColor = daysToEnd < 0 ? "#ff5c7a" : daysToEnd <= 3 ? "#ff5c7a" : daysToEnd <= 7 ? "#ffae42" : daysToEnd <= 14 ? "#f5c451" : "#42d4f4";
-                const label = daysToEnd < 0 ? `Просрочка ${-daysToEnd} дн.` : daysToEnd === 0 ? "Сегодня" : `через ${daysToEnd} дн.`;
-                const labelColor = daysToEnd < 0 ? "var(--rd)" : daysToEnd <= 7 ? "var(--or)" : "var(--t2)";
-                return (
-                  <div key={cm.id} style={{ display: "flex", alignItems: "center", gap: 9, padding: "6px 4px", borderRadius: 8 }}>
-                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: dotColor, flexShrink: 0 }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: "var(--t1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name} {c.surname || ""}</div>
-                      <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 600, marginTop: 1 }}>M{cm.month_number} · {fmtDateShort(cm.start_date)} — {fmtDateShort(cm.end_date)}</div>
-                    </div>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: labelColor, whiteSpace: "nowrap" }}>{label}</div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
         </div>
 
         {/* Что нужно сделать — с фильтром по сотруднику */}
