@@ -2,11 +2,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
-import db, { Client, Script, TeamMember } from "@/lib/database";
+import db, { Client, Script, TeamMember, ClientMonth } from "@/lib/database";
 import Avatar from "@/components/Avatar";
 import {
   FileText, Pen, UserCheck, CheckCircle2, RotateCcw, Archive, AlertCircle,
-  Filter, Search, Calendar as CalendarIcon, ChevronDown, X, ExternalLink,
+  Filter, Search, Calendar as CalendarIcon, ChevronDown, ChevronLeft, ChevronRight, X, ExternalLink,
   type LucideIcon,
 } from "lucide-react";
 
@@ -14,12 +14,20 @@ const RU_MONTHS_GEN = ["января", "февраля", "марта", "апре
 const RU_MONTHS = ["январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"];
 
 function ymOfDate(d: Date) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; }
+function ymShift(ym: string, delta: number) {
+  const [y, m] = ym.split("-").map(Number);
+  return ymOfDate(new Date(y, m - 1 + delta, 1));
+}
 function ymRange(ym: string) {
   const [y, m] = ym.split("-").map(Number);
   const start = `${y}-${String(m).padStart(2, "0")}-01`;
   const lastDay = new Date(y, m, 0).getDate();
   const end = `${y}-${String(m).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
   return { start, end };
+}
+function ymLabel(ym: string) {
+  const [y, m] = ym.split("-").map(Number);
+  return `${RU_MONTHS[m - 1]} ${y}`;
 }
 function fmtDateShort(s: string | null | undefined) {
   if (!s) return "—";
@@ -67,8 +75,10 @@ export default function ScriptsPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [allScripts, setAllScripts] = useState<Script[]>([]);
+  const [clientMonths, setClientMonths] = useState<ClientMonth[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedMonth, setSelectedMonth] = useState(ymOfDate(today));
+  const currentYM = ymOfDate(today);
+  const [selectedMonth, setSelectedMonth] = useState<string | "all">(currentYM);
   const [clientFilter, setClientFilter] = useState<"all" | number>("all");
   const [statusFilter, setStatusFilter] = useState<"all" | ColumnId>("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -87,6 +97,8 @@ export default function ScriptsPage() {
     setTeam(tm);
     const all = await db.getScriptsForClients(supabase, cls.map(c => c.id));
     setAllScripts(all);
+    const cmRes = await db.getClientMonths(supabase);
+    setClientMonths(cmRes?.data || []);
     setLoading(false);
   }
 
@@ -104,14 +116,28 @@ export default function ScriptsPage() {
     setDragOverCol(null);
   }
 
-  /* Filter scripts by month + client + search */
+  /* Считаем какие (client_id, month_number) активны в выбранном периоде */
+  const activeMonthKeys = useMemo(() => {
+    if (selectedMonth === "all") return null; // null = не фильтруем
+    const { start: ms, end: me } = ymRange(selectedMonth);
+    const set = new Set<string>();
+    for (const cm of clientMonths) {
+      if (cm.start_date <= me && cm.end_date >= ms) {
+        set.add(`${cm.client_id}:${cm.month_number}`);
+      }
+    }
+    return set;
+  }, [clientMonths, selectedMonth]);
+
+  /* Filter scripts by period + client + search */
   const filteredScripts = useMemo(() => {
     return allScripts.filter(s => {
       const c = clients.find(x => x.id === s.client_id);
       if (!c) return false;
+      // фильтр по периоду — только сценарии активного M-месяца этого клиента в этом периоде
+      if (activeMonthKeys && !activeMonthKeys.has(`${s.client_id}:${s.month_number}`)) return false;
       // фильтр по клиенту
       if (clientFilter !== "all" && s.client_id !== clientFilter) return false;
-      // фильтр по выбранному месяцу через month_number (нужно знать ClientMonth — упрощаю: если pub_date или month совпадает с selectedMonth ИЛИ если month_number равен текущему месяцу клиента)
       // фильтр по поиску
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
@@ -120,7 +146,7 @@ export default function ScriptsPage() {
       }
       return true;
     });
-  }, [allScripts, clients, clientFilter, searchQuery]);
+  }, [allScripts, clients, clientFilter, searchQuery, activeMonthKeys]);
 
   /* Group by column */
   const byColumn = useMemo(() => {
@@ -161,15 +187,43 @@ export default function ScriptsPage() {
         <div>
           <h1 style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 22, fontWeight: 800, color: "var(--t1)", letterSpacing: -0.5 }}>
             Сценарии
-            <span style={{ marginLeft: 10, fontSize: 14, color: "var(--pu)", padding: "3px 10px", borderRadius: 8, background: "rgba(157,107,255,0.15)", fontFamily: "'Manrope', sans-serif" }}>{allScripts.length}</span>
+            <span style={{ marginLeft: 10, fontSize: 14, color: "var(--pu)", padding: "3px 10px", borderRadius: 8, background: "rgba(157,107,255,0.15)", fontFamily: "'Manrope', sans-serif" }}>{filteredScripts.length}</span>
           </h1>
-          <p style={{ fontSize: 12, color: "var(--t3)", marginTop: 4, fontWeight: 500 }}>Все сценарии — от идеи до передачи в монтаж</p>
+          <p style={{ fontSize: 12, color: "var(--t3)", marginTop: 4, fontWeight: 500 }}>
+            {selectedMonth === "all" ? "Все сценарии по всем месяцам" : `Сценарии за ${ymLabel(selectedMonth)}`}
+            {clientFilter !== "all" && (() => { const c = clients.find(x => x.id === clientFilter); return c ? ` · ${c.name} ${c.surname || ""}` : ""; })()}
+          </p>
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <div style={{ padding: "8px 14px", borderRadius: 12, background: "rgba(123,63,228,0.08)", border: "1px solid var(--brd)", display: "flex", alignItems: "center", gap: 8, fontSize: 12, fontWeight: 700, color: "var(--t1)" }}>
+          {/* Period picker */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 12, background: "rgba(123,63,228,0.08)", border: "1px solid var(--brd)" }}>
+            <button onClick={() => setSelectedMonth(s => s === "all" ? currentYM : ymShift(s, -1))}
+              style={{ background: "transparent", border: "none", color: "var(--t2)", cursor: "pointer", padding: 4, display: "flex", alignItems: "center" }}>
+              <ChevronLeft size={14} />
+            </button>
             <CalendarIcon size={13} style={{ color: "var(--t3)" }} />
-            {(() => { const [y, m] = selectedMonth.split("-").map(Number); return `${RU_MONTHS[m - 1]} ${y}`; })()}
+            <span style={{ fontSize: 12, fontWeight: 700, color: "var(--t1)", minWidth: 90, textAlign: "center" }}>
+              {selectedMonth === "all" ? "Всё время" : ymLabel(selectedMonth)}
+            </span>
+            {selectedMonth !== currentYM && selectedMonth !== "all" && (
+              <button onClick={() => setSelectedMonth(currentYM)} title="Текущий месяц"
+                style={{ background: "transparent", border: "none", color: "var(--cy)", cursor: "pointer", fontSize: 10, fontWeight: 700, padding: "2px 6px" }}>сейчас</button>
+            )}
+            <button onClick={() => setSelectedMonth(s => s === "all" ? currentYM : ymShift(s, 1))}
+              style={{ background: "transparent", border: "none", color: "var(--t2)", cursor: "pointer", padding: 4, display: "flex", alignItems: "center" }}>
+              <ChevronRight size={14} />
+            </button>
           </div>
+          <button onClick={() => setSelectedMonth(selectedMonth === "all" ? currentYM : "all")}
+            style={{
+              padding: "8px 14px", borderRadius: 12,
+              background: selectedMonth === "all" ? "linear-gradient(135deg, var(--pu), #7b3fe4)" : "transparent",
+              color: selectedMonth === "all" ? "#fff" : "var(--t2)",
+              border: selectedMonth === "all" ? "none" : "1px solid var(--brd)",
+              fontSize: 11, fontWeight: 700, cursor: "pointer",
+            }}>
+            {selectedMonth === "all" ? "✓ Всё время" : "Всё время"}
+          </button>
         </div>
       </div>
 
