@@ -177,25 +177,32 @@ export default function ScriptsPage() {
   /* KPI cards — план = пропорция package на выбранный календарный месяц
      (planned контракты не считаем — клиент с planned M ещё не "в работе") */
   const kpis = useMemo(() => {
-    let plan = 0;
-    if (selectedMonth === "all") {
-      // Всё время = сумма всех package (с фильтром клиента), исключая planned/cancelled
-      for (const cm of clientMonths) {
-        if (clientFilter !== "all" && cm.client_id !== clientFilter) continue;
-        if (cm.status === "planned" || cm.status === "cancelled") continue;
-        plan += cm.package || 0;
+    // Полный пакет всех применимых CM
+    let totalPkg = 0;
+    // Опубликованных сценариев в этих же CM
+    let publishedCount = 0;
+    const include = (cm: ClientMonth) => {
+      if (cm.status === "planned" || cm.status === "cancelled") return false;
+      if (clientFilter !== "all" && cm.client_id !== clientFilter) return false;
+      if (selectedMonth !== "all") {
+        const { start: ms, end: me } = ymRange(selectedMonth);
+        if (cm.start_date > me || cm.end_date < ms) return false;
       }
-    } else {
-      const { start: ms, end: me } = ymRange(selectedMonth);
-      for (const cm of clientMonths) {
-        if (cm.start_date > me || cm.end_date < ms) continue;
-        if (clientFilter !== "all" && cm.client_id !== clientFilter) continue;
-        if (cm.status === "planned" || cm.status === "cancelled") continue;
-        plan += cm.package || 0;
-      }
+      return true;
+    };
+    for (const cm of clientMonths) {
+      if (!include(cm)) continue;
+      totalPkg += cm.package || 0;
+      publishedCount += allScripts.filter((s: Script) =>
+        s.client_id === cm.client_id &&
+        s.month_number === cm.month_number &&
+        s.video_status === "published"
+      ).length;
     }
+    const remaining = Math.max(0, totalPkg - publishedCount);
     return {
-      plan,
+      remaining, // Осталось до конца M
+      plan: totalPkg, // Полный пакет
       total: filteredScripts.length, // фактически создано записей в БД
       writing: byColumn.writing.length,
       review: byColumn.review.length,
@@ -203,7 +210,7 @@ export default function ScriptsPage() {
       rework: byColumn.rework.length,
       overdue: 0,
     };
-  }, [filteredScripts, byColumn, clientMonths, selectedMonth, clientFilter]);
+  }, [filteredScripts, byColumn, clientMonths, selectedMonth, clientFilter, allScripts]);
 
   if (loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--t2)" }}>Загрузка…</div>;
 
@@ -257,7 +264,7 @@ export default function ScriptsPage() {
       {/* KPI ROW */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 10, marginBottom: 18 }} className="scripts-kpi">
         {([
-          { Icon: FileText, label: "План на период", val: String(kpis.plan), color: "#9d6bff", caption: `${kpis.total} создано` },
+          { Icon: FileText, label: "Осталось сделать", val: String(kpis.remaining), color: "#9d6bff", caption: `из ${kpis.plan} в пакетах` },
           { Icon: Pen, label: "На написании", val: String(kpis.writing), color: "#42d4f4", caption: kpis.plan ? `${Math.round((kpis.writing / kpis.plan) * 100)}% плана` : "—" },
           { Icon: UserCheck, label: "На согласовании", val: String(kpis.review), color: "#ffae42", caption: kpis.plan ? `${Math.round((kpis.review / kpis.plan) * 100)}% плана` : "—" },
           { Icon: CheckCircle2, label: "Готовы к монтажу", val: String(kpis.ready), color: "#a8e063", caption: kpis.plan ? `${Math.round((kpis.ready / kpis.plan) * 100)}% плана` : "—" },

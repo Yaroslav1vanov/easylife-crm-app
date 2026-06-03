@@ -914,7 +914,7 @@ function ClientsBlock(p: ClientsBlockProps) {
           <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1200 }}>
             <thead>
               <tr style={{ fontSize: 9, color: "var(--t3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>
-                {["Клиент", "Пакет", "Период", "План", "Сценарии", "Монтаж", "Готово", "Опубликовано", "Осталось", "Прогресс", "Статус", "Дедлайн", ""].map((h, i) => (
+                {["Клиент", "Пакет", "Период", "Сценарии", "Монтаж", "Готово", "Опубликовано", "Осталось", "Прогресс", "Статус", "Дедлайн", ""].map((h, i) => (
                   <th key={i} style={{ textAlign: "left", padding: "10px 8px", borderBottom: "1px solid var(--brd)", fontWeight: 700 }}>{h}</th>
                 ))}
               </tr>
@@ -955,10 +955,6 @@ function ClientsBlock(p: ClientsBlockProps) {
                       <div style={{ fontSize: 9, color: r.daysToEnd < 0 ? "var(--rd)" : "var(--t3)", fontWeight: 600, marginTop: 1 }}>
                         {r.daysToEnd < 0 ? `просрочка ${-r.daysToEnd}д` : `${r.daysToEnd} дней`}
                       </div>
-                    </td>
-                    {/* План */}
-                    <td style={{ padding: "12px 8px", verticalAlign: "middle", fontFamily: "'Unbounded', sans-serif", fontSize: 16, fontWeight: 800, color: "var(--t1)" }}>
-                      {r.plan}
                     </td>
                     {/* Сценарии */}
                     <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 110 }}><StageCell done={r.scrApproved} plan={r.plan} color="#42d4f4" /></td>
@@ -1014,7 +1010,6 @@ function ClientsBlock(p: ClientsBlockProps) {
                     Итого на {ymLabel(p.selectedMonth)}
                   </td>
                   <td style={{ padding: "14px 8px", fontSize: 11, color: "var(--t2)", fontWeight: 600 }}>{new Set(sorted.map(r => r.c.id)).size} клиентов · {sorted.length} M-периодов</td>
-                  <td />
                   <td style={{ padding: "14px 8px", fontFamily: "'Unbounded', sans-serif", fontSize: 14, fontWeight: 800, color: "var(--pu)" }}>{totals.plan}</td>
                   <td style={{ padding: "14px 8px" }}><StageCell done={totals.scr} plan={totals.plan} color="#42d4f4" /></td>
                   <td style={{ padding: "14px 8px" }}><StageCell done={totals.montage} plan={totals.plan} color="#ffae42" /></td>
@@ -1191,11 +1186,16 @@ function DashboardInner() {
       .map(o => ({ progress: o, client: clients.find(c => c.id === o.client_id) }))
       .filter(x => !!x.client) as { progress: OnboardingProgress; client: Client }[];
 
-    // План = сумма полных пакетов M (пропорция временно откачена — нужно уточнение)
-    const planRolls = activeMonths.reduce((s, m) => s + (m.package || 0), 0);
-
     const scriptsByClientMonth = (cm: ClientMonth) =>
       scripts.filter(s => s.client_id === cm.client_id && s.month_number === cm.month_number);
+
+    // Полный пакет всех активных M (для контекста)
+    const totalPackage = activeMonths.reduce((s, m) => s + (m.package || 0), 0);
+    // ОСТАЛОСЬ сделать до конца M = sum(max(0, pkg - published)) по активным
+    const planRolls = activeMonths.reduce((s, m) => {
+      const pub = scriptsByClientMonth(m).filter(x => x.video_status === "published").length;
+      return s + Math.max(0, (m.package || 0) - pub);
+    }, 0);
 
     let scriptsApproved = 0, scriptsReview = 0, scriptsInProg = 0, videosMontage = 0, videosReady = 0, videosPublished = 0;
     for (const cm of activeMonths) {
@@ -1309,7 +1309,7 @@ function DashboardInner() {
       .sort((a, b) => b.totalPlan - a.totalPlan);
 
     return {
-      activeClients, activeMonths, planRolls,
+      activeClients, activeMonths, planRolls, totalPackage,
       scriptsApproved, scriptsReview, scriptsInProg,
       videosMontage, videosReady, videosPublished,
       contractsEnding, endingThisPeriod, renewedCount,
@@ -1449,7 +1449,7 @@ function DashboardInner() {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 18 }} className="dashboard-v3-kpi">
         <KPICard title="Всего клиентов" value={String(data.activeClients.length)} caption={`активных + ${data.onboardingClients.length} на онбординге`} Icon={Users} color="#42d4f4" />
         <KPICard title="На онбординге" value={String(data.onboardingClients.length)} caption={data.onboardingClients.length === 0 ? "никто не онбордится" : `в фазе вхождения`} Icon={Rocket} color="#ffae42" onClick={data.onboardingClients.length ? () => { const el = document.getElementById("onboarding-section"); el?.scrollIntoView({ behavior: "smooth" }); } : undefined} />
-        <KPICard title="Роликов в работе" value={String(data.planRolls)} caption={`план на ${shortYm(selectedMonth)}`} Icon={Film} color="#9d6bff" />
+        <KPICard title="Осталось сделать" value={String(data.planRolls)} caption={`из ${data.totalPackage} в пакетах`} Icon={Film} color="#9d6bff" />
         <KPICard title="Просрочено" value={String(overdueCount)} caption={overdueCount === 0 ? "всё под контролем" : "клиентов требуют внимания"} Icon={AlertCircle} color="#ff5c7a" attention={overdueCount > 0} />
       </div>
 
@@ -1554,11 +1554,11 @@ function DashboardInner() {
           </div>
           {(() => {
             const stages = [
-              { label: "План", val: data.planRolls, color: "#9d6bff", denom: data.planRolls },
-              { label: "Сценарии", val: data.scriptsApproved, color: "#42d4f4", denom: data.planRolls },
-              { label: "Монтаж", val: data.videosMontage, color: "#ffae42", denom: data.planRolls },
-              { label: "Готово", val: data.videosReady, color: "#a8e063", denom: data.planRolls },
-              { label: "Опубликовано", val: data.videosPublished, color: "#34a853", denom: data.planRolls },
+              { label: "Пакет", val: data.totalPackage, color: "#9d6bff", denom: data.totalPackage },
+              { label: "Сценарии", val: data.scriptsApproved, color: "#42d4f4", denom: data.totalPackage },
+              { label: "Монтаж", val: data.videosMontage, color: "#ffae42", denom: data.totalPackage },
+              { label: "Готово", val: data.videosReady, color: "#a8e063", denom: data.totalPackage },
+              { label: "Опубликовано", val: data.videosPublished, color: "#34a853", denom: data.totalPackage },
             ];
             return (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 0, alignItems: "stretch" }}>
