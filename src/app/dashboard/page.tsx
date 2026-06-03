@@ -576,9 +576,10 @@ type ClientRow = {
 function ClientsBlock(p: ClientsBlockProps) {
   const rows = useMemo<ClientRow[]>(() => {
     const out: ClientRow[] = [];
-    for (const c of p.clients) {
-      const cm = p.clientMonths.find(m => m.client_id === c.id);
-      if (!cm) continue;
+    // Один ряд = один клиент-месяц (если у клиента 2 пересекающихся месяца — 2 ряда)
+    for (const cm of p.clientMonths) {
+      const c = p.clients.find(x => x.id === cm.client_id);
+      if (!c) continue;
       const list = p.scripts.filter(s => s.client_id === c.id && s.month_number === cm.month_number);
       const plan = cm.package || list.length || 1;
       const scrApproved = list.filter(s => s.script_status === "approved").length;
@@ -595,6 +596,8 @@ function ClientsBlock(p: ClientsBlockProps) {
       const pace = paceOf(cm.start_date, cm.end_date, p.todayIso, published, plan);
       out.push({ c, cm, plan, scrApproved, montage, ready, published, remaining, progressPct, daysToEnd, daysTotal, isOverdue, isPaused, status, pace });
     }
+    // Сортируем: клиент.id, потом по month_number — соседние месяцы одного клиента рядом
+    out.sort((a, b) => a.c.id - b.c.id || a.cm.month_number - b.cm.month_number);
     return out;
   }, [p.clients, p.clientMonths, p.scripts, p.todayIso, p.overdueClientIds]);
 
@@ -737,7 +740,7 @@ function ClientsBlock(p: ClientsBlockProps) {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 10 }}>
           <h3 style={{ fontSize: 14, fontWeight: 800, color: "var(--t1)" }}>
             Клиенты в работе
-            <span style={{ marginLeft: 8, padding: "2px 7px", borderRadius: 6, background: "rgba(157,107,255,0.15)", color: "var(--pu)", fontSize: 10, fontWeight: 700 }}>{filtered.length}{filtered.length !== p.clients.length ? ` / ${p.clients.length}` : ""}</span>
+            <span style={{ marginLeft: 8, padding: "2px 7px", borderRadius: 6, background: "rgba(157,107,255,0.15)", color: "var(--pu)", fontSize: 10, fontWeight: 700 }}>{new Set(filtered.map(r => r.c.id)).size} клиентов</span>
           </h3>
           {/* View toggle */}
           <div style={{ display: "flex", background: "rgba(123,63,228,0.06)", border: "1px solid var(--brd)", borderRadius: 10, padding: 3 }}>
@@ -835,8 +838,11 @@ function ClientsBlock(p: ClientsBlockProps) {
                       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                         <Avatar name={`${r.c.name} ${r.c.surname || ""}`} src={r.c.avatar_url} size={36} />
                         <div style={{ minWidth: 0 }}>
-                          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--t1)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 170 }}>
-                            {r.c.name} {r.c.surname || ""}
+                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--t1)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 140 }}>
+                              {r.c.name} {r.c.surname || ""}
+                            </div>
+                            <span style={{ fontSize: 9, fontWeight: 800, padding: "2px 6px", borderRadius: 5, background: "rgba(157,107,255,0.18)", color: "var(--pu)", letterSpacing: 0.3 }}>M{r.cm.month_number}</span>
                           </div>
                           <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 170 }}>
                             {r.c.niche || r.c.product || "—"}
@@ -912,7 +918,7 @@ function ClientsBlock(p: ClientsBlockProps) {
                   <td style={{ padding: "14px 8px", fontSize: 11, fontWeight: 800, color: "var(--t1)" }}>
                     Итого на {ymLabel(p.selectedMonth)}
                   </td>
-                  <td style={{ padding: "14px 8px", fontSize: 11, color: "var(--t2)", fontWeight: 600 }}>{sorted.length} клиентов</td>
+                  <td style={{ padding: "14px 8px", fontSize: 11, color: "var(--t2)", fontWeight: 600 }}>{new Set(sorted.map(r => r.c.id)).size} клиентов · {sorted.length} M-периодов</td>
                   <td />
                   <td style={{ padding: "14px 8px", fontFamily: "'Unbounded', sans-serif", fontSize: 14, fontWeight: 800, color: "var(--pu)" }}>{totals.plan}</td>
                   <td style={{ padding: "14px 8px" }}><StageCell done={totals.scr} plan={totals.plan} color="#42d4f4" /></td>
