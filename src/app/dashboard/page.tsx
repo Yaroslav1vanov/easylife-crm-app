@@ -136,6 +136,19 @@ type MonthsBlockProps = {
   onOpen: (clientId: number) => void;
 };
 
+type MonthsRow = {
+  c: Client;
+  cm: ClientMonth;
+  nextCm: ClientMonth | null;
+  published: number;
+  ready: number;
+  plan: number;
+  totalPub: number;
+  totalPlan: number;
+  daysToEnd: number;
+  reason: "needs_renewal" | "renewed" | "onboarding";
+};
+
 function MonthsBlock(p: MonthsBlockProps) {
   const supabase = createClient();
   const [busy, setBusy] = useState<number | null>(null);
@@ -147,23 +160,17 @@ function MonthsBlock(p: MonthsBlockProps) {
     pkg: string;
     prevStatus: string;
   } | null>(null);
-  const [showAll, setShowAll] = useState(false);
+  const [showArchive, setShowArchive] = useState(false);
 
-  // строки: один M-месяц на клиента, активный или ближайший в этом периоде
-  const rows = useMemo(() => {
-    const { start: ms, end: me } = ymRange(p.selectedMonth);
-    type Row = { c: Client; cm: ClientMonth; nextCm: ClientMonth | null; published: number; ready: number; plan: number; totalPub: number; totalPlan: number; daysToEnd: number };
-    const out: Row[] = [];
+  // Все строки: один M-месяц на клиента — последний созданный
+  const allRows = useMemo<(MonthsRow & { archived: "paused" | "churned" | null })[]>(() => {
+    const out: (MonthsRow & { archived: "paused" | "churned" | null })[] = [];
     for (const c of p.clients) {
-      const all = p.clientMonths.filter(m => m.client_id === c.id).sort((a, b) => a.month_number - b.month_number);
+      const all = p.clientMonths
+        .filter(m => m.client_id === c.id)
+        .sort((a, b) => a.month_number - b.month_number);
       if (all.length === 0) continue;
-      // активный M в выбранном периоде
-      const overlapping = all.filter(m =>
-        (m.status === "active" || m.status === "closed" || m.status === "onboarding") &&
-        m.start_date <= me && m.end_date >= ms
-      );
-      const cm = overlapping[overlapping.length - 1] || all[all.length - 1];
-      if (!cm) continue;
+      const cm = all[all.length - 1]; // последний созданный месяц
       const nextCm = all.find(m => m.month_number === cm.month_number + 1) || null;
       const list = p.scripts.filter(s => s.client_id === c.id && s.month_number === cm.month_number);
       const published = list.filter(s => s.video_status === "published").length;
@@ -172,19 +179,46 @@ function MonthsBlock(p: MonthsBlockProps) {
       const totalPub = p.scripts.filter(s => s.client_id === c.id && s.video_status === "published").length;
       const totalPlan = all.reduce((s, m) => s + (m.package || 0), 0);
       const daysToEnd = daysBetween(p.todayIso, cm.end_date);
-      out.push({ c, cm, nextCm, published, ready, plan, totalPub, totalPlan, daysToEnd });
+      const archived: "paused" | "churned" | null =
+        c.stage === "paused" ? "paused" :
+        c.stage === "churned" ? "churned" :
+        cm.status === "cancelled" ? "churned" :
+        null;
+      // reason для активных
+      const reason: MonthsRow["reason"] =
+        cm.status === "onboarding" ? "onboarding"
+        : nextCm ? "renewed"
+        : "needs_renewal";
+      out.push({ c, cm, nextCm, published, ready, plan, totalPub, totalPlan, daysToEnd, reason, archived });
     }
-    // сортируем: сначала ending soon без next, потом по дням до конца
-    out.sort((a, b) => {
-      const aPri = a.nextCm ? 999 : a.daysToEnd;
-      const bPri = b.nextCm ? 999 : b.daysToEnd;
-      return aPri - bPri;
-    });
     return out;
-  }, [p.clients, p.clientMonths, p.scripts, p.todayIso, p.selectedMonth]);
+  }, [p.clients, p.clientMonths, p.scripts, p.todayIso]);
 
-  const renewing = rows.filter(r => !r.nextCm && r.daysToEnd <= 14).length;
-  const visible = showAll ? rows : rows.slice(0, 8);
+  // АКТИВНЫЕ — требуют внимания
+  const activeRows = useMemo(() => {
+    return allRows.filter(r => {
+      if (r.archived) return false;
+      // closed без next → клиент закончил работу, не показываем
+      if (r.cm.status === "closed" && !r.nextCm) return false;
+      // active с next в planned/active И до конца >14 дней → всё ок, не светим
+      if (r.cm.status === "active" && r.nextCm && r.daysToEnd > 14) return false;
+      // active без next и до конца >14 дней → ещё рано
+      if (r.cm.status === "active" && !r.nextCm && r.daysToEnd > 14) return false;
+      return true;
+    }).sort((a, b) => {
+      // приоритет: needs_renewal с малыми днями → onboarding → renewed
+      const ra = a.reason === "needs_renewal" ? a.daysToEnd : a.reason === "onboarding" ? 1000 : 2000;
+      const rb = b.reason === "needs_renewal" ? b.daysToEnd : b.reason === "onboarding" ? 1000 : 2000;
+      return ra - rb;
+    });
+  }, [allRows]);
+
+  // АРХИВ
+  const archivedRows = useMemo(() => allRows.filter(r => r.archived !== null), [allRows]);
+  const pausedCount = archivedRows.filter(r => r.archived === "paused").length;
+  const churnedCount = archivedRows.filter(r => r.archived === "churned").length;
+
+  const renewingNow = activeRows.filter(r => r.reason === "needs_renewal" && r.daysToEnd <= 14).length;
 
   async function closeMonth(cmId: number) {
     setBusy(cmId);
@@ -202,7 +236,15 @@ function MonthsBlock(p: MonthsBlockProps) {
     setBusy(null);
   }
 
-  function startRenew(r: typeof rows[0]) {
+  async function setClientStage(clientId: number, stage: string) {
+    setBusy(clientId);
+    const { error } = await db.updateClient(supabase, clientId, { stage });
+    if (error) alert("Ошибка: " + (error.message || error));
+    await p.onChange();
+    setBusy(null);
+  }
+
+  function startRenew(r: MonthsRow) {
     const start = new Date(r.cm.end_date); start.setDate(start.getDate() + 1);
     const end = new Date(start); end.setDate(end.getDate() + 30);
     setRenewModal({
@@ -220,7 +262,6 @@ function MonthsBlock(p: MonthsBlockProps) {
     setBusy(-1);
     const pkg = parseInt(renewModal.pkg, 10);
     if (!pkg || pkg < 1) { alert("Укажи пакет"); setBusy(null); return; }
-    // если предыдущий месяц ещё active → новый planned; если closed → новый active
     const status: ClientMonth["status"] = renewModal.prevStatus === "closed" ? "active" : "planned";
     const { error } = await db.upsertClientMonth(supabase, {
       client_id: renewModal.clientId,
@@ -246,114 +287,176 @@ function MonthsBlock(p: MonthsBlockProps) {
     return { l: "🟢 Активен", c: "var(--gr)", bg: "rgba(168,224,99,0.12)" };
   };
 
+  const renderRow = (r: MonthsRow & { archived?: "paused" | "churned" | null }) => {
+    const tl = p.team.find(t => t.id === r.c.teamlead_id);
+    const badge = statusBadge(r.cm.status, r.daysToEnd);
+    const pct = r.plan > 0 ? Math.round((r.published / r.plan) * 100) : 0;
+    const barColor = pct >= 80 ? "var(--gr)" : pct >= 40 ? "var(--cy)" : pct > 0 ? "var(--or)" : "var(--rd)";
+    return (
+      <tr key={r.cm.id} style={{ borderBottom: "1px solid rgba(157,107,255,0.08)" }}>
+        <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 200, cursor: "pointer" }} onClick={() => p.onOpen(r.c.id)}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <Avatar name={`${r.c.name} ${r.c.surname || ""}`} src={r.c.avatar_url} size={32} />
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--t1)" }}>{r.c.name} {r.c.surname || ""}</div>
+              <div style={{ fontSize: 9, color: "var(--t3)" }}>{r.c.niche || "—"}</div>
+            </div>
+          </div>
+        </td>
+        <td style={{ padding: "12px 8px", verticalAlign: "middle", fontSize: 11, color: "var(--t2)", fontWeight: 600 }}>
+          {tl ? <div style={{ display: "flex", alignItems: "center", gap: 6 }}><Avatar name={tl.name} src={tl.avatar_url} size={22} />{tl.name}</div> : "—"}
+        </td>
+        <td style={{ padding: "12px 8px", verticalAlign: "middle", textAlign: "center" }}>
+          <span style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 16, fontWeight: 800, color: "var(--pu)" }}>M{r.cm.month_number}</span>
+        </td>
+        <td style={{ padding: "12px 8px", verticalAlign: "middle", whiteSpace: "nowrap" }}>
+          <div style={{ fontSize: 11, color: "var(--t1)", fontWeight: 600 }}>{fmtDateShort(r.cm.start_date)} → {fmtDateShort(r.cm.end_date)}</div>
+          <div style={{ fontSize: 9, color: r.daysToEnd < 0 ? "var(--rd)" : r.daysToEnd <= 5 ? "var(--or)" : "var(--t3)", fontWeight: 600, marginTop: 1 }}>
+            {r.daysToEnd < 0 ? `просрочка ${-r.daysToEnd} дн.` : `осталось ${r.daysToEnd} дн.`}
+          </div>
+        </td>
+        <td style={{ padding: "12px 8px", verticalAlign: "middle", textAlign: "center" }}>
+          <span style={{ padding: "4px 8px", borderRadius: 7, background: badge.bg, color: badge.c, fontSize: 10, fontWeight: 700, whiteSpace: "nowrap" }}>{badge.l}</span>
+        </td>
+        <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 160 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+            <span style={{ fontSize: 10, fontFamily: "monospace", color: "var(--t1)", fontWeight: 700 }}>📤 {r.published} / {r.plan}</span>
+            <span style={{ fontSize: 10, color: barColor, fontWeight: 700 }}>{pct}%</span>
+          </div>
+          <div style={{ height: 5, borderRadius: 3, background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
+            <div style={{ width: `${pct}%`, height: "100%", background: barColor, borderRadius: 3 }} />
+          </div>
+          <div style={{ fontSize: 9, color: "var(--t3)", marginTop: 3 }}>готово {r.ready} · буфер +{Math.max(0, r.ready - r.published)}</div>
+        </td>
+        <td style={{ padding: "12px 8px", verticalAlign: "middle", textAlign: "center" }}>
+          <div style={{ fontFamily: "monospace", fontSize: 12, fontWeight: 700, color: "var(--t1)" }}>{r.totalPub} / {r.totalPlan}</div>
+          <div style={{ fontSize: 9, color: "var(--t3)" }}>за все месяцы</div>
+        </td>
+        <td style={{ padding: "12px 8px", verticalAlign: "middle", textAlign: "center", whiteSpace: "nowrap" }}>
+          {r.archived === "paused" ? (
+            <div style={{ display: "inline-flex", gap: 5, flexWrap: "wrap", justifyContent: "center" }}>
+              <button onClick={() => setClientStage(r.c.id, "active")} disabled={busy === r.c.id}
+                style={{ padding: "5px 9px", borderRadius: 7, background: "linear-gradient(135deg, var(--cy), var(--pu))", border: "none", color: "#fff", fontSize: 10, fontWeight: 800, cursor: "pointer" }}>
+                ▶ Возобновить
+              </button>
+              <button onClick={() => { if (confirm(`Пометить ${r.c.name} как ушедшего навсегда?`)) setClientStage(r.c.id, "churned"); }}
+                style={{ padding: "5px 9px", borderRadius: 7, background: "transparent", border: "1px solid var(--brd)", color: "var(--rd)", fontSize: 10, fontWeight: 700, cursor: "pointer" }}>
+                ✕ Закрыть
+              </button>
+            </div>
+          ) : r.archived === "churned" ? (
+            <div style={{ display: "inline-flex", gap: 5, justifyContent: "center" }}>
+              <button onClick={() => setClientStage(r.c.id, "active")} disabled={busy === r.c.id}
+                style={{ padding: "5px 9px", borderRadius: 7, background: "transparent", border: "1px solid var(--brd)", color: "var(--t2)", fontSize: 10, fontWeight: 700, cursor: "pointer" }}>
+                ↺ Вернуть
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: "inline-flex", gap: 5, flexWrap: "wrap", justifyContent: "center" }}>
+              {r.cm.status === "active" || r.cm.status === "onboarding" ? (
+                <button onClick={() => closeMonth(r.cm.id)} disabled={busy === r.cm.id}
+                  style={{ padding: "5px 9px", borderRadius: 7, background: "rgba(168,224,99,0.12)", border: "1px solid var(--gr)", color: "var(--gr)", fontSize: 10, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                  <Check size={10} strokeWidth={2.4} /> Закрыть M
+                </button>
+              ) : r.cm.status === "closed" ? (
+                <button onClick={() => reopenMonth(r.cm.id)} disabled={busy === r.cm.id}
+                  style={{ padding: "5px 9px", borderRadius: 7, background: "transparent", border: "1px solid var(--brd)", color: "var(--t2)", fontSize: 10, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                  <RotateCcw size={10} strokeWidth={2.4} /> Открыть
+                </button>
+              ) : null}
+              {r.nextCm ? (
+                <span style={{ padding: "5px 9px", borderRadius: 7, background: "rgba(157,107,255,0.12)", color: "var(--pu)", fontSize: 10, fontWeight: 700, border: "1px solid rgba(157,107,255,0.3)" }}>
+                  ✓ → M{r.nextCm.month_number}
+                </span>
+              ) : (
+                <button onClick={() => startRenew(r)}
+                  style={{ padding: "5px 9px", borderRadius: 7, background: "linear-gradient(135deg, var(--cy), var(--pu))", border: "none", color: "#fff", fontSize: 10, fontWeight: 800, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                  <PlusCircle size={10} strokeWidth={2.4} /> + M{r.cm.month_number + 1}
+                </button>
+              )}
+              {!r.nextCm && (
+                <>
+                  <button onClick={() => { if (confirm(`Поставить ${r.c.name} на паузу? Клиент скроется из списка, можно вернуть.`)) setClientStage(r.c.id, "paused"); }}
+                    style={{ padding: "5px 9px", borderRadius: 7, background: "transparent", border: "1px solid var(--brd)", color: "var(--yl)", fontSize: 10, fontWeight: 700, cursor: "pointer" }}>
+                    ⏸ Пауза
+                  </button>
+                  <button onClick={() => { if (confirm(`${r.c.name} больше не продлевается? Клиент уходит в архив.`)) setClientStage(r.c.id, "churned"); }}
+                    style={{ padding: "5px 9px", borderRadius: 7, background: "transparent", border: "1px solid var(--brd)", color: "var(--rd)", fontSize: 10, fontWeight: 700, cursor: "pointer" }}>
+                    ✕ Не продлевается
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+        </td>
+      </tr>
+    );
+  };
+
   return (
     <div className="card" style={{ padding: 18, borderRadius: 18, marginBottom: 18 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
         <h3 style={{ fontSize: 14, fontWeight: 800, color: "var(--t1)" }}>
           Контрактные месяцы и продления
-          {renewing > 0 && (
+          {renewingNow > 0 && (
             <span style={{ marginLeft: 8, padding: "2px 7px", borderRadius: 6, background: "rgba(255,174,66,0.15)", color: "var(--or)", fontSize: 10, fontWeight: 700 }}>
-              {renewing} требует продления
+              {renewingNow} требует продления
             </span>
           )}
         </h3>
-        <div style={{ fontSize: 10, color: "var(--t3)", fontWeight: 600 }}>{rows.length} активных контрактов</div>
+        <div style={{ fontSize: 10, color: "var(--t3)", fontWeight: 600 }}>
+          {activeRows.length} активных в работе
+          {(pausedCount + churnedCount) > 0 && (
+            <button onClick={() => setShowArchive(v => !v)}
+              style={{ marginLeft: 12, background: "transparent", border: "none", color: "var(--cy)", fontSize: 10, fontWeight: 700, cursor: "pointer", padding: 0 }}>
+              {showArchive ? "▾" : "▸"} Архив ({pausedCount + churnedCount})
+            </button>
+          )}
+        </div>
       </div>
 
-      <div style={{ overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
-          <thead>
-            <tr style={{ fontSize: 9, color: "var(--t3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>
-              {["Клиент", "Тимлид", "Месяц", "Период", "Статус", "Прогресс этого месяца", "Всего по контракту", "Действия"].map((h, i) => (
-                <th key={i} style={{ textAlign: i >= 5 ? "center" : "left", padding: "10px 8px", borderBottom: "1px solid var(--brd)", fontWeight: 700 }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {visible.map(r => {
-              const tl = p.team.find(t => t.id === r.c.teamlead_id);
-              const badge = statusBadge(r.cm.status, r.daysToEnd);
-              const pct = r.plan > 0 ? Math.round((r.published / r.plan) * 100) : 0;
-              const barColor = pct >= 80 ? "var(--gr)" : pct >= 40 ? "var(--cy)" : pct > 0 ? "var(--or)" : "var(--rd)";
-              return (
-                <tr key={r.cm.id} style={{ borderBottom: "1px solid rgba(157,107,255,0.08)" }}>
-                  <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 200, cursor: "pointer" }} onClick={() => p.onOpen(r.c.id)}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <Avatar name={`${r.c.name} ${r.c.surname || ""}`} src={r.c.avatar_url} size={32} />
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--t1)" }}>{r.c.name} {r.c.surname || ""}</div>
-                        <div style={{ fontSize: 9, color: "var(--t3)" }}>{r.c.niche || "—"}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td style={{ padding: "12px 8px", verticalAlign: "middle", fontSize: 11, color: "var(--t2)", fontWeight: 600 }}>
-                    {tl ? <div style={{ display: "flex", alignItems: "center", gap: 6 }}><Avatar name={tl.name} src={tl.avatar_url} size={22} />{tl.name}</div> : "—"}
-                  </td>
-                  <td style={{ padding: "12px 8px", verticalAlign: "middle", textAlign: "center" }}>
-                    <span style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 16, fontWeight: 800, color: "var(--pu)" }}>M{r.cm.month_number}</span>
-                  </td>
-                  <td style={{ padding: "12px 8px", verticalAlign: "middle", whiteSpace: "nowrap" }}>
-                    <div style={{ fontSize: 11, color: "var(--t1)", fontWeight: 600 }}>{fmtDateShort(r.cm.start_date)} → {fmtDateShort(r.cm.end_date)}</div>
-                    <div style={{ fontSize: 9, color: r.daysToEnd < 0 ? "var(--rd)" : r.daysToEnd <= 5 ? "var(--or)" : "var(--t3)", fontWeight: 600, marginTop: 1 }}>
-                      {r.daysToEnd < 0 ? `просрочка ${-r.daysToEnd} дн.` : `осталось ${r.daysToEnd} дн.`}
-                    </div>
-                  </td>
-                  <td style={{ padding: "12px 8px", verticalAlign: "middle", textAlign: "center" }}>
-                    <span style={{ padding: "4px 8px", borderRadius: 7, background: badge.bg, color: badge.c, fontSize: 10, fontWeight: 700, whiteSpace: "nowrap" }}>{badge.l}</span>
-                  </td>
-                  <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 160 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                      <span style={{ fontSize: 10, fontFamily: "monospace", color: "var(--t1)", fontWeight: 700 }}>📤 {r.published} / {r.plan}</span>
-                      <span style={{ fontSize: 10, color: barColor, fontWeight: 700 }}>{pct}%</span>
-                    </div>
-                    <div style={{ height: 5, borderRadius: 3, background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
-                      <div style={{ width: `${pct}%`, height: "100%", background: barColor, borderRadius: 3 }} />
-                    </div>
-                    <div style={{ fontSize: 9, color: "var(--t3)", marginTop: 3 }}>готово {r.ready} · буфер +{Math.max(0, r.ready - r.published)}</div>
-                  </td>
-                  <td style={{ padding: "12px 8px", verticalAlign: "middle", textAlign: "center" }}>
-                    <div style={{ fontFamily: "monospace", fontSize: 12, fontWeight: 700, color: "var(--t1)" }}>{r.totalPub} / {r.totalPlan}</div>
-                    <div style={{ fontSize: 9, color: "var(--t3)" }}>за все месяцы</div>
-                  </td>
-                  <td style={{ padding: "12px 8px", verticalAlign: "middle", textAlign: "center", whiteSpace: "nowrap" }}>
-                    <div style={{ display: "inline-flex", gap: 5, flexWrap: "wrap", justifyContent: "center" }}>
-                      {r.cm.status === "active" || r.cm.status === "onboarding" ? (
-                        <button onClick={() => closeMonth(r.cm.id)} disabled={busy === r.cm.id}
-                          style={{ padding: "5px 9px", borderRadius: 7, background: "rgba(168,224,99,0.12)", border: "1px solid var(--gr)", color: "var(--gr)", fontSize: 10, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}>
-                          <Check size={10} strokeWidth={2.4} /> Закрыть
-                        </button>
-                      ) : r.cm.status === "closed" ? (
-                        <button onClick={() => reopenMonth(r.cm.id)} disabled={busy === r.cm.id}
-                          style={{ padding: "5px 9px", borderRadius: 7, background: "transparent", border: "1px solid var(--brd)", color: "var(--t2)", fontSize: 10, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}>
-                          <RotateCcw size={10} strokeWidth={2.4} /> Открыть
-                        </button>
-                      ) : null}
-                      {r.nextCm ? (
-                        <span style={{ padding: "5px 9px", borderRadius: 7, background: "rgba(157,107,255,0.12)", color: "var(--pu)", fontSize: 10, fontWeight: 700, border: "1px solid rgba(157,107,255,0.3)" }}>
-                          ✓ Продлён → M{r.nextCm.month_number}
-                        </span>
-                      ) : (
-                        <button onClick={() => startRenew(r)}
-                          style={{ padding: "5px 9px", borderRadius: 7, background: "linear-gradient(135deg, var(--cy), var(--pu))", border: "none", color: "#fff", fontSize: 10, fontWeight: 800, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}>
-                          <PlusCircle size={10} strokeWidth={2.4} /> + M{r.cm.month_number + 1}
-                        </button>
-                      )}
-                    </div>
-                  </td>
+      {/* Активные */}
+      {activeRows.length === 0 ? (
+        <div style={{ padding: "40px 20px", textAlign: "center", color: "var(--t3)", fontSize: 12 }}>
+          🎉 Никто не требует решения сейчас — все клиенты идут по плану. Когда у кого-то останется ≤14 дней до конца месяца, он появится здесь.
+        </div>
+      ) : (
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
+            <thead>
+              <tr style={{ fontSize: 9, color: "var(--t3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                {["Клиент", "Тимлид", "Месяц", "Период", "Статус", "Прогресс этого месяца", "Всего по контракту", "Действия"].map((h, i) => (
+                  <th key={i} style={{ textAlign: i >= 5 ? "center" : "left", padding: "10px 8px", borderBottom: "1px solid var(--brd)", fontWeight: 700 }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {activeRows.map(r => renderRow(r))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Архив */}
+      {showArchive && archivedRows.length > 0 && (
+        <div style={{ marginTop: 18, paddingTop: 14, borderTop: "1px dashed var(--brd)" }}>
+          <div style={{ fontSize: 11, color: "var(--t3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>
+            Архив: {pausedCount > 0 && `⏸ на паузе ${pausedCount}`}{pausedCount > 0 && churnedCount > 0 && " · "}{churnedCount > 0 && `✕ ушли ${churnedCount}`}
+          </div>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900, opacity: 0.78 }}>
+              <thead>
+                <tr style={{ fontSize: 9, color: "var(--t3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                  {["Клиент", "Тимлид", "Последний M", "Период", "Статус", "Прогресс", "Всего", "Действия"].map((h, i) => (
+                    <th key={i} style={{ textAlign: i >= 5 ? "center" : "left", padding: "10px 8px", borderBottom: "1px solid var(--brd)", fontWeight: 700 }}>{h}</th>
+                  ))}
                 </tr>
-              );
-            })}
-            {visible.length === 0 && <tr><td colSpan={8} style={{ padding: 30, textAlign: "center", color: "var(--t3)", fontSize: 12 }}>Нет активных контрактов</td></tr>}
-          </tbody>
-        </table>
-      </div>
-
-      {rows.length > 8 && (
-        <div style={{ textAlign: "center", marginTop: 10 }}>
-          <button onClick={() => setShowAll(v => !v)}
-            style={{ padding: "6px 16px", borderRadius: 8, background: "transparent", border: "1px solid var(--brd)", color: "var(--t2)", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
-            {showAll ? "Свернуть" : `Показать всех (${rows.length})`}
-          </button>
+              </thead>
+              <tbody>
+                {archivedRows.map(r => renderRow(r))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
