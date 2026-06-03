@@ -160,23 +160,33 @@ export default function ScriptsPage() {
     return out;
   }, [filteredScripts]);
 
-  /* KPI cards */
+  /* KPI cards — план = сумма package активных CM в периоде (это "сколько нужно сделать") */
   const kpis = useMemo(() => {
-    const total = filteredScripts.length;
-    const overdue = filteredScripts.filter(s => {
-      if (s.script_status === "approved") return false;
-      // overdue если есть дедлайн и он прошёл — поля scripts_deadline нет в Script, придётся skip
-      return false;
-    }).length;
+    let plan = 0;
+    if (selectedMonth === "all") {
+      // Для "всё время" план = сумма пакетов всех client_months (с фильтром по клиенту)
+      for (const cm of clientMonths) {
+        if (clientFilter !== "all" && cm.client_id !== clientFilter) continue;
+        plan += cm.package || 0;
+      }
+    } else {
+      const { start: ms, end: me } = ymRange(selectedMonth);
+      for (const cm of clientMonths) {
+        if (cm.start_date > me || cm.end_date < ms) continue;
+        if (clientFilter !== "all" && cm.client_id !== clientFilter) continue;
+        plan += cm.package || 0;
+      }
+    }
     return {
-      total,
+      plan,
+      total: filteredScripts.length, // фактически создано записей в БД
       writing: byColumn.writing.length,
       review: byColumn.review.length,
       ready: byColumn.ready_for_montage.length,
       rework: byColumn.rework.length,
-      overdue,
+      overdue: 0,
     };
-  }, [filteredScripts, byColumn]);
+  }, [filteredScripts, byColumn, clientMonths, selectedMonth, clientFilter]);
 
   if (loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--t2)" }}>Загрузка…</div>;
 
@@ -230,12 +240,12 @@ export default function ScriptsPage() {
       {/* KPI ROW */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 10, marginBottom: 18 }} className="scripts-kpi">
         {([
-          { Icon: FileText, label: "Всего сценариев", val: kpis.total, color: "#9d6bff", caption: `всего по выборке` },
-          { Icon: Pen, label: "На написании", val: kpis.writing, color: "#42d4f4", caption: kpis.total ? `${Math.round((kpis.writing / kpis.total) * 100)}%` : "0%" },
-          { Icon: UserCheck, label: "На согласовании", val: kpis.review, color: "#ffae42", caption: kpis.total ? `${Math.round((kpis.review / kpis.total) * 100)}%` : "0%" },
-          { Icon: CheckCircle2, label: "Готовы к монтажу", val: kpis.ready, color: "#a8e063", caption: kpis.total ? `${Math.round((kpis.ready / kpis.total) * 100)}%` : "0%" },
-          { Icon: RotateCcw, label: "Возврат на доработку", val: kpis.rework, color: "#ec4899", caption: kpis.total ? `${Math.round((kpis.rework / kpis.total) * 100)}%` : "0%" },
-          { Icon: AlertCircle, label: "Просроченные", val: kpis.overdue, color: "#ff5c7a", caption: kpis.overdue > 0 ? "требуют внимания" : "—" },
+          { Icon: FileText, label: "План на период", val: String(kpis.plan), color: "#9d6bff", caption: `${kpis.total} создано` },
+          { Icon: Pen, label: "На написании", val: String(kpis.writing), color: "#42d4f4", caption: kpis.plan ? `${Math.round((kpis.writing / kpis.plan) * 100)}% плана` : "—" },
+          { Icon: UserCheck, label: "На согласовании", val: String(kpis.review), color: "#ffae42", caption: kpis.plan ? `${Math.round((kpis.review / kpis.plan) * 100)}% плана` : "—" },
+          { Icon: CheckCircle2, label: "Готовы к монтажу", val: String(kpis.ready), color: "#a8e063", caption: kpis.plan ? `${Math.round((kpis.ready / kpis.plan) * 100)}% плана` : "—" },
+          { Icon: RotateCcw, label: "Возврат на доработку", val: String(kpis.rework), color: "#ec4899", caption: kpis.plan ? `${Math.round((kpis.rework / kpis.plan) * 100)}% плана` : "—" },
+          { Icon: AlertCircle, label: "Просроченные", val: String(kpis.overdue), color: "#ff5c7a", caption: kpis.overdue > 0 ? "требуют внимания" : "—" },
         ] as const).map(it => {
           const I = it.Icon;
           return (

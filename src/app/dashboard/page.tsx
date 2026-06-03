@@ -156,12 +156,23 @@ function MonthsBlock(p: MonthsBlockProps) {
   const [busy, setBusy] = useState<number | null>(null);
   const [editingDate, setEditingDate] = useState<number | null>(null); // cm.id
   const [editDateValue, setEditDateValue] = useState<string>("");
+  const [editingPkg, setEditingPkg] = useState<number | null>(null); // cm.id
+  const [editPkgValue, setEditPkgValue] = useState<string>("");
 
   async function saveEndDate(cmId: number, newEndDate: string) {
     setBusy(cmId);
     const { error } = await db.updateClientMonth(supabase, cmId, { end_date: newEndDate });
     if (error) alert("Ошибка: " + (error.message || error));
     setEditingDate(null);
+    await p.onChange();
+    setBusy(null);
+  }
+
+  async function savePkg(cmId: number, newPkg: number) {
+    setBusy(cmId);
+    const { error } = await db.updateClientMonth(supabase, cmId, { package: newPkg });
+    if (error) alert("Ошибка: " + (error.message || error));
+    setEditingPkg(null);
     await p.onChange();
     setBusy(null);
   }
@@ -357,7 +368,37 @@ function MonthsBlock(p: MonthsBlockProps) {
         </td>
         <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 160 }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-            <span style={{ fontSize: 10, fontFamily: "monospace", color: "var(--t1)", fontWeight: 700 }}>📤 {r.published} / {r.plan}</span>
+            <span style={{ fontSize: 10, fontFamily: "monospace", color: "var(--t1)", fontWeight: 700 }}>
+              📤 {r.published} /{" "}
+              {editingPkg === r.cm.id ? (
+                <input
+                  autoFocus
+                  type="number"
+                  min={1}
+                  max={999}
+                  value={editPkgValue}
+                  onChange={(e) => setEditPkgValue(e.target.value)}
+                  onBlur={() => {
+                    const n = parseInt(editPkgValue, 10);
+                    if (!Number.isNaN(n) && n >= 1 && n !== r.plan) savePkg(r.cm.id, n);
+                    else setEditingPkg(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                    if (e.key === "Escape") setEditingPkg(null);
+                  }}
+                  style={{ width: 50, padding: "1px 4px", borderRadius: 4, background: "var(--bg)", border: "1px solid var(--cy)", color: "var(--t1)", fontSize: 10, fontFamily: "monospace", textAlign: "center" }}
+                />
+              ) : (
+                <span
+                  onClick={(e) => { e.stopPropagation(); setEditPkgValue(String(r.plan)); setEditingPkg(r.cm.id); }}
+                  style={{ cursor: "pointer", borderBottom: "1px dashed var(--t3)" }}
+                  title="Клик — изменить план"
+                >
+                  {r.plan}
+                </span>
+              )}
+            </span>
             <span style={{ fontSize: 10, color: barColor, fontWeight: 700 }}>{pct}%</span>
           </div>
           <div style={{ height: 5, borderRadius: 3, background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
