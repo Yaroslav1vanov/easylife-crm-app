@@ -6,6 +6,8 @@ import db, { Client, Script, ChecklistTask, TeamMember, ClientMonth, OnboardingP
 import AvatarUploader from "@/components/AvatarUploader";
 import ClientMonthsTimeline from "@/components/ClientMonthsTimeline";
 import ClientOverview from "@/components/ClientOverview";
+import ClientProduction from "@/components/ClientProduction";
+import ClientAttention from "@/components/ClientAttention";
 import KanbanBoard from "@/components/KanbanBoard";
 import { SCRIPT_COLUMNS, MONTAGE_COLUMNS, PUBLISHED_COLUMNS } from "@/components/kanbanConfigs";
 
@@ -115,6 +117,8 @@ export default function ClientDetailPage() {
   const c = client;
   const todayIso = new Date().toISOString().slice(0, 10);
   const currentMonthNum = computeCurrentMonth(clientMonths, todayIso);
+  const currentM = clientMonths.find(m => m.month_number === currentMonthNum) || null;
+  const currentMonthScripts = scripts.filter(s => s.month_number === currentMonthNum);
   const pub = scripts.filter(s => s.video_status === "published").length;
   const ready = scripts.filter(s => s.video_status === "ready").length;
   const editVids = scripts.filter(s => s.video_status === "inProgress" && s.script_status === "approved").length;
@@ -202,153 +206,74 @@ export default function ClientDetailPage() {
         todayIso={todayIso}
         onEdit={() => { setEditData({ name: c.name, surname: c.surname, niche: c.niche, phone: c.phone, product: c.product, avg_check: c.avg_check, package: c.package, montager_id: c.montager_id, teamlead_id: c.teamlead_id, priority: c.priority, stage: c.stage }); setEditing(true); }}
         onAvatarChange={async (url) => { await updateClientField("avatar_url", url); }}
-        onActivateMonth={(m) => setViewMonth(m)}
         onUpdateTeam={updateTeam}
       />
 
-      {/* Onboarding Phase Block */}
-      {onbProgress && (() => {
-        const isPending = onbProgress.pending_tasks > 0;
-        const isCompleted = onbProgress.pending_tasks === 0 && onbProgress.done_tasks > 0;
-        return (
-          <div className="card mb-3" style={{
-            padding: 16,
-            borderRadius: 14,
-            border: `1px solid ${isPending ? "rgba(245,196,81,0.4)" : "rgba(168,224,99,0.3)"}`,
-            background: isPending
-              ? "linear-gradient(135deg, rgba(245,196,81,0.08), rgba(255,174,66,0.04))"
-              : "linear-gradient(135deg, rgba(168,224,99,0.08), rgba(168,224,99,0.02))",
-          }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 14, flex: 1, minWidth: 0 }}>
-                <div style={{
-                  minWidth: 44, height: 44, borderRadius: 12,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  background: isPending ? "rgba(245,196,81,0.18)" : "rgba(168,224,99,0.18)",
-                  color: isPending ? "var(--yl)" : "var(--gr)",
-                  fontSize: 22, fontWeight: 800,
-                }}>{isPending ? "🚀" : "✓"}</div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 11, color: "var(--t3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 2 }}>Фаза клиента</div>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: "var(--t1)" }}>
-                    {isPending ? `🟡 Онбординг — ${onbProgress.done_tasks}/${onbProgress.total_tasks - onbProgress.skipped_tasks} задач` : "🟢 Онбординг завершён · месячная работа"}
-                  </div>
-                  <div style={{ fontSize: 11, color: "var(--t2)", marginTop: 2 }}>
-                    {isPending
-                      ? `✅ ${onbProgress.done_tasks}  ·  ☐ ${onbProgress.pending_tasks}  ·  ⏭ ${onbProgress.skipped_tasks}${onbProgress.overdue_tasks > 0 ? `  ·  ⚠ ${onbProgress.overdue_tasks} просрочено` : ""}`
-                      : `Всё закрыто или пропущено · ${onbProgress.done_tasks} done · ${onbProgress.skipped_tasks} skipped`}
-                  </div>
-                </div>
-                {/* Mini progress bar */}
-                <div style={{ minWidth: 120, height: 8, borderRadius: 4, background: "rgba(255,255,255,0.05)", overflow: "hidden", position: "relative" }}>
-                  <div style={{ position: "absolute", inset: 0, width: `${onbProgress.progress_pct}%`, background: isPending ? "linear-gradient(90deg, var(--gr), var(--yl))" : "var(--gr)", borderRadius: 4, transition: ".3s" }} />
-                </div>
-                <span style={{ fontFamily: "monospace", fontSize: 16, fontWeight: 800, color: isPending ? "var(--yl)" : "var(--gr)", minWidth: 48 }}>{onbProgress.progress_pct}%</span>
-              </div>
-              <button onClick={() => router.push(`/dashboard/clients/${clientId}/onboarding`)} style={{
-                padding: "10px 18px", borderRadius: 10,
-                background: isPending ? "linear-gradient(135deg, var(--yl), var(--or))" : "var(--card)",
-                color: isPending ? "#0a0118" : "var(--t1)",
-                border: isPending ? "none" : "1px solid var(--brd)",
-                fontSize: 12, fontWeight: 800, cursor: "pointer", letterSpacing: 0.3,
-              }}>
-                {isPending ? "🚀 Открыть онбординг →" : "Открыть онбординг (история) →"}
-              </button>
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* Google Sheets URL block */}
-      <div className="card mb-3" style={{ padding: 14, borderRadius: 14, border: "1px solid var(--brd)", background: "linear-gradient(135deg, rgba(52,168,83,0.06), rgba(52,168,83,0.02))" }}>
+      {/* Compact strip: онбординг + Google Sheet */}
+      <div className="card mb-3" style={{ padding: "10px 14px", borderRadius: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <div style={{
-            minWidth: 40, height: 40, borderRadius: 10,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            background: "rgba(52,168,83,0.15)", fontSize: 20,
-          }}>📊</div>
-          <div style={{ flex: 1, minWidth: 200 }}>
-            <div style={{ fontSize: 10, color: "var(--t3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 4 }}>Google Sheet клиента</div>
-            {editingSheet ? (
-              <div style={{ display: "flex", gap: 6 }}>
-                <input
-                  autoFocus
-                  type="text"
-                  value={sheetUrlInput}
-                  onChange={(e) => setSheetUrlInput(e.target.value)}
-                  placeholder="https://docs.google.com/spreadsheets/d/..."
-                  style={{
-                    flex: 1, padding: "8px 10px", borderRadius: 8, fontSize: 12,
-                    background: "var(--bg)", border: "1px solid var(--brd)", color: "var(--t1)",
-                  }}
-                  onKeyDown={async (e) => {
-                    if (e.key === "Enter") {
-                      await updateClientField("sheet_url", sheetUrlInput.trim() || null);
-                      setEditingSheet(false);
-                    }
-                    if (e.key === "Escape") setEditingSheet(false);
-                  }}
-                />
-                <button onClick={async () => { await updateClientField("sheet_url", sheetUrlInput.trim() || null); setEditingSheet(false); }}
-                  style={{ padding: "8px 14px", borderRadius: 8, background: "var(--gr)", color: "#0a0118", border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
-                  Сохранить
-                </button>
-                <button onClick={() => setEditingSheet(false)}
-                  style={{ padding: "8px 12px", borderRadius: 8, background: "transparent", color: "var(--t3)", border: "1px solid var(--brd)", fontSize: 11, cursor: "pointer" }}>
-                  ✕
-                </button>
-              </div>
-            ) : c.sheet_url ? (
-              <a href={c.sheet_url} target="_blank" rel="noopener noreferrer"
-                style={{
-                  fontSize: 13, color: "var(--t1)", fontWeight: 600,
-                  display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                  textDecoration: "none",
-                }}
-                title={c.sheet_url}>
-                {c.sheet_url.replace(/^https?:\/\//, "").slice(0, 70)}{c.sheet_url.length > 76 ? "…" : ""}
-              </a>
-            ) : (
-              <div style={{ fontSize: 12, color: "var(--t3)", fontStyle: "italic" }}>Ссылка не добавлена</div>
-            )}
-          </div>
-          {!editingSheet && (
-            <div style={{ display: "flex", gap: 6 }}>
-              {c.sheet_url && (
+          {onbProgress && (
+            <button onClick={() => router.push(`/dashboard/clients/${clientId}/onboarding`)}
+              style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 12px", borderRadius: 9, background: "transparent", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+              <span style={{ width: 8, height: 8, borderRadius: "50%", background: onbProgress.pending_tasks > 0 ? "var(--yl)" : "var(--gr)" }} />
+              Онбординг: {onbProgress.pending_tasks > 0 ? `${onbProgress.done_tasks}/${onbProgress.total_tasks - onbProgress.skipped_tasks} · ${onbProgress.progress_pct}%` : "завершён"}
+              <span style={{ color: "var(--t3)" }}>→</span>
+            </button>
+          )}
+          <div style={{ flex: 1, minWidth: 10 }} />
+          <span style={{ fontSize: 10, color: "var(--t3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>📊 Google Sheet</span>
+          {editingSheet ? (
+            <div style={{ display: "flex", gap: 6, flex: 1, minWidth: 240 }}>
+              <input autoFocus type="text" value={sheetUrlInput} onChange={(e) => setSheetUrlInput(e.target.value)}
+                placeholder="https://docs.google.com/spreadsheets/d/..."
+                style={{ flex: 1, padding: "6px 10px", borderRadius: 8, fontSize: 12, background: "var(--bg)", border: "1px solid var(--brd)", color: "var(--t1)" }}
+                onKeyDown={async (e) => { if (e.key === "Enter") { await updateClientField("sheet_url", sheetUrlInput.trim() || null); setEditingSheet(false); } if (e.key === "Escape") setEditingSheet(false); }} />
+              <button onClick={async () => { await updateClientField("sheet_url", sheetUrlInput.trim() || null); setEditingSheet(false); }}
+                style={{ padding: "6px 12px", borderRadius: 8, background: "var(--gr)", color: "#0a0118", border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Сохранить</button>
+              <button onClick={() => setEditingSheet(false)} style={{ padding: "6px 10px", borderRadius: 8, background: "transparent", color: "var(--t3)", border: "1px solid var(--brd)", fontSize: 11, cursor: "pointer" }}>✕</button>
+            </div>
+          ) : (
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              {c.sheet_url ? (
                 <a href={c.sheet_url} target="_blank" rel="noopener noreferrer"
-                  style={{
-                    padding: "8px 14px", borderRadius: 8,
-                    background: "linear-gradient(135deg, #34a853, #1e8e3e)", color: "#fff",
-                    fontSize: 11, fontWeight: 800, textDecoration: "none", letterSpacing: 0.3,
-                  }}>
-                  Открыть ↗
-                </a>
+                  style={{ padding: "6px 12px", borderRadius: 8, background: "linear-gradient(135deg, #34a853, #1e8e3e)", color: "#fff", fontSize: 11, fontWeight: 800, textDecoration: "none" }}>Открыть ↗</a>
+              ) : (
+                <span style={{ fontSize: 11, color: "var(--t3)", fontStyle: "italic" }}>не добавлена</span>
               )}
               <button onClick={() => { setSheetUrlInput(c.sheet_url || ""); setEditingSheet(true); }}
-                style={{
-                  padding: "8px 12px", borderRadius: 8, background: "transparent",
-                  color: "var(--t2)", border: "1px solid var(--brd)", fontSize: 11, fontWeight: 600, cursor: "pointer",
-                }}>
-                {c.sheet_url ? "✎ Изменить" : "+ Добавить"}
+                style={{ padding: "6px 10px", borderRadius: 8, background: "transparent", color: "var(--t2)", border: "1px solid var(--brd)", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                {c.sheet_url ? "✎" : "+ добавить"}
               </button>
             </div>
           )}
         </div>
       </div>
 
-      {/* Contractual months timeline — теперь полностью редактируемый */}
+      {/* Контрактные месяцы + Что требует внимания */}
       {clientMonths.length > 0 && (
-        <ClientMonthsTimeline
-          clientId={clientId}
-          clientName={`${c.name} ${c.surname || ""}`.trim()}
-          clientMonths={clientMonths}
-          scripts={scripts}
-          activeMonth={viewMonth}
-          onActivateMonth={(m) => setViewMonth(m)}
-          onChange={async () => { await load(); }}
-          todayIso={new Date().toISOString().slice(0, 10)}
-        />
+        <div style={{ display: "grid", gridTemplateColumns: "1.7fr 1fr", gap: 14, marginBottom: 14 }} className="months-attention-grid">
+          <ClientMonthsTimeline
+            clientId={clientId}
+            clientName={`${c.name} ${c.surname || ""}`.trim()}
+            clientMonths={clientMonths}
+            scripts={scripts}
+            activeMonth={viewMonth}
+            onActivateMonth={(m) => setViewMonth(m)}
+            onChange={async () => { await load(); }}
+            todayIso={todayIso}
+          />
+          <ClientAttention currentM={currentM} scripts={currentMonthScripts} todayIso={todayIso} />
+        </div>
       )}
+
+      {/* Производство — всегда текущий рабочий месяц */}
+      <ClientProduction currentM={currentM} scripts={currentMonthScripts} />
+
+      <style jsx>{`
+        @media (max-width: 1024px) {
+          :global(.months-attention-grid) { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
 
       {/* Tabs */}
       <div className="flex gap-0 border-b mb-3 overflow-x-auto" style={{ borderColor: "var(--brd)" }}>

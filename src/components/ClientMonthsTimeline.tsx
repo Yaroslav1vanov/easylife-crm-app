@@ -118,9 +118,9 @@ export default function ClientMonthsTimeline({ clientId, clientName, clientMonth
   const hasNextM = lastM ? sortedMonths.some(m => m.month_number === lastM.month_number + 1) : false;
 
   return (
-    <div className="card" style={{ padding: 16, borderRadius: 16, marginBottom: 14, fontFamily: "'Manrope', sans-serif" }}>
+    <div className="card" style={{ padding: 18, borderRadius: 16, marginBottom: 14, fontFamily: "'Manrope', sans-serif" }}>
       {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
         <h3 style={{ fontSize: 14, fontWeight: 800, color: "var(--t1)", display: "flex", alignItems: "center", gap: 8 }}>
           <CalendarCheck size={16} style={{ color: "var(--pu)" }} strokeWidth={1.8} />
           Контрактные месяцы
@@ -131,9 +131,9 @@ export default function ClientMonthsTimeline({ clientId, clientName, clientMonth
         </div>
       </div>
 
-      {/* Timeline rows */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {sortedMonths.map((m, i) => {
+      {/* Month cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: 12 }}>
+        {sortedMonths.map((m) => {
           const list = scripts.filter(s => s.month_number === m.month_number);
           const published = list.filter(s => s.video_status === "published").length;
           const plan = m.package || 0;
@@ -142,148 +142,109 @@ export default function ClientMonthsTimeline({ clientId, clientName, clientMonth
           const badge = statusBadge(m.status, daysToEnd);
           const barColor = pct >= 80 ? "var(--gr)" : pct >= 40 ? "var(--cy)" : pct > 0 ? "var(--or)" : "var(--rd)";
           const isActive = activeMonth === m.month_number;
-          const isLast = i === sortedMonths.length - 1;
-          const nextM = sortedMonths.find(x => x.month_number === m.month_number + 1);
           return (
             <div key={m.id}
               onClick={() => onActivateMonth(m.month_number)}
               style={{
-                padding: 14,
-                borderRadius: 12,
+                padding: 16, borderRadius: 14,
                 background: isActive ? "rgba(157,107,255,0.08)" : "rgba(0,0,0,0.22)",
                 border: `1px solid ${isActive ? "var(--pu)" : "var(--brd)"}`,
-                display: "grid",
-                gridTemplateColumns: "auto 1fr auto auto auto",
-                gap: 14,
-                alignItems: "center",
-                cursor: "pointer",
-                transition: "border-color .12s, background .12s",
+                cursor: "pointer", transition: "border-color .12s, background .12s",
+                display: "flex", flexDirection: "column", gap: 12,
               }}>
-              {/* M badge */}
-              <div style={{
-                minWidth: 48, height: 48, borderRadius: 12,
-                background: `${badge.c}22`,
-                color: badge.c,
-                fontFamily: "'Unbounded', sans-serif",
-                fontSize: 18, fontWeight: 800,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                border: `1px solid ${badge.c}55`,
-              }}>M{m.month_number}</div>
+              {/* Header: M + status */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                <span style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 22, fontWeight: 800, color: "var(--t1)" }}>M{m.month_number}</span>
+                <span style={{ padding: "3px 9px", borderRadius: 7, background: badge.bg, color: badge.c, fontSize: 10, fontWeight: 700 }}>{badge.l}</span>
+              </div>
 
-              {/* Period + pkg */}
-              <div onClick={(e) => e.stopPropagation()} style={{ minWidth: 0 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4, flexWrap: "wrap" }}>
-                  <span style={{ padding: "3px 8px", borderRadius: 6, background: badge.bg, color: badge.c, fontSize: 10, fontWeight: 700 }}>{badge.l}</span>
-                  <span style={{ fontSize: 10, color: "var(--t3)", fontWeight: 600 }}>
-                    {daysToEnd < 0 ? `просрочка ${-daysToEnd} дн.` : `осталось ${daysToEnd} дн.`}
-                  </span>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--t1)", fontWeight: 600, flexWrap: "wrap" }}>
-                  {/* start_date editable */}
+              {/* Dates (editable) + days left */}
+              <div onClick={(e) => e.stopPropagation()}>
+                <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "var(--t1)", fontWeight: 600, flexWrap: "wrap" }}>
                   {editingDate?.cmId === m.id && editingDate?.field === "start_date" ? (
-                    <input
-                      autoFocus type="date" value={editDateValue}
+                    <input autoFocus type="date" value={editDateValue}
                       onChange={(e) => setEditDateValue(e.target.value)}
                       onBlur={() => { if (editDateValue && editDateValue !== m.start_date) updateField(m.id, { start_date: editDateValue }); setEditingDate(null); }}
                       onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setEditingDate(null); }}
-                      style={{ padding: "3px 6px", borderRadius: 5, background: "var(--bg)", border: "1px solid var(--cy)", color: "var(--t1)", fontSize: 12 }}
-                    />
+                      style={{ padding: "2px 5px", borderRadius: 5, background: "var(--bg)", border: "1px solid var(--cy)", color: "var(--t1)", fontSize: 12 }} />
                   ) : (
-                    <span title="Клик — изменить дату начала"
-                      onClick={() => { setEditDateValue(m.start_date); setEditingDate({ cmId: m.id, field: "start_date" }); }}
+                    <span title="Клик — изменить дату начала" onClick={() => { setEditDateValue(m.start_date); setEditingDate({ cmId: m.id, field: "start_date" }); }}
                       style={{ borderBottom: "1px dashed var(--t3)", cursor: "pointer" }}>{fmtDateShort(m.start_date)}</span>
                   )}
                   <span style={{ color: "var(--t3)" }}>→</span>
                   {editingDate?.cmId === m.id && editingDate?.field === "end_date" ? (
-                    <input
-                      autoFocus type="date" value={editDateValue}
+                    <input autoFocus type="date" value={editDateValue}
                       onChange={(e) => setEditDateValue(e.target.value)}
                       onBlur={() => { if (editDateValue && editDateValue !== m.end_date) updateField(m.id, { end_date: editDateValue }); setEditingDate(null); }}
                       onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setEditingDate(null); }}
-                      style={{ padding: "3px 6px", borderRadius: 5, background: "var(--bg)", border: "1px solid var(--cy)", color: "var(--t1)", fontSize: 12 }}
-                    />
+                      style={{ padding: "2px 5px", borderRadius: 5, background: "var(--bg)", border: "1px solid var(--cy)", color: "var(--t1)", fontSize: 12 }} />
                   ) : (
-                    <span title="Клик — изменить дедлайн"
-                      onClick={() => { setEditDateValue(m.end_date); setEditingDate({ cmId: m.id, field: "end_date" }); }}
+                    <span title="Клик — изменить дедлайн" onClick={() => { setEditDateValue(m.end_date); setEditingDate({ cmId: m.id, field: "end_date" }); }}
                       style={{ borderBottom: "1px dashed var(--or)", cursor: "pointer", color: "var(--or)" }}>{fmtDateShort(m.end_date)}</span>
                   )}
                   <Edit2 size={10} style={{ color: "var(--t3)", opacity: 0.6 }} />
                 </div>
+                {m.status !== "closed" && m.status !== "planned" && (
+                  <div style={{ fontSize: 10, color: daysToEnd < 0 ? "var(--rd)" : daysToEnd <= 5 ? "var(--or)" : "var(--t3)", fontWeight: 600, marginTop: 3 }}>
+                    {daysToEnd < 0 ? `просрочка ${-daysToEnd} дн.` : `осталось ${daysToEnd} дн.`}
+                  </div>
+                )}
               </div>
 
               {/* Progress */}
-              <div onClick={(e) => e.stopPropagation()} style={{ minWidth: 140 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                  <span style={{ fontSize: 11, fontFamily: "monospace", color: "var(--t1)", fontWeight: 700 }}>
-                    📤 {published} /{" "}
+              <div onClick={(e) => e.stopPropagation()}>
+                <div style={{ height: 6, borderRadius: 4, background: "rgba(255,255,255,0.06)", overflow: "hidden", marginBottom: 7 }}>
+                  <div style={{ width: `${pct}%`, height: "100%", background: barColor, borderRadius: 4 }} />
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                  <span style={{ fontSize: 14, fontFamily: "monospace", color: "var(--t1)", fontWeight: 800 }}>
+                    {published} /{" "}
                     {editingPkg === m.id ? (
-                      <input
-                        autoFocus type="number" min={1} max={999} value={editPkgValue}
+                      <input autoFocus type="number" min={1} max={999} value={editPkgValue}
                         onChange={(e) => setEditPkgValue(e.target.value)}
-                        onBlur={() => {
-                          const n = parseInt(editPkgValue, 10);
-                          if (!Number.isNaN(n) && n >= 1 && n !== plan) updateField(m.id, { package: n });
-                          else setEditingPkg(null);
-                        }}
+                        onBlur={() => { const n = parseInt(editPkgValue, 10); if (!Number.isNaN(n) && n >= 1 && n !== plan) updateField(m.id, { package: n }); else setEditingPkg(null); }}
                         onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setEditingPkg(null); }}
-                        style={{ width: 50, padding: "1px 4px", borderRadius: 4, background: "var(--bg)", border: "1px solid var(--cy)", color: "var(--t1)", fontSize: 11, fontFamily: "monospace", textAlign: "center" }}
-                      />
+                        style={{ width: 50, padding: "1px 4px", borderRadius: 4, background: "var(--bg)", border: "1px solid var(--cy)", color: "var(--t1)", fontSize: 13, fontFamily: "monospace", textAlign: "center" }} />
                     ) : (
-                      <span onClick={() => { setEditPkgValue(String(plan)); setEditingPkg(m.id); }}
-                        title="Клик — изменить план"
+                      <span onClick={() => { setEditPkgValue(String(plan)); setEditingPkg(m.id); }} title="Клик — изменить план"
                         style={{ cursor: "pointer", borderBottom: "1px dashed var(--t3)" }}>{plan}</span>
                     )}
                   </span>
-                  <span style={{ fontSize: 10, color: barColor, fontWeight: 700 }}>{pct}%</span>
-                </div>
-                <div style={{ height: 5, borderRadius: 3, background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
-                  <div style={{ width: `${pct}%`, height: "100%", background: barColor, borderRadius: 3 }} />
+                  <span style={{ fontSize: 12, color: barColor, fontWeight: 800 }}>{pct}%</span>
                 </div>
               </div>
 
-              {/* Actions */}
-              <div onClick={(e) => e.stopPropagation()} style={{ display: "flex", gap: 5, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                {(m.status === "active" || m.status === "onboarding") && (
+              {/* Footer: actions + focus marker */}
+              <div onClick={(e) => e.stopPropagation()} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, marginTop: "auto", paddingTop: 4 }}>
+                {(m.status === "active" || m.status === "onboarding") ? (
                   <button onClick={() => closeMonth(m.id)} disabled={busy === m.id}
                     style={{ padding: "5px 9px", borderRadius: 7, background: "rgba(168,224,99,0.12)", border: "1px solid var(--gr)", color: "var(--gr)", fontSize: 10, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}>
                     <Check size={10} strokeWidth={2.4} /> Закрыть
                   </button>
-                )}
-                {m.status === "closed" && (
+                ) : m.status === "closed" ? (
                   <button onClick={() => reopenMonth(m.id)} disabled={busy === m.id}
                     style={{ padding: "5px 9px", borderRadius: 7, background: "transparent", border: "1px solid var(--brd)", color: "var(--t2)", fontSize: 10, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}>
                     <RotateCcw size={10} strokeWidth={2.4} /> Открыть
                   </button>
-                )}
-              </div>
-
-              {/* Active marker */}
-              <div style={{ minWidth: 60, textAlign: "right" }}>
-                {isActive ? (
-                  <span style={{ fontSize: 9, fontWeight: 700, color: "var(--pu)", textTransform: "uppercase", letterSpacing: 0.5 }}>← в фокусе</span>
-                ) : (
-                  <span style={{ fontSize: 9, color: "var(--t3)" }}>Кликни →</span>
-                )}
+                ) : <span />}
+                {isActive && <span style={{ fontSize: 9, fontWeight: 700, color: "var(--pu)", textTransform: "uppercase", letterSpacing: 0.5 }}>● в фокусе</span>}
               </div>
             </div>
           );
         })}
 
-        {/* + M(n+1) button */}
+        {/* + Продлить card */}
         {lastM && !hasNextM && (
           <button onClick={() => startRenew(lastM)}
             style={{
-              padding: "12px",
-              borderRadius: 12,
-              background: "linear-gradient(135deg, rgba(66,212,244,0.08), rgba(157,107,255,0.08))",
-              border: "1px dashed var(--pu)",
-              color: "var(--pu)",
-              cursor: "pointer",
+              minHeight: 150, borderRadius: 14,
+              background: "linear-gradient(135deg, rgba(66,212,244,0.07), rgba(157,107,255,0.07))",
+              border: "1px dashed var(--pu)", color: "var(--pu)", cursor: "pointer",
               fontSize: 12, fontWeight: 700,
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, textAlign: "center", padding: 16,
             }}>
-            <PlusCircle size={14} strokeWidth={2} />
-            Открыть M{lastM.month_number + 1} — продлить контракт
+            <PlusCircle size={22} strokeWidth={2} />
+            Продлить контракт<br />— открыть M{lastM.month_number + 1}
           </button>
         )}
       </div>
