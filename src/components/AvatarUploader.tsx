@@ -67,10 +67,34 @@ export default function AvatarUploader({ currentUrl, name, pathPrefix, entityId,
     const u = urlInput.trim();
     if (!u) {
       await onUploaded(null);
-    } else {
-      await onUploaded(u);
+      setShowUrlInput(false);
+      return;
     }
-    setShowUrlInput(false);
+    setError(null);
+    setUploading(true);
+    try {
+      // Сервер сам вытянет картинку (резолвит IG/TikTok профиль → фото) и вернёт байты.
+      const resp = await fetch(`/api/social-avatar?u=${encodeURIComponent(u)}`);
+      if (!resp.ok) {
+        const j = await resp.json().catch(() => ({} as any));
+        const map: Record<string, string> = {
+          bad_url: "Не похоже на ссылку профиля/фото",
+          fetch_failed: "Не удалось получить фото по ссылке",
+          not_image: "По ссылке не картинка",
+          timeout: "Соцсеть не ответила вовремя",
+        };
+        throw new Error(map[j?.error] || "Не удалось подтянуть фото — попробуй загрузить файлом");
+      }
+      const blob = await resp.blob();
+      const ext = (blob.type.split("/")[1] || "jpg").replace("jpeg", "jpg");
+      const file = new File([blob], `${entityId}.${ext}`, { type: blob.type || "image/jpeg" });
+      await handleFile(file); // перезаливаем в наш Storage
+      setShowUrlInput(false);
+    } catch (e: any) {
+      setError(e?.message || "Ошибка");
+    } finally {
+      setUploading(false);
+    }
   }
 
   if (readonly) {
@@ -130,7 +154,7 @@ export default function AvatarUploader({ currentUrl, name, pathPrefix, entityId,
             background: "transparent", border: "1px solid var(--brd)",
             color: "var(--t2)", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4,
           }}>
-            <LinkIcon size={10} strokeWidth={2} /> URL
+            <LinkIcon size={10} strokeWidth={2} /> Из соцсети
           </button>
           {currentUrl && (
             <button onClick={handleRemove} disabled={uploading} style={{
@@ -150,7 +174,7 @@ export default function AvatarUploader({ currentUrl, name, pathPrefix, entityId,
             autoFocus
             value={urlInput}
             onChange={(e) => setUrlInput(e.target.value)}
-            placeholder="https://…"
+            placeholder="instagram.com/user, tiktok.com/@user или ссылка на фото"
             style={{
               flex: 1, padding: "6px 8px", borderRadius: 6, fontSize: 10,
               background: "rgba(0,0,0,0.25)", border: "1px solid var(--brd)", color: "var(--t1)",
