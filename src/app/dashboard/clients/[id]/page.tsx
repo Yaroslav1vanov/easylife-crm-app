@@ -6,6 +6,8 @@ import db, { Client, Script, ChecklistTask, TeamMember, ClientMonth, OnboardingP
 import AvatarUploader from "@/components/AvatarUploader";
 import ClientMonthsTimeline from "@/components/ClientMonthsTimeline";
 import ClientOverview from "@/components/ClientOverview";
+import KanbanBoard from "@/components/KanbanBoard";
+import { SCRIPT_COLUMNS, MONTAGE_COLUMNS, PUBLISHED_COLUMNS } from "@/components/kanbanConfigs";
 
 export default function ClientDetailPage() {
   const { id } = useParams();
@@ -341,169 +343,35 @@ export default function ClientDetailPage() {
 
       {/* Scripts tab — all scripts with status */}
       {tab === "scripts" && (
-        <div>
-          {/* Status summary */}
-          <div className="flex gap-3 mb-3 pb-3" style={{ borderBottom: "1px solid var(--brd)" }}>
-            {[
-              { l: "Не начато", v: monthScripts.filter(s => s.script_status === "notStarted").length, c: "var(--t3)" },
-              { l: "В работе", v: monthScripts.filter(s => s.script_status === "inProgress").length, c: "var(--or)" },
-              { l: "На утверждении", v: monthScripts.filter(s => s.script_status === "review").length, c: "var(--yl)" },
-              { l: "Утверждён", v: monthScripts.filter(s => s.script_status === "approved").length, c: "var(--gr)" },
-            ].map((s, i) => (
-              <div key={i} className="text-center flex-1 py-2 rounded-lg" style={{ background: `${s.c}08`, border: `1px solid ${s.c}20` }}>
-                <div className="text-lg font-bold font-mono" style={{ color: s.c }}>{s.v}</div>
-                <div className="text-[8px]" style={{ color: "var(--t3)" }}>{s.l}</div>
-              </div>
-            ))}
-          </div>
-          {monthScripts.map(s => {
-        const isExpanded = expandedScript === s.id;
-        return (
-          <div key={s.id} className="card mb-1" style={{ padding: 0 }}>
-            <div onClick={() => setExpandedScript(isExpanded ? null : s.id)} className="flex items-center gap-2 px-3 py-2 cursor-pointer">
-              <span className="text-[10px] font-mono w-5" style={{ color: "var(--t3)" }}>{s.order_num}</span>
-              <span className="text-xs font-semibold flex-1" style={{ color: s.script_status === "notStarted" && !s.hook_text ? "var(--t3)" : "var(--t1)" }}>{s.hook_text || s.hook}</span>
-              <span className="badge" style={{ background: `${scColor(s.script_status)}18`, color: scColor(s.script_status) }}>{scStatuses.find(x => x.value === s.script_status)?.label}</span>
-              <span style={{ color: "var(--t3)", transform: isExpanded ? "rotate(180deg)" : "none", transition: "transform .2s" }}>▾</span>
-            </div>
-            {isExpanded && (
-              <div className="px-3 pb-3 border-t" style={{ borderColor: "var(--brd)" }}>
-                <div className="flex gap-3 py-2 flex-wrap">
-                  <div><div className="text-[8px] font-semibold tracking-wider mb-1" style={{ color: "var(--cy)" }}>СТАТУС СЦЕНАРИЯ</div>
-                    <select value={s.script_status} onChange={e => updateScript(s.id, { script_status: e.target.value })}
-                      className="text-[10px] px-2 py-1 rounded outline-none" style={{ background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)" }}>
-                      {scStatuses.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                    </select></div>
-                </div>
-                <div className="mb-2"><div className="text-[8px] font-semibold tracking-wider mb-1" style={{ color: "var(--or)" }}>🎬 РЕФЕРЕНС</div>
-                  <input value={s.ref_url} onChange={e => updateScript(s.id, { ref_url: e.target.value })} placeholder="https://instagram.com/reel/..."
-                    className="w-full px-2 py-1.5 rounded text-xs outline-none" style={{ background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)" }} /></div>
-                <div className="mb-2"><div className="text-[8px] font-semibold tracking-wider mb-1" style={{ color: "var(--gr)" }}>📝 ТРАНСКРИБАЦИЯ</div>
-                  <textarea value={s.transcription} onChange={e => updateScript(s.id, { transcription: e.target.value })} placeholder="Текст с референса..." rows={2}
-                    className="w-full px-2 py-1.5 rounded text-xs outline-none resize-y" style={{ background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)", fontFamily: "inherit" }} /></div>
-                <div className="grid grid-cols-2 gap-2 mb-2">
-                  <div><div className="text-[8px] font-semibold tracking-wider mb-1" style={{ color: "var(--or)" }}>🎣 ХУК</div>
-                    <textarea value={s.hook_text} onChange={e => updateScript(s.id, { hook_text: e.target.value })} placeholder="Крючок..." rows={2}
-                      className="w-full px-2 py-1.5 rounded text-xs outline-none resize-y" style={{ background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)", fontFamily: "inherit" }} /></div>
-                  <div><div className="text-[8px] font-semibold tracking-wider mb-1" style={{ color: "var(--pu)" }}>📄 ОСНОВНОЙ ТЕКСТ</div>
-                    <textarea value={s.body_text} onChange={e => updateScript(s.id, { body_text: e.target.value })} placeholder="Основной контент..." rows={2}
-                      className="w-full px-2 py-1.5 rounded text-xs outline-none resize-y" style={{ background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)", fontFamily: "inherit" }} /></div>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div><div className="text-[8px] font-semibold tracking-wider mb-1" style={{ color: "var(--pk)" }}>📢 ПРИЗЫВ</div>
-                    <textarea value={s.cta} onChange={e => updateScript(s.id, { cta: e.target.value })} placeholder="CTA..." rows={2}
-                      className="w-full px-2 py-1.5 rounded text-xs outline-none resize-y" style={{ background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)", fontFamily: "inherit" }} /></div>
-                  <div><div className="text-[8px] font-semibold tracking-wider mb-1" style={{ color: "var(--yl)" }}>✏️ ОПИСАНИЕ</div>
-                    <textarea value={s.description} onChange={e => updateScript(s.id, { description: e.target.value })} placeholder="Описание..." rows={2}
-                      className="w-full px-2 py-1.5 rounded text-xs outline-none resize-y" style={{ background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)", fontFamily: "inherit" }} /></div>
-                </div>
-              </div>
-            )}
-          </div>
-        );
-      })}
-        </div>
+        <KanbanBoard
+          scripts={monthScripts}
+          clients={[c]}
+          columns={SCRIPT_COLUMNS}
+          onUpdate={async (id, patch) => { await db.updateScript(supabase, id, patch); await load(); }}
+          emptyHint="Сюда — перетащи карточку"
+        />
       )}
 
-      {/* Montage tab — approved scripts with video status */}
       {tab === "montage" && (
-        <div>
-          <div className="flex gap-3 mb-3 pb-3" style={{ borderBottom: "1px solid var(--brd)" }}>
-            {[
-              { l: "В работе", v: monthInMontage, c: "var(--or)" },
-              { l: "На утверждении", v: monthReviewVids, c: "var(--yl)" },
-              { l: "Готово", v: monthReady, c: "var(--cy)" },
-              { l: "Осталось", v: Math.max(0, monthScripts.length - monthPub - monthReady - monthInMontage - monthReviewVids), c: "var(--t3)" },
-            ].map((s, i) => (
-              <div key={i} className="text-center flex-1 py-2 rounded-lg" style={{ background: `${s.c}08`, border: `1px solid ${s.c}20` }}>
-                <div className="text-lg font-bold font-mono" style={{ color: s.c }}>{s.v}</div>
-                <div className="text-[8px]" style={{ color: "var(--t3)" }}>{s.l}</div>
-              </div>
-            ))}
-          </div>
-          {monthApprovedUnpublished.map(s => (
-            <div key={s.id} className="card mb-1" style={{ padding: "8px 12px" }}>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-mono" style={{ color: "var(--cy)" }}>#{s.order_num}</span>
-                <span className="text-xs flex-1" style={{ color: "var(--t1)" }}>{s.hook_text || s.hook}</span>
-                <select value={s.video_status} onChange={e => updateScript(s.id, { video_status: e.target.value })}
-                  className="text-[10px] px-2 py-0.5 rounded outline-none" style={{ background: `${viColor(s.video_status)}18`, border: "1px solid var(--brd)", color: viColor(s.video_status), cursor: "pointer" }}>
-                  {viStatuses.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
-              </div>
-            </div>
-          ))}
-          {monthApprovedUnpublished.length === 0 && (
-            <div className="text-xs text-center py-8" style={{ color: "var(--t3)" }}>Все ролики этого месяца опубликованы</div>
-          )}
-        </div>
+        <KanbanBoard
+          scripts={monthScripts.filter(s => s.script_status === "approved")}
+          clients={[c]}
+          columns={MONTAGE_COLUMNS}
+          onUpdate={async (id, patch) => { await db.updateScript(supabase, id, patch); await load(); }}
+          emptyHint="Сюда — перетащи карточку"
+        />
       )}
 
-      {/* Published tab */}
       {tab === "published" && (
-        <div>
-          <div className="flex gap-3 mb-3 pb-3" style={{ borderBottom: "1px solid var(--brd)" }}>
-            {[
-              { l: "Опубликовано", v: monthPub, c: "var(--gr)" },
-              { l: "Осталось", v: monthScripts.length - monthPub, c: "var(--t3)" },
-            ].map((s, i) => (
-              <div key={i} className="text-center flex-1 py-2 rounded-lg" style={{ background: `${s.c}08`, border: `1px solid ${s.c}20` }}>
-                <div className="text-lg font-bold font-mono" style={{ color: s.c }}>{s.l === "✓ В норме" ? "✓" : s.v}</div>
-                <div className="text-[8px]" style={{ color: "var(--t3)" }}>{s.l}</div>
-              </div>
-            ))}
-          </div>
-          <div className="h-2 rounded-full mb-3" style={{ background: "var(--brd)" }}>
-            <div className="h-full rounded-full" style={{ width: `${monthScripts.length > 0 ? monthPub / monthScripts.length * 100 : 0}%`, background: "linear-gradient(90deg, var(--cy), var(--gr))" }} />
-          </div>
-          {monthPublished.map(s => {
-            const isExp = expandedScript === s.id;
-            return (
-              <div key={s.id} className="card mb-1" style={{ padding: 0 }}>
-                <div onClick={() => setExpandedScript(isExp ? null : s.id)} className="flex items-center gap-2 px-3 py-2 cursor-pointer">
-                  <span className="text-[10px] font-mono" style={{ color: "var(--cy)" }}>#{s.order_num}</span>
-                  <span className="text-xs flex-1" style={{ color: "var(--t1)" }}>{s.hook_text || s.hook}</span>
-                  <input type="date" value={s.pub_date || ""} onClick={e => e.stopPropagation()} onChange={e => updateScript(s.id, { pub_date: e.target.value })}
-                    className="text-[10px] font-mono bg-transparent border-none outline-none cursor-pointer" style={{ color: "var(--gr)" }} />
-                  <span className="badge" style={{ background: "var(--grd)", color: "var(--gr)" }}>Опубликовано</span>
-                  <span style={{ color: "var(--t3)", transform: isExp ? "rotate(180deg)" : "none", transition: "transform .2s" }}>▾</span>
-                </div>
-                {isExp && (
-                  <div className="px-3 pb-3 border-t" style={{ borderColor: "var(--brd)" }}>
-                    <div className="flex gap-3 py-2 flex-wrap items-end">
-                      <div>
-                        <div className="text-[8px] font-semibold tracking-wider mb-1" style={{ color: "var(--pu)" }}>СТАТУС РОЛИКА</div>
-                        <select value={s.video_status} onChange={e => updateScript(s.id, { video_status: e.target.value })}
-                          className="text-[10px] px-2 py-1 rounded outline-none" style={{ background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)" }}>
-                          {viStatuses.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <div className="text-[8px] font-semibold tracking-wider mb-1" style={{ color: "var(--gr)" }}>ДАТА ПУБЛИКАЦИИ</div>
-                        <input type="date" value={s.pub_date || ""} onChange={e => updateScript(s.id, { pub_date: e.target.value })}
-                          className="text-[10px] px-2 py-1 rounded outline-none" style={{ background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)" }} />
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-[8px] font-semibold tracking-wider mb-1" style={{ color: "var(--cy)" }}>🔗 ССЫЛКА НА РОЛИК</div>
-                      <div className="flex gap-2">
-                        <input value={s.ref_url || ""} onChange={e => updateScript(s.id, { ref_url: e.target.value })} placeholder="https://instagram.com/reel/..."
-                          className="flex-1 px-2 py-1.5 rounded text-xs outline-none" style={{ background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)" }} />
-                        {s.ref_url && <a href={s.ref_url.startsWith("http") ? s.ref_url : `https://${s.ref_url}`} target="_blank" rel="noopener noreferrer"
-                          className="px-3 py-1.5 rounded text-[10px] font-semibold" style={{ background: "var(--cyd)", color: "var(--cy)", border: "1px solid var(--cy)", textDecoration: "none" }}>Открыть ↗</a>}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-          {monthPublished.length === 0 && (
-            <div className="text-xs text-center py-8" style={{ color: "var(--t3)" }}>Нет опубликованных роликов за этот месяц</div>
-          )}
-        </div>
+        <KanbanBoard
+          scripts={monthScripts.filter(s => s.video_status === "published")}
+          clients={[c]}
+          columns={PUBLISHED_COLUMNS}
+          onUpdate={async (id, patch) => { await db.updateScript(supabase, id, patch); await load(); }}
+          emptyHint="Нет опубликованных в этом M"
+          minColWidth={420}
+        />
       )}
-
     </div>
   );
 }
