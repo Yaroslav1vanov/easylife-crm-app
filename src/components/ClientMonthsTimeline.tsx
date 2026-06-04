@@ -48,9 +48,20 @@ export default function ClientMonthsTimeline({ clientId, clientName, clientMonth
     setBusy(null);
   }
 
-  async function closeMonth(cmId: number) {
+  async function closeMonth(m: ClientMonth) {
+    setBusy(m.id);
+    const { error } = await db.closeClientMonth(supabase, m.id);
+    if (error) { alert("Ошибка: " + (error.message || error)); setBusy(null); return; }
+    // Авто-активация следующего запланированного месяца.
+    const next = clientMonths.find(x => x.month_number === m.month_number + 1 && x.status === "planned");
+    if (next) await db.updateClientMonth(supabase, next.id, { status: "active" });
+    await onChange();
+    setBusy(null);
+  }
+
+  async function activateMonth(cmId: number) {
     setBusy(cmId);
-    const { error } = await db.closeClientMonth(supabase, cmId);
+    const { error } = await db.updateClientMonth(supabase, cmId, { status: "active" });
     if (error) alert("Ошибка: " + (error.message || error));
     await onChange();
     setBusy(null);
@@ -217,7 +228,7 @@ export default function ClientMonthsTimeline({ clientId, clientName, clientMonth
               {/* Footer: actions + focus marker */}
               <div onClick={(e) => e.stopPropagation()} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, marginTop: "auto", paddingTop: 4 }}>
                 {(m.status === "active" || m.status === "onboarding") ? (
-                  <button onClick={() => closeMonth(m.id)} disabled={busy === m.id}
+                  <button onClick={() => closeMonth(m)} disabled={busy === m.id}
                     style={{ padding: "5px 9px", borderRadius: 7, background: "rgba(168,224,99,0.12)", border: "1px solid var(--gr)", color: "var(--gr)", fontSize: 10, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}>
                     <Check size={10} strokeWidth={2.4} /> Закрыть
                   </button>
@@ -225,6 +236,11 @@ export default function ClientMonthsTimeline({ clientId, clientName, clientMonth
                   <button onClick={() => reopenMonth(m.id)} disabled={busy === m.id}
                     style={{ padding: "5px 9px", borderRadius: 7, background: "transparent", border: "1px solid var(--brd)", color: "var(--t2)", fontSize: 10, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}>
                     <RotateCcw size={10} strokeWidth={2.4} /> Открыть
+                  </button>
+                ) : m.status === "planned" ? (
+                  <button onClick={() => activateMonth(m.id)} disabled={busy === m.id}
+                    style={{ padding: "5px 9px", borderRadius: 7, background: "rgba(66,212,244,0.12)", border: "1px solid var(--cy)", color: "var(--cy)", fontSize: 10, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                    <Check size={10} strokeWidth={2.4} /> Активировать
                   </button>
                 ) : <span />}
                 {isActive && <span style={{ fontSize: 9, fontWeight: 700, color: "var(--pu)", textTransform: "uppercase", letterSpacing: 0.5 }}>● в фокусе</span>}
