@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
-import db, { Client, Script, TeamMember } from "@/lib/database";
+import db, { Client, Script, TeamMember, ClientMonth } from "@/lib/database";
 import Avatar from "@/components/Avatar";
 import {
   AlertTriangle, CalendarClock, CheckCircle2, Clock, Wand2,
@@ -60,6 +60,7 @@ export default function PublicationsPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [allScripts, setAllScripts] = useState<Script[]>([]);
+  const [clientMonths, setClientMonths] = useState<ClientMonth[]>([]);
   const [loading, setLoading] = useState(true);
   const [ym, setYm] = useState(currentYM);
   const [clientFilter, setClientFilter] = useState<"all" | number>("all");
@@ -80,6 +81,8 @@ export default function PublicationsPage() {
     setClients(cls); setTeam(tm);
     const all = await db.getScriptsForClients(supabase, cls.map(c => c.id));
     setAllScripts(all);
+    const cmRes = await db.getClientMonths(supabase);
+    setClientMonths(cmRes?.data || []);
     setLoading(false);
   }
 
@@ -91,6 +94,17 @@ export default function PublicationsPage() {
   const teamleads = useMemo(() => team.filter(t => t.member_type === "teamlead" || t.member_type === "admin"), [team]);
   const clientById = useMemo(() => Object.fromEntries(clients.map(c => [c.id, c])) as Record<number, Client>, [clients]);
 
+  // Активные месяцы (не закрытые/отменённые) — только их планируем в публикации.
+  const activeKeys = useMemo(() => {
+    const set = new Set<string>();
+    for (const cm of clientMonths) {
+      if (cm.status === "closed" || cm.status === "cancelled") continue;
+      set.add(`${cm.client_id}:${cm.month_number}`);
+    }
+    return set;
+  }, [clientMonths]);
+  const isActive = (s: Script) => activeKeys.has(`${s.client_id}:${s.month_number}`);
+
   const visible = useMemo(() => allScripts.filter(s => {
     const c = clientById[s.client_id];
     if (!c) return false;
@@ -99,24 +113,27 @@ export default function PublicationsPage() {
     return true;
   }), [allScripts, clientFilter, tlFilter, clientById]);
 
+  // Для планирования (календарь/пул/плашки) — только текущие рабочие месяцы.
+  const activeVisible = useMemo(() => visible.filter(isActive), [visible, activeKeys]);
+
   const scheduledByDay = useMemo(() => {
     const map: Record<string, Script[]> = {};
-    for (const s of visible) {
+    for (const s of activeVisible) {
       if (!s.pub_date) continue;
       if (s.pub_date.slice(0, 7) !== ym) continue;
       (map[s.pub_date] ||= []).push(s);
     }
     for (const k of Object.keys(map)) map[k].sort((a, b) => a.client_id - b.client_id || a.order_num - b.order_num);
     return map;
-  }, [visible, ym]);
+  }, [activeVisible, ym]);
 
-  const pool = useMemo(() => visible.filter(s => !s.pub_date && s.video_status !== "published")
-    .sort((a, b) => a.client_id - b.client_id || a.month_number - b.month_number || a.order_num - b.order_num), [visible]);
+  const pool = useMemo(() => activeVisible.filter(s => !s.pub_date && s.video_status !== "published")
+    .sort((a, b) => a.client_id - b.client_id || a.month_number - b.month_number || a.order_num - b.order_num), [activeVisible]);
 
   const alerts = useMemo(() => {
     let overdue = 0, todayCnt = 0, ready = 0, soon = 0;
     const soonLimit = addDaysIso(todayIso, 3);
-    for (const s of visible) {
+    for (const s of activeVisible) {
       if (s.video_status === "published") continue;
       const st = slotStatus(s, todayIso);
       if (st === "overdue") overdue++;
@@ -125,7 +142,7 @@ export default function PublicationsPage() {
       if (st === "not_ready" && s.pub_date && s.pub_date > todayIso && s.pub_date <= soonLimit) soon++;
     }
     return { overdue, todayCnt, ready, soon };
-  }, [visible, todayIso]);
+  }, [activeVisible, todayIso]);
 
   async function handleDropDay(dayIso: string) {
     if (dragId == null) return;
@@ -321,7 +338,7 @@ export default function PublicationsPage() {
       )}
 
       {autoOpen && (
-        <AutoDistributeModal clients={clients} allScripts={allScripts} defaultStart={`${ym}-01`} onClose={() => setAutoOpen(false)}
+        <AutoDistributeModal clients={clients} allScripts={allScripts.filter(isActive)} defaultStart={`${ym}-01`} onClose={() => setAutoOpen(false)}
           onApply={async (assignments) => {
             for (const a of assignments) { await db.updateScript(supabase, a.id, { pub_date: a.date }); }
             setAllScripts(arr => arr.map(s => { const a = assignments.find(x => x.id === s.id); return a ? { ...s, pub_date: a.date } : s; }));
