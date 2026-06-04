@@ -17,7 +17,7 @@ const navItems: NavItem[] = [
   { id: "production", path: "/dashboard/production", icon: Layers, label: "Производство", soon: true },
   { id: "scripts", path: "/dashboard/scripts", icon: FileText, label: "Сценарии" },
   { id: "montage", path: "/dashboard/montage", icon: Scissors, label: "Монтаж" },
-  { id: "publications", path: "/dashboard/publications", icon: Send, label: "Публикации", soon: true },
+  { id: "publications", path: "/dashboard/publications", icon: Send, label: "Публикации" },
   { id: "calendar", path: "/dashboard/calendar", icon: Calendar, label: "Календарь", soon: true },
   { id: "team", path: "/dashboard/team", icon: HandshakeIcon, label: "Команда" },
   { id: "analytics", path: "/dashboard/analytics", icon: BarChart3, label: "Аналитика", soon: true },
