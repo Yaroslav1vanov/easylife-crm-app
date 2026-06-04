@@ -645,7 +645,7 @@ type ClientsBlockProps = {
 
 type ClientRow = {
   c: Client; cm: ClientMonth;
-  plan: number; scrApproved: number; montage: number; ready: number; published: number;
+  plan: number; scrApproved: number; scrInProgress: number; montage: number; montageInProgress: number; ready: number; published: number;
   remaining: number; progressPct: number; daysToEnd: number; daysTotal: number;
   isOverdue: boolean; isPaused: boolean;
   status: "overdue" | "working" | "paused" | "done";
@@ -662,7 +662,9 @@ function ClientsBlock(p: ClientsBlockProps) {
       const list = p.scripts.filter(s => s.client_id === c.id && s.month_number === cm.month_number);
       const plan = cm.package || list.length || 1;
       const scrApproved = list.filter(s => s.script_status === "approved").length;
+      const scrInProgress = list.filter(s => s.script_status === "inProgress").length;
       const montage = list.filter(s => s.script_status === "approved" && (s.video_status === "inProgress" || s.video_status === "ready" || s.video_status === "published")).length;
+      const montageInProgress = list.filter(s => s.script_status === "approved" && s.video_status === "inProgress").length;
       const ready = list.filter(s => s.video_status === "ready" || s.video_status === "published").length;
       const published = list.filter(s => s.video_status === "published").length;
       const remaining = Math.max(0, plan - published);
@@ -673,7 +675,7 @@ function ClientsBlock(p: ClientsBlockProps) {
       const isPaused = cm.status === "planned" || cm.status === "cancelled";
       const status: ClientRow["status"] = isOverdue ? "overdue" : isPaused ? "paused" : published >= plan ? "done" : "working";
       const pace = paceOf(cm.start_date, cm.end_date, p.todayIso, published, plan);
-      out.push({ c, cm, plan, scrApproved, montage, ready, published, remaining, progressPct, daysToEnd, daysTotal, isOverdue, isPaused, status, pace });
+      out.push({ c, cm, plan, scrApproved, scrInProgress, montage, montageInProgress, ready, published, remaining, progressPct, daysToEnd, daysTotal, isOverdue, isPaused, status, pace });
     }
     // Сортируем: клиент.id, потом по month_number — соседние месяцы одного клиента рядом
     out.sort((a, b) => a.c.id - b.c.id || a.cm.month_number - b.cm.month_number);
@@ -709,10 +711,10 @@ function ClientsBlock(p: ClientsBlockProps) {
 
   // итоги
   const totals = useMemo(() => {
-    const t = { plan: 0, scr: 0, montage: 0, ready: 0, published: 0, remaining: 0 };
+    const t = { plan: 0, scrInProgress: 0, montageInProgress: 0, published: 0, expected: 0, remaining: 0 };
     for (const r of sorted) {
-      t.plan += r.plan; t.scr += r.scrApproved; t.montage += r.montage;
-      t.ready += r.ready; t.published += r.published; t.remaining += r.remaining;
+      t.plan += r.plan; t.scrInProgress += r.scrInProgress; t.montageInProgress += r.montageInProgress;
+      t.published += r.published; t.expected += r.pace.expected; t.remaining += r.remaining;
     }
     return t;
   }, [sorted]);
@@ -795,6 +797,29 @@ function ClientsBlock(p: ClientsBlockProps) {
         </div>
         <div style={{ height: 4, borderRadius: 2, background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
           <div style={{ width: `${pct}%`, height: "100%", background: color, borderRadius: 2 }} />
+        </div>
+      </div>
+    );
+  };
+
+  const WipCell = ({ n, color, caption }: { n: number; color: string; caption?: string }) => (
+    <div>
+      <div style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 18, fontWeight: 800, color: n > 0 ? color : "var(--t3)", lineHeight: 1 }}>{n}</div>
+      {caption && <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 600, marginTop: 2 }}>{caption}</div>}
+    </div>
+  );
+
+  // Факт vs план «на сегодня»: published против ожидаемого, с дельтой
+  const PaceVsCell = ({ published, expected, pace }: { published: number; expected: number; pace: ClientRow["pace"] }) => {
+    const PI = pace.icon === "up" ? TrendingUp : pace.icon === "down" ? TrendingDown : Minus;
+    return (
+      <div>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
+          <span style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 18, fontWeight: 800, color: pace.color, lineHeight: 1 }}>{published}</span>
+          <span style={{ fontSize: 11, color: "var(--t3)", fontWeight: 600 }}>/ {expected}</span>
+        </div>
+        <div style={{ fontSize: 9, color: pace.color, fontWeight: 700, marginTop: 3, display: "inline-flex", alignItems: "center", gap: 3 }}>
+          <PI size={9} strokeWidth={2.2} /> {pace.label}
         </div>
       </div>
     );
@@ -913,10 +938,10 @@ function ClientsBlock(p: ClientsBlockProps) {
       {/* TABLE VIEW */}
       {p.view === "table" && (
         <div style={{ overflowX: "auto", marginLeft: -8, marginRight: -8 }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1200 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1000 }}>
             <thead>
               <tr style={{ fontSize: 9, color: "var(--t3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>
-                {["Клиент", "Пакет", "Период", "Сценарии", "Монтаж", "Готово", "Опубликовано", "Осталось", "Прогресс", "Статус", "Дедлайн", ""].map((h, i) => (
+                {["Клиент", "Пакет", "Сцен. в работе", "В монтаже", "Опубликовано", "План сегодня", "Факт / план", "Дедлайн"].map((h, i) => (
                   <th key={i} style={{ textAlign: "left", padding: "10px 8px", borderBottom: "1px solid var(--brd)", fontWeight: 700 }}>{h}</th>
                 ))}
               </tr>
@@ -934,14 +959,13 @@ function ClientsBlock(p: ClientsBlockProps) {
                     const groupRemaining = inGroup.reduce((s, x) => s + x.remaining, 0);
                     out.push(
                       <tr key={`grp-${r.cm.month_number}`} style={{ background: "rgba(157,107,255,0.10)" }}>
-                        <td colSpan={12} style={{ padding: "10px 8px", fontSize: 11, fontWeight: 800, color: "var(--pu)", letterSpacing: 0.3, borderBottom: "1px solid rgba(157,107,255,0.2)" }}>
+                        <td colSpan={8} style={{ padding: "10px 8px", fontSize: 11, fontWeight: 800, color: "var(--pu)", letterSpacing: 0.3, borderBottom: "1px solid rgba(157,107,255,0.2)" }}>
                           📅 M{r.cm.month_number} — {inGroup.length} {inGroup.length === 1 ? "клиент" : inGroup.length < 5 ? "клиента" : "клиентов"}
                           <span style={{ marginLeft: 12, color: "var(--t3)", fontWeight: 600 }}>пакет {groupPkg} · осталось {groupRemaining}</span>
                         </td>
                       </tr>
                     );
                   }
-                  const PIcon = r.pace.icon === "up" ? TrendingUp : r.pace.icon === "down" ? TrendingDown : Minus;
                   out.push(
                     <tr key={`row-${r.cm.id}`}
                     onClick={() => p.onOpen(r.c.id)}
@@ -969,39 +993,16 @@ function ClientsBlock(p: ClientsBlockProps) {
                     <td style={{ padding: "12px 8px", verticalAlign: "middle", fontSize: 11, color: "var(--t2)", fontWeight: 600, whiteSpace: "nowrap" }}>
                       {r.cm.package} роликов/мес
                     </td>
-                    {/* Период */}
-                    <td style={{ padding: "12px 8px", verticalAlign: "middle", whiteSpace: "nowrap" }}>
-                      <div style={{ fontSize: 11, color: "var(--t1)", fontWeight: 600 }}>{fmtDateShort(r.cm.start_date)} — {fmtDateShort(r.cm.end_date)}</div>
-                      <div style={{ fontSize: 9, color: r.daysToEnd < 0 ? "var(--rd)" : "var(--t3)", fontWeight: 600, marginTop: 1 }}>
-                        {r.daysToEnd < 0 ? `просрочка ${-r.daysToEnd}д` : `${r.daysToEnd} дней`}
-                      </div>
-                    </td>
-                    {/* Сценарии */}
-                    <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 110 }}><StageCell done={r.scrApproved} plan={r.plan} color="#42d4f4" /></td>
-                    {/* Монтаж */}
-                    <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 110 }}><StageCell done={r.montage} plan={r.plan} color="#ffae42" /></td>
-                    {/* Готово */}
-                    <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 110 }}><StageCell done={r.ready} plan={r.plan} color="#a8e063" /></td>
+                    {/* Сцен. в работе */}
+                    <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 90 }}><WipCell n={r.scrInProgress} color="#42d4f4" caption="пишутся" /></td>
+                    {/* В монтаже */}
+                    <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 90 }}><WipCell n={r.montageInProgress} color="#ffae42" caption="монтируются" /></td>
                     {/* Опубликовано */}
-                    <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 110 }}><StageCell done={r.published} plan={r.plan} color="#9d6bff" /></td>
-                    {/* Осталось */}
-                    <td style={{ padding: "12px 8px", verticalAlign: "middle" }}>
-                      <div style={{ fontSize: 13, fontWeight: 800, color: "var(--t1)", fontFamily: "monospace" }}>{r.remaining}</div>
-                      <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 600 }}>{r.plan > 0 ? Math.round((r.remaining / r.plan) * 100) : 0}%</div>
-                    </td>
-                    {/* Прогресс */}
-                    <td style={{ padding: "12px 8px", verticalAlign: "middle" }}>
-                      <RingProgress pct={r.progressPct} color={r.progressPct >= 70 ? "#a8e063" : r.progressPct >= 40 ? "#42d4f4" : "#ffae42"} />
-                    </td>
-                    {/* Статус */}
-                    <td style={{ padding: "12px 8px", verticalAlign: "middle" }}>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 3, alignItems: "flex-start" }}>
-                        {statusBadge(r.status)}
-                        <span style={{ fontSize: 9, color: r.pace.color, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 3 }}>
-                          <PIcon size={9} strokeWidth={2.2} /> {r.pace.label}
-                        </span>
-                      </div>
-                    </td>
+                    <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 110 }}><StageCell done={r.published} plan={r.plan} color="#34a853" /></td>
+                    {/* План сегодня */}
+                    <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 90 }}><WipCell n={r.pace.expected} color="#9d6bff" caption="ждём к сегодня" /></td>
+                    {/* Факт / план */}
+                    <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 110 }}><PaceVsCell published={r.published} expected={r.pace.expected} pace={r.pace} /></td>
                     {/* Дедлайн */}
                     <td style={{ padding: "12px 8px", verticalAlign: "middle", whiteSpace: "nowrap" }}>
                       <div style={{ fontSize: 11, fontWeight: 700, color: "var(--t1)" }}>{fmtDateShort(r.cm.end_date)}</div>
@@ -1009,45 +1010,48 @@ function ClientsBlock(p: ClientsBlockProps) {
                         {r.daysToEnd < 0 ? `${-r.daysToEnd} дн. просрочки` : `${r.daysToEnd} дней`}
                       </div>
                     </td>
-                    {/* Action */}
-                    <td style={{ padding: "12px 4px", verticalAlign: "middle", textAlign: "center" }}>
-                      <span style={{ color: "var(--t3)", fontSize: 14 }}>⋮</span>
-                    </td>
                   </tr>
                   );
                 }
                 return out;
               })()}
               {sorted.length === 0 && (
-                <tr><td colSpan={13} style={{ padding: "40px 8px", textAlign: "center", color: "var(--t3)", fontSize: 12 }}>
+                <tr><td colSpan={8} style={{ padding: "40px 8px", textAlign: "center", color: "var(--t3)", fontSize: 12 }}>
                   Никого не найдено по фильтрам
                 </td></tr>
               )}
             </tbody>
             {/* TOTALS */}
-            {sorted.length > 0 && !p.collapsedTotals && (
+            {sorted.length > 0 && !p.collapsedTotals && (() => {
+              const tDelta = totals.published - totals.expected;
+              const tColor = tDelta >= 0 ? "var(--gr)" : tDelta >= -5 ? "var(--or)" : "var(--rd)";
+              const TI = tDelta > 0 ? TrendingUp : tDelta < 0 ? TrendingDown : Minus;
+              const tLabel = tDelta === 0 ? "по плану" : tDelta > 0 ? `опережаем +${tDelta}` : `отстаём ${tDelta}`;
+              return (
               <tfoot>
                 <tr style={{ borderTop: "2px solid var(--brd)", background: "rgba(123,63,228,0.06)" }}>
                   <td style={{ padding: "14px 8px", fontSize: 11, fontWeight: 800, color: "var(--t1)" }}>
                     Итого на {ymLabel(p.selectedMonth)}
                   </td>
-                  <td style={{ padding: "14px 8px", fontSize: 11, color: "var(--t2)", fontWeight: 600 }}>{new Set(sorted.map(r => r.c.id)).size} клиентов · {sorted.length} M-периодов</td>
-                  <td style={{ padding: "14px 8px", fontFamily: "'Unbounded', sans-serif", fontSize: 14, fontWeight: 800, color: "var(--pu)" }}>{totals.plan}</td>
-                  <td style={{ padding: "14px 8px" }}><StageCell done={totals.scr} plan={totals.plan} color="#42d4f4" /></td>
-                  <td style={{ padding: "14px 8px" }}><StageCell done={totals.montage} plan={totals.plan} color="#ffae42" /></td>
-                  <td style={{ padding: "14px 8px" }}><StageCell done={totals.ready} plan={totals.plan} color="#a8e063" /></td>
-                  <td style={{ padding: "14px 8px" }}><StageCell done={totals.published} plan={totals.plan} color="#9d6bff" /></td>
+                  <td style={{ padding: "14px 8px", fontSize: 10, color: "var(--t2)", fontWeight: 600 }}>{new Set(sorted.map(r => r.c.id)).size} клиентов · план {totals.plan}</td>
+                  <td style={{ padding: "14px 8px" }}><WipCell n={totals.scrInProgress} color="#42d4f4" /></td>
+                  <td style={{ padding: "14px 8px" }}><WipCell n={totals.montageInProgress} color="#ffae42" /></td>
+                  <td style={{ padding: "14px 8px" }}><StageCell done={totals.published} plan={totals.plan} color="#34a853" /></td>
+                  <td style={{ padding: "14px 8px" }}><WipCell n={totals.expected} color="#9d6bff" /></td>
                   <td style={{ padding: "14px 8px" }}>
-                    <div style={{ fontSize: 13, fontWeight: 800, color: "var(--t1)", fontFamily: "monospace" }}>{totals.remaining}</div>
-                    <div style={{ fontSize: 9, color: "var(--t3)" }}>{totals.plan > 0 ? Math.round((totals.remaining / totals.plan) * 100) : 0}%</div>
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
+                      <span style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 18, fontWeight: 800, color: tColor, lineHeight: 1 }}>{totals.published}</span>
+                      <span style={{ fontSize: 11, color: "var(--t3)", fontWeight: 600 }}>/ {totals.expected}</span>
+                    </div>
+                    <div style={{ fontSize: 9, color: tColor, fontWeight: 700, marginTop: 3, display: "inline-flex", alignItems: "center", gap: 3 }}>
+                      <TI size={9} strokeWidth={2.2} /> {tLabel}
+                    </div>
                   </td>
-                  <td style={{ padding: "14px 8px" }}>
-                    <RingProgress pct={totals.plan > 0 ? Math.round((totals.published / totals.plan) * 100) : 0} color="#9d6bff" />
-                  </td>
-                  <td colSpan={3} />
+                  <td />
                 </tr>
               </tfoot>
-            )}
+              );
+            })()}
           </table>
           <div style={{ textAlign: "right", paddingTop: 8 }}>
             <button onClick={() => p.setCollapsedTotals(!p.collapsedTotals)}
@@ -1765,21 +1769,44 @@ function DashboardInner() {
         </div>
       </div>
 
-      {/* ===== КОНТРАКТНЫЕ МЕСЯЦЫ И ПРОДЛЕНИЯ ===== */}
-      <MonthsBlock
-        clients={clients}
-        clientMonths={clientMonths}
-        scripts={scripts}
-        team={team}
-        todayIso={todayIso}
-        selectedMonth={selectedMonth} setSelectedMonth={setSelectedMonth}
-        currentYM={currentYM}
-        onChange={async () => {
-          const cmRes = await db.getClientMonths(supabase);
-          setClientMonths(cmRes?.data || []);
-        }}
-        onOpen={(id) => router.push(`/dashboard/clients/${id}`)}
-      />
+      {/* ===== ПРОДЛЕНИЯ (компактный алерт вместо большой таблицы) ===== */}
+      {(() => {
+        const cands = clientMonths
+          .filter(cm => (cm.status === "active" || cm.status === "onboarding")
+            && daysBetween(todayIso, cm.end_date) <= 7
+            && !clientMonths.some(x => x.client_id === cm.client_id && x.month_number === cm.month_number + 1))
+          .sort((a, b) => daysBetween(todayIso, a.end_date) - daysBetween(todayIso, b.end_date));
+        if (cands.length === 0) return null;
+        return (
+          <div className="card" style={{ padding: 16, borderRadius: 18, marginBottom: 18, borderColor: "rgba(245,196,81,0.32)", background: "linear-gradient(135deg, rgba(245,196,81,0.07), rgba(123,63,228,0.03))" }}>
+            <h3 style={{ fontSize: 14, fontWeight: 800, color: "var(--t1)", display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+              <CalendarCheck size={16} style={{ color: "var(--yl)" }} strokeWidth={1.8} />
+              Контракты на продление
+              <span style={{ padding: "2px 7px", borderRadius: 6, background: "rgba(245,196,81,0.18)", color: "var(--yl)", fontSize: 10, fontWeight: 700 }}>{cands.length}</span>
+            </h3>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 10 }}>
+              {cands.map(cm => {
+                const c = clients.find(x => x.id === cm.client_id);
+                if (!c) return null;
+                const dte = daysBetween(todayIso, cm.end_date);
+                return (
+                  <button key={cm.id} onClick={() => router.push(`/dashboard/clients/${cm.client_id}`)}
+                    style={{ textAlign: "left", padding: 12, borderRadius: 12, background: "rgba(0,0,0,0.22)", border: "1px solid var(--brd)", cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }}>
+                    <Avatar name={`${c.name} ${c.surname || ""}`} src={c.avatar_url} size={36} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "var(--t1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name} {c.surname || ""}</div>
+                      <div style={{ fontSize: 10, color: dte < 0 ? "var(--rd)" : "var(--yl)", fontWeight: 600, marginTop: 2 }}>
+                        M{cm.month_number} {dte < 0 ? `просрочен ${-dte} дн.` : `заканчивается через ${dte} дн.`}
+                      </div>
+                    </div>
+                    <span style={{ fontSize: 11, color: "var(--pu)", fontWeight: 700, whiteSpace: "nowrap" }}>Продлить →</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ===== КЛИЕНТЫ В РАБОТЕ (таблица) ===== */}
       <ClientsBlock
