@@ -9,6 +9,16 @@ import ClientOverview from "@/components/ClientOverview";
 import KanbanBoard from "@/components/KanbanBoard";
 import { SCRIPT_COLUMNS, MONTAGE_COLUMNS, PUBLISHED_COLUMNS } from "@/components/kanbanConfigs";
 
+/** Реальный текущий рабочий месяц: тот, в чьи даты попадает сегодня; иначе active; иначе последний. */
+function computeCurrentMonth(months: ClientMonth[], todayIso: string): number {
+  if (!months.length) return 1;
+  const byDate = months.find(m => m.start_date <= todayIso && todayIso <= m.end_date);
+  if (byDate) return byDate.month_number;
+  const active = months.find(m => m.status === "active");
+  if (active) return active.month_number;
+  return [...months].sort((a, b) => b.month_number - a.month_number)[0].month_number;
+}
+
 export default function ClientDetailPage() {
   const { id } = useParams();
   const clientId = parseInt(id as string);
@@ -27,6 +37,7 @@ export default function ClientDetailPage() {
   const [sheetUrlInput, setSheetUrlInput] = useState("");
   const [expandedScript, setExpandedScript] = useState<number | null>(null);
   const [viewMonth, setViewMonth] = useState(1);
+  const [monthInit, setMonthInit] = useState(false);
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState("");
   const router = useRouter();
@@ -45,7 +56,14 @@ export default function ClientDetailPage() {
       db.getOnboardingProgress(supabase, clientId),
     ]);
     setClient(c); setScripts(s); setChecklist(ch); setTeam(tm);
-    if (cmRes?.data) setClientMonths(cmRes.data);
+    if (cmRes?.data) {
+      setClientMonths(cmRes.data);
+      // На первой загрузке открываем канбан на реальном текущем месяце.
+      if (!monthInit && cmRes.data.length) {
+        setViewMonth(computeCurrentMonth(cmRes.data, new Date().toISOString().slice(0, 10)));
+        setMonthInit(true);
+      }
+    }
     if (profile) setUserRole(profile.role);
     setOnbProgress(onb);
     setLoading(false);
@@ -71,9 +89,19 @@ export default function ClientDetailPage() {
     load();
   }
 
-  async function addNewMonth() {
-    await db.addMonthScripts(supabase, clientId);
-    load();
+  async function addCard() {
+    await db.createScript(supabase, clientId, viewMonth);
+    await load();
+  }
+
+  async function deleteCard(scriptId: number) {
+    await db.deleteScript(supabase, scriptId);
+    await load();
+  }
+
+  async function updateTeam(patch: { teamlead_id?: number | null; montager_id?: number | null }) {
+    await db.updateClient(supabase, clientId, patch as any);
+    await load();
   }
 
   async function saveEdit() {
@@ -85,6 +113,8 @@ export default function ClientDetailPage() {
   if (!client) return <div style={{ color: "var(--rd)", padding: 40 }}>Клиент не найден</div>;
 
   const c = client;
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const currentMonthNum = computeCurrentMonth(clientMonths, todayIso);
   const pub = scripts.filter(s => s.video_status === "published").length;
   const ready = scripts.filter(s => s.video_status === "ready").length;
   const editVids = scripts.filter(s => s.video_status === "inProgress" && s.script_status === "approved").length;
@@ -168,11 +198,12 @@ export default function ClientDetailPage() {
         clientMonths={clientMonths}
         scripts={scripts}
         team={team}
-        activeMonth={viewMonth}
-        todayIso={new Date().toISOString().slice(0, 10)}
+        activeMonth={currentMonthNum}
+        todayIso={todayIso}
         onEdit={() => { setEditData({ name: c.name, surname: c.surname, niche: c.niche, phone: c.phone, product: c.product, avg_check: c.avg_check, package: c.package, montager_id: c.montager_id, teamlead_id: c.teamlead_id, priority: c.priority, stage: c.stage }); setEditing(true); }}
         onAvatarChange={async (url) => { await updateClientField("avatar_url", url); }}
         onActivateMonth={(m) => setViewMonth(m)}
+        onUpdateTeam={updateTeam}
       />
 
       {/* Onboarding Phase Block */}
@@ -333,11 +364,9 @@ export default function ClientDetailPage() {
           {months.map(m => (
             <button key={m} onClick={() => setViewMonth(m)} className="px-3 py-1 rounded-lg text-[10px] font-semibold"
               style={{ border: `1px solid ${viewMonth === m ? "var(--cy)" : "var(--brd)"}`, background: viewMonth === m ? "var(--cyd)" : "transparent", color: viewMonth === m ? "var(--cy)" : "var(--t2)", cursor: "pointer" }}>
-              Месяц {m}
+              Месяц {m}{m === currentMonthNum ? " · текущий" : ""}
             </button>
           ))}
-          <button onClick={addNewMonth} className="px-3 py-1 rounded-lg text-[10px] font-medium"
-            style={{ border: "1px dashed var(--cy)", color: "var(--cy)", background: "transparent", cursor: "pointer" }}>+ Новый месяц</button>
         </div>
       )}
 
@@ -348,6 +377,8 @@ export default function ClientDetailPage() {
           clients={[c]}
           columns={SCRIPT_COLUMNS}
           onUpdate={async (id, patch) => { await db.updateScript(supabase, id, patch); await load(); }}
+          onAddCard={addCard}
+          onDelete={deleteCard}
           emptyHint="Сюда — перетащи карточку"
         />
       )}
@@ -358,6 +389,7 @@ export default function ClientDetailPage() {
           clients={[c]}
           columns={MONTAGE_COLUMNS}
           onUpdate={async (id, patch) => { await db.updateScript(supabase, id, patch); await load(); }}
+          onDelete={deleteCard}
           emptyHint="Сюда — перетащи карточку"
         />
       )}
@@ -368,6 +400,7 @@ export default function ClientDetailPage() {
           clients={[c]}
           columns={PUBLISHED_COLUMNS}
           onUpdate={async (id, patch) => { await db.updateScript(supabase, id, patch); await load(); }}
+          onDelete={deleteCard}
           emptyHint="Нет опубликованных в этом M"
           minColWidth={420}
         />

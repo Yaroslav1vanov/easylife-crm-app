@@ -81,8 +81,12 @@ export default function ClientMonthsTimeline({ clientId, clientName, clientMonth
     setBusy(-1);
     const pkg = parseInt(renewModal.pkg, 10);
     if (!pkg || pkg < 1) { alert("Укажи пакет"); setBusy(null); return; }
+    // Защита от дубля месяца (нет unique-констрейнта в БД).
+    if (sortedMonths.some(m => m.month_number === renewModal.nextN)) {
+      alert(`M${renewModal.nextN} уже существует`); setBusy(null); return;
+    }
     const status: ClientMonth["status"] = renewModal.prevStatus === "closed" ? "active" : "planned";
-    const { error } = await db.upsertClientMonth(supabase, {
+    const { error } = await db.insertClientMonth(supabase, {
       client_id: clientId,
       month_number: renewModal.nextN,
       start_date: renewModal.start_date,
@@ -91,7 +95,11 @@ export default function ClientMonthsTimeline({ clientId, clientName, clientMonth
       status,
     });
     if (error) { alert("Ошибка: " + (error.message || error)); setBusy(null); return; }
+    // Сразу создаём пустые карточки сценариев под пакет — чтобы канбан этого месяца был готов.
+    const { error: scrErr } = await db.addScriptsForMonth(supabase, clientId, renewModal.nextN, pkg);
+    if (scrErr) { alert("Месяц создан, но сценарии не добавились: " + (scrErr.message || scrErr)); }
     setRenewModal(null);
+    onActivateMonth(renewModal.nextN);
     await onChange();
     setBusy(null);
   }

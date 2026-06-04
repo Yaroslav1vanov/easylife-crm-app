@@ -17,7 +17,7 @@ export type Script = {
   id: number; client_id: number; month_number: number; order_num: number; hook: string;
   ref_url: string; ref_text?: string | null; transcription: string; hook_text: string; body_text: string; cta: string;
   description: string; script_status: string; video_status: string; pub_date: string | null;
-  ready_at: string | null;
+  ready_at: string | null; video_url?: string | null;
 };
 export type ChecklistTask = {
   id: number; client_id: number; phase: string; task_name: string; task_order: number;
@@ -178,6 +178,31 @@ const db = {
     const { error } = await sb.rpc("add_month_scripts", { p_client_id: clientId });
     return { error };
   },
+  async deleteScript(sb: SupabaseClient, id: number) {
+    const { error } = await sb.from("scripts").delete().eq("id", id);
+    return { error };
+  },
+  // Insert ONE empty script (idea card) into a (client, month_number). order_num = max+1.
+  // Used by the "+ Добавить" button in the kanban "Идея" column.
+  async createScript(sb: SupabaseClient, clientId: number, monthNumber: number) {
+    const { data: existing } = await sb
+      .from("scripts")
+      .select("order_num")
+      .eq("client_id", clientId)
+      .eq("month_number", monthNumber)
+      .order("order_num", { ascending: false })
+      .limit(1);
+    const nextOrder = (existing && existing[0]?.order_num ? existing[0].order_num : 0) + 1;
+    const { data, error } = await sb.from("scripts").insert({
+      client_id: clientId,
+      month_number: monthNumber,
+      order_num: nextOrder,
+      hook: "", ref_url: "", transcription: "", hook_text: "", body_text: "", cta: "",
+      description: "", script_status: "notStarted", video_status: "notStarted",
+      pub_date: null as string | null, ready_at: null as string | null,
+    }).select().single();
+    return { data, error };
+  },
   // Insert N empty scripts for a (client, month_number) with given count. Used when
   // opening a new contractual month with a package size different from clients.package.
   async addScriptsForMonth(sb: SupabaseClient, clientId: number, monthNumber: number, count: number) {
@@ -282,6 +307,12 @@ const db = {
       return { data: [] as ClientMonth[], missing: true as boolean, error };
     }
     return { data: (data || []) as ClientMonth[], missing: false as boolean, error: null as any };
+  },
+  // Plain insert of a new contractual month. Use for renew (month_number is always new) —
+  // avoids upsert's onConflict which needs a unique constraint that isn't set in the DB.
+  async insertClientMonth(sb: SupabaseClient, row: Partial<ClientMonth> & { client_id: number; month_number: number }) {
+    const { data, error } = await sb.from("client_months").insert(row).select().single();
+    return { data: data as ClientMonth | null, error };
   },
   async upsertClientMonth(sb: SupabaseClient, row: Partial<ClientMonth> & { client_id: number; month_number: number }) {
     const { error } = await sb

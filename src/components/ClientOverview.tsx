@@ -1,5 +1,5 @@
 "use client";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Client, Script, ClientMonth, TeamMember } from "@/lib/database";
 import Avatar from "@/components/Avatar";
 import AvatarUploader from "@/components/AvatarUploader";
@@ -33,9 +33,11 @@ type Props = {
   onEdit: () => void;
   onAvatarChange: (url: string | null) => Promise<void>;
   onActivateMonth: (m: number) => void;
+  onUpdateTeam: (patch: { teamlead_id?: number | null; montager_id?: number | null }) => Promise<void>;
 };
 
-export default function ClientOverview({ client: c, clientMonths, scripts, team, activeMonth, todayIso, onEdit, onAvatarChange, onActivateMonth }: Props) {
+export default function ClientOverview({ client: c, clientMonths, scripts, team, activeMonth, todayIso, onEdit, onAvatarChange, onActivateMonth, onUpdateTeam }: Props) {
+  const [editingTeam, setEditingTeam] = useState(false);
   // Текущий M-месяц
   const currentM = useMemo(() => {
     const sorted = [...clientMonths].sort((a, b) => a.month_number - b.month_number);
@@ -167,15 +169,17 @@ export default function ClientOverview({ client: c, clientMonths, scripts, team,
             </div>
           </div>
 
-          {/* Контракт block */}
+          {/* Рабочий месяц — дедлайн «сдать до» */}
           <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
             <div style={{ width: 36, height: 36, borderRadius: 9, background: "rgba(66,212,244,0.12)", color: "#42d4f4", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid rgba(66,212,244,0.3)" }}>
               <CalendarIcon size={16} strokeWidth={1.8} />
             </div>
             <div>
-              <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 2 }}>Контракт</div>
-              <div style={{ fontSize: 12, color: "var(--t1)", fontWeight: 700, lineHeight: 1.2 }}>
-                {currentM ? `M${currentM.month_number} · ${fmtDateShort(currentM.start_date).replace(/\s\d{4}/, "")} → ${fmtDateShort(currentM.end_date).replace(/\s\d{4}/, "")}` : "—"}
+              <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 2 }}>
+                Рабочий месяц{currentM ? ` · M${currentM.month_number}` : ""}
+              </div>
+              <div style={{ fontSize: 13, color: "var(--t1)", fontWeight: 800, lineHeight: 1.2 }}>
+                {currentM ? `сдать до ${fmtDateShort(currentM.end_date).replace(/\s\d{4}/, "")}` : "—"}
               </div>
               <div style={{ fontSize: 10, color: daysToEnd !== null && daysToEnd < 0 ? "var(--rd)" : daysToEnd !== null && daysToEnd <= 5 ? "var(--or)" : "var(--t3)", marginTop: 1, fontWeight: 600 }}>
                 {daysToEnd !== null ? (daysToEnd < 0 ? `просрочка ${-daysToEnd} дн.` : `осталось ${daysToEnd} дн.`) : "нет активного M"}
@@ -183,17 +187,33 @@ export default function ClientOverview({ client: c, clientMonths, scripts, team,
             </div>
           </div>
 
-          {/* Менеджер */}
-          {teamlead && (
-            <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-              <Avatar name={teamlead.name} src={teamlead.avatar_url} size={36} />
-              <div>
-                <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 2 }}>Менеджер</div>
-                <div style={{ fontSize: 12, color: "var(--t1)", fontWeight: 700 }}>{teamlead.name}</div>
-                <div style={{ fontSize: 10, color: "var(--t3)", fontWeight: 600 }}>{teamlead.role_title || "Team Lead"}</div>
-              </div>
+          {/* Команда — кто работает с клиентом (редактируемо) */}
+          <div style={{ minWidth: 190 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 6 }}>
+              <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4 }}>Над клиентом работают</div>
+              <button onClick={() => setEditingTeam(v => !v)}
+                style={{ background: "transparent", border: "none", color: editingTeam ? "var(--cy)" : "var(--t3)", cursor: "pointer", display: "inline-flex", alignItems: "center", padding: 2 }}>
+                <Edit2 size={11} strokeWidth={2} />
+              </button>
             </div>
-          )}
+            {editingTeam ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <TeamSelect label="Тим Лид" value={c.teamlead_id}
+                  options={team.filter(t => t.member_type === "teamlead" || t.member_type === "admin")}
+                  fallback={team}
+                  onChange={async (v) => { await onUpdateTeam({ teamlead_id: v }); }} />
+                <TeamSelect label="Монтажёр" value={c.montager_id}
+                  options={team.filter(t => t.member_type === "montager")}
+                  fallback={team}
+                  onChange={async (v) => { await onUpdateTeam({ montager_id: v }); }} />
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                <TeamRow tm={teamlead} role="Тим Лид" color="#9d6bff" />
+                <TeamRow tm={montager} role="Монтажёр" color="#ffae42" />
+              </div>
+            )}
+          </div>
 
           {/* Пакет */}
           <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
@@ -203,7 +223,6 @@ export default function ClientOverview({ client: c, clientMonths, scripts, team,
             <div>
               <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 2 }}>Пакет</div>
               <div style={{ fontSize: 12, color: "var(--t1)", fontWeight: 700 }}>{plan} роликов / мес</div>
-              {c.avg_check && <div style={{ fontSize: 10, color: "var(--t3)", fontWeight: 600 }}>{c.avg_check} / мес</div>}
             </div>
           </div>
         </div>
@@ -403,6 +422,38 @@ function Row({ label, value, small, color }: { label: string; value: string; sma
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6 }}>
       <span style={{ fontSize: 10, color: "var(--t3)", fontWeight: 600 }}>{label}</span>
       <span style={{ fontSize: small ? 10 : 11, color: color || "var(--t1)", fontWeight: 700, textAlign: "right" }}>{value}</span>
+    </div>
+  );
+}
+
+function TeamRow({ tm, role, color }: { tm?: TeamMember; role: string; color: string }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      {tm ? <Avatar name={tm.name} src={tm.avatar_url} size={28} /> : (
+        <div style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(255,255,255,0.05)", border: "1px dashed var(--brd)" }} />
+      )}
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: tm ? "var(--t1)" : "var(--t3)", lineHeight: 1.1 }}>{tm ? tm.name : "не назначен"}</div>
+        <div style={{ fontSize: 9, color: color, fontWeight: 600 }}>{role}</div>
+      </div>
+    </div>
+  );
+}
+
+function TeamSelect({ label, value, options, fallback, onChange }: {
+  label: string; value: number | null;
+  options: TeamMember[]; fallback: TeamMember[];
+  onChange: (v: number | null) => void;
+}) {
+  const list = options.length > 0 ? options : fallback;
+  return (
+    <div>
+      <div style={{ fontSize: 8, color: "var(--t3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 2 }}>{label}</div>
+      <select value={value ?? ""} onChange={(e) => onChange(e.target.value ? parseInt(e.target.value, 10) : null)}
+        style={{ width: "100%", padding: "5px 8px", borderRadius: 7, background: "var(--bg)", border: "1px solid var(--cy)", color: "var(--t1)", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+        <option value="">— не назначен —</option>
+        {list.map(t => <option key={t.id} value={t.id}>{t.name}{t.role_title ? ` · ${t.role_title}` : ""}</option>)}
+      </select>
     </div>
   );
 }
