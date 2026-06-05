@@ -154,6 +154,7 @@ export default function ClientsPage() {
   const [clientMonths, setClientMonths] = useState<ClientMonth[]>([]);
   const [snapshots, setSnapshots] = useState<SocialSnapshot[]>([]);
   const [loading, setLoading] = useState(true);
+  const [statusTab, setStatusTab] = useState<"active" | "paused" | "churned">("active");
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ name: "", surname: "", niche: "", package: 30, montager_id: 0, teamlead_id: 0, start_date: new Date().toISOString().split("T")[0], pub_date: "" });
   const router = useRouter();
@@ -196,6 +197,20 @@ export default function ClientsPage() {
   const leads = team.filter(t => t.member_type === "teamlead" || t.member_type === "admin");
   const latestSync = snapshots.map((s) => s.snapshot_date).sort().at(-1);
 
+  // Группировка по статусу: активные (не пауза/не ушёл), на паузе, ушли (архив)
+  const stageOf = (c: Client) => c.stage === "paused" ? "paused" : c.stage === "churned" ? "churned" : "active";
+  const counts = {
+    active: clients.filter(c => stageOf(c) === "active").length,
+    paused: clients.filter(c => stageOf(c) === "paused").length,
+    churned: clients.filter(c => stageOf(c) === "churned").length,
+  };
+  const visibleClients = clients.filter(c => stageOf(c) === statusTab);
+  const statusTabs: { key: "active" | "paused" | "churned"; label: string; color: string; count: number }[] = [
+    { key: "active", label: "Активные", color: "var(--gr)", count: counts.active },
+    { key: "paused", label: "На паузе", color: "var(--yl)", count: counts.paused },
+    { key: "churned", label: "Архив (ушли)", color: "var(--t3)", count: counts.churned },
+  ];
+
   function productionFor(clientId: number): ClientProduction {
     const months = clientMonths.filter((m) => m.client_id === clientId && m.status !== "cancelled");
     const month = months.find((m) => m.status === "active")
@@ -224,6 +239,26 @@ export default function ClientsPage() {
 
       <div className="clients-v2-sync">
         <i /> Статистика Metricool · {latestSync ? `обновлено ${formatSnapshotDate(latestSync)}` : "подключение ожидает настройки"}
+      </div>
+
+      {/* Вкладки по статусу */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 18, flexWrap: "wrap" }}>
+        {statusTabs.map(t => {
+          const active = statusTab === t.key;
+          return (
+            <button key={t.key} type="button" onClick={() => setStatusTab(t.key)}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: 10,
+                background: active ? "rgba(157,107,255,0.14)" : "transparent",
+                border: `1px solid ${active ? "var(--pu)" : "var(--brd)"}`,
+                color: active ? "var(--t1)" : "var(--t2)", fontSize: 12, fontWeight: 700, cursor: "pointer",
+              }}>
+              <span style={{ width: 8, height: 8, borderRadius: "50%", background: t.color }} />
+              {t.label}
+              <span style={{ fontSize: 10, fontWeight: 800, padding: "1px 7px", borderRadius: 6, background: active ? "rgba(157,107,255,0.2)" : "var(--track)", color: active ? "var(--pu)" : "var(--t3)" }}>{t.count}</span>
+            </button>
+          );
+        })}
       </div>
 
       {showAdd && (
@@ -283,18 +318,25 @@ export default function ClientsPage() {
         </div>
       )}
 
-      <div className="clients-v2-grid">
-        {clients.map((client, index) => (
-          <ClientCard
-            key={client.id}
-            client={client}
-            production={productionFor(client.id)}
-            snapshots={snapshots.filter((snapshot) => snapshot.client_id === client.id)}
-            accent={clientAccents[index % clientAccents.length]}
-            onOpen={() => router.push(`/dashboard/clients/${client.id}`)}
-          />
-        ))}
-      </div>
+      {visibleClients.length === 0 ? (
+        <div className="card" style={{ padding: 40, borderRadius: 16, textAlign: "center", color: "var(--t3)", fontSize: 13 }}>
+          {statusTab === "active" ? "Нет активных клиентов" : statusTab === "paused" ? "Никто не на паузе" : "Архив пуст"}
+        </div>
+      ) : (
+        <div className="clients-v2-grid">
+          {visibleClients.map((client, index) => (
+            <div key={client.id} style={{ opacity: statusTab === "churned" ? 0.72 : 1 }}>
+              <ClientCard
+                client={client}
+                production={productionFor(client.id)}
+                snapshots={snapshots.filter((snapshot) => snapshot.client_id === client.id)}
+                accent={clientAccents[index % clientAccents.length]}
+                onOpen={() => router.push(`/dashboard/clients/${client.id}`)}
+              />
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
