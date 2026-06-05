@@ -138,7 +138,7 @@ export default function MontagePage() {
         {kpiCards.map(it => {
           const I = it.Icon;
           return (
-            <div key={it.label} style={{ background: "rgba(123,63,228,0.075)", border: "1px solid var(--brd)", borderRadius: 16, padding: 14, minHeight: 102, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+            <div key={it.label} style={{ background: "var(--card)", border: "1px solid var(--brd)", borderRadius: 16, padding: 14, minHeight: 102, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
               <div style={{ width: 34, height: 34, borderRadius: 10, background: `${it.color}22`, color: it.color, display: "flex", alignItems: "center", justifyContent: "center", border: `1px solid ${it.color}44` }}>
                 <I size={16} strokeWidth={1.8} />
               </div>
@@ -156,7 +156,7 @@ export default function MontagePage() {
         <div style={{ position: "relative", flex: "1 1 220px", maxWidth: 320 }}>
           <Search size={13} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--t3)" }} />
           <input placeholder="Поиск..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-            style={{ width: "100%", padding: "9px 12px 9px 32px", borderRadius: 10, background: "rgba(0,0,0,0.25)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 12, outline: "none" }} />
+            style={{ width: "100%", padding: "9px 12px 9px 32px", borderRadius: 10, background: "var(--inset)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 12, outline: "none" }} />
         </div>
         <div style={{ position: "relative" }}>
           <button onClick={() => setFilterMenuOpen(v => !v)}

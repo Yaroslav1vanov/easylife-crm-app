@@ -87,7 +87,7 @@ type KPIProps = {
 function KPICard({ title, value, caption, Icon, color, progress, attention, onClick }: KPIProps) {
   return (
     <div onClick={onClick} style={{
-      background: "rgba(123,63,228,0.075)",
+      background: "var(--card)",
       backdropFilter: "blur(8px)",
       border: `1px solid ${attention ? "rgba(255,92,122,0.35)" : "var(--brd)"}`,
       borderRadius: 18,
@@ -116,7 +116,7 @@ function KPICard({ title, value, caption, Icon, color, progress, attention, onCl
         <div style={{ fontSize: 10, color: attention ? "var(--rd)" : "var(--t2)", fontWeight: 600 }}>{caption}</div>
       </div>
       {typeof progress === "number" && (
-        <div style={{ height: 4, borderRadius: 2, background: "rgba(255,255,255,0.06)", overflow: "hidden", marginTop: 8 }}>
+        <div style={{ height: 4, borderRadius: 2, background: "var(--track)", overflow: "hidden", marginTop: 8 }}>
           <div style={{ width: `${Math.max(0, Math.min(100, progress))}%`, height: "100%", background: color, borderRadius: 2, transition: "width .3s" }} />
         </div>
       )}
@@ -300,7 +300,7 @@ function ClientsBlock(p: ClientsBlockProps) {
           <span style={{ fontSize: 11, fontWeight: 700, color: "var(--t1)" }}>{done}/{plan}</span>
           <span style={{ fontSize: 9, color: "var(--t3)", fontWeight: 600 }}>{pct}%</span>
         </div>
-        <div style={{ height: 4, borderRadius: 2, background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
+        <div style={{ height: 4, borderRadius: 2, background: "var(--track)", overflow: "hidden" }}>
           <div style={{ width: `${pct}%`, height: "100%", background: color, borderRadius: 2 }} />
         </div>
       </div>
@@ -335,7 +335,7 @@ function ClientsBlock(p: ClientsBlockProps) {
     return (
       <div style={{ position: "relative", width: 38, height: 38 }}>
         <svg width="38" height="38" style={{ transform: "rotate(-90deg)" }}>
-          <circle cx="19" cy="19" r={r} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="3" />
+          <circle cx="19" cy="19" r={r} fill="none" stroke="var(--track)" strokeWidth="3" />
           <circle cx="19" cy="19" r={r} fill="none" stroke={color} strokeWidth="3" strokeDasharray={circ} strokeDashoffset={circ - (pct / 100) * circ} strokeLinecap="round" />
         </svg>
         <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800, fontFamily: "monospace", color: "var(--t1)" }}>{pct}%</div>
@@ -390,7 +390,7 @@ function ClientsBlock(p: ClientsBlockProps) {
               onChange={(e) => p.setSearchQuery(e.target.value)}
               style={{
                 width: "100%", padding: "9px 12px", borderRadius: 10,
-                background: "rgba(0,0,0,0.25)", border: "1px solid var(--brd)",
+                background: "var(--inset)", border: "1px solid var(--brd)",
                 color: "var(--t1)", fontSize: 12, outline: "none",
               }}
             />
@@ -574,7 +574,7 @@ function ClientsBlock(p: ClientsBlockProps) {
             const PIcon = r.pace.icon === "up" ? TrendingUp : r.pace.icon === "down" ? TrendingDown : Minus;
             return (
               <button key={r.cm.id} onClick={() => p.onOpen(r.c.id)}
-                style={{ textAlign: "left", padding: 12, borderRadius: 14, background: "rgba(0,0,0,0.22)", border: "1px solid var(--brd)", cursor: "pointer", display: "flex", flexDirection: "column", gap: 10 }}>
+                style={{ textAlign: "left", padding: 12, borderRadius: 14, background: "var(--inset)", border: "1px solid var(--brd)", cursor: "pointer", display: "flex", flexDirection: "column", gap: 10 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
                   <Avatar name={`${r.c.name} ${r.c.surname || ""}`} src={r.c.avatar_url} size={36} />
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -592,8 +592,8 @@ function ClientsBlock(p: ClientsBlockProps) {
                     <span style={{ fontSize: 10, color: "var(--t2)", fontWeight: 600 }}>{r.published}/{r.plan}</span>
                     <span style={{ fontSize: 10, color: r.progressPct >= 70 ? "var(--gr)" : r.progressPct >= 40 ? "var(--cy)" : "var(--or)", fontWeight: 700 }}>{r.progressPct}%</span>
                   </div>
-                  <div style={{ height: 5, borderRadius: 3, background: "rgba(255,255,255,0.06)", overflow: "hidden", position: "relative" }}>
-                    <div style={{ position: "absolute", left: `${r.pace.expectedPct}%`, top: -2, bottom: -2, width: 2, background: "rgba(255,255,255,0.35)", zIndex: 2 }} />
+                  <div style={{ height: 5, borderRadius: 3, background: "var(--track)", overflow: "hidden", position: "relative" }}>
+                    <div style={{ position: "absolute", left: `${r.pace.expectedPct}%`, top: -2, bottom: -2, width: 2, background: "var(--marker)", zIndex: 2 }} />
                     <div style={{ width: `${r.progressPct}%`, height: "100%", background: r.progressPct >= 70 ? "linear-gradient(90deg, var(--gr), var(--cy))" : r.progressPct >= 40 ? "var(--cy)" : "var(--or)", borderRadius: 3, transition: "width .3s" }} />
                   </div>
                 </div>
@@ -1010,7 +1010,7 @@ function DashboardInner() {
               const paceLabel = delta >= 0 ? `опережает +${delta}` : `отстаёт ${delta}`;
               const paceColor = delta >= 0 ? "var(--gr)" : delta >= -2 ? "var(--or)" : "var(--rd)";
               return (
-                <button key={c.id} onClick={() => router.push(`/dashboard/clients/${c.id}/onboarding`)} style={{ textAlign: "left", padding: 12, borderRadius: 12, background: "rgba(0,0,0,0.22)", border: "1px solid var(--brd)", cursor: "pointer", display: "flex", flexDirection: "column", gap: 10 }}>
+                <button key={c.id} onClick={() => router.push(`/dashboard/clients/${c.id}/onboarding`)} style={{ textAlign: "left", padding: 12, borderRadius: 12, background: "var(--inset)", border: "1px solid var(--brd)", cursor: "pointer", display: "flex", flexDirection: "column", gap: 10 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     <Avatar name={`${c.name} ${c.surname || ""}`} src={c.avatar_url} size={40} />
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -1023,7 +1023,7 @@ function DashboardInner() {
                     <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 600, marginBottom: 4 }}>
                       Задачи: {p.done_tasks}/{p.total_tasks - p.skipped_tasks} · День {startedDays}/{daysTotal}
                     </div>
-                    <div style={{ height: 5, borderRadius: 3, background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
+                    <div style={{ height: 5, borderRadius: 3, background: "var(--track)", overflow: "hidden" }}>
                       <div style={{ width: `${taskProgress}%`, height: "100%", background: "linear-gradient(90deg, #ffae42, #ff5c7a)", borderRadius: 3, transition: "width .3s" }} />
                     </div>
                   </div>
@@ -1048,7 +1048,7 @@ function DashboardInner() {
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {data.attentionClients.slice(0, 4).map(({ client, reason, severity }) => (
-                <div key={client.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: 10, borderRadius: 12, background: "rgba(0,0,0,0.18)", borderLeft: `3px solid ${severity === "red" ? "var(--rd)" : "var(--yl)"}` }}>
+                <div key={client.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: 10, borderRadius: 12, background: "var(--inset)", borderLeft: `3px solid ${severity === "red" ? "var(--rd)" : "var(--yl)"}` }}>
                   <Avatar name={`${client.name} ${client.surname || ""}`} src={client.avatar_url} size={36} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 12, fontWeight: 700, color: "var(--t1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{client.name} {client.surname || ""}</div>
@@ -1097,7 +1097,7 @@ function DashboardInner() {
                   <div key={st.label} style={{ display: "flex", flexDirection: "column", padding: "0 8px", position: "relative" }}>
                     <div style={{ fontSize: 10, color: "var(--t3)", fontWeight: 700, marginBottom: 6, letterSpacing: 0.3 }}>{st.label}</div>
                     <div style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 28, fontWeight: 800, color: st.color, lineHeight: 1, marginBottom: 8 }}>{st.val}</div>
-                    <div style={{ height: 4, borderRadius: 2, background: "rgba(255,255,255,0.06)", overflow: "hidden", marginBottom: 4 }}>
+                    <div style={{ height: 4, borderRadius: 2, background: "var(--track)", overflow: "hidden", marginBottom: 4 }}>
                       <div style={{ width: `${st.denom > 0 ? Math.round((st.val / st.denom) * 100) : 0}%`, height: "100%", background: st.color, borderRadius: 2 }} />
                     </div>
                     <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 600 }}>{st.denom > 0 ? Math.round((st.val / st.denom) * 100) : 0}%</div>
@@ -1154,7 +1154,7 @@ function DashboardInner() {
                         </div>
                       </div>
                       <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 5 }}>{roleLabel} · {load.clientsCount} {load.clientsCount === 1 ? "клиент" : load.clientsCount < 5 ? "клиента" : "клиентов"}</div>
-                      <div style={{ height: 5, borderRadius: 3, background: "rgba(255,255,255,0.06)", overflow: "hidden", marginBottom: 6 }}>
+                      <div style={{ height: 5, borderRadius: 3, background: "var(--track)", overflow: "hidden", marginBottom: 6 }}>
                         <div style={{ width: `${load.loadPct}%`, height: "100%", background: load.loadPct >= 80 ? "linear-gradient(90deg, var(--gr), var(--cy))" : load.loadPct >= 50 ? "var(--cy)" : "var(--or)", borderRadius: 3, transition: "width .3s" }} />
                       </div>
                       {tags.length === 0 ? (
@@ -1227,7 +1227,7 @@ function DashboardInner() {
               const isExpanded = expandedTask === it.id;
               const hasItems = it.items.length > 0;
               return (
-                <div key={it.id} style={{ background: "rgba(0,0,0,0.18)", borderRadius: 10, border: `1px solid ${isExpanded ? it.color + "55" : "transparent"}`, transition: "all .15s" }}>
+                <div key={it.id} style={{ background: "var(--inset)", borderRadius: 10, border: `1px solid ${isExpanded ? it.color + "55" : "transparent"}`, transition: "all .15s" }}>
                   <button onClick={() => setExpandedTask(isExpanded ? null : (hasItems ? it.id as any : null))}
                     disabled={!hasItems}
                     style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 11px", border: "none", background: "transparent", cursor: hasItems ? "pointer" : "default", textAlign: "left" }}>
@@ -1238,7 +1238,7 @@ function DashboardInner() {
                       <div style={{ fontSize: 12, fontWeight: 700, color: "var(--t1)" }}>{it.label}</div>
                       {hasItems && <div style={{ fontSize: 10, color: "var(--t3)", marginTop: 1 }}>{it.clientsCount} {it.clientsCount === 1 ? "клиент" : it.clientsCount < 5 ? "клиента" : "клиентов"}</div>}
                     </div>
-                    <div style={{ minWidth: 26, height: 22, padding: "0 7px", background: it.total > 0 ? it.color : "rgba(255,255,255,0.06)", color: it.total > 0 ? "#0a0118" : "var(--t3)", borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, flexShrink: 0 }}>{it.total}</div>
+                    <div style={{ minWidth: 26, height: 22, padding: "0 7px", background: it.total > 0 ? it.color : "var(--track)", color: it.total > 0 ? "#0a0118" : "var(--t3)", borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, flexShrink: 0 }}>{it.total}</div>
                     {hasItems && <ChevronDown size={13} style={{ color: "var(--t3)", transform: isExpanded ? "rotate(180deg)" : "rotate(0)", transition: "transform .2s", flexShrink: 0 }} />}
                   </button>
                   {/* Раскрытый список клиентов */}
@@ -1296,7 +1296,7 @@ function DashboardInner() {
                 const dte = daysBetween(todayIso, cm.end_date);
                 return (
                   <button key={cm.id} onClick={() => router.push(`/dashboard/clients/${cm.client_id}`)}
-                    style={{ textAlign: "left", padding: 12, borderRadius: 12, background: "rgba(0,0,0,0.22)", border: "1px solid var(--brd)", cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }}>
+                    style={{ textAlign: "left", padding: 12, borderRadius: 12, background: "var(--inset)", border: "1px solid var(--brd)", cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }}>
                     <Avatar name={`${c.name} ${c.surname || ""}`} src={c.avatar_url} size={36} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 12, fontWeight: 700, color: "var(--t1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name} {c.surname || ""}</div>

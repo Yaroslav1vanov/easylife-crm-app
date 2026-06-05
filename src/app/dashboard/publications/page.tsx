@@ -256,7 +256,7 @@ export default function PublicationsPage() {
                     return (
                       <div key={s.id} draggable onDragStart={() => setDragId(s.id)} onDragEnd={() => { setDragId(null); setDragOverDay(null); }}
                         onClick={() => setOpenId(s.id)}
-                        style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 9px", borderRadius: 8, background: "rgba(0,0,0,0.3)", border: "1px solid var(--brd)", cursor: "grab", opacity: dragId === s.id ? 0.4 : 1 }}>
+                        style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 9px", borderRadius: 8, background: "var(--inset2)", border: "1px solid var(--brd)", cursor: "grab", opacity: dragId === s.id ? 0.4 : 1 }}>
                         <Avatar name={c ? `${c.name} ${c.surname || ""}` : "?"} src={c?.avatar_url} size={18} />
                         <span style={{ fontSize: 10, color: "var(--t1)", fontWeight: 600 }}>{c?.name} · M{s.month_number}·#{s.order_num}</span>
                       </div>
@@ -276,7 +276,7 @@ export default function PublicationsPage() {
               {weeks.map((week, wi) => (
                 <div key={wi} style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 6 }}>
                   {week.map((dayIso, di) => {
-                    if (!dayIso) return <div key={di} style={{ minHeight: 96, borderRadius: 10, background: "rgba(0,0,0,0.12)" }} />;
+                    if (!dayIso) return <div key={di} style={{ minHeight: 96, borderRadius: 10, background: "var(--inset)" }} />;
                     const items = scheduledByDay[dayIso] || [];
                     const isToday = dayIso === todayIso;
                     const isOver = dragOverDay === dayIso;
@@ -288,7 +288,7 @@ export default function PublicationsPage() {
                         onDrop={(e) => { e.preventDefault(); handleDropDay(dayIso); }}
                         style={{
                           minHeight: 96, borderRadius: 10, padding: 7,
-                          background: isOver ? "rgba(157,107,255,0.12)" : isToday ? "rgba(66,212,244,0.06)" : "rgba(0,0,0,0.22)",
+                          background: isOver ? "rgba(157,107,255,0.12)" : isToday ? "rgba(66,212,244,0.06)" : "var(--inset)",
                           border: `1px solid ${isOver ? "var(--pu)" : isToday ? "var(--cy)" : "var(--brd)"}`,
                           display: "flex", flexDirection: "column", gap: 4, transition: "border-color .12s, background .12s",
                         }}>
@@ -418,7 +418,7 @@ function PublicationModal({ script: s, client: c, todayIso, onClose, onUpdate, o
 
   const isPublished = s.video_status === "published";
   const meta = STATUS_META[slotStatus(s, todayIso)];
-  const ta: React.CSSProperties = { width: "100%", padding: "9px 11px", borderRadius: 9, background: "rgba(0,0,0,0.32)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 12, outline: "none" };
+  const ta: React.CSSProperties = { width: "100%", padding: "9px 11px", borderRadius: 9, background: "var(--inset2)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 12, outline: "none" };
 
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.72)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
@@ -431,7 +431,7 @@ function PublicationModal({ script: s, client: c, todayIso, onClose, onUpdate, o
               <div style={{ fontSize: 10, color: "var(--t3)", fontFamily: "monospace" }}>M{s.month_number} · сценарий #{s.order_num}</div>
             </div>
           </div>
-          <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: 9, background: "rgba(255,255,255,0.05)", border: "1px solid var(--brd)", color: "var(--t2)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><X size={15} /></button>
+          <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: 9, background: "var(--track)", border: "1px solid var(--brd)", color: "var(--t2)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><X size={15} /></button>
         </div>
 
         <div style={{ fontSize: 12, color: "var(--t1)", fontWeight: 600, lineHeight: 1.4 }}>{s.hook_text || s.hook || "Без темы"}</div>

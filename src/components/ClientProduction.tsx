@@ -63,7 +63,7 @@ export default function ClientProduction({ currentM, scripts }: Props) {
         {blocks.map(b => {
           const I = b.Icon;
           return (
-            <div key={b.title} style={{ padding: 16, borderRadius: 14, background: "rgba(0,0,0,0.22)", border: "1px solid var(--brd)" }}>
+            <div key={b.title} style={{ padding: 16, borderRadius: 14, background: "var(--inset)", border: "1px solid var(--brd)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 16 }}>
                 <div style={{ width: 30, height: 30, borderRadius: 9, background: `${b.color}22`, color: b.color, display: "flex", alignItems: "center", justifyContent: "center", border: `1px solid ${b.color}44` }}>
                   <I size={15} strokeWidth={1.8} />
@@ -78,7 +78,7 @@ export default function ClientProduction({ currentM, scripts }: Props) {
                   </div>
                 ))}
               </div>
-              <div style={{ height: 5, borderRadius: 3, background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
+              <div style={{ height: 5, borderRadius: 3, background: "var(--track)", overflow: "hidden" }}>
                 <div style={{ width: `${Math.min(100, b.barPct)}%`, height: "100%", background: b.color, borderRadius: 3 }} />
               </div>
             </div>

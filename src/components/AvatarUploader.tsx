@@ -177,7 +177,7 @@ export default function AvatarUploader({ currentUrl, name, pathPrefix, entityId,
             placeholder="instagram.com/user, tiktok.com/@user или ссылка на фото"
             style={{
               flex: 1, padding: "6px 8px", borderRadius: 6, fontSize: 10,
-              background: "rgba(0,0,0,0.25)", border: "1px solid var(--brd)", color: "var(--t1)",
+              background: "var(--inset)", border: "1px solid var(--brd)", color: "var(--t1)",
             }}
             onKeyDown={(e) => {
               if (e.key === "Enter") handleSaveUrl();

@@ -126,7 +126,7 @@ export default function OnboardingChecklist({ clientId, clientName, clientCreate
 
         {/* Progress bar */}
         <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 10 }}>
-          <div style={{ flex: 1, height: 12, borderRadius: 8, background: "rgba(255,255,255,0.05)", overflow: "hidden", position: "relative" }}>
+          <div style={{ flex: 1, height: 12, borderRadius: 8, background: "var(--track)", overflow: "hidden", position: "relative" }}>
             <div style={{ position: "absolute", inset: 0, width: `${pct}%`, background: "linear-gradient(90deg, var(--gr), var(--yl))", borderRadius: 8, transition: "width .3s" }} />
           </div>
           <span style={{ fontFamily: "monospace", fontSize: 18, fontWeight: 800, color: "var(--gr)", minWidth: 50 }}>{pct}%</span>
@@ -141,7 +141,7 @@ export default function OnboardingChecklist({ clientId, clientName, clientCreate
               <div key={d} style={{
                 flex: 1, padding: "6px 4px", borderRadius: 6, textAlign: "center",
                 fontSize: 10, fontWeight: 700,
-                background: isToday ? "rgba(245,196,81,0.2)" : isPast ? "rgba(168,224,99,0.1)" : "rgba(255,255,255,0.03)",
+                background: isToday ? "rgba(245,196,81,0.2)" : isPast ? "rgba(168,224,99,0.1)" : "var(--track)",
                 color: isToday ? "var(--yl)" : isPast ? "var(--gr)" : "var(--t3)",
                 border: isToday ? "1px solid var(--yl)" : "1px solid var(--brd)",
               }}>День {d}</div>
@@ -191,7 +191,7 @@ export default function OnboardingChecklist({ clientId, clientName, clientCreate
                     <div style={{ fontSize: 15, fontWeight: 700, color: "var(--t1)", marginBottom: 2 }}>{stage.stageTitle}</div>
                     <div style={{ fontSize: 11, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 0.8 }}>{stage.dayLabel} · {stageDone}/{stageNeeded} {stageSkipped > 0 ? `(${stageSkipped} пропущено)` : ""}</div>
                   </div>
-                  <div style={{ minWidth: 60, height: 6, borderRadius: 4, background: "rgba(255,255,255,0.05)", overflow: "hidden", position: "relative" }}>
+                  <div style={{ minWidth: 60, height: 6, borderRadius: 4, background: "var(--track)", overflow: "hidden", position: "relative" }}>
                     <div style={{ position: "absolute", inset: 0, width: `${stagePct}%`, background: stageColor, borderRadius: 4 }} />
                   </div>
                   <span style={{ fontFamily: "monospace", fontSize: 13, fontWeight: 700, color: stageColor, minWidth: 40 }}>{stagePct}%</span>

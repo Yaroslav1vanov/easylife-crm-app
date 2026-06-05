@@ -187,8 +187,8 @@ function KanbanCardPreview({ script: s, client: c, color, dragging, moving, show
       onDragEnd={onDragEnd}
       onClick={onClick}
       style={{
-        background: "rgba(0,0,0,0.32)",
-        border: "1px solid rgba(255,255,255,0.05)",
+        background: "var(--inset2)",
+        border: "1px solid var(--track)",
         borderRadius: 11,
         padding: 10,
         cursor: "grab",
@@ -255,7 +255,7 @@ function ScriptModal({ script: s, client: c, onClose, onUpdate, onDelete }: Moda
   );
   const ta: React.CSSProperties = {
     width: "100%", padding: "10px 12px", borderRadius: 9,
-    background: "rgba(0,0,0,0.32)", border: "1px solid var(--brd)", color: "var(--t1)",
+    background: "var(--inset2)", border: "1px solid var(--brd)", color: "var(--t1)",
     fontSize: 13, outline: "none", resize: "vertical", fontFamily: "inherit", lineHeight: 1.5,
   };
 
@@ -279,7 +279,7 @@ function ScriptModal({ script: s, client: c, onClose, onUpdate, onDelete }: Moda
               style={{ width: "100%", background: "transparent", border: "none", outline: "none", color: "var(--t1)", fontSize: 19, fontWeight: 800, fontFamily: "'Unbounded', sans-serif", letterSpacing: -0.3 }}
             />
           </div>
-          <button onClick={onClose} style={{ flexShrink: 0, width: 34, height: 34, borderRadius: 9, background: "rgba(255,255,255,0.05)", border: "1px solid var(--brd)", color: "var(--t2)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <button onClick={onClose} style={{ flexShrink: 0, width: 34, height: 34, borderRadius: 9, background: "var(--track)", border: "1px solid var(--brd)", color: "var(--t2)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <X size={16} />
           </button>
         </div>

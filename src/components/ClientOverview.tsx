@@ -55,7 +55,7 @@ export default function ClientOverview({ client: c, clientMonths, scripts, team,
       padding: 22,
       borderRadius: 18,
       marginBottom: 14,
-      background: "linear-gradient(135deg, rgba(123,63,228,0.12), rgba(10,1,24,0.4))",
+      background: "linear-gradient(135deg, rgba(123,63,228,0.12), var(--grad-end))",
       border: "1px solid rgba(157,107,255,0.26)",
       position: "relative",
     }}>
@@ -145,7 +145,7 @@ export default function ClientOverview({ client: c, clientMonths, scripts, team,
         </div>
 
         {/* Stats box */}
-        <div style={{ minWidth: 200, padding: "12px 16px", borderRadius: 12, background: "rgba(0,0,0,0.25)", border: "1px solid var(--brd)" }}>
+        <div style={{ minWidth: 200, padding: "12px 16px", borderRadius: 12, background: "var(--inset)", border: "1px solid var(--brd)" }}>
           <div style={{ display: "flex", gap: 18, marginBottom: 10 }}>
             <div>
               <div style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 20, fontWeight: 800, color: "var(--t1)", lineHeight: 1 }}>{ready} <span style={{ fontSize: 13, color: "var(--t3)" }}>/ {plan}</span></div>
@@ -160,7 +160,7 @@ export default function ClientOverview({ client: c, clientMonths, scripts, team,
             <span style={{ fontSize: 9, color: "var(--t3)", fontWeight: 600 }}>Выполнение плана</span>
             <span style={{ fontSize: 12, color: "var(--pu)", fontWeight: 800 }}>{overallPct}%</span>
           </div>
-          <div style={{ height: 5, borderRadius: 3, background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
+          <div style={{ height: 5, borderRadius: 3, background: "var(--track)", overflow: "hidden" }}>
             <div style={{ width: `${Math.min(100, overallPct)}%`, height: "100%", background: "linear-gradient(90deg, var(--cy), var(--pu))", borderRadius: 3 }} />
           </div>
         </div>
@@ -187,7 +187,7 @@ function TeamRow({ tm, role, color }: { tm?: TeamMember; role: string; color: st
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
       {tm ? <Avatar name={tm.name} src={tm.avatar_url} size={28} /> : (
-        <div style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(255,255,255,0.05)", border: "1px dashed var(--brd)" }} />
+        <div style={{ width: 28, height: 28, borderRadius: "50%", background: "var(--track)", border: "1px dashed var(--brd)" }} />
       )}
       <div style={{ minWidth: 0 }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: tm ? "var(--t1)" : "var(--t3)", lineHeight: 1.1 }}>{tm ? tm.name : "не назначен"}</div>

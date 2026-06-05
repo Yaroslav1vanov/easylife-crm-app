@@ -119,7 +119,7 @@ export default function ClientMonthsTimeline({ clientId, clientName, clientMonth
     if (status === "closed") return { l: "✓ Закрыт", c: "var(--gr)", bg: "rgba(168,224,99,0.12)" };
     if (status === "onboarding") return { l: "🧩 Онбординг", c: "var(--cy)", bg: "rgba(66,212,244,0.12)" };
     if (status === "planned") return { l: "🕓 Запланирован", c: "var(--pu)", bg: "rgba(157,107,255,0.12)" };
-    if (status === "cancelled") return { l: "— Отменён", c: "var(--t3)", bg: "rgba(255,255,255,0.04)" };
+    if (status === "cancelled") return { l: "— Отменён", c: "var(--t3)", bg: "var(--track)" };
     if (daysToEnd < 0) return { l: "🔴 Просрочка", c: "var(--rd)", bg: "rgba(255,92,122,0.12)" };
     if (daysToEnd <= 5) return { l: "⏰ Заканчивается", c: "var(--or)", bg: "rgba(255,174,66,0.12)" };
     return { l: "🟢 Активен", c: "var(--gr)", bg: "rgba(168,224,99,0.12)" };
@@ -158,7 +158,7 @@ export default function ClientMonthsTimeline({ clientId, clientName, clientMonth
               onClick={() => onActivateMonth(m.month_number)}
               style={{
                 padding: 16, borderRadius: 14,
-                background: isActive ? "rgba(157,107,255,0.08)" : "rgba(0,0,0,0.22)",
+                background: isActive ? "rgba(157,107,255,0.08)" : "var(--inset)",
                 border: `1px solid ${isActive ? "var(--pu)" : "var(--brd)"}`,
                 cursor: "pointer", transition: "border-color .12s, background .12s",
                 display: "flex", flexDirection: "column", gap: 12,
@@ -204,7 +204,7 @@ export default function ClientMonthsTimeline({ clientId, clientName, clientMonth
 
               {/* Progress */}
               <div onClick={(e) => e.stopPropagation()}>
-                <div style={{ height: 6, borderRadius: 4, background: "rgba(255,255,255,0.06)", overflow: "hidden", marginBottom: 7 }}>
+                <div style={{ height: 6, borderRadius: 4, background: "var(--track)", overflow: "hidden", marginBottom: 7 }}>
                   <div style={{ width: `${pct}%`, height: "100%", background: barColor, borderRadius: 4 }} />
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
