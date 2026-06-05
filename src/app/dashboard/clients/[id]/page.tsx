@@ -204,7 +204,7 @@ export default function ClientDetailPage() {
         team={team}
         activeMonth={currentMonthNum}
         todayIso={todayIso}
-        onEdit={() => { setEditData({ name: c.name, surname: c.surname, niche: c.niche, phone: c.phone, product: c.product, avg_check: c.avg_check, package: c.package, montager_id: c.montager_id, teamlead_id: c.teamlead_id, priority: c.priority, stage: c.stage }); setEditing(true); }}
+        onEdit={() => { setEditData({ name: c.name, surname: c.surname, niche: c.niche, phone: c.phone, product: c.product, avg_check: c.avg_check, package: c.package, montager_id: c.montager_id, teamlead_id: c.teamlead_id, priority: c.priority, stage: c.stage, instagram: c.instagram || "", tiktok: c.tiktok || "", youtube: c.youtube || "" }); setEditing(true); }}
         onAvatarChange={async (url) => { await updateClientField("avatar_url", url); }}
         onUpdateTeam={updateTeam}
       />
@@ -330,6 +330,60 @@ export default function ClientDetailPage() {
           minColWidth={420}
         />
       )}
+
+      {/* ===== Модалка редактирования клиента ===== */}
+      {editing && (() => {
+        const set = (k: string, v: any) => setEditData((d: any) => ({ ...d, [k]: v }));
+        const inp: React.CSSProperties = { width: "100%", padding: "9px 11px", borderRadius: 9, background: "var(--bg)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 13, outline: "none" };
+        const lbl: React.CSSProperties = { fontSize: 10, fontWeight: 700, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 0.4, display: "block", marginBottom: 5 };
+        const socials: { key: "instagram" | "tiktok" | "youtube"; label: string; color: string; ph: string }[] = [
+          { key: "instagram", label: "Instagram", color: "#ec4899", ph: "instagram.com/username" },
+          { key: "tiktok", label: "TikTok", color: "#34d399", ph: "tiktok.com/@username" },
+          { key: "youtube", label: "YouTube Shorts", color: "#ef4444", ph: "youtube.com/@channel" },
+        ];
+        return (
+          <div onClick={() => setEditing(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.72)", zIndex: 200, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "40px 20px", overflowY: "auto" }}>
+            <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 18, width: "100%", maxWidth: 540, padding: 24, display: "flex", flexDirection: "column", gap: 16, boxShadow: "0 24px 70px rgba(0,0,0,0.55)" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                <h3 style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 18, fontWeight: 800, color: "var(--t1)" }}>Редактировать клиента</h3>
+                <button onClick={() => setEditing(false)} style={{ width: 32, height: 32, borderRadius: 9, background: "var(--track)", border: "1px solid var(--brd)", color: "var(--t2)", cursor: "pointer" }}>✕</button>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div><label style={lbl}>Имя</label><input style={inp} value={editData.name || ""} onChange={(e) => set("name", e.target.value)} /></div>
+                <div><label style={lbl}>Фамилия</label><input style={inp} value={editData.surname || ""} onChange={(e) => set("surname", e.target.value)} /></div>
+              </div>
+              <div><label style={lbl}>Ниша / специализация</label><input style={inp} value={editData.niche || ""} onChange={(e) => set("niche", e.target.value)} placeholder="Пластический хирург, тренер по паделу…" /></div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {socials.map(s => (
+                  <div key={s.key}>
+                    <label style={{ ...lbl, color: s.color }}>{s.label}</label>
+                    <input style={inp} value={editData[s.key] || ""} onChange={(e) => set(s.key, e.target.value)} placeholder={s.ph} />
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div>
+                  <label style={lbl}>Статус</label>
+                  <select style={{ ...inp, cursor: "pointer" }} value={editData.stage || "active"} onChange={(e) => set("stage", e.target.value)}>
+                    <option value="active">● В работе</option>
+                    <option value="paused">⏸ На паузе</option>
+                    <option value="churned">✕ Ушёл</option>
+                  </select>
+                </div>
+                <div><label style={lbl}>Телефон</label><input style={inp} value={editData.phone || ""} onChange={(e) => set("phone", e.target.value)} placeholder="+1 …" /></div>
+              </div>
+
+              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", paddingTop: 4 }}>
+                <button onClick={() => setEditing(false)} style={{ padding: "9px 16px", borderRadius: 9, background: "transparent", border: "1px solid var(--brd)", color: "var(--t2)", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Отмена</button>
+                <button onClick={saveEdit} style={{ padding: "9px 20px", borderRadius: 9, background: "linear-gradient(135deg, var(--cy), var(--pu))", border: "none", color: "#fff", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>Сохранить</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
