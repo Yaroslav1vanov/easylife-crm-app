@@ -155,6 +155,10 @@ type ClientRow = {
   isOverdue: boolean; isPaused: boolean;
   status: "overdue" | "working" | "paused" | "done";
   pace: ReturnType<typeof paceOf>;
+  // календарно-месячная статистика (по плановым датам публикаций)
+  publishedInMonth: number; plannedInMonth: number; dueByToday: number; factByToday: number;
+  // всего по контракту (по клиенту, за все месяцы)
+  totalPublishedAll: number; totalPkgAll: number;
 };
 
 function ClientsBlock(p: ClientsBlockProps) {
@@ -172,6 +176,15 @@ function ClientsBlock(p: ClientsBlockProps) {
       const montageInProgress = list.filter(s => s.script_status === "approved" && s.video_status === "inProgress").length;
       const ready = list.filter(s => s.video_status === "ready" || s.video_status === "published").length;
       const published = list.filter(s => s.video_status === "published").length;
+      // календарно-месячные числа: по pub_date в выбранном месяце; «к сегодня» = строго ДО сегодня (вечерний ролik не штрафует)
+      const inMonth = (s: Script) => !!s.pub_date && s.pub_date.slice(0, 7) === p.selectedMonth;
+      const publishedInMonth = list.filter(s => s.video_status === "published" && inMonth(s)).length;
+      const plannedInMonth = list.filter(inMonth).length;
+      const dueByToday = list.filter(s => inMonth(s) && (s.pub_date as string) < p.todayIso).length;
+      const factByToday = list.filter(s => s.video_status === "published" && inMonth(s) && (s.pub_date as string) < p.todayIso).length;
+      // всего по контракту (по клиенту): опубликовано за все месяцы / суммарный пакет
+      const totalPublishedAll = p.scripts.filter(s => s.client_id === c.id && s.video_status === "published").length;
+      const totalPkgAll = p.clientMonths.filter(x => x.client_id === c.id).reduce((acc, x) => acc + (x.package || 0), 0);
       const remaining = Math.max(0, plan - published);
       const progressPct = Math.round((published / plan) * 100);
       const daysToEnd = daysBetween(p.todayIso, cm.end_date);
@@ -180,12 +193,12 @@ function ClientsBlock(p: ClientsBlockProps) {
       const isPaused = cm.status === "planned" || cm.status === "cancelled";
       const status: ClientRow["status"] = isOverdue ? "overdue" : isPaused ? "paused" : published >= plan ? "done" : "working";
       const pace = paceOf(cm.start_date, cm.end_date, p.todayIso, published, plan);
-      out.push({ c, cm, plan, scrApproved, scrInProgress, montage, montageInProgress, ready, published, remaining, progressPct, daysToEnd, daysTotal, isOverdue, isPaused, status, pace });
+      out.push({ c, cm, plan, scrApproved, scrInProgress, montage, montageInProgress, ready, published, remaining, progressPct, daysToEnd, daysTotal, isOverdue, isPaused, status, pace, publishedInMonth, plannedInMonth, dueByToday, factByToday, totalPublishedAll, totalPkgAll });
     }
     // Сортируем: клиент.id, потом по month_number — соседние месяцы одного клиента рядом
     out.sort((a, b) => a.c.id - b.c.id || a.cm.month_number - b.cm.month_number);
     return out;
-  }, [p.clients, p.clientMonths, p.scripts, p.todayIso, p.overdueClientIds]);
+  }, [p.clients, p.clientMonths, p.scripts, p.todayIso, p.overdueClientIds, p.selectedMonth]);
 
   // фильтры
   const filtered = useMemo(() => {
@@ -216,10 +229,12 @@ function ClientsBlock(p: ClientsBlockProps) {
 
   // итоги
   const totals = useMemo(() => {
-    const t = { plan: 0, scrInProgress: 0, montageInProgress: 0, published: 0, expected: 0, remaining: 0 };
+    const t = { plan: 0, scrInProgress: 0, montageInProgress: 0, published: 0, remaining: 0, publishedInMonth: 0, plannedInMonth: 0, dueByToday: 0, factByToday: 0 };
     for (const r of sorted) {
       t.plan += r.plan; t.scrInProgress += r.scrInProgress; t.montageInProgress += r.montageInProgress;
-      t.published += r.published; t.expected += r.pace.expected; t.remaining += r.remaining;
+      t.published += r.published; t.remaining += r.remaining;
+      t.publishedInMonth += r.publishedInMonth; t.plannedInMonth += r.plannedInMonth;
+      t.dueByToday += r.dueByToday; t.factByToday += r.factByToday;
     }
     return t;
   }, [sorted]);
@@ -314,17 +329,38 @@ function ClientsBlock(p: ClientsBlockProps) {
     </div>
   );
 
-  // Факт vs план «на сегодня»: published против ожидаемого, с дельтой
-  const PaceVsCell = ({ published, expected, pace }: { published: number; expected: number; pace: ClientRow["pace"] }) => {
-    const PI = pace.icon === "up" ? TrendingUp : pace.icon === "down" ? TrendingDown : Minus;
+  // Опубликовано в этом месяце: факт за месяц / запланировано на месяц
+  const MonthCell = ({ pubInMonth, planned }: { pubInMonth: number; planned: number }) => {
+    const pct = planned > 0 ? Math.round((pubInMonth / planned) * 100) : 0;
+    return (
+      <div>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginBottom: 3 }}>
+          <span style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 18, fontWeight: 800, color: pubInMonth > 0 ? "#34a853" : "var(--t3)", lineHeight: 1 }}>{pubInMonth}</span>
+          <span style={{ fontSize: 11, color: "var(--t3)", fontWeight: 600 }}>/ {planned || "—"}</span>
+        </div>
+        {planned > 0 && (
+          <div style={{ height: 4, borderRadius: 2, background: "var(--track)", overflow: "hidden" }}>
+            <div style={{ width: `${pct}%`, height: "100%", background: "#34a853", borderRadius: 2 }} />
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Темп к сегодня: факт vs «должно быть к сегодня» (строго до сегодня), по плановым датам
+  const DueCell = ({ fact, due }: { fact: number; due: number }) => {
+    const delta = fact - due;
+    const color = delta >= 0 ? "var(--gr)" : delta >= -2 ? "var(--or)" : "var(--rd)";
+    const PI = delta < 0 ? TrendingDown : Minus;
+    const label = due === 0 ? "нет плана" : delta >= 0 ? "по плану" : `отстаём ${delta}`;
     return (
       <div>
         <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
-          <span style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 18, fontWeight: 800, color: pace.color, lineHeight: 1 }}>{published}</span>
-          <span style={{ fontSize: 11, color: "var(--t3)", fontWeight: 600 }}>/ {expected}</span>
+          <span style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 18, fontWeight: 800, color: due === 0 ? "var(--t3)" : color, lineHeight: 1 }}>{fact}</span>
+          <span style={{ fontSize: 11, color: "var(--t3)", fontWeight: 600 }}>/ {due}</span>
         </div>
-        <div style={{ fontSize: 9, color: pace.color, fontWeight: 700, marginTop: 3, display: "inline-flex", alignItems: "center", gap: 3 }}>
-          <PI size={9} strokeWidth={2.2} /> {pace.label}
+        <div style={{ fontSize: 9, color: due === 0 ? "var(--t3)" : color, fontWeight: 700, marginTop: 3, display: "inline-flex", alignItems: "center", gap: 3 }}>
+          <PI size={9} strokeWidth={2.2} /> {label}
         </div>
       </div>
     );
@@ -446,7 +482,7 @@ function ClientsBlock(p: ClientsBlockProps) {
           <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1000 }}>
             <thead>
               <tr style={{ fontSize: 9, color: "var(--t3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>
-                {["Клиент", "Пакет", "Сцен. в работе", "В монтаже", "Опубликовано", "План сегодня", "Факт / план", "Дедлайн"].map((h, i) => (
+                {["Клиент", "Пакет", "Сцен. в работе", "В монтаже", `Опубл. в ${RU_MONTHS[parseInt(p.selectedMonth.split("-")[1], 10) - 1]}`, "Всего по контракту", "Темп к сегодня", "Дедлайн"].map((h, i) => (
                   <th key={i} style={{ textAlign: "left", padding: "10px 8px", borderBottom: "1px solid var(--brd)", fontWeight: 700 }}>{h}</th>
                 ))}
               </tr>
@@ -502,12 +538,12 @@ function ClientsBlock(p: ClientsBlockProps) {
                     <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 90 }}><WipCell n={r.scrInProgress} color="#42d4f4" caption="пишутся" /></td>
                     {/* В монтаже */}
                     <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 90 }}><WipCell n={r.montageInProgress} color="#ffae42" caption="монтируются" /></td>
-                    {/* Опубликовано */}
-                    <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 110 }}><StageCell done={r.published} plan={r.plan} color="#34a853" /></td>
-                    {/* План сегодня */}
-                    <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 90 }}><WipCell n={r.pace.expected} color="#9d6bff" caption="ждём к сегодня" /></td>
-                    {/* Факт / план */}
-                    <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 110 }}><PaceVsCell published={r.published} expected={r.pace.expected} pace={r.pace} /></td>
+                    {/* Опубл. в этом месяце */}
+                    <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 110 }}><MonthCell pubInMonth={r.publishedInMonth} planned={r.plannedInMonth} /></td>
+                    {/* Всего по контракту */}
+                    <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 110 }}><StageCell done={r.totalPublishedAll} plan={r.totalPkgAll || r.plan} color="#9d6bff" /></td>
+                    {/* Темп к сегодня */}
+                    <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 110 }}><DueCell fact={r.factByToday} due={r.dueByToday} /></td>
                     {/* Дедлайн */}
                     <td style={{ padding: "12px 8px", verticalAlign: "middle", whiteSpace: "nowrap" }}>
                       <div style={{ fontSize: 11, fontWeight: 700, color: "var(--t1)" }}>{fmtDateShort(r.cm.end_date)}</div>
@@ -528,27 +564,27 @@ function ClientsBlock(p: ClientsBlockProps) {
             </tbody>
             {/* TOTALS */}
             {sorted.length > 0 && !p.collapsedTotals && (() => {
-              const tDelta = totals.published - totals.expected;
+              const tDelta = totals.factByToday - totals.dueByToday;
               const tColor = tDelta >= 0 ? "var(--gr)" : tDelta >= -5 ? "var(--or)" : "var(--rd)";
-              const TI = tDelta > 0 ? TrendingUp : tDelta < 0 ? TrendingDown : Minus;
-              const tLabel = tDelta === 0 ? "по плану" : tDelta > 0 ? `опережаем +${tDelta}` : `отстаём ${tDelta}`;
+              const TI = tDelta < 0 ? TrendingDown : Minus;
+              const tLabel = totals.dueByToday === 0 ? "нет плана" : tDelta >= 0 ? "по плану" : `отстаём ${tDelta}`;
               return (
               <tfoot>
                 <tr style={{ borderTop: "2px solid var(--brd)", background: "rgba(123,63,228,0.06)" }}>
                   <td style={{ padding: "14px 8px", fontSize: 11, fontWeight: 800, color: "var(--t1)" }}>
                     Итого на {ymLabel(p.selectedMonth)}
                   </td>
-                  <td style={{ padding: "14px 8px", fontSize: 10, color: "var(--t2)", fontWeight: 600 }}>{new Set(sorted.map(r => r.c.id)).size} клиентов · план {totals.plan}</td>
+                  <td style={{ padding: "14px 8px", fontSize: 10, color: "var(--t2)", fontWeight: 600 }}>{new Set(sorted.map(r => r.c.id)).size} клиентов · пакет {totals.plan}</td>
                   <td style={{ padding: "14px 8px" }}><WipCell n={totals.scrInProgress} color="#42d4f4" /></td>
                   <td style={{ padding: "14px 8px" }}><WipCell n={totals.montageInProgress} color="#ffae42" /></td>
-                  <td style={{ padding: "14px 8px" }}><StageCell done={totals.published} plan={totals.plan} color="#34a853" /></td>
-                  <td style={{ padding: "14px 8px" }}><WipCell n={totals.expected} color="#9d6bff" /></td>
+                  <td style={{ padding: "14px 8px" }}><MonthCell pubInMonth={totals.publishedInMonth} planned={totals.plannedInMonth} /></td>
+                  <td style={{ padding: "14px 8px" }}><StageCell done={totals.published} plan={totals.plan} color="#9d6bff" /></td>
                   <td style={{ padding: "14px 8px" }}>
                     <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
-                      <span style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 18, fontWeight: 800, color: tColor, lineHeight: 1 }}>{totals.published}</span>
-                      <span style={{ fontSize: 11, color: "var(--t3)", fontWeight: 600 }}>/ {totals.expected}</span>
+                      <span style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 18, fontWeight: 800, color: totals.dueByToday === 0 ? "var(--t3)" : tColor, lineHeight: 1 }}>{totals.factByToday}</span>
+                      <span style={{ fontSize: 11, color: "var(--t3)", fontWeight: 600 }}>/ {totals.dueByToday}</span>
                     </div>
-                    <div style={{ fontSize: 9, color: tColor, fontWeight: 700, marginTop: 3, display: "inline-flex", alignItems: "center", gap: 3 }}>
+                    <div style={{ fontSize: 9, color: totals.dueByToday === 0 ? "var(--t3)" : tColor, fontWeight: 700, marginTop: 3, display: "inline-flex", alignItems: "center", gap: 3 }}>
                       <TI size={9} strokeWidth={2.2} /> {tLabel}
                     </div>
                   </td>
