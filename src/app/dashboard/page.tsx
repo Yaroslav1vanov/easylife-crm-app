@@ -157,8 +157,6 @@ type ClientRow = {
   pace: ReturnType<typeof paceOf>;
   // календарно-месячная статистика (по плановым датам публикаций)
   publishedInMonth: number; plannedInMonth: number; dueByToday: number; factByToday: number;
-  // всего по контракту (по клиенту, за все месяцы)
-  totalPublishedAll: number; totalPkgAll: number;
 };
 
 function ClientsBlock(p: ClientsBlockProps) {
@@ -182,9 +180,6 @@ function ClientsBlock(p: ClientsBlockProps) {
       const plannedInMonth = list.filter(inMonth).length;
       const dueByToday = list.filter(s => inMonth(s) && (s.pub_date as string) < p.todayIso).length;
       const factByToday = list.filter(s => s.video_status === "published" && inMonth(s) && (s.pub_date as string) < p.todayIso).length;
-      // всего по контракту (по клиенту): опубликовано за все месяцы / суммарный пакет
-      const totalPublishedAll = p.scripts.filter(s => s.client_id === c.id && s.video_status === "published").length;
-      const totalPkgAll = p.clientMonths.filter(x => x.client_id === c.id).reduce((acc, x) => acc + (x.package || 0), 0);
       const remaining = Math.max(0, plan - published);
       const progressPct = Math.round((published / plan) * 100);
       const daysToEnd = daysBetween(p.todayIso, cm.end_date);
@@ -193,7 +188,7 @@ function ClientsBlock(p: ClientsBlockProps) {
       const isPaused = cm.status === "planned" || cm.status === "cancelled";
       const status: ClientRow["status"] = isOverdue ? "overdue" : isPaused ? "paused" : published >= plan ? "done" : "working";
       const pace = paceOf(cm.start_date, cm.end_date, p.todayIso, published, plan);
-      out.push({ c, cm, plan, scrApproved, scrInProgress, montage, montageInProgress, ready, published, remaining, progressPct, daysToEnd, daysTotal, isOverdue, isPaused, status, pace, publishedInMonth, plannedInMonth, dueByToday, factByToday, totalPublishedAll, totalPkgAll });
+      out.push({ c, cm, plan, scrApproved, scrInProgress, montage, montageInProgress, ready, published, remaining, progressPct, daysToEnd, daysTotal, isOverdue, isPaused, status, pace, publishedInMonth, plannedInMonth, dueByToday, factByToday });
     }
     // Сортируем: клиент.id, потом по month_number — соседние месяцы одного клиента рядом
     out.sort((a, b) => a.c.id - b.c.id || a.cm.month_number - b.cm.month_number);
@@ -482,7 +477,7 @@ function ClientsBlock(p: ClientsBlockProps) {
           <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1000 }}>
             <thead>
               <tr style={{ fontSize: 9, color: "var(--t3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>
-                {["Клиент", "Пакет", "Сцен. в работе", "В монтаже", `Опубл. в ${RU_MONTHS[parseInt(p.selectedMonth.split("-")[1], 10) - 1]}`, "Всего по контракту", "Темп к сегодня", "Дедлайн"].map((h, i) => (
+                {["Клиент", "Пакет", "Сцен. в работе", "В монтаже", `Опубл. в ${RU_MONTHS[parseInt(p.selectedMonth.split("-")[1], 10) - 1]}`, "Сделано / пакет (M)", "Темп к сегодня", "Дедлайн"].map((h, i) => (
                   <th key={i} style={{ textAlign: "left", padding: "10px 8px", borderBottom: "1px solid var(--brd)", fontWeight: 700 }}>{h}</th>
                 ))}
               </tr>
@@ -540,8 +535,8 @@ function ClientsBlock(p: ClientsBlockProps) {
                     <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 90 }}><WipCell n={r.montageInProgress} color="#ffae42" caption="монтируются" /></td>
                     {/* Опубл. в этом месяце */}
                     <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 110 }}><MonthCell pubInMonth={r.publishedInMonth} planned={r.plannedInMonth} /></td>
-                    {/* Всего по контракту */}
-                    <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 110 }}><StageCell done={r.totalPublishedAll} plan={r.totalPkgAll || r.plan} color="#9d6bff" /></td>
+                    {/* Сделано за этот месяц (текущий M-период): опубликовано / пакет */}
+                    <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 110 }}><StageCell done={r.published} plan={r.plan} color="#9d6bff" /></td>
                     {/* Темп к сегодня */}
                     <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 110 }}><DueCell fact={r.factByToday} due={r.dueByToday} /></td>
                     {/* Дедлайн */}
