@@ -78,12 +78,12 @@ export default function AvatarUploader({ currentUrl, name, pathPrefix, entityId,
       if (!resp.ok) {
         const j = await resp.json().catch(() => ({} as any));
         const map: Record<string, string> = {
-          bad_url: "Не похоже на ссылку профиля/фото",
-          fetch_failed: "Не удалось получить фото по ссылке",
+          bad_url: "Не похоже на ссылку — Instagram по ссылке не тянется, загрузи файлом",
+          fetch_failed: "Не удалось получить фото (Instagram блокирует) — загрузи файлом",
           not_image: "По ссылке не картинка",
           timeout: "Соцсеть не ответила вовремя",
         };
-        throw new Error(map[j?.error] || "Не удалось подтянуть фото — попробуй загрузить файлом");
+        throw new Error(map[j?.error] || "Не удалось подтянуть фото — загрузи файлом");
       }
       const blob = await resp.blob();
       const ext = (blob.type.split("/")[1] || "jpg").replace("jpeg", "jpg");
@@ -174,7 +174,7 @@ export default function AvatarUploader({ currentUrl, name, pathPrefix, entityId,
             autoFocus
             value={urlInput}
             onChange={(e) => setUrlInput(e.target.value)}
-            placeholder="instagram.com/user, tiktok.com/@user или ссылка на фото"
+            placeholder="tiktok.com/@user, x.com/user или прямая ссылка на фото"
             style={{
               flex: 1, padding: "6px 8px", borderRadius: 6, fontSize: 10,
               background: "var(--inset)", border: "1px solid var(--brd)", color: "var(--t1)",

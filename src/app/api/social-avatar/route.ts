@@ -15,62 +15,27 @@ function fetchWithTimeout(url: string, init: RequestInit, ms: number) {
   return fetch(url, { ...init, signal: c.signal, redirect: "follow" }).finally(() => clearTimeout(t));
 }
 
-function decodeEntities(s: string) {
-  return s.replace(/&amp;/g, "&").replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCharCode(parseInt(h, 16))).replace(/&#(\d+);/g, (_, d) => String.fromCharCode(parseInt(d, 10)));
-}
-
-async function ogImage(pageUrl: string): Promise<string | null> {
-  try {
-    const r = await fetchWithTimeout(pageUrl, { headers: { "User-Agent": UA, Accept: "text/html" } }, 10000);
-    if (!r.ok) return null;
-    const html = await r.text();
-    const m = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
-      || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
-    return m ? decodeEntities(m[1]) : null;
-  } catch { return null; }
-}
-
 /** Превращаем то, что вставил пользователь, в прямой URL картинки (может ходить в сеть). */
 async function resolveImageUrl(input: string): Promise<string | null> {
   const s = input.trim();
   if (!s) return null;
 
-  // Instagram
+  // Instagram — через unavatar.io (он сам резолвит и обходит блокировки IG;
+  // прямые серверные запросы к IG с дата-центра режутся).
   let m = s.match(/instagram\.com\/([A-Za-z0-9_.]+)/i);
   if (m && !RESERVED.includes(m[1].toLowerCase())) {
-    const user = m[1];
-    // 1) официальный публичный профиль-API (нужны браузерные заголовки, иначе IG отдаёт 400)
-    try {
-      const r = await fetchWithTimeout(
-        `https://www.instagram.com/api/v1/users/web_profile_info/?username=${encodeURIComponent(user)}`,
-        { headers: {
-          "User-Agent": UA,
-          "x-ig-app-id": "936619743392459",
-          "x-requested-with": "XMLHttpRequest",
-          "x-asbd-id": "198387",
-          Accept: "*/*",
-          Referer: `https://www.instagram.com/${user}/`,
-          "Sec-Fetch-Site": "same-origin",
-          "Sec-Fetch-Mode": "cors",
-          "Sec-Fetch-Dest": "empty",
-        } },
-        10000,
-      );
-      if (r.ok) {
-        const j: any = await r.json();
-        const u = j?.data?.user;
-        const pic = u?.profile_pic_url_hd || u?.profile_pic_url;
-        if (pic) return pic;
-      }
-    } catch { /* fallthrough */ }
-    // 2) запасной — og:image со страницы профиля
-    return await ogImage(`https://www.instagram.com/${user}/`);
+    return `https://unavatar.io/instagram/${m[1]}?fallback=false`;
   }
 
-  // TikTok — unavatar (бесплатно работает), запасной — og:image
+  // TikTok — unavatar (бесплатно работает)
   m = s.match(/tiktok\.com\/@?([A-Za-z0-9_.]+)/i);
   if (m) {
     return `https://unavatar.io/tiktok/${m[1]}?fallback=false`;
+  }
+
+  // Голый username без домена → пробуем как instagram-ник
+  if (/^@?[A-Za-z0-9_.]{2,30}$/.test(s)) {
+    return `https://unavatar.io/instagram/${s.replace(/^@/, "")}?fallback=false`;
   }
 
   // Прямая ссылка
