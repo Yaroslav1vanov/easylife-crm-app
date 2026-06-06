@@ -67,6 +67,18 @@ export default function ClientMonthsTimeline({ clientId, clientName, clientMonth
     setBusy(null);
   }
 
+  // Онбординг → производство: статус active + старт сегодня, дедлайн +30 дней
+  async function startProduction(cmId: number) {
+    if (!confirm("Завершить онбординг и начать производство? Отсчёт «сдать до» пойдёт с сегодня (+30 дней).")) return;
+    setBusy(cmId);
+    const start = new Date(todayIso);
+    const end = new Date(start.getTime() + 30 * 86400000);
+    const { error } = await db.updateClientMonth(supabase, cmId, { status: "active", start_date: todayIso, end_date: end.toISOString().slice(0, 10) });
+    if (error) alert("Ошибка: " + (error.message || error));
+    await onChange();
+    setBusy(null);
+  }
+
   async function reopenMonth(cmId: number) {
     setBusy(cmId);
     const { error } = await db.reopenClientMonth(supabase, cmId);
@@ -227,7 +239,12 @@ export default function ClientMonthsTimeline({ clientId, clientName, clientMonth
 
               {/* Footer: actions + focus marker */}
               <div onClick={(e) => e.stopPropagation()} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, marginTop: "auto", paddingTop: 4 }}>
-                {(m.status === "active" || m.status === "onboarding") ? (
+                {m.status === "onboarding" ? (
+                  <button onClick={() => startProduction(m.id)} disabled={busy === m.id}
+                    style={{ padding: "5px 9px", borderRadius: 7, background: "rgba(255,174,66,0.14)", border: "1px solid var(--or)", color: "var(--or)", fontSize: 10, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                    <Check size={10} strokeWidth={2.4} /> Начать производство
+                  </button>
+                ) : m.status === "active" ? (
                   <button onClick={() => closeMonth(m)} disabled={busy === m.id}
                     style={{ padding: "5px 9px", borderRadius: 7, background: "rgba(168,224,99,0.12)", border: "1px solid var(--gr)", color: "var(--gr)", fontSize: 10, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}>
                     <Check size={10} strokeWidth={2.4} /> Закрыть

@@ -50,8 +50,12 @@ export default function OnboardingChecklist({ clientId, clientName, clientCreate
   }
 
   async function completeAll() {
-    if (!confirm("Завершить онбординг? Все незакрытые задачи получат статус «не нужно для этого клиента» (skipped).")) return;
+    if (!confirm("Завершить онбординг и начать производство? Незакрытые задачи станут «не нужно» (skipped), а рабочий месяц станет активным — отсчёт «сдать до» пойдёт с сегодня (+30 дней).")) return;
     await db.completeOnboarding(supabase, clientId);
+    // Переводим онбординг-месяц в производство: старт сегодня, дедлайн +30 дней.
+    const today = new Date();
+    const end = new Date(today.getTime() + 30 * 86400000);
+    await db.startProductionForClient(supabase, clientId, { start: today.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10) });
     await load();
     onComplete?.();
   }

@@ -324,6 +324,17 @@ const db = {
     const { error } = await sb.from("client_months").update(fields).eq("id", id);
     return { error };
   },
+  // Перевести онбординг-месяц клиента в производство (active). Опционально задать даты.
+  async startProductionForClient(sb: SupabaseClient, clientId: number, opts?: { start?: string; end?: string }) {
+    const { data } = await sb.from("client_months").select("id").eq("client_id", clientId).eq("status", "onboarding").order("month_number").limit(1);
+    const id = (data && data[0]?.id) as number | undefined;
+    if (!id) return { error: null };
+    const patch: any = { status: "active" };
+    if (opts?.start) patch.start_date = opts.start;
+    if (opts?.end) patch.end_date = opts.end;
+    const { error } = await sb.from("client_months").update(patch).eq("id", id);
+    return { error };
+  },
   async closeClientMonth(sb: SupabaseClient, id: number) {
     const today = new Date().toISOString().split("T")[0];
     const { error } = await sb
