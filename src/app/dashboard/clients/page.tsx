@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
-import db, { Client, ClientMonth, Script, SocialSnapshot, TeamMember } from "@/lib/database";
+import db, { Client, ClientMonth, Script, SocialSnapshot, TeamMember, OnboardingProgress } from "@/lib/database";
 
 type Platform = "ig" | "tt" | "yt";
 type ClientProduction = { pub: number; ready: number; scr: number; total: number; month: ClientMonth | null };
@@ -61,12 +61,14 @@ function ClientCard({
   production,
   snapshots,
   accent,
+  isOnboarding,
   onOpen,
 }: {
   client: Client;
   production: ClientProduction;
   snapshots: SocialSnapshot[];
   accent: string;
+  isOnboarding: boolean;
   onOpen: () => void;
 }) {
   const available = useMemo(() => activePlatforms(client, snapshots), [client, snapshots]);
@@ -76,7 +78,6 @@ function ClientCard({
   }, [available, selected]);
 
   const { latest, growth } = socialMetric(snapshots, selected);
-  const isOnboarding = production.month?.status === "onboarding" || client.stage === "Онбординг";
   const plan = production.total || production.month?.package || client.package || 0;
   const progress = plan > 0 ? Math.min(100, Math.round((production.ready / plan) * 100)) : 0;
   const fullName = `${client.name} ${client.surname || ""}`.trim();
@@ -153,6 +154,7 @@ export default function ClientsPage() {
   const [scripts, setScripts] = useState<Script[]>([]);
   const [clientMonths, setClientMonths] = useState<ClientMonth[]>([]);
   const [snapshots, setSnapshots] = useState<SocialSnapshot[]>([]);
+  const [onbProgress, setOnbProgress] = useState<OnboardingProgress[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusTab, setStatusTab] = useState<"active" | "paused" | "churned">("active");
   const [showAdd, setShowAdd] = useState(false);
@@ -165,16 +167,18 @@ export default function ClientsPage() {
   async function load() {
     const [cls, tm] = await Promise.all([db.getClients(supabase), db.getTeam(supabase)]);
     const ids = cls.map((c) => c.id);
-    const [allScripts, monthsResult, social] = await Promise.all([
+    const [allScripts, monthsResult, social, onb] = await Promise.all([
       db.getScriptsForClients(supabase, ids),
       db.getClientMonths(supabase),
       db.getSocialSnapshots(supabase, ids),
+      db.getAllOnboardingProgress(supabase),
     ]);
     setClients(cls);
     setTeam(tm);
     setScripts(allScripts);
     setClientMonths(monthsResult.data || []);
     setSnapshots(social);
+    setOnbProgress(onb);
     setLoading(false);
   }
 
@@ -205,6 +209,8 @@ export default function ClientsPage() {
     churned: clients.filter(c => stageOf(c) === "churned").length,
   };
   const visibleClients = clients.filter(c => stageOf(c) === statusTab);
+  // Онбординг определяем по чек-листу: пока есть незакрытые задачи (pending > 0) — фаза онбординга.
+  const onbMap = Object.fromEntries(onbProgress.map(o => [o.client_id, o])) as Record<number, OnboardingProgress>;
   const statusTabs: { key: "active" | "paused" | "churned"; label: string; color: string; count: number }[] = [
     { key: "active", label: "Активные", color: "var(--gr)", count: counts.active },
     { key: "paused", label: "На паузе", color: "var(--yl)", count: counts.paused },
@@ -331,6 +337,7 @@ export default function ClientsPage() {
                 production={productionFor(client.id)}
                 snapshots={snapshots.filter((snapshot) => snapshot.client_id === client.id)}
                 accent={clientAccents[index % clientAccents.length]}
+                isOnboarding={(onbMap[client.id]?.pending_tasks ?? 0) > 0}
                 onOpen={() => router.push(`/dashboard/clients/${client.id}`)}
               />
             </div>
