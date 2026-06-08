@@ -146,11 +146,12 @@ export default function ClientMonthsTimeline({ clientId, clientName, clientMonth
     setBusy(null);
   }
 
-  const statusBadge = (status: string, daysToEnd: number) => {
+  const statusBadge = (status: string, daysToEnd: number, complete: boolean) => {
     if (status === "closed") return { l: "✓ Закрыт", c: "var(--gr)", bg: "rgba(168,224,99,0.12)" };
     if (status === "onboarding") return { l: "🧩 Онбординг", c: "var(--cy)", bg: "rgba(66,212,244,0.12)" };
     if (status === "planned") return { l: "🕓 Запланирован", c: "var(--pu)", bg: "rgba(157,107,255,0.12)" };
     if (status === "cancelled") return { l: "— Отменён", c: "var(--t3)", bg: "var(--track)" };
+    if (complete) return { l: "✓ Выполнен", c: "var(--gr)", bg: "rgba(168,224,99,0.12)" }; // пакет сделан — просрочки нет
     if (daysToEnd < 0) return { l: "🔴 Просрочка", c: "var(--rd)", bg: "rgba(255,92,122,0.12)" };
     if (daysToEnd <= 5) return { l: "⏰ Заканчивается", c: "var(--or)", bg: "rgba(255,174,66,0.12)" };
     return { l: "🟢 Активен", c: "var(--gr)", bg: "rgba(168,224,99,0.12)" };
@@ -181,7 +182,11 @@ export default function ClientMonthsTimeline({ clientId, clientName, clientMonth
           const plan = m.package || 0;
           const pct = plan > 0 ? Math.round((published / plan) * 100) : 0;
           const daysToEnd = daysBetween(todayIso, m.end_date);
-          const badge = statusBadge(m.status, daysToEnd);
+          const complete = plan > 0 && published >= plan;
+          // последняя публикация — для пометки «сдан с опозданием»
+          const lastPub = list.filter(s => s.video_status === "published" && s.pub_date).map(s => s.pub_date as string).sort().at(-1);
+          const lateBy = complete && lastPub ? daysBetween(m.end_date, lastPub) : 0;
+          const badge = statusBadge(m.status, daysToEnd, complete);
           const barColor = pct >= 80 ? "var(--gr)" : pct >= 40 ? "var(--cy)" : pct > 0 ? "var(--or)" : "var(--rd)";
           const isActive = activeMonth === m.month_number;
           return (
@@ -227,9 +232,15 @@ export default function ClientMonthsTimeline({ clientId, clientName, clientMonth
                   <Edit2 size={10} style={{ color: "var(--t3)", opacity: 0.6 }} />
                 </div>
                 {m.status !== "closed" && m.status !== "planned" && (
-                  <div style={{ fontSize: 10, color: daysToEnd < 0 ? "var(--rd)" : daysToEnd <= 5 ? "var(--or)" : "var(--t3)", fontWeight: 600, marginTop: 3 }}>
-                    {daysToEnd < 0 ? `просрочка ${-daysToEnd} дн.` : `осталось ${daysToEnd} дн.`}
-                  </div>
+                  complete ? (
+                    <div style={{ fontSize: 10, color: "var(--gr)", fontWeight: 600, marginTop: 3 }}>
+                      ✓ пакет выполнен{lateBy > 0 ? ` · сдан с опозданием ${lateBy} дн.` : ""}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 10, color: daysToEnd < 0 ? "var(--rd)" : daysToEnd <= 5 ? "var(--or)" : "var(--t3)", fontWeight: 600, marginTop: 3 }}>
+                      {daysToEnd < 0 ? `просрочка ${-daysToEnd} дн.` : `осталось ${daysToEnd} дн.`}
+                    </div>
+                  )
                 )}
               </div>
 

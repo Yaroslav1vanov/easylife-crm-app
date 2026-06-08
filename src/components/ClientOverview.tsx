@@ -44,6 +44,7 @@ export default function ClientOverview({ client: c, clientMonths, scripts, team,
   const ready = monthScripts.filter(s => s.video_status === "ready" || s.video_status === "published").length;
   const published = monthScripts.filter(s => s.video_status === "published").length;
   const overallPct = plan > 0 ? Math.round((published / plan) * 100) : 0;
+  const complete = plan > 0 && published >= plan;
   const daysToEnd = currentM ? daysBetween(todayIso, currentM.end_date) : null;
 
   const teamlead = team.find(t => t.id === c.teamlead_id);
@@ -102,8 +103,8 @@ export default function ClientOverview({ client: c, clientMonths, scripts, team,
             <div style={{ fontSize: 13, color: "var(--t1)", fontWeight: 800, lineHeight: 1.2 }}>
               {currentM ? `сдать до ${fmtDateShort(currentM.end_date)}` : "—"}
             </div>
-            <div style={{ fontSize: 10, color: daysToEnd !== null && daysToEnd < 0 ? "var(--rd)" : daysToEnd !== null && daysToEnd <= 5 ? "var(--or)" : "var(--t3)", marginTop: 1, fontWeight: 600 }}>
-              {daysToEnd !== null ? (daysToEnd < 0 ? `просрочка ${-daysToEnd} дн.` : `осталось ${daysToEnd} дн.`) : "нет активного M"}
+            <div style={{ fontSize: 10, color: complete ? "var(--gr)" : daysToEnd !== null && daysToEnd < 0 ? "var(--rd)" : daysToEnd !== null && daysToEnd <= 5 ? "var(--or)" : "var(--t3)", marginTop: 1, fontWeight: 600 }}>
+              {complete ? "✓ пакет выполнен" : daysToEnd !== null ? (daysToEnd < 0 ? `просрочка ${-daysToEnd} дн.` : `осталось ${daysToEnd} дн.`) : "нет активного M"}
             </div>
           </div>
         </div>

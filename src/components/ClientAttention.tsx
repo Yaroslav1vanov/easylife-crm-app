@@ -25,7 +25,7 @@ export default function ClientAttention({ currentM, scripts, todayIso }: Props) 
   if (inMontage > 0) items.push({ Icon: Scissors, color: "#ffae42", text: `${inMontage} ${plural(inMontage, "ролик", "ролика", "роликов")} в монтаже` });
   if (readyToPublish > 0) items.push({ Icon: CheckCircle2, color: "#34d399", text: `${readyToPublish} ${plural(readyToPublish, "ролик готов", "ролика готовы", "роликов готовы")} к публикации` });
   if (leftToPlan > 0) items.push({ Icon: Target, color: "#9d6bff", text: `До выполнения плана осталось ${leftToPlan} ${plural(leftToPlan, "ролик", "ролика", "роликов")}` });
-  if (daysToEnd !== null && !overdue) items.push({ Icon: CalendarClock, color: daysToEnd <= 5 ? "#ffae42" : "#42d4f4", text: `До дедлайна ${daysToEnd} ${plural(daysToEnd, "день", "дня", "дней")}` });
+  if (daysToEnd !== null && daysToEnd >= 0 && published < plan) items.push({ Icon: CalendarClock, color: daysToEnd <= 5 ? "#ffae42" : "#42d4f4", text: `До дедлайна ${daysToEnd} ${plural(daysToEnd, "день", "дня", "дней")}` });
 
   return (
     <div className="card" style={{ padding: 18, borderRadius: 16, fontFamily: "'Manrope', sans-serif", height: "100%" }}>

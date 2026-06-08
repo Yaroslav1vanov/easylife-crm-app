@@ -184,7 +184,7 @@ function ClientsBlock(p: ClientsBlockProps) {
       const progressPct = Math.round((published / plan) * 100);
       const daysToEnd = daysBetween(p.todayIso, cm.end_date);
       const daysTotal = Math.max(1, daysBetween(cm.start_date, cm.end_date) + 1);
-      const isOverdue = daysToEnd < 0 || p.overdueClientIds.has(c.id);
+      const isOverdue = (daysToEnd < 0 && published < plan) || p.overdueClientIds.has(c.id);
       const isPaused = cm.status === "planned" || cm.status === "cancelled";
       const status: ClientRow["status"] = isOverdue ? "overdue" : isPaused ? "paused" : published >= plan ? "done" : "working";
       const pace = paceOf(cm.start_date, cm.end_date, p.todayIso, published, plan);
@@ -542,8 +542,8 @@ function ClientsBlock(p: ClientsBlockProps) {
                     {/* Дедлайн */}
                     <td style={{ padding: "12px 8px", verticalAlign: "middle", whiteSpace: "nowrap" }}>
                       <div style={{ fontSize: 11, fontWeight: 700, color: "var(--t1)" }}>{fmtDateShort(r.cm.end_date)}</div>
-                      <div style={{ fontSize: 9, color: r.daysToEnd < 0 ? "var(--rd)" : "var(--t3)", fontWeight: 600 }}>
-                        {r.daysToEnd < 0 ? `${-r.daysToEnd} дн. просрочки` : `${r.daysToEnd} дней`}
+                      <div style={{ fontSize: 9, color: r.published >= r.plan ? "var(--gr)" : r.daysToEnd < 0 ? "var(--rd)" : "var(--t3)", fontWeight: 600 }}>
+                        {r.published >= r.plan ? "✓ выполнен" : r.daysToEnd < 0 ? `${-r.daysToEnd} дн. просрочки` : `${r.daysToEnd} дней`}
                       </div>
                     </td>
                   </tr>
@@ -616,7 +616,7 @@ function ClientsBlock(p: ClientsBlockProps) {
                   </div>
                 </div>
                 <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 600 }}>
-                  M{r.cm.month_number} · {fmtDateShort(r.cm.start_date)} — {fmtDateShort(r.cm.end_date)} · {r.daysToEnd < 0 ? "просрочен" : `${r.daysToEnd} дн.`}
+                  M{r.cm.month_number} · {fmtDateShort(r.cm.start_date)} — {fmtDateShort(r.cm.end_date)} · {r.published >= r.plan ? "✓ выполнен" : r.daysToEnd < 0 ? "просрочен" : `${r.daysToEnd} дн.`}
                 </div>
                 <div>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
