@@ -126,6 +126,9 @@ export default function ClientDetailPage() {
   // Total scripts across all contract months for this client (replaces c.package as the
   // denominator for cards/progress, so a 2-month client shows 53/60 not 53/30).
   const totalScripts = scripts.length;
+  // Знаменатель по ПАКЕТУ (сумма пакетов всех контрактных месяцев), а не по числу карточек.
+  const contractPlan = clientMonths.reduce((s, m) => s + (m.package || 0), 0) || totalScripts;
+  const viewMonthPkg = clientMonths.find(m => m.month_number === viewMonth)?.package || 0;
   const doneTasks = checklist.filter(t => t.status === "done").length;
   const pct = checklist.length > 0 ? Math.round(doneTasks / checklist.length * 100) : 0;
   const months = Array.from(new Set(scripts.map(s => s.month_number))).sort();
@@ -180,9 +183,9 @@ export default function ClientDetailPage() {
   const reviewVids = scripts.filter(s => s.video_status === "review").length;
 
   const tabs = [
-    { id: "scripts", label: `Сценарии (${scrApp}/${scripts.length})` },
+    { id: "scripts", label: `Сценарии (${scrApp}/${contractPlan})` },
     { id: "montage", label: `Монтаж (${inMontage + reviewVids + ready})` },
-    { id: "published", label: `Опубликовано (${pub}/${totalScripts})` },
+    { id: "published", label: `Опубликовано (${pub}/${contractPlan})` },
   ];
 
   return (
@@ -301,7 +304,17 @@ export default function ClientDetailPage() {
           scripts={monthScripts}
           clients={[c]}
           columns={SCRIPT_COLUMNS}
-          onUpdate={async (id, patch) => { await db.updateScript(supabase, id, patch); await load(); }}
+          onUpdate={async (id, patch) => {
+            // Кап: согласованных не больше пакета месяца (идей — сколько угодно).
+            if (patch.script_status === "approved") {
+              const approvedNow = monthScripts.filter(s => s.script_status === "approved" && s.id !== id).length;
+              if (viewMonthPkg && approvedNow >= viewMonthPkg) {
+                alert(`Согласовано уже ${approvedNow} из пакета ${viewMonthPkg}. Пакет укомплектован — увеличь пакет месяца или согласуй этот ролик в следующем M.`);
+                return;
+              }
+            }
+            await db.updateScript(supabase, id, patch); await load();
+          }}
           onAddCard={addCard}
           onDelete={deleteCard}
           emptyHint="Сюда — перетащи карточку"
