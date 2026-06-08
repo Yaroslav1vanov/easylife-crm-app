@@ -60,6 +60,7 @@ export default function CalendarPage() {
   const [dragEv, setDragEv] = useState<Ev | null>(null);
   const [dragOverDay, setDragOverDay] = useState<string | null>(null);
   const [modalEv, setModalEv] = useState<Ev | null>(null);
+  const [listModal, setListModal] = useState<{ kind: "scr" | "vid"; date: string; items: { id: number; clientId: number }[] } | null>(null);
 
   useEffect(() => { load(); }, []);
   async function load() {
@@ -93,19 +94,25 @@ export default function CalendarPage() {
 
   // Производные дедлайны (read-only): сценарий = pub-5 (если не утверждён), видео = pub-2 (если не готово)
   const derived = useMemo(() => {
-    const scr: Record<string, number> = {}, vid: Record<string, number> = {};
+    const scr: Record<string, { id: number; clientId: number }[]> = {}, vid: Record<string, { id: number; clientId: number }[]> = {};
     for (const s of allScripts) {
       if (!s.pub_date) continue;
       if (clientFilter !== "all" && s.client_id !== clientFilter) continue;
       if (s.script_status !== "approved" && (typeFilter === "all" || typeFilter === "scr")) {
-        const d = addDaysIso(s.pub_date, -SCRIPT_LEAD); scr[d] = (scr[d] || 0) + 1;
+        const d = addDaysIso(s.pub_date, -SCRIPT_LEAD); (scr[d] ||= []).push({ id: s.id, clientId: s.client_id });
       }
       if (s.video_status !== "ready" && s.video_status !== "published" && (typeFilter === "all" || typeFilter === "vid")) {
-        const d = addDaysIso(s.pub_date, -VIDEO_LEAD); vid[d] = (vid[d] || 0) + 1;
+        const d = addDaysIso(s.pub_date, -VIDEO_LEAD); (vid[d] ||= []).push({ id: s.id, clientId: s.client_id });
       }
     }
     return { scr, vid };
   }, [allScripts, clientFilter, typeFilter]);
+  // Группировка имён для подсказки: «Дмитрий ×2, Иван ×1»
+  const groupNames = (items: { clientId: number }[]) => {
+    const m: Record<string, number> = {};
+    for (const it of items) { const n = cname(it.clientId); m[n] = (m[n] || 0) + 1; }
+    return Object.entries(m).map(([n, c]) => c > 1 ? `${n} ×${c}` : n).join(", ");
+  };
 
   const byDay = useMemo(() => {
     const m: Record<string, Ev[]> = {};
@@ -120,8 +127,8 @@ export default function CalendarPage() {
       + allScripts.filter(s => s.pub_date && s.pub_date < todayIso && s.video_status !== "published" && (clientFilter === "all" || s.client_id === clientFilter)).length;
     return {
       onb: todays.filter(e => e.kind === "onb").length,
-      scr: derived.scr[todayIso] || 0,
-      vid: derived.vid[todayIso] || 0,
+      scr: (derived.scr[todayIso] || []).length,
+      vid: (derived.vid[todayIso] || []).length,
       pub: todays.filter(e => e.kind === "pub").length,
       overdue,
     };
@@ -158,9 +165,10 @@ export default function CalendarPage() {
       </div>
     );
   };
-  const countChip = (n: number, kind: "scr" | "vid") => n > 0 ? (
-    <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 6px", borderRadius: 6, background: `${KIND_META[kind].color}1a`, border: `1px dashed ${KIND_META[kind].color}66`, color: KIND_META[kind].color, fontSize: 10, fontWeight: 700 }}>
-      <span style={{ width: 6, height: 6, borderRadius: "50%", background: KIND_META[kind].color }} />{n} {kind === "scr" ? "сцен." : "видео"}
+  const countChip = (items: { id: number; clientId: number }[] | undefined, kind: "scr" | "vid", day: string) => items && items.length > 0 ? (
+    <div onClick={() => setListModal({ kind, date: day, items })} title={groupNames(items)}
+      style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 6px", borderRadius: 6, background: `${KIND_META[kind].color}1a`, border: `1px dashed ${KIND_META[kind].color}66`, color: KIND_META[kind].color, fontSize: 10, fontWeight: 700, cursor: "pointer" }}>
+      <span style={{ width: 6, height: 6, borderRadius: "50%", background: KIND_META[kind].color }} />{items.length} {kind === "scr" ? "сцен." : "видео"} ›
     </div>
   ) : null;
 
@@ -239,8 +247,8 @@ export default function CalendarPage() {
                     <div key={di} onDragOver={e => { e.preventDefault(); setDragOverDay(day); }} onDragLeave={() => { if (dragOverDay === day) setDragOverDay(null); }} onDrop={e => { e.preventDefault(); if (dragEv) reschedule(dragEv, day); }}
                       style={{ minHeight: 116, borderRadius: 11, padding: 7, display: "flex", flexDirection: "column", gap: 3, background: isOver ? "rgba(157,107,255,0.12)" : isToday ? "rgba(66,212,244,0.06)" : "var(--inset)", border: `1px solid ${isOver ? "var(--pu)" : isToday ? "var(--cy)" : "var(--brd)"}`, transition: ".12s" }}>
                       <div style={{ fontSize: 11, fontWeight: 700, color: isToday ? "var(--cy)" : "var(--t2)" }}>{dnum}{isToday ? " · сегодня" : ""}</div>
-                      {countChip(derived.scr[day] || 0, "scr")}
-                      {countChip(derived.vid[day] || 0, "vid")}
+                      {countChip(derived.scr[day], "scr", day)}
+                      {countChip(derived.vid[day], "vid", day)}
                       {shown.map(chip)}
                       {evs.length > 3 && <span style={{ fontSize: 9, color: "var(--t3)" }}>+{evs.length - 3} ещё</span>}
                     </div>
@@ -286,6 +294,37 @@ export default function CalendarPage() {
           </div>
         </div>
       )}
+
+      {/* СПИСОК: кто именно (по клику на счётчик сценариев/видео) */}
+      {listModal && (() => {
+        const meta = KIND_META[listModal.kind];
+        const grouped: Record<number, number> = {};
+        for (const it of listModal.items) grouped[it.clientId] = (grouped[it.clientId] || 0) + 1;
+        const rows = Object.entries(grouped).map(([cid, n]) => ({ cid: Number(cid), n })).sort((a, b) => b.n - a.n);
+        return (
+          <div onClick={() => setListModal(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.72)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+            <div onClick={e => e.stopPropagation()} style={{ background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 18, width: "100%", maxWidth: 420, padding: 22 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                <h3 style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 16, color: meta.color }}>{listModal.kind === "scr" ? "Сценарии к сдаче" : "Видео готовы"}</h3>
+                <button onClick={() => setListModal(null)} style={{ width: 30, height: 30, borderRadius: 9, background: "var(--track)", border: "1px solid var(--brd)", color: "var(--t2)", cursor: "pointer" }}>✕</button>
+              </div>
+              <div style={{ fontSize: 11, color: "var(--t3)", marginBottom: 14 }}>{fmtDay(listModal.date)} · {listModal.items.length} шт.</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 360, overflowY: "auto" }}>
+                {rows.map(r => (
+                  <button key={r.cid} onClick={() => router.push(`/dashboard/clients/${r.cid}`)}
+                    style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "10px 12px", borderRadius: 10, background: "var(--inset)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 13, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>
+                    <span>{cname(r.cid)} {clientById[r.cid]?.surname || ""}</span>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontFamily: "'Unbounded', sans-serif", fontWeight: 800, color: meta.color }}>{r.n}</span>
+                      <span style={{ color: "var(--t3)" }}>→</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       <style jsx>{`@media (max-width: 900px){ :global(.cal-sum){ grid-template-columns: repeat(2, 1fr) !important; } }`}</style>
     </div>
