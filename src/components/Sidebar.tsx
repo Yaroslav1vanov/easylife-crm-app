@@ -18,7 +18,7 @@ const navItems: NavItem[] = [
   { id: "scripts", path: "/dashboard/scripts", icon: FileText, label: "Сценарии" },
   { id: "montage", path: "/dashboard/montage", icon: Scissors, label: "Монтаж" },
   { id: "publications", path: "/dashboard/publications", icon: Send, label: "Публикации" },
-  { id: "calendar", path: "/dashboard/calendar", icon: Calendar, label: "Календарь", soon: true },
+  { id: "calendar", path: "/dashboard/calendar", icon: Calendar, label: "Календарь" },
   { id: "team", path: "/dashboard/team", icon: HandshakeIcon, label: "Команда" },
   { id: "analytics", path: "/dashboard/analytics", icon: BarChart3, label: "Аналитика", soon: true },
   { id: "settings", path: "/dashboard/settings", icon: Settings, label: "Настройки" },

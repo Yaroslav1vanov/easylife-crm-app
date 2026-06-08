@@ -278,6 +278,14 @@ const db = {
     const { error } = await sb.from("checklist_tasks").update(updates).eq("id", id);
     return { error };
   },
+  // Все задачи с проставленным дедлайном — для Календаря.
+  async getDatedTasks(sb: SupabaseClient) {
+    const { data } = await sb
+      .from("checklist_tasks")
+      .select("id, client_id, task_name, phase, status, deadline")
+      .not("deadline", "is", null);
+    return (data || []) as { id: number; client_id: number; task_name: string; phase: string; status: string; deadline: string }[];
+  },
   async getAllOverdueTasks(sb: SupabaseClient) {
     const today = new Date().toISOString().split("T")[0];
     const { data } = await sb.from("checklist_tasks")
