@@ -48,6 +48,25 @@ export default function ClientMonthsTimeline({ clientId, clientName, clientMonth
     setBusy(null);
   }
 
+  // Изменить пакет месяца и синхронизировать число сценариев под него:
+  // меньше пакета — добавляем пустые; больше — удаляем лишние ПУСТЫЕ (idea) карточки.
+  async function setPackage(m: ClientMonth, n: number) {
+    setBusy(m.id);
+    const { error } = await db.updateClientMonth(supabase, m.id, { package: n });
+    if (error) { alert("Ошибка: " + (error.message || error)); setBusy(null); setEditingPkg(null); return; }
+    const list = scripts.filter(s => s.month_number === m.month_number).sort((a, b) => a.order_num - b.order_num);
+    if (n > list.length) {
+      await db.addScriptsForMonth(supabase, clientId, m.month_number, n - list.length);
+    } else if (n < list.length) {
+      const empty = list.filter(s => (s.script_status === "notStarted" || !s.script_status) && !s.hook_text && !s.body_text && !s.ref_url && !s.ref_text && (!s.video_status || s.video_status === "notStarted"));
+      const toRemove = Math.min(list.length - n, empty.length);
+      for (const v of empty.slice(empty.length - toRemove)) await db.deleteScript(supabase, v.id);
+    }
+    setEditingPkg(null);
+    await onChange();
+    setBusy(null);
+  }
+
   async function closeMonth(m: ClientMonth) {
     setBusy(m.id);
     const { error } = await db.closeClientMonth(supabase, m.id);
@@ -225,7 +244,7 @@ export default function ClientMonthsTimeline({ clientId, clientName, clientMonth
                     {editingPkg === m.id ? (
                       <input autoFocus type="number" min={1} max={999} value={editPkgValue}
                         onChange={(e) => setEditPkgValue(e.target.value)}
-                        onBlur={() => { const n = parseInt(editPkgValue, 10); if (!Number.isNaN(n) && n >= 1 && n !== plan) updateField(m.id, { package: n }); else setEditingPkg(null); }}
+                        onBlur={() => { const n = parseInt(editPkgValue, 10); if (!Number.isNaN(n) && n >= 1 && n !== plan) setPackage(m, n); else setEditingPkg(null); }}
                         onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setEditingPkg(null); }}
                         style={{ width: 50, padding: "1px 4px", borderRadius: 4, background: "var(--bg)", border: "1px solid var(--cy)", color: "var(--t1)", fontSize: 13, fontFamily: "monospace", textAlign: "center" }} />
                     ) : (
