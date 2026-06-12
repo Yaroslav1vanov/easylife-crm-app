@@ -108,6 +108,7 @@ export default function PublicationsPage() {
   const visible = useMemo(() => allScripts.filter(s => {
     const c = clientById[s.client_id];
     if (!c) return false;
+    if (c.stage === "paused") return false; // на паузе — не планируем публикации
     if (clientFilter !== "all" && s.client_id !== clientFilter) return false;
     if (tlFilter !== "all" && c.teamlead_id !== tlFilter) return false;
     return true;

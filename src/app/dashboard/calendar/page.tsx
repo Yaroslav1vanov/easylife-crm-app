@@ -80,12 +80,14 @@ export default function CalendarPage() {
   const clientById = useMemo(() => Object.fromEntries(clients.map(c => [c.id, c])) as Record<number, Client>, [clients]);
   const cname = (id: number) => { const c = clientById[id]; return c ? c.name : "?"; };
 
+  const paused = (cid: number) => clientById[cid]?.stage === "paused"; // на паузе — без событий
+
   // Все события-«якори» (перетаскиваемые)
   const events = useMemo<Ev[]>(() => {
     const out: Ev[] = [];
-    for (const s of allScripts) if (s.pub_date) out.push({ kind: "pub", id: s.id, clientId: s.client_id, date: s.pub_date, label: cname(s.client_id) });
-    for (const cm of clientMonths) if ((cm.status === "active" || cm.status === "onboarding") && cm.end_date) out.push({ kind: "dl", id: cm.id, clientId: cm.client_id, date: cm.end_date, label: `${cname(cm.client_id)} · сдать` });
-    for (const t of tasks) if (t.status !== "done" && t.status !== "skipped") out.push({ kind: "onb", id: t.id, clientId: t.client_id, date: t.deadline.slice(0, 10), label: `${cname(t.client_id)} · ${t.task_name}` });
+    for (const s of allScripts) if (s.pub_date && !paused(s.client_id)) out.push({ kind: "pub", id: s.id, clientId: s.client_id, date: s.pub_date, label: cname(s.client_id) });
+    for (const cm of clientMonths) if ((cm.status === "active" || cm.status === "onboarding") && cm.end_date && !paused(cm.client_id)) out.push({ kind: "dl", id: cm.id, clientId: cm.client_id, date: cm.end_date, label: `${cname(cm.client_id)} · сдать` });
+    for (const t of tasks) if (t.status !== "done" && t.status !== "skipped" && !paused(t.client_id)) out.push({ kind: "onb", id: t.id, clientId: t.client_id, date: t.deadline.slice(0, 10), label: `${cname(t.client_id)} · ${t.task_name}` });
     return out;
   }, [allScripts, clientMonths, tasks, clientById]);
 
@@ -97,6 +99,7 @@ export default function CalendarPage() {
     const scr: Record<string, { id: number; clientId: number }[]> = {}, vid: Record<string, { id: number; clientId: number }[]> = {};
     for (const s of allScripts) {
       if (!s.pub_date) continue;
+      if (paused(s.client_id)) continue;
       if (clientFilter !== "all" && s.client_id !== clientFilter) continue;
       if (s.script_status !== "approved" && (typeFilter === "all" || typeFilter === "scr")) {
         const d = addDaysIso(s.pub_date, -SCRIPT_LEAD); (scr[d] ||= []).push({ id: s.id, clientId: s.client_id });

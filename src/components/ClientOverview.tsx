@@ -29,9 +29,10 @@ type Props = {
   onEdit: () => void;
   onAvatarChange: (url: string | null) => Promise<void>;
   onUpdateTeam: (patch: { teamlead_id?: number | null; montager_id?: number | null }) => Promise<void>;
+  onTogglePause: () => void;
 };
 
-export default function ClientOverview({ client: c, clientMonths, scripts, team, activeMonth, todayIso, onEdit, onAvatarChange, onUpdateTeam }: Props) {
+export default function ClientOverview({ client: c, clientMonths, scripts, team, activeMonth, todayIso, onEdit, onAvatarChange, onUpdateTeam, onTogglePause }: Props) {
   const [editingTeam, setEditingTeam] = useState(false);
 
   const currentM = useMemo(() => {
@@ -167,8 +168,11 @@ export default function ClientOverview({ client: c, clientMonths, scripts, team,
         </div>
       </div>
 
-      {/* Edit button */}
-      <div style={{ position: "absolute", top: 14, right: 14 }}>
+      {/* Actions */}
+      <div style={{ position: "absolute", top: 14, right: 14, display: "flex", gap: 6 }}>
+        <button onClick={onTogglePause} style={{ padding: "6px 12px", borderRadius: 8, background: c.stage === "paused" ? "rgba(168,224,99,0.14)" : "rgba(245,196,81,0.14)", border: `1px solid ${c.stage === "paused" ? "rgba(168,224,99,0.4)" : "rgba(245,196,81,0.4)"}`, color: c.stage === "paused" ? "var(--gr)" : "var(--yl)", fontSize: 10, fontWeight: 700, cursor: "pointer" }}>
+          {c.stage === "paused" ? "▶ Снять с паузы" : "⏸ На паузу"}
+        </button>
         <button onClick={onEdit} style={{ padding: "6px 12px", borderRadius: 8, background: "rgba(157,107,255,0.12)", border: "1px solid rgba(157,107,255,0.3)", color: "var(--pu)", fontSize: 10, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5 }}>
           <Edit2 size={11} strokeWidth={2} /> Редактировать
         </button>

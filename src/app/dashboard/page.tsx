@@ -184,9 +184,10 @@ function ClientsBlock(p: ClientsBlockProps) {
       const progressPct = Math.round((published / plan) * 100);
       const daysToEnd = daysBetween(p.todayIso, cm.end_date);
       const daysTotal = Math.max(1, daysBetween(cm.start_date, cm.end_date) + 1);
-      const isOverdue = (daysToEnd < 0 && published < plan) || p.overdueClientIds.has(c.id);
-      const isPaused = cm.status === "planned" || cm.status === "cancelled";
-      const status: ClientRow["status"] = isOverdue ? "overdue" : isPaused ? "paused" : published >= plan ? "done" : "working";
+      const paused = c.stage === "paused";
+      const isOverdue = !paused && ((daysToEnd < 0 && published < plan) || p.overdueClientIds.has(c.id));
+      const isPaused = paused || cm.status === "planned" || cm.status === "cancelled";
+      const status: ClientRow["status"] = isPaused ? "paused" : isOverdue ? "overdue" : published >= plan ? "done" : "working";
       const pace = paceOf(cm.start_date, cm.end_date, p.todayIso, published, plan);
       out.push({ c, cm, plan, scrApproved, scrInProgress, montage, montageInProgress, ready, published, remaining, progressPct, daysToEnd, daysTotal, isOverdue, isPaused, status, pace, publishedInMonth, plannedInMonth, dueByToday, factByToday });
     }
@@ -219,8 +220,9 @@ function ClientsBlock(p: ClientsBlockProps) {
     else if (p.sortBy === "name") arr.sort((a, b) => `${a.c.name} ${a.c.surname || ""}`.localeCompare(`${b.c.name} ${b.c.surname || ""}`));
     else if (p.sortBy === "plan") arr.sort((a, b) => b.plan - a.plan);
     else if (p.sortBy === "month") arr.sort((a, b) => a.cm.month_number - b.cm.month_number || `${a.c.name}`.localeCompare(`${b.c.name}`));
-    // Закрытые месяцы — всегда вниз (стабильно, поверх выбранной сортировки)
-    arr.sort((a, b) => (a.cm.status === "closed" ? 1 : 0) - (b.cm.status === "closed" ? 1 : 0));
+    // Вниз: сначала активные, потом на паузе, потом закрытые (поверх выбранной сортировки)
+    const rank = (r: ClientRow) => r.cm.status === "closed" ? 2 : r.status === "paused" ? 1 : 0;
+    arr.sort((a, b) => rank(a) - rank(b));
     return arr;
   }, [filtered, p.sortBy]);
 
@@ -505,12 +507,14 @@ function ClientsBlock(p: ClientsBlockProps) {
                     );
                   }
                   const isClosed = r.cm.status === "closed";
+                  const isPausedRow = r.status === "paused";
+                  const dim = isClosed || isPausedRow;
                   out.push(
                     <tr key={`row-${r.cm.id}`}
                     onClick={() => p.onOpen(r.c.id)}
-                    style={{ borderBottom: "1px solid rgba(157,107,255,0.08)", cursor: "pointer", transition: "background .12s", opacity: isClosed ? 0.6 : 1, background: isClosed ? "var(--inset)" : "transparent" }}
+                    style={{ borderBottom: "1px solid rgba(157,107,255,0.08)", cursor: "pointer", transition: "background .12s", opacity: dim ? 0.6 : 1, background: dim ? "var(--inset)" : "transparent" }}
                     onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(157,107,255,0.04)")}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = isClosed ? "var(--inset)" : "transparent")}>
+                    onMouseLeave={(e) => (e.currentTarget.style.background = dim ? "var(--inset)" : "transparent")}>
                     {/* Клиент */}
                     <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 200 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -522,6 +526,7 @@ function ClientsBlock(p: ClientsBlockProps) {
                             </div>
                             <span style={{ fontSize: 9, fontWeight: 800, padding: "2px 6px", borderRadius: 5, background: "rgba(157,107,255,0.18)", color: "var(--pu)", letterSpacing: 0.3 }}>M{r.cm.month_number}</span>
                             {isClosed && <span style={{ fontSize: 9, fontWeight: 800, padding: "2px 6px", borderRadius: 5, background: "rgba(168,224,99,0.15)", color: "var(--gr)", letterSpacing: 0.3 }}>🔒 закрыт</span>}
+                            {isPausedRow && !isClosed && <span style={{ fontSize: 9, fontWeight: 800, padding: "2px 6px", borderRadius: 5, background: "rgba(245,196,81,0.18)", color: "var(--yl)", letterSpacing: 0.3 }}>⏸ на паузе</span>}
                           </div>
                           <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 170 }}>
                             {r.c.niche || r.c.product || "—"}
@@ -609,11 +614,11 @@ function ClientsBlock(p: ClientsBlockProps) {
             const PIcon = r.pace.icon === "up" ? TrendingUp : r.pace.icon === "down" ? TrendingDown : Minus;
             return (
               <button key={r.cm.id} onClick={() => p.onOpen(r.c.id)}
-                style={{ textAlign: "left", padding: 12, borderRadius: 14, background: "var(--inset)", border: "1px solid var(--brd)", cursor: "pointer", display: "flex", flexDirection: "column", gap: 10, opacity: r.cm.status === "closed" ? 0.6 : 1 }}>
+                style={{ textAlign: "left", padding: 12, borderRadius: 14, background: "var(--inset)", border: "1px solid var(--brd)", cursor: "pointer", display: "flex", flexDirection: "column", gap: 10, opacity: r.cm.status === "closed" || r.status === "paused" ? 0.6 : 1 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
                   <Avatar name={`${r.c.name} ${r.c.surname || ""}`} src={r.c.avatar_url} size={36} />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: "var(--t1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.c.name} {r.c.surname || ""}{r.cm.status === "closed" ? " 🔒" : ""}</div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "var(--t1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.c.name} {r.c.surname || ""}{r.cm.status === "closed" ? " 🔒" : r.status === "paused" ? " ⏸" : ""}</div>
                     <div style={{ fontSize: 9, fontWeight: 700, color: r.pace.color, textTransform: "uppercase", marginTop: 2, letterSpacing: 0.4, display: "inline-flex", alignItems: "center", gap: 4 }}>
                       <PIcon size={9} strokeWidth={2.2} /> {r.pace.label}
                     </div>
@@ -794,6 +799,7 @@ function DashboardInner() {
     const overdueClientIds = new Set(overdueTasks.map((t: any) => t.client_id));
     const attentionClients: Array<{ client: Client; reason: string; severity: "red" | "yellow" }> = [];
     for (const c of activeClients) {
+      if (c.stage === "paused") continue; // на паузе — не дёргаем
       const cm = activeMonths.find(m => m.client_id === c.id);
       if (!cm) continue;
       const list = scriptsByClientMonth(cm);
@@ -1313,6 +1319,7 @@ function DashboardInner() {
       {(() => {
         const cands = clientMonths
           .filter(cm => (cm.status === "active" || cm.status === "onboarding")
+            && clients.find(c => c.id === cm.client_id)?.stage !== "paused"
             && daysBetween(todayIso, cm.end_date) <= 7
             && !clientMonths.some(x => x.client_id === cm.client_id && x.month_number === cm.month_number + 1))
           .sort((a, b) => daysBetween(todayIso, a.end_date) - daysBetween(todayIso, b.end_date));
