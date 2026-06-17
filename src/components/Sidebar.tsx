@@ -85,15 +85,22 @@ export function Sidebar({ userRole }: { userRole: string }) {
         const active = isActive(item.path);
         const Icon = item.icon;
         return (
-          <button
+          <a
             key={item.id}
-            onClick={() => navigate(item.path, item.soon)}
+            href={item.path}
+            onClick={(e) => {
+              // обычный левый клик — SPA-навигация; Cmd/Ctrl/средний/правый — даём браузеру (новая вкладка)
+              if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+              e.preventDefault();
+              navigate(item.path, item.soon);
+            }}
             className={`nav-item ${active ? "active" : ""}`}
             style={{
               fontSize: compact ? 12 : 13,
               padding: compact ? "9px 10px" : "10px 12px",
               gap: 10,
               opacity: item.soon ? 0.78 : 1,
+              textDecoration: "none",
             }}
           >
             <Icon size={compact ? 15 : 16} strokeWidth={1.8} />
@@ -104,7 +111,7 @@ export function Sidebar({ userRole }: { userRole: string }) {
                 background: "var(--track)", color: "var(--t3)", letterSpacing: 0.4,
               }}>soon</span>
             )}
-          </button>
+          </a>
         );
       })}
     </nav>

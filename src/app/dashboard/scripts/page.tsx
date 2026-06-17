@@ -17,6 +17,8 @@ function ymOfDate(d: Date) { return `${d.getFullYear()}-${String(d.getMonth() + 
 function ymShift(ym: string, delta: number) { const [y, m] = ym.split("-").map(Number); return ymOfDate(new Date(y, m - 1 + delta, 1)); }
 function ymLabel(ym: string) { const [y, m] = ym.split("-").map(Number); return `${RU_MONTHS[m - 1]} ${y}`; }
 function mondayOf(d: Date) { const x = new Date(d); const wd = (x.getDay() + 6) % 7; x.setDate(x.getDate() - wd); return isoOf(x); }
+function daysBetween(a: string, b: string) { return Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000); }
+const FOCUS_OPTS = [{ v: "all", l: "Все" }, { v: "today", l: "📌 Сегодня" }, { v: "tomorrow", l: "Завтра" }, { v: "overdue", l: "⚠ Просрочено" }] as const;
 function buildCalendar(ym: string): (string | null)[][] {
   const [y, m] = ym.split("-").map(Number);
   const startWd = (new Date(y, m - 1, 1).getDay() + 6) % 7;
@@ -33,6 +35,7 @@ function buildCalendar(ym: string): (string | null)[][] {
 export default function ScriptsPage() {
   const supabase = createClient();
   const todayIso = isoOf(new Date());
+  const tomorrowIso = addDaysIso(todayIso, 1);
 
   const [clients, setClients] = useState<Client[]>([]);
   const [allScripts, setAllScripts] = useState<Script[]>([]);
@@ -44,8 +47,8 @@ export default function ScriptsPage() {
   const [ym, setYm] = useState(ymOfDate(new Date()));
   const [clientFilter, setClientFilter] = useState<"all" | number>("all");
   const [tlFilter, setTlFilter] = useState<"all" | number>("all");
-  const [focus, setFocus] = useState<"all" | "today" | "overdue">("all");
-  const [menu, setMenu] = useState<null | "client" | "tl">(null);
+  const [focus, setFocus] = useState<"all" | "today" | "tomorrow" | "overdue">("all");
+  const [menu, setMenu] = useState<null | "client" | "tl" | "focus">(null);
   const [openId, setOpenId] = useState<number | null>(null);
 
   useEffect(() => { load(); }, []);
@@ -79,11 +82,12 @@ export default function ScriptsPage() {
       const due = addDaysIso(s.pub_date, -SCRIPT_LEAD);
       const status = s.script_status === "approved" ? "done" : (due < todayIso ? "overdue" : "due");
       if (focus === "today" && due !== todayIso) continue;
+      if (focus === "tomorrow" && due !== tomorrowIso) continue;
       if (focus === "overdue" && status !== "overdue") continue;
       out.push({ s, due, status });
     }
     return out;
-  }, [allScripts, clientFilter, tlFilter, focus, todayIso, clientById]);
+  }, [allScripts, clientFilter, tlFilter, focus, todayIso, tomorrowIso, clientById]);
 
   const byClientDay = useMemo(() => {
     const m: Record<string, Record<string, Slot[]>> = {};
@@ -113,6 +117,7 @@ export default function ScriptsPage() {
 
   // Канбан снизу — все сценарии в скоупе фильтров
   const kanbanScripts = useMemo(() => allScripts.filter(s => inScope(s.client_id)), [allScripts, clientFilter, tlFilter, clientById]);
+  const scopeCount = clients.filter(c => inScope(c.id)).length;
   const openScript = openId != null ? allScripts.find(s => s.id === openId) || null : null;
 
   if (loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--t2)" }}>Загрузка…</div>;
@@ -144,7 +149,10 @@ export default function ScriptsPage() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 14, flexWrap: "wrap", marginBottom: 14 }}>
         <div>
           <h1 style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 22, fontWeight: 800, letterSpacing: -0.5 }}>Сценарии · контент-план</h1>
-          <p style={{ fontSize: 12, color: "var(--t3)", marginTop: 4 }}>На какую дату нужен сценарий по каждому клиенту · дата = публикация − {SCRIPT_LEAD} дн.</p>
+          <p style={{ fontSize: 12, color: "var(--t3)", marginTop: 4 }}>
+            На какую дату нужен сценарий по клиенту · дата = публикация − {SCRIPT_LEAD} дн.
+            {(tlFilter !== "all" || clientFilter !== "all") && <span style={{ color: "var(--pu)", fontWeight: 700 }}> · {scopeCount} {scopeCount === 1 ? "клиент" : scopeCount < 5 ? "клиента" : "клиентов"} в фильтре</span>}
+          </p>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <div style={{ display: "flex", border: "1px solid var(--brd)", borderRadius: 10, overflow: "hidden" }}>
@@ -160,8 +168,9 @@ export default function ScriptsPage() {
             <button onClick={() => { setTlFilter("all"); setMenu(null); }} className="nav-item" style={{ fontSize: 11, padding: "7px 10px" }}>Все тимлиды</button>
             {teamleads.map(t => <button key={t.id} onClick={() => { setTlFilter(t.id); setMenu(null); }} className="nav-item" style={{ fontSize: 11, padding: "7px 10px", gap: 8 }}><Avatar name={t.name} src={t.avatar_url} size={20} /> {t.name}</button>)}
           </Drop>
-          <button onClick={() => setFocus(focus === "today" ? "all" : "today")} style={{ padding: "8px 12px", borderRadius: 10, border: `1px solid ${focus === "today" ? "var(--cy)" : "var(--brd)"}`, background: focus === "today" ? "rgba(66,212,244,0.12)" : "transparent", color: focus === "today" ? "var(--cy)" : "var(--t2)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>📌 Сегодня</button>
-          <button onClick={() => setFocus(focus === "overdue" ? "all" : "overdue")} style={{ padding: "8px 12px", borderRadius: 10, border: `1px solid ${focus === "overdue" ? "var(--rd)" : "var(--brd)"}`, background: focus === "overdue" ? "rgba(255,92,122,0.12)" : "transparent", color: focus === "overdue" ? "var(--rd)" : "var(--t2)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>⚠ Просрочено</button>
+          <Drop label="Показать" kind="focus" value={FOCUS_OPTS.find(o => o.v === focus)!.l}>
+            {FOCUS_OPTS.map(o => <button key={o.v} onClick={() => { setFocus(o.v); setMenu(null); }} className="nav-item" style={{ fontSize: 11, padding: "7px 10px", color: focus === o.v ? "var(--pu)" : undefined }}>{o.l}</button>)}
+          </Drop>
           <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 10px", borderRadius: 10, background: "rgba(123,63,228,0.08)", border: "1px solid var(--brd)" }}>
             <button onClick={() => view === "week" ? setWeekStart(addDaysIso(weekStart, -7)) : setYm(ymShift(ym, -1))} style={{ background: "transparent", border: "none", color: "var(--t2)", cursor: "pointer", display: "flex" }}><ChevronLeft size={14} /></button>
             <span style={{ fontSize: 12, fontWeight: 700, minWidth: 110, textAlign: "center" }}>{view === "week" ? `${fmtDateShort(weekDays[0])} — ${fmtDateShort(weekDays[6])}` : ymLabel(ym)}</span>
@@ -181,7 +190,36 @@ export default function ScriptsPage() {
       </div>
 
       {/* CONTENT PLAN */}
-      {view === "week" ? (
+      {focus !== "all" ? (
+        <div className="card" style={{ padding: 0, borderRadius: 16, marginBottom: 18, overflow: "hidden" }}>
+          <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--brd)", fontSize: 12, fontWeight: 800, color: "var(--t1)" }}>
+            {FOCUS_OPTS.find(o => o.v === focus)!.l} · {planSlots.length} шт.
+            <span style={{ fontSize: 11, fontWeight: 500, color: "var(--t3)", marginLeft: 8 }}>— клик, чтобы открыть и поправить дату</span>
+          </div>
+          {planSlots.length === 0 ? (
+            <div style={{ padding: 40, textAlign: "center", color: "var(--t3)", fontSize: 13 }}>Ничего не найдено</div>
+          ) : (
+            Array.from(planSlots).sort((a, b) => a.due.localeCompare(b.due)).map(sl => {
+              const c = clientById[sl.s.client_id];
+              const col = sl.status === "done" ? "#a8e063" : sl.status === "overdue" ? "#ff5c7a" : "#42d4f4";
+              const od = daysBetween(sl.due, todayIso);
+              const reason = sl.status === "done" ? "готов" : sl.status === "overdue" ? `просрочен ${od} дн.` : sl.due === todayIso ? "на сегодня" : sl.due === tomorrowIso ? "на завтра" : `к ${fmtDateShort(sl.due)}`;
+              return (
+                <button key={sl.s.id} onClick={() => setOpenId(sl.s.id)}
+                  style={{ width: "100%", display: "grid", gridTemplateColumns: "1.5fr 1.4fr auto auto", gap: 12, alignItems: "center", padding: "11px 16px", borderBottom: "1px solid var(--brd)", background: "transparent", borderLeft: "none", borderRight: "none", borderTop: "none", cursor: "pointer", textAlign: "left", color: "var(--t1)" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}>
+                    <Avatar name={`${c.name} ${c.surname || ""}`} src={c.avatar_url} size={28} />
+                    <div style={{ minWidth: 0 }}><div style={{ fontSize: 12, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name} {c.surname || ""}</div><div style={{ fontSize: 9, color: "var(--t3)" }}>M{sl.s.month_number} · #{sl.s.order_num} · {team.find(t => t.id === c.teamlead_id)?.name || "—"}</div></div>
+                  </div>
+                  <div style={{ fontSize: 12, color: "var(--t2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sl.s.hook_text || sl.s.hook || "— без темы —"}</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--t1)", whiteSpace: "nowrap" }}>📅 {fmtDateShort(sl.due)}</div>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: col, background: `${col}1f`, border: `1px solid ${col}55`, padding: "3px 8px", borderRadius: 6, whiteSpace: "nowrap" }}>{reason}</span>
+                </button>
+              );
+            })
+          )}
+        </div>
+      ) : view === "week" ? (
         <div className="card" style={{ padding: 14, borderRadius: 16, marginBottom: 18, overflowX: "auto" }}>
           {weekClients.length === 0 ? (
             <div style={{ padding: "30px", textAlign: "center", color: "var(--t3)", fontSize: 13 }}>На эту неделю сценариев не запланировано (даты ставятся в «Публикациях»)</div>
