@@ -1,228 +1,262 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase-browser";
-import db, { Client, Script, ClientMonth } from "@/lib/database";
+import db, { Client, Script, ClientMonth, TeamMember } from "@/lib/database";
 import Avatar from "@/components/Avatar";
 import KanbanBoard from "@/components/KanbanBoard";
+import ScriptModal, { SCRIPT_LEAD, fmtDateShort, addDaysIso } from "@/components/ScriptModal";
 import { SCRIPT_COLUMNS } from "@/components/kanbanConfigs";
 import {
-  Lightbulb, Pen, UserCheck, CheckCircle2, Send, Package,
-  Filter, Search, Calendar as CalendarIcon, ChevronDown, ChevronLeft, ChevronRight, X,
-  type LucideIcon,
+  Filter, ChevronDown, ChevronLeft, ChevronRight, X, CalendarDays, Table as TableIcon,
 } from "lucide-react";
 
 const RU_MONTHS = ["январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"];
+const WD = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+function isoOf(d: Date) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
 function ymOfDate(d: Date) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; }
 function ymShift(ym: string, delta: number) { const [y, m] = ym.split("-").map(Number); return ymOfDate(new Date(y, m - 1 + delta, 1)); }
-function ymRange(ym: string) {
-  const [y, m] = ym.split("-").map(Number);
-  const start = `${y}-${String(m).padStart(2, "0")}-01`;
-  const lastDay = new Date(y, m, 0).getDate();
-  return { start, end: `${y}-${String(m).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}` };
-}
 function ymLabel(ym: string) { const [y, m] = ym.split("-").map(Number); return `${RU_MONTHS[m - 1]} ${y}`; }
+function mondayOf(d: Date) { const x = new Date(d); const wd = (x.getDay() + 6) % 7; x.setDate(x.getDate() - wd); return isoOf(x); }
+function buildCalendar(ym: string): (string | null)[][] {
+  const [y, m] = ym.split("-").map(Number);
+  const startWd = (new Date(y, m - 1, 1).getDay() + 6) % 7;
+  const days = new Date(y, m, 0).getDate();
+  const cells: (string | null)[] = [];
+  for (let i = 0; i < startWd; i++) cells.push(null);
+  for (let d = 1; d <= days; d++) cells.push(`${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`);
+  while (cells.length % 7) cells.push(null);
+  const weeks: (string | null)[][] = [];
+  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+  return weeks;
+}
 
 export default function ScriptsPage() {
   const supabase = createClient();
-  const today = new Date();
-  const currentYM = ymOfDate(today);
+  const todayIso = isoOf(new Date());
+
   const [clients, setClients] = useState<Client[]>([]);
   const [allScripts, setAllScripts] = useState<Script[]>([]);
   const [clientMonths, setClientMonths] = useState<ClientMonth[]>([]);
+  const [team, setTeam] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedMonth, setSelectedMonth] = useState<string | "all">(currentYM);
+  const [view, setView] = useState<"week" | "month">("week");
+  const [weekStart, setWeekStart] = useState(mondayOf(new Date()));
+  const [ym, setYm] = useState(ymOfDate(new Date()));
   const [clientFilter, setClientFilter] = useState<"all" | number>("all");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [filterMenuOpen, setFilterMenuOpen] = useState(false);
+  const [tlFilter, setTlFilter] = useState<"all" | number>("all");
+  const [focus, setFocus] = useState<"all" | "today" | "overdue">("all");
+  const [menu, setMenu] = useState<null | "client" | "tl">(null);
+  const [openId, setOpenId] = useState<number | null>(null);
 
   useEffect(() => { load(); }, []);
-
   async function load() {
-    const cls = await db.getClients(supabase);
-    setClients(cls);
-    const all = await db.getScriptsForClients(supabase, cls.map(c => c.id));
-    setAllScripts(all);
-    const cmRes = await db.getClientMonths(supabase);
-    setClientMonths(cmRes?.data || []);
+    const [cls, tm] = await Promise.all([db.getClients(supabase), db.getTeam(supabase)]);
+    setClients(cls); setTeam(tm);
+    const [all, cmRes] = await Promise.all([db.getScriptsForClients(supabase, cls.map(c => c.id)), db.getClientMonths(supabase)]);
+    setAllScripts(all); setClientMonths(cmRes?.data || []);
     setLoading(false);
   }
-
   async function updateScript(id: number, patch: Partial<Script>) {
     await db.updateScript(supabase, id, patch);
     setAllScripts(arr => arr.map(s => s.id === id ? { ...s, ...patch } : s));
   }
 
-  // Какие (client_id, month_number) попадают в выбранный календарный период
-  const activeMonthKeys = useMemo(() => {
-    if (selectedMonth === "all") return null;
-    const { start: ms, end: me } = ymRange(selectedMonth);
-    const set = new Set<string>();
-    for (const cm of clientMonths) {
-      if (cm.start_date <= me && cm.end_date >= ms) set.add(`${cm.client_id}:${cm.month_number}`);
+  const clientById = useMemo(() => Object.fromEntries(clients.map(c => [c.id, c])) as Record<number, Client>, [clients]);
+  const teamleads = useMemo(() => team.filter(t => t.member_type === "teamlead" || t.member_type === "admin"), [team]);
+  const cname = (id: number) => clientById[id]?.name || "?";
+  const inScope = (cid: number) => {
+    const c = clientById[cid]; if (!c) return false;
+    if (clientFilter !== "all" && cid !== clientFilter) return false;
+    if (tlFilter !== "all" && c.teamlead_id !== tlFilter) return false;
+    return true;
+  };
+
+  type Slot = { s: Script; due: string; status: "done" | "overdue" | "due" };
+  const planSlots = useMemo<Slot[]>(() => {
+    const out: Slot[] = [];
+    for (const s of allScripts) {
+      if (!s.pub_date || !inScope(s.client_id)) continue;
+      const due = addDaysIso(s.pub_date, -SCRIPT_LEAD);
+      const status = s.script_status === "approved" ? "done" : (due < todayIso ? "overdue" : "due");
+      if (focus === "today" && due !== todayIso) continue;
+      if (focus === "overdue" && status !== "overdue") continue;
+      out.push({ s, due, status });
     }
-    return set;
-  }, [clientMonths, selectedMonth]);
+    return out;
+  }, [allScripts, clientFilter, tlFilter, focus, todayIso, clientById]);
 
-  const filtered = useMemo(() => {
-    return allScripts.filter(s => {
-      const c = clients.find(x => x.id === s.client_id);
-      if (!c) return false;
-      if (activeMonthKeys && !activeMonthKeys.has(`${s.client_id}:${s.month_number}`)) return false;
-      if (clientFilter !== "all" && s.client_id !== clientFilter) return false;
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const hay = `${c.name} ${c.surname || ""} ${s.hook_text || ""} ${s.hook || ""} ${s.body_text || ""}`.toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
-      return true;
-    });
-  }, [allScripts, clients, clientFilter, searchQuery, activeMonthKeys]);
+  const byClientDay = useMemo(() => {
+    const m: Record<string, Record<string, Slot[]>> = {};
+    for (const sl of planSlots) { ((m[sl.s.client_id] ||= {})[sl.due] ||= []).push(sl); }
+    return m;
+  }, [planSlots]);
+  const byDay = useMemo(() => {
+    const m: Record<string, Slot[]> = {};
+    for (const sl of planSlots) (m[sl.due] ||= []).push(sl);
+    return m;
+  }, [planSlots]);
 
-  // План (пакеты) и сколько уже опубликовано — для KPI «Осталось сделать»
-  const planStats = useMemo(() => {
-    let totalPkg = 0, publishedCount = 0;
-    const include = (cm: ClientMonth) => {
-      if (cm.status === "planned" || cm.status === "cancelled") return false;
-      if (clientFilter !== "all" && cm.client_id !== clientFilter) return false;
-      if (selectedMonth !== "all") {
-        const { start: ms, end: me } = ymRange(selectedMonth);
-        if (cm.start_date > me || cm.end_date < ms) return false;
-      }
-      return true;
-    };
-    for (const cm of clientMonths) {
-      if (!include(cm)) continue;
-      totalPkg += cm.package || 0;
-      publishedCount += allScripts.filter(s => s.client_id === cm.client_id && s.month_number === cm.month_number && s.video_status === "published").length;
-    }
-    return { plan: totalPkg, remaining: Math.max(0, totalPkg - publishedCount) };
-  }, [clientMonths, selectedMonth, clientFilter, allScripts]);
+  const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDaysIso(weekStart, i)), [weekStart]);
+  const weekClients = useMemo(() => {
+    const ids = new Set<number>();
+    for (const sl of planSlots) if (sl.due >= weekDays[0] && sl.due <= weekDays[6]) ids.add(sl.s.client_id);
+    return Array.from(ids).sort((a, b) => cname(a).localeCompare(cname(b)));
+  }, [planSlots, weekDays]);
 
-  const counts = useMemo(() => {
-    const ss = (st: string) => filtered.filter(s => s.script_status === st || (st === "notStarted" && !s.script_status)).length;
-    return {
-      idea: filtered.filter(s => s.script_status === "notStarted" || !s.script_status).length,
-      writing: ss("inProgress"),
-      review: ss("review"),
-      approved: ss("approved"),
-      published: filtered.filter(s => s.video_status === "published").length,
-    };
-  }, [filtered]);
+  const summary = useMemo(() => {
+    const all = allScripts.filter(s => s.pub_date && inScope(s.client_id));
+    const today = all.filter(s => s.script_status !== "approved" && addDaysIso(s.pub_date!, -SCRIPT_LEAD) === todayIso).length;
+    const overdue = all.filter(s => s.script_status !== "approved" && addDaysIso(s.pub_date!, -SCRIPT_LEAD) < todayIso).length;
+    const week = planSlots.filter(sl => sl.due >= weekDays[0] && sl.due <= weekDays[6]).length;
+    return { today, overdue, week };
+  }, [allScripts, clientFilter, tlFilter, todayIso, planSlots, weekDays]);
+
+  // Канбан снизу — все сценарии в скоупе фильтров
+  const kanbanScripts = useMemo(() => allScripts.filter(s => inScope(s.client_id)), [allScripts, clientFilter, tlFilter, clientById]);
+  const openScript = openId != null ? allScripts.find(s => s.id === openId) || null : null;
 
   if (loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--t2)" }}>Загрузка…</div>;
 
-  const kpiCards: { Icon: LucideIcon; label: string; val: number; color: string; caption?: string }[] = [
-    { Icon: Package, label: "Осталось сделать", val: planStats.remaining, color: "#7b3fe4", caption: `из ${planStats.plan} в пакетах` },
-    { Icon: Lightbulb, label: "Идея", val: counts.idea, color: "#9d6bff" },
-    { Icon: Pen, label: "Взято в работу", val: counts.writing, color: "#42d4f4" },
-    { Icon: UserCheck, label: "На согласовании", val: counts.review, color: "#ffae42" },
-    { Icon: CheckCircle2, label: "Согласовано", val: counts.approved, color: "#a8e063" },
-    { Icon: Send, label: "Опубликовано", val: counts.published, color: "#34a853" },
-  ];
+  const chip = (sl: Slot) => {
+    const col = sl.status === "done" ? "#a8e063" : sl.status === "overdue" ? "#ff5c7a" : "#42d4f4";
+    const title = sl.s.hook_text || sl.s.hook || "";
+    const txt = `#${sl.s.order_num}${title ? " · " + title : ""}`;
+    return (
+      <div key={sl.s.id} onClick={() => setOpenId(sl.s.id)} title={txt}
+        style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 6px", borderRadius: 6, background: `${col}1f`, border: `1px solid ${col}55`, color: col, fontSize: 10, fontWeight: 700, cursor: "pointer", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", maxWidth: "100%" }}>
+        {sl.status === "done" ? "✓" : sl.status === "overdue" ? "⚠" : ""} {txt}
+      </div>
+    );
+  };
+
+  const Drop = ({ label, value, kind, children }: any) => (
+    <div style={{ position: "relative" }}>
+      <button onClick={() => setMenu(menu === kind ? null : kind)} style={{ padding: "8px 12px", borderRadius: 10, background: "rgba(123,63,228,0.08)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 11, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
+        <Filter size={11} /><span style={{ color: "var(--t3)" }}>{label}:</span>{value}<ChevronDown size={11} />
+      </button>
+      {menu === kind && <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 30, minWidth: 190, background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 10, padding: 4, boxShadow: "0 12px 40px rgba(0,0,0,0.5)", maxHeight: 320, overflowY: "auto" }}>{children}</div>}
+    </div>
+  );
 
   return (
     <div style={{ fontFamily: "'Manrope', sans-serif" }}>
       {/* HEADER */}
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, marginBottom: 22, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 14, flexWrap: "wrap", marginBottom: 14 }}>
         <div>
-          <h1 style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 22, fontWeight: 800, color: "var(--t1)", letterSpacing: -0.5 }}>
-            Сценарии
-            <span style={{ marginLeft: 10, fontSize: 14, color: "var(--pu)", padding: "3px 10px", borderRadius: 8, background: "rgba(157,107,255,0.15)", fontFamily: "'Manrope', sans-serif" }}>{filtered.length}</span>
-          </h1>
-          <p style={{ fontSize: 12, color: "var(--t3)", marginTop: 4, fontWeight: 500 }}>
-            {selectedMonth === "all" ? "Все сценарии по всем месяцам" : `Сценарии за ${ymLabel(selectedMonth)}`}
-            {clientFilter !== "all" && (() => { const c = clients.find(x => x.id === clientFilter); return c ? ` · ${c.name} ${c.surname || ""}` : ""; })()}
-          </p>
+          <h1 style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 22, fontWeight: 800, letterSpacing: -0.5 }}>Сценарии · контент-план</h1>
+          <p style={{ fontSize: 12, color: "var(--t3)", marginTop: 4 }}>На какую дату нужен сценарий по каждому клиенту · дата = публикация − {SCRIPT_LEAD} дн.</p>
         </div>
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 12, background: "rgba(123,63,228,0.08)", border: "1px solid var(--brd)" }}>
-            <button onClick={() => setSelectedMonth(s => s === "all" ? currentYM : ymShift(s, -1))}
-              style={{ background: "transparent", border: "none", color: "var(--t2)", cursor: "pointer", padding: 4, display: "flex" }}><ChevronLeft size={14} /></button>
-            <CalendarIcon size={13} style={{ color: "var(--t3)" }} />
-            <span style={{ fontSize: 12, fontWeight: 700, color: "var(--t1)", minWidth: 90, textAlign: "center" }}>
-              {selectedMonth === "all" ? "Всё время" : ymLabel(selectedMonth)}
-            </span>
-            {selectedMonth !== currentYM && selectedMonth !== "all" && (
-              <button onClick={() => setSelectedMonth(currentYM)} title="Текущий месяц"
-                style={{ background: "transparent", border: "none", color: "var(--cy)", cursor: "pointer", fontSize: 10, fontWeight: 700, padding: "2px 6px" }}>сейчас</button>
-            )}
-            <button onClick={() => setSelectedMonth(s => s === "all" ? currentYM : ymShift(s, 1))}
-              style={{ background: "transparent", border: "none", color: "var(--t2)", cursor: "pointer", padding: 4, display: "flex" }}><ChevronRight size={14} /></button>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", border: "1px solid var(--brd)", borderRadius: 10, overflow: "hidden" }}>
+            {([["week", "Неделя", TableIcon], ["month", "Месяц", CalendarDays]] as const).map(([v, l, Ic]) => (
+              <button key={v} onClick={() => setView(v)} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 12px", background: view === v ? "rgba(157,107,255,0.15)" : "transparent", color: view === v ? "var(--pu)" : "var(--t2)", border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer" }}><Ic size={13} /> {l}</button>
+            ))}
           </div>
-          <button onClick={() => setSelectedMonth(selectedMonth === "all" ? currentYM : "all")}
-            style={{ padding: "8px 14px", borderRadius: 12, background: selectedMonth === "all" ? "linear-gradient(135deg, var(--pu), #7b3fe4)" : "transparent", color: selectedMonth === "all" ? "#fff" : "var(--t2)", border: selectedMonth === "all" ? "none" : "1px solid var(--brd)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
-            {selectedMonth === "all" ? "✓ Всё время" : "Всё время"}
-          </button>
+          <Drop label="Клиент" kind="client" value={clientFilter === "all" ? "Все" : cname(clientFilter)}>
+            <button onClick={() => { setClientFilter("all"); setMenu(null); }} className="nav-item" style={{ fontSize: 11, padding: "7px 10px" }}>Все клиенты</button>
+            {clients.map(c => <button key={c.id} onClick={() => { setClientFilter(c.id); setMenu(null); }} className="nav-item" style={{ fontSize: 11, padding: "7px 10px", gap: 8 }}><Avatar name={c.name} src={c.avatar_url} size={20} /> {c.name} {c.surname || ""}</button>)}
+          </Drop>
+          <Drop label="Тимлид" kind="tl" value={tlFilter === "all" ? "Все" : (team.find(t => t.id === tlFilter)?.name || "—")}>
+            <button onClick={() => { setTlFilter("all"); setMenu(null); }} className="nav-item" style={{ fontSize: 11, padding: "7px 10px" }}>Все тимлиды</button>
+            {teamleads.map(t => <button key={t.id} onClick={() => { setTlFilter(t.id); setMenu(null); }} className="nav-item" style={{ fontSize: 11, padding: "7px 10px", gap: 8 }}><Avatar name={t.name} src={t.avatar_url} size={20} /> {t.name}</button>)}
+          </Drop>
+          <button onClick={() => setFocus(focus === "today" ? "all" : "today")} style={{ padding: "8px 12px", borderRadius: 10, border: `1px solid ${focus === "today" ? "var(--cy)" : "var(--brd)"}`, background: focus === "today" ? "rgba(66,212,244,0.12)" : "transparent", color: focus === "today" ? "var(--cy)" : "var(--t2)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>📌 Сегодня</button>
+          <button onClick={() => setFocus(focus === "overdue" ? "all" : "overdue")} style={{ padding: "8px 12px", borderRadius: 10, border: `1px solid ${focus === "overdue" ? "var(--rd)" : "var(--brd)"}`, background: focus === "overdue" ? "rgba(255,92,122,0.12)" : "transparent", color: focus === "overdue" ? "var(--rd)" : "var(--t2)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>⚠ Просрочено</button>
+          <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 10px", borderRadius: 10, background: "rgba(123,63,228,0.08)", border: "1px solid var(--brd)" }}>
+            <button onClick={() => view === "week" ? setWeekStart(addDaysIso(weekStart, -7)) : setYm(ymShift(ym, -1))} style={{ background: "transparent", border: "none", color: "var(--t2)", cursor: "pointer", display: "flex" }}><ChevronLeft size={14} /></button>
+            <span style={{ fontSize: 12, fontWeight: 700, minWidth: 110, textAlign: "center" }}>{view === "week" ? `${fmtDateShort(weekDays[0])} — ${fmtDateShort(weekDays[6])}` : ymLabel(ym)}</span>
+            <button onClick={() => view === "week" ? setWeekStart(addDaysIso(weekStart, 7)) : setYm(ymShift(ym, 1))} style={{ background: "transparent", border: "none", color: "var(--t2)", cursor: "pointer", display: "flex" }}><ChevronRight size={14} /></button>
+          </div>
         </div>
       </div>
 
-      {/* KPI ROW */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 10, marginBottom: 18 }} className="scripts-kpi">
-        {kpiCards.map(it => {
-          const I = it.Icon;
-          return (
-            <div key={it.label} style={{ background: "var(--card)", border: "1px solid var(--brd)", borderRadius: 16, padding: 14, minHeight: 102, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-              <div style={{ width: 34, height: 34, borderRadius: 10, background: `${it.color}22`, color: it.color, display: "flex", alignItems: "center", justifyContent: "center", border: `1px solid ${it.color}44` }}>
-                <I size={16} strokeWidth={1.8} />
-              </div>
-              <div>
-                <div style={{ fontSize: 10, color: "var(--t3)", fontWeight: 600, marginBottom: 3 }}>{it.label}</div>
-                <div style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 24, fontWeight: 800, color: "var(--t1)", lineHeight: 1 }}>{it.val}</div>
-                {it.caption && <div style={{ fontSize: 10, color: it.color, fontWeight: 600, marginTop: 3 }}>{it.caption}</div>}
-              </div>
-            </div>
-          );
-        })}
+      {/* SUMMARY */}
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
+        {[{ v: summary.today, l: "на сегодня", c: "#42d4f4" }, { v: summary.overdue, l: "просрочено", c: "#ff5c7a" }, { v: summary.week, l: "за неделю", c: "#9d6bff" }].map((x, i) => (
+          <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", borderRadius: 13, border: `1px solid ${x.v > 0 ? x.c + "55" : "var(--brd)"}`, background: x.v > 0 ? `${x.c}14` : "var(--card)" }}>
+            <span style={{ width: 9, height: 9, borderRadius: 3, background: x.c }} />
+            <div><div style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 18, fontWeight: 800, color: x.v > 0 ? "var(--t1)" : "var(--t3)" }}>{x.v}</div><div style={{ fontSize: 10, color: "var(--t3)", fontWeight: 600 }}>{x.l}</div></div>
+          </div>
+        ))}
       </div>
 
-      {/* Toolbar */}
-      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 14, flexWrap: "wrap" }}>
-        <div style={{ position: "relative", flex: "1 1 220px", maxWidth: 320 }}>
-          <Search size={13} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--t3)" }} />
-          <input placeholder="Поиск сценария..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-            style={{ width: "100%", padding: "9px 12px 9px 32px", borderRadius: 10, background: "var(--inset)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 12, outline: "none" }} />
-        </div>
-        <div style={{ position: "relative" }}>
-          <button onClick={() => setFilterMenuOpen(v => !v)}
-            style={{ padding: "8px 12px", borderRadius: 10, background: "rgba(123,63,228,0.08)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 11, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
-            <Filter size={11} strokeWidth={1.8} />
-            <span style={{ color: "var(--t3)" }}>Клиент:</span>
-            {clientFilter === "all" ? "Все" : (clients.find(c => c.id === clientFilter)?.name || "—")}
-            <ChevronDown size={11} />
-          </button>
-          {filterMenuOpen && (
-            <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 30, minWidth: 200, background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 10, padding: 4, boxShadow: "0 12px 40px rgba(0,0,0,0.5)", maxHeight: 320, overflowY: "auto" }}>
-              <button onClick={() => { setClientFilter("all"); setFilterMenuOpen(false); }} className="nav-item" style={{ fontSize: 11, padding: "7px 10px" }}>Все клиенты</button>
-              {clients.map(c => (
-                <button key={c.id} onClick={() => { setClientFilter(c.id); setFilterMenuOpen(false); }} className="nav-item" style={{ fontSize: 11, padding: "7px 10px", gap: 8 }}>
-                  <Avatar name={c.name} src={c.avatar_url} size={20} /> {c.name} {c.surname || ""}
-                </button>
-              ))}
-            </div>
+      {/* CONTENT PLAN */}
+      {view === "week" ? (
+        <div className="card" style={{ padding: 14, borderRadius: 16, marginBottom: 18, overflowX: "auto" }}>
+          {weekClients.length === 0 ? (
+            <div style={{ padding: "30px", textAlign: "center", color: "var(--t3)", fontSize: 13 }}>На эту неделю сценариев не запланировано (даты ставятся в «Публикациях»)</div>
+          ) : (
+            <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 6 }}>
+              <thead><tr>
+                <th></th>
+                {weekDays.map((d, i) => <th key={d} style={{ fontSize: 10, color: d === todayIso ? "var(--cy)" : "var(--t3)", textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 700, padding: "6px 4px", textAlign: "center" }}>{WD[i]} {parseInt(d.split("-")[2], 10)}{d === todayIso ? " · сегодня" : ""}</th>)}
+              </tr></thead>
+              <tbody>
+                {weekClients.map(cid => {
+                  const c = clientById[cid];
+                  return (
+                    <tr key={cid}>
+                      <td style={{ minWidth: 170, background: "var(--inset)", borderRadius: 10, padding: "8px 10px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <Avatar name={`${c.name} ${c.surname || ""}`} src={c.avatar_url} size={26} />
+                          <div style={{ minWidth: 0 }}><div style={{ fontSize: 12, fontWeight: 700, color: "var(--t1)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 130 }}>{c.name} {c.surname || ""}</div><div style={{ fontSize: 9, color: "var(--t3)" }}>{team.find(t => t.id === c.teamlead_id)?.name || "—"}</div></div>
+                        </div>
+                      </td>
+                      {weekDays.map(d => {
+                        const slots = (byClientDay[cid]?.[d] || []);
+                        return (
+                          <td key={d} style={{ verticalAlign: "top", background: d === todayIso ? "rgba(66,212,244,0.06)" : "var(--inset)", border: `1px solid ${d === todayIso ? "var(--cy)" : "var(--brd)"}`, borderRadius: 10, padding: 6, height: 78, minWidth: 130 }}>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>{slots.map(chip)}</div>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           )}
+          <div style={{ display: "flex", gap: 16, marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--brd)", flexWrap: "wrap" }}>
+            <span style={{ fontSize: 11, color: "var(--t2)", display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 9, height: 9, borderRadius: 3, background: "#42d4f4" }} />к сдаче</span>
+            <span style={{ fontSize: 11, color: "var(--t2)", display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 9, height: 9, borderRadius: 3, background: "#ff5c7a" }} />просрочен</span>
+            <span style={{ fontSize: 11, color: "var(--t2)", display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 9, height: 9, borderRadius: 3, background: "#a8e063" }} />готов</span>
+            <span style={{ fontSize: 11, color: "var(--t3)", marginLeft: "auto" }}>Клик по сценарию → откроется карточка (референс/транскрибация/наш текст + даты)</span>
+          </div>
         </div>
-        {(clientFilter !== "all" || searchQuery.trim()) && (
-          <button onClick={() => { setClientFilter("all"); setSearchQuery(""); }}
-            style={{ padding: "8px 10px", borderRadius: 10, background: "transparent", border: "1px solid var(--brd)", color: "var(--rd)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
-            <X size={11} style={{ display: "inline", verticalAlign: "middle" }} /> Сбросить
-          </button>
-        )}
-      </div>
+      ) : (
+        <div className="card" style={{ padding: 14, borderRadius: 16, marginBottom: 18 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 6, marginBottom: 6 }}>{WD.map(d => <div key={d} style={{ fontSize: 10, fontWeight: 700, color: "var(--t3)", textAlign: "center", textTransform: "uppercase", letterSpacing: 0.5 }}>{d}</div>)}</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {buildCalendar(ym).map((week, wi) => (
+              <div key={wi} style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 6 }}>
+                {week.map((d, di) => {
+                  if (!d) return <div key={di} style={{ minHeight: 96, borderRadius: 10, background: "rgba(0,0,0,0.12)" }} />;
+                  const slots = byDay[d] || [];
+                  const isToday = d === todayIso;
+                  return (
+                    <div key={di} style={{ minHeight: 96, borderRadius: 10, padding: 7, background: isToday ? "rgba(66,212,244,0.06)" : "var(--inset)", border: `1px solid ${isToday ? "var(--cy)" : "var(--brd)"}`, display: "flex", flexDirection: "column", gap: 3 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: isToday ? "var(--cy)" : "var(--t2)" }}>{parseInt(d.split("-")[2], 10)}{isToday ? " · сегодня" : ""}</div>
+                      {slots.slice(0, 4).map(sl => {
+                        const col = sl.status === "done" ? "#a8e063" : sl.status === "overdue" ? "#ff5c7a" : "#42d4f4";
+                        return <div key={sl.s.id} onClick={() => setOpenId(sl.s.id)} title={`${cname(sl.s.client_id)} · #${sl.s.order_num}`} style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 5px", borderRadius: 6, background: `${col}1c`, border: `1px solid ${col}44`, color: col, fontSize: 9, fontWeight: 700, cursor: "pointer", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}><span style={{ width: 5, height: 5, borderRadius: "50%", background: col, flexShrink: 0 }} />{cname(sl.s.client_id)}</div>;
+                      })}
+                      {slots.length > 4 && <span style={{ fontSize: 8, color: "var(--t3)" }}>+{slots.length - 4}</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
-      {/* KANBAN */}
-      <KanbanBoard
-        scripts={filtered}
-        clients={clients}
-        columns={SCRIPT_COLUMNS}
-        onUpdate={updateScript}
-        showClient
-        emptyHint="Пусто"
-      />
+      {/* KANBAN (доска — как сейчас) */}
+      <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 10, color: "var(--t2)" }}>Доска сценариев</div>
+      <KanbanBoard scripts={kanbanScripts} clients={clients} columns={SCRIPT_COLUMNS} onUpdate={updateScript} showClient emptyHint="Пусто" />
 
-      <style jsx>{`
-        @media (max-width: 1400px) { :global(.scripts-kpi) { grid-template-columns: repeat(3, 1fr) !important; } }
-        @media (max-width: 768px) { :global(.scripts-kpi) { grid-template-columns: repeat(2, 1fr) !important; } }
-      `}</style>
+      {openScript && (
+        <ScriptModal script={openScript} client={clientById[openScript.client_id]} onClose={() => setOpenId(null)} onUpdate={updateScript} />
+      )}
     </div>
   );
 }
