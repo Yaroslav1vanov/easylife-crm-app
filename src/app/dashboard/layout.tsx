@@ -4,7 +4,10 @@ import { Sidebar } from "@/components/Sidebar";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const sb = createClient();
-  const { data: { user } } = await sb.auth.getUser();
+  // getSession читает токен из cookie локально, без сетевого запроса к Supabase Auth
+  // (быстрее; доступ к данным всё равно защищён RLS на стороне БД)
+  const { data: { session } } = await sb.auth.getSession();
+  const user = session?.user;
   if (!user) redirect("/login");
 
   const { data: profile } = await sb.from("profiles").select("role").eq("id", user.id).single();

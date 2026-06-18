@@ -64,7 +64,8 @@ export type SocialSnapshot = {
 const db = {
   // Profile
   async getProfile(sb: SupabaseClient) {
-    const { data: { user } } = await sb.auth.getUser();
+    const { data: { session } } = await sb.auth.getSession();
+    const user = session?.user;
     if (!user) return null;
     const { data } = await sb.from("profiles").select("*").eq("id", user.id).single();
     return data as Profile | null;

@@ -17,7 +17,10 @@ export async function middleware(request: NextRequest) {
       },
     }
   );
-  const { data: { user } } = await supabase.auth.getUser();
+  // getSession читает/обновляет токен из cookie локально, без сетевого запроса к Supabase Auth
+  // на каждый переход (быстрее; данные всё равно защищены RLS на стороне БД)
+  const { data: { session } } = await supabase.auth.getSession();
+  const user = session?.user;
   const { pathname } = request.nextUrl;
   if (!user && pathname.startsWith("/dashboard")) {
     const url = request.nextUrl.clone(); url.pathname = "/login";
@@ -31,5 +34,6 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  // только маршруты, где реально нужен редирект-гард — без api/статики/прочего
+  matcher: ["/", "/login", "/dashboard/:path*"],
 };
