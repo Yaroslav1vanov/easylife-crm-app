@@ -79,7 +79,7 @@ export default function MontagePage() {
     return true;
   };
 
-  type Slot = { s: Script; due: string; status: "done" | "overdue" | "due" };
+  type Slot = { s: Script; due: string; status: "done" | "overdue" | "due" | "frozen" };
   const planSlots = useMemo<Slot[]>(() => {
     const out: Slot[] = [];
     for (const s of allScripts) {
@@ -87,7 +87,8 @@ export default function MontagePage() {
       if (s.script_status !== "approved" || !s.pub_date || !inScope(s.client_id)) continue;
       const due = addDaysIso(s.pub_date, -VIDEO_LEAD);
       const ready = s.video_status === "ready" || s.video_status === "published";
-      const status = ready ? "done" : (due < todayIso ? "overdue" : "due");
+      const frozen = clientById[s.client_id]?.stage !== "active";
+      const status: Slot["status"] = ready ? "done" : frozen ? "frozen" : (due < todayIso ? "overdue" : "due");
       if (focus === "today" && due !== todayIso) continue;
       if (focus === "tomorrow" && due !== tomorrowIso) continue;
       if (focus === "overdue" && status !== "overdue") continue;
@@ -117,8 +118,9 @@ export default function MontagePage() {
   const summary = useMemo(() => {
     const base = allScripts.filter(s => s.script_status === "approved" && s.pub_date && inScope(s.client_id));
     const notReady = (s: Script) => !(s.video_status === "ready" || s.video_status === "published");
-    const today = base.filter(s => notReady(s) && addDaysIso(s.pub_date!, -VIDEO_LEAD) === todayIso).length;
-    const overdue = base.filter(s => notReady(s) && addDaysIso(s.pub_date!, -VIDEO_LEAD) < todayIso).length;
+    const act = (s: Script) => clientById[s.client_id]?.stage === "active";
+    const today = base.filter(s => act(s) && notReady(s) && addDaysIso(s.pub_date!, -VIDEO_LEAD) === todayIso).length;
+    const overdue = base.filter(s => act(s) && notReady(s) && addDaysIso(s.pub_date!, -VIDEO_LEAD) < todayIso).length;
     const week = planSlots.filter(sl => sl.due >= weekDays[0] && sl.due <= weekDays[6]).length;
     return { today, overdue, week };
   }, [allScripts, clientFilter, tlFilter, mgFilter, todayIso, planSlots, weekDays]);
@@ -129,14 +131,15 @@ export default function MontagePage() {
 
   if (loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--t2)" }}>Загрузка…</div>;
 
+  const statusCol = (st: Slot["status"]) => st === "done" ? "#a8e063" : st === "overdue" ? "#ff5c7a" : st === "frozen" ? "#8a8f98" : "#ffae42";
   const chip = (sl: Slot) => {
-    const col = sl.status === "done" ? "#a8e063" : sl.status === "overdue" ? "#ff5c7a" : "#ffae42";
+    const col = statusCol(sl.status);
     const title = sl.s.hook_text || sl.s.hook || "";
     const txt = `#${sl.s.order_num}${title ? " · " + title : ""}`;
     return (
       <div key={sl.s.id} onClick={() => setOpenId(sl.s.id)} title={txt}
         style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 6px", borderRadius: 6, background: `${col}1f`, border: `1px solid ${col}55`, color: col, fontSize: 10, fontWeight: 700, cursor: "pointer", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", maxWidth: "100%" }}>
-        {sl.status === "done" ? "✓" : sl.status === "overdue" ? "⚠" : ""} {txt}
+        {sl.status === "done" ? "✓" : sl.status === "overdue" ? "⚠" : sl.status === "frozen" ? "❄" : ""} {txt}
       </div>
     );
   };
@@ -212,9 +215,9 @@ export default function MontagePage() {
           ) : (
             Array.from(planSlots).sort((a, b) => a.due.localeCompare(b.due)).map(sl => {
               const c = clientById[sl.s.client_id];
-              const col = sl.status === "done" ? "#a8e063" : sl.status === "overdue" ? "#ff5c7a" : "#ffae42";
+              const col = statusCol(sl.status);
               const od = daysBetween(sl.due, todayIso);
-              const reason = sl.status === "done" ? "готово" : sl.status === "overdue" ? `просрочено ${od} дн.` : sl.due === todayIso ? "на сегодня" : sl.due === tomorrowIso ? "на завтра" : `к ${fmtDateShort(sl.due)}`;
+              const reason = sl.status === "done" ? "готово" : sl.status === "frozen" ? "заморожен" : sl.status === "overdue" ? `просрочено ${od} дн.` : sl.due === todayIso ? "на сегодня" : sl.due === tomorrowIso ? "на завтра" : `к ${fmtDateShort(sl.due)}`;
               return (
                 <button key={sl.s.id} onClick={() => setOpenId(sl.s.id)}
                   style={{ width: "100%", display: "grid", gridTemplateColumns: "1.5fr 1.4fr auto auto", gap: 12, alignItems: "center", padding: "11px 16px", borderBottom: "1px solid var(--brd)", background: "transparent", borderLeft: "none", borderRight: "none", borderTop: "none", cursor: "pointer", textAlign: "left", color: "var(--t1)" }}>
@@ -286,7 +289,7 @@ export default function MontagePage() {
                     <div key={di} style={{ minHeight: 96, borderRadius: 10, padding: 7, background: isToday ? "rgba(66,212,244,0.06)" : "var(--inset)", border: `1px solid ${isToday ? "var(--cy)" : "var(--brd)"}`, display: "flex", flexDirection: "column", gap: 3 }}>
                       <div style={{ fontSize: 11, fontWeight: 700, color: isToday ? "var(--cy)" : "var(--t2)" }}>{parseInt(d.split("-")[2], 10)}{isToday ? " · сегодня" : ""}</div>
                       {slots.slice(0, 4).map(sl => {
-                        const col = sl.status === "done" ? "#a8e063" : sl.status === "overdue" ? "#ff5c7a" : "#ffae42";
+                        const col = statusCol(sl.status);
                         return <div key={sl.s.id} onClick={() => setOpenId(sl.s.id)} title={`${cname(sl.s.client_id)} · #${sl.s.order_num}`} style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 5px", borderRadius: 6, background: `${col}1c`, border: `1px solid ${col}44`, color: col, fontSize: 9, fontWeight: 700, cursor: "pointer", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}><span style={{ width: 5, height: 5, borderRadius: "50%", background: col, flexShrink: 0 }} />{cname(sl.s.client_id)}</div>;
                       })}
                       {slots.length > 4 && <span style={{ fontSize: 8, color: "var(--t3)" }}>+{slots.length - 4}</span>}
