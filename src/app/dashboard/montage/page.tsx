@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase-browser";
 import db, { Client, Script, ClientMonth, TeamMember } from "@/lib/database";
+import { getStore, setStore, patchScriptInStore } from "@/lib/store";
 import Avatar from "@/components/Avatar";
 import KanbanBoard from "@/components/KanbanBoard";
 import ScriptModal, { VIDEO_LEAD, fmtDateShort, addDaysIso } from "@/components/ScriptModal";
@@ -37,11 +38,12 @@ export default function MontagePage() {
   const todayIso = isoOf(new Date());
   const tomorrowIso = addDaysIso(todayIso, 1);
 
-  const [clients, setClients] = useState<Client[]>([]);
-  const [allScripts, setAllScripts] = useState<Script[]>([]);
-  const [clientMonths, setClientMonths] = useState<ClientMonth[]>([]);
-  const [team, setTeam] = useState<TeamMember[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cached = getStore();
+  const [clients, setClients] = useState<Client[]>(cached.clients || []);
+  const [allScripts, setAllScripts] = useState<Script[]>(cached.scripts || []);
+  const [clientMonths, setClientMonths] = useState<ClientMonth[]>(cached.clientMonths || []);
+  const [team, setTeam] = useState<TeamMember[]>(cached.team || []);
+  const [loading, setLoading] = useState(!cached.scripts);
   const [view, setView] = useState<"week" | "month">("week");
   const [weekStart, setWeekStart] = useState(mondayOf(new Date()));
   const [ym, setYm] = useState(ymOfDate(new Date()));
@@ -54,15 +56,18 @@ export default function MontagePage() {
 
   useEffect(() => { load(); }, []);
   async function load() {
+    // кэш уже показан из getStore() — обновляем в фоне
     const [cls, tm] = await Promise.all([db.getClients(supabase), db.getTeam(supabase)]);
     setClients(cls); setTeam(tm);
     const [all, cmRes] = await Promise.all([db.getScriptsForClients(supabase, cls.map(c => c.id)), db.getClientMonths(supabase)]);
     setAllScripts(all); setClientMonths(cmRes?.data || []);
+    setStore({ clients: cls, team: tm, scripts: all, clientMonths: cmRes?.data || [] });
     setLoading(false);
   }
   async function updateScript(id: number, patch: Partial<Script>) {
     await db.updateScript(supabase, id, patch);
     setAllScripts(arr => arr.map(s => s.id === id ? { ...s, ...patch } : s));
+    patchScriptInStore(id, patch);
   }
 
   const clientById = useMemo(() => Object.fromEntries(clients.map(c => [c.id, c])) as Record<number, Client>, [clients]);

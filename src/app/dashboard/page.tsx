@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
 import db, { Client, Script, ClientMonth, TeamMember, Profile, OnboardingProgress } from "@/lib/database";
+import { getStore, setStore } from "@/lib/store";
 import Avatar from "@/components/Avatar";
 import {
   Users, Film, AlertCircle, CalendarCheck, Rocket,
@@ -670,14 +671,15 @@ function DashboardInner() {
   const currentYM = ymOfDate(today);
   const todayIso = today.toISOString().slice(0, 10);
 
+  const cached = getStore();
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [clients, setClients] = useState<Client[]>([]);
-  const [scripts, setScripts] = useState<Script[]>([]);
-  const [clientMonths, setClientMonths] = useState<ClientMonth[]>([]);
-  const [team, setTeam] = useState<TeamMember[]>([]);
+  const [clients, setClients] = useState<Client[]>(cached.clients || []);
+  const [scripts, setScripts] = useState<Script[]>(cached.scripts || []);
+  const [clientMonths, setClientMonths] = useState<ClientMonth[]>(cached.clientMonths || []);
+  const [team, setTeam] = useState<TeamMember[]>(cached.team || []);
   const [overdueTasks, setOverdueTasks] = useState<any[]>([]);
   const [onbProgresses, setOnbProgresses] = useState<OnboardingProgress[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!cached.scripts);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState(currentYM);
   const [showAddMenu, setShowAddMenu] = useState(false);
@@ -715,6 +717,7 @@ function DashboardInner() {
           setOnbProgresses(onb || []);
           const scr = await db.getScriptsForClients(supabase, (cls || []).map(c => c.id));
           setScripts(scr);
+          setStore({ clients: cls || [], team: t || [], scripts: scr, clientMonths: cmRes?.data || [] });
           setLoadError(null);
           break;
         } catch (e: any) {
