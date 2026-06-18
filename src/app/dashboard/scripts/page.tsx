@@ -71,6 +71,8 @@ export default function ScriptsPage() {
     const c = clientById[cid]; if (!c) return false;
     if (clientFilter !== "all" && cid !== clientFilter) return false;
     if (tlFilter !== "all" && c.teamlead_id !== tlFilter) return false;
+    // неактивных (пауза / ушёл) скрываем — пока их явно не выбрали в фильтре «Клиент»
+    if (c.stage !== "active" && clientFilter !== cid) return false;
     return true;
   };
 

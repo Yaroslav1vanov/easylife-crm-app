@@ -74,6 +74,8 @@ export default function MontagePage() {
     if (clientFilter !== "all" && cid !== clientFilter) return false;
     if (tlFilter !== "all" && c.teamlead_id !== tlFilter) return false;
     if (mgFilter !== "all" && c.montager_id !== mgFilter) return false;
+    // неактивных (пауза / ушёл) скрываем — пока их явно не выбрали в фильтре «Клиент»
+    if (c.stage !== "active" && clientFilter !== cid) return false;
     return true;
   };
 
