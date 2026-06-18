@@ -697,28 +697,38 @@ function DashboardInner() {
 
   useEffect(() => {
     (async () => {
-      try {
-        const [p, cls, t, tasks, cmRes, onb] = await Promise.all([
-          db.getProfile(supabase),
-          db.getClients(supabase),
-          db.getTeam(supabase),
-          db.getAllOverdueTasks(supabase),
-          db.getClientMonths(supabase),
-          db.getAllOnboardingProgress(supabase),
-        ]);
-        setProfile(p);
-        setClients(cls || []);
-        setTeam(t || []);
-        setOverdueTasks(tasks || []);
-        setClientMonths(cmRes?.data || []);
-        setOnbProgresses(onb || []);
-        const scr = await db.getScriptsForClients(supabase, (cls || []).map(c => c.id));
-        setScripts(scr);
-      } catch (e: any) {
-        setLoadError(e?.message || String(e));
-      } finally {
-        setLoading(false);
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const [p, cls, t, tasks, cmRes, onb] = await Promise.all([
+            db.getProfile(supabase),
+            db.getClients(supabase),
+            db.getTeam(supabase),
+            db.getAllOverdueTasks(supabase),
+            db.getClientMonths(supabase),
+            db.getAllOnboardingProgress(supabase),
+          ]);
+          setProfile(p);
+          setClients(cls || []);
+          setTeam(t || []);
+          setOverdueTasks(tasks || []);
+          setClientMonths(cmRes?.data || []);
+          setOnbProgresses(onb || []);
+          const scr = await db.getScriptsForClients(supabase, (cls || []).map(c => c.id));
+          setScripts(scr);
+          setLoadError(null);
+          break;
+        } catch (e: any) {
+          const msg = e?.message || String(e);
+          // конфликт блокировки токена Supabase — частая гонка нескольких запросов, тихо повторяем
+          if (/lock/i.test(msg) && attempt < 2) {
+            await new Promise(r => setTimeout(r, 250 * (attempt + 1)));
+            continue;
+          }
+          setLoadError(msg);
+          break;
+        }
       }
+      setLoading(false);
     })();
   }, []);
 
