@@ -9,6 +9,17 @@ import {
   HandshakeIcon, BarChart3, Settings, LogOut, Moon, Sun, ChevronUp, type LucideIcon,
 } from "lucide-react";
 
+function BrandMark({ size = 26 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 32 32" style={{ borderRadius: size * 0.28, display: "block", flexShrink: 0 }} aria-hidden>
+      <rect width="32" height="32" rx="9" fill="#7b3fe4" />
+      <rect x="6" y="13" width="20" height="13" rx="2.5" fill="#fff" />
+      <rect x="6" y="8" width="20" height="5" rx="1.5" fill="#fff" />
+      <path d="M10 8 L8.4 13 M15 8 L13.4 13 M20 8 L18.4 13 M25 8 L23.4 13" stroke="#7b3fe4" strokeWidth="1.7" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 type NavItem = { id: string; path: string; icon: LucideIcon; label: string; soon?: boolean };
 
 const navItems: NavItem[] = [
@@ -165,13 +176,13 @@ export function Sidebar({ userRole }: { userRole: string }) {
       <>
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, height: 50, zIndex: 50, background: "var(--side)", borderBottom: "1px solid var(--brd)", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 14px" }}>
           <button onClick={() => setMobileOpen(true)} style={{ border: "none", background: "transparent", color: "var(--t1)", cursor: "pointer", fontSize: 20, padding: 4 }}>☰</button>
-          <div style={{ fontSize: 14, fontWeight: 700 }}><span style={{ color: "var(--t1)" }}>Easy</span><span className="brand-gradient">Life</span><span style={{ color: "var(--t1)" }}> AI</span></div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 700 }}><BrandMark size={22} /><span style={{ color: "var(--t1)" }}>Easy</span><span className="brand-gradient">Life</span><span style={{ color: "var(--t1)" }}> AI</span></div>
           <div style={{ width: 28 }} />
         </div>
         {mobileOpen && <div onClick={() => setMobileOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 90 }} />}
         <div style={{ position: "fixed", top: 0, left: 0, bottom: 0, width: 260, zIndex: 100, background: "var(--side)", borderRight: "1px solid var(--brd)", transform: mobileOpen ? "translateX(0)" : "translateX(-100%)", transition: "transform .3s ease", display: "flex", flexDirection: "column" }}>
           <div style={{ padding: "16px 14px", borderBottom: "1px solid var(--brd)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div className="app-logo" style={{ fontSize: 16, fontWeight: 700 }}><span style={{ color: "var(--t1)" }}>Easy</span><span className="brand-gradient">Life</span><span style={{ color: "var(--t1)" }}> AI</span></div>
+            <div className="app-logo" style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 16, fontWeight: 700 }}><BrandMark size={26} /><span style={{ color: "var(--t1)" }}>Easy</span><span className="brand-gradient">Life</span><span style={{ color: "var(--t1)" }}> AI</span></div>
             <button onClick={() => setMobileOpen(false)} style={{ border: "none", background: "transparent", color: "var(--t2)", cursor: "pointer", fontSize: 18 }}>✕</button>
           </div>
           <NavList />
@@ -184,10 +195,13 @@ export function Sidebar({ userRole }: { userRole: string }) {
   return (
     <aside className="app-sidebar" style={{ position: "fixed", left: 0, top: 0, height: "100vh", width: 210, display: "flex", flexDirection: "column", borderRight: "1px solid var(--brd)", background: "var(--side)", zIndex: 50 }}>
       <div style={{ padding: "16px 14px", borderBottom: "1px solid var(--brd)" }}>
-        <div className="app-logo" style={{ fontSize: 16, fontWeight: 700 }}>
-          <span style={{ color: "var(--t1)" }}>Easy</span>
-          <span className="brand-gradient">Life</span>
-          <span style={{ color: "var(--t1)" }}> AI</span>
+        <div className="app-logo" style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 16, fontWeight: 700 }}>
+          <BrandMark size={26} />
+          <span style={{ display: "inline-flex" }}>
+            <span style={{ color: "var(--t1)" }}>Easy</span>
+            <span className="brand-gradient">Life</span>
+            <span style={{ color: "var(--t1)" }}> AI</span>
+          </span>
         </div>
       </div>
       <NavList compact />
