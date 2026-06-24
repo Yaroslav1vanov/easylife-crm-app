@@ -56,6 +56,10 @@ create index if not exists idx_publications_client on public.publications (clien
 create index if not exists idx_publications_status on public.publications (pub_status);
 create index if not exists idx_publications_pub_at on public.publications (publish_at);
 
+-- табличные привилегии (для таблиц из чистого SQL не проставляются автоматически)
+grant all privileges on table public.publications to anon, authenticated, service_role;
+grant all privileges on sequence public.publications_id_seq to anon, authenticated, service_role;
+
 -- 3) RLS: залогиненный пользователь читает и пишет (доступ к разделу уже за авторизацией) ----
 alter table public.publications enable row level security;
 
