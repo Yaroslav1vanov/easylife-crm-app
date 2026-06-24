@@ -253,6 +253,21 @@ export default function ClientDetailPage() {
         </div>
       </div>
 
+      {/* Тон голоса — основа AI-адаптации текстов под соцсети (раздел Metricool) */}
+      <div className="card mb-3" style={{ padding: "12px 14px", borderRadius: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+          <span style={{ fontSize: 11, fontWeight: 800, color: "var(--t1)", textTransform: "uppercase", letterSpacing: 0.5 }}>🗣 Тон голоса</span>
+          <span style={{ fontSize: 10, color: "var(--t3)" }}>— в этом стиле AI пишет описания под соцсети</span>
+        </div>
+        <textarea
+          defaultValue={c.brand_voice || ""}
+          onBlur={(e) => { if (e.target.value !== (c.brand_voice || "")) updateClientField("brand_voice", e.target.value || null); }}
+          rows={4}
+          placeholder="Напр.: Экспертно, без воды. 1–2 эмодзи max. Только русский. Любит цифры и конкретику. Без clickbait."
+          style={{ width: "100%", padding: "10px 12px", borderRadius: 9, background: "var(--bg)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 13, outline: "none", resize: "vertical", fontFamily: "inherit", lineHeight: 1.5 }}
+        />
+      </div>
+
       {/* Контрактные месяцы + Что требует внимания */}
       {clientMonths.length > 0 && (
         <div style={{ display: "grid", gridTemplateColumns: "1.7fr 1fr", gap: 14, marginBottom: 14 }} className="months-attention-grid">
