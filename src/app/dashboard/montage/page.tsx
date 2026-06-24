@@ -68,6 +68,11 @@ export default function MontagePage() {
     await db.updateScript(supabase, id, patch);
     setAllScripts(arr => arr.map(s => s.id === id ? { ...s, ...patch } : s));
     patchScriptInStore(id, patch);
+    // видео «Готово к публикации» → автоматически заводим карточку в «Публикациях»
+    if (patch.video_status === "ready") {
+      const s = allScripts.find(x => x.id === id);
+      if (s) { try { await db.ensurePublicationForScript(supabase, { ...s, ...patch }, clientById[s.client_id]); } catch {} }
+    }
   }
 
   const clientById = useMemo(() => Object.fromEntries(clients.map(c => [c.id, c])) as Record<number, Client>, [clients]);

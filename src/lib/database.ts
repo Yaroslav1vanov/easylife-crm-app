@@ -6,6 +6,7 @@ export type Client = {
   id: number; name: string; surname: string; niche: string; product: string; phone: string;
   avg_check: string; instagram: string; tiktok: string; youtube: string; avatar_url: string;
   metricool_blog_id?: number | null; platforms?: string[] | null;
+  brand_voice?: string | null; timezone?: string | null; default_post_time?: string | null;
   package: number; montager_id: number | null; teamlead_id: number | null; priority: string;
   stage: string; start_date: string; pub_date: string | null; scripts_deadline: string | null;
   videos_deadline: string | null; first_pub_date: string | null; target_audience: string;
@@ -59,6 +60,33 @@ export type SocialSnapshot = {
   reach_30d: number | null;
   engagement_rate: number | null;
   created_at: string;
+};
+export type PubStatus = "adapting" | "review" | "queued" | "scheduled" | "published" | "error";
+export type Publication = {
+  id: number;
+  script_id: number;
+  client_id: number;
+  video_url: string | null;
+  video_thumbnail_url: string | null;
+  publish_at: string | null;
+  target_channels: string[] | null;
+  base_text: string | null;
+  caption_ig: string | null;
+  caption_tt: string | null;
+  yt_title: string | null;
+  yt_description: string | null;
+  yt_tags: string[] | null;
+  threads_post: string | null;
+  ai_generated_at: string | null;
+  ai_model: string | null;
+  approved_by: number | null;
+  approved_at: string | null;
+  pub_status: PubStatus;
+  metricool_post_id: string | null;
+  published_urls: Record<string, string> | null;
+  error_message: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 const db = {
@@ -356,6 +384,40 @@ const db = {
     const { error } = await sb
       .from("client_months")
       .update({ status: "active", closed_at: null })
+      .eq("id", id);
+    return { error };
+  },
+
+  // ===== Публикации =====
+  async getPublications(sb: SupabaseClient) {
+    const { data } = await sb.from("publications").select("*").order("created_at", { ascending: false });
+    return (data || []) as Publication[];
+  },
+  async getPublicationByScript(sb: SupabaseClient, scriptId: number) {
+    const { data } = await sb.from("publications").select("*").eq("script_id", scriptId).maybeSingle();
+    return (data || null) as Publication | null;
+  },
+  // Создаёт карточку публикации для сценария, если её ещё нет (вызывается при переходе видео в «Готово к публикации»).
+  async ensurePublicationForScript(sb: SupabaseClient, script: Script, client?: Client) {
+    const row = {
+      script_id: script.id,
+      client_id: script.client_id,
+      video_url: script.video_url ?? null,
+      publish_at: script.pub_date ?? null,
+      target_channels: client?.platforms ?? [],
+      base_text: script.body_text || null,
+      pub_status: "adapting" as PubStatus,
+    };
+    const { error } = await sb.from("publications").upsert(row, { onConflict: "script_id", ignoreDuplicates: true });
+    return { error };
+  },
+  async updatePublication(sb: SupabaseClient, id: number, patch: Partial<Publication>) {
+    const { error } = await sb.from("publications").update(patch).eq("id", id);
+    return { error };
+  },
+  async approvePublication(sb: SupabaseClient, id: number, teamMemberId: number) {
+    const { error } = await sb.from("publications")
+      .update({ pub_status: "queued", approved_by: teamMemberId, approved_at: new Date().toISOString() })
       .eq("id", id);
     return { error };
   },
