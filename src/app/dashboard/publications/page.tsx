@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
 import db, { Client, Script, TeamMember, ClientMonth } from "@/lib/database";
 import Avatar from "@/components/Avatar";
+import PublicationsPipeline from "@/components/PublicationsPipeline";
 import {
   AlertTriangle, CalendarClock, CheckCircle2, Clock, Wand2,
   Filter, ChevronDown, ChevronLeft, ChevronRight, X, ExternalLink, CalendarDays, List, type LucideIcon,
@@ -72,6 +73,7 @@ export default function PublicationsPage() {
   const [openId, setOpenId] = useState<number | null>(null);
   const [autoOpen, setAutoOpen] = useState(false);
   const [poolOpen, setPoolOpen] = useState(true);
+  const [section, setSection] = useState<"pipeline" | "plan">("pipeline");
 
   useEffect(() => { load(); }, []);
 
@@ -153,6 +155,8 @@ export default function PublicationsPage() {
     if (s && s.pub_date !== dayIso) await updateScript(id, { pub_date: dayIso });
   }
 
+  if (section === "pipeline") return <PublicationsPipeline onShowPlan={() => setSection("plan")} />;
+
   if (loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--t2)" }}>Загрузка…</div>;
 
   const weeks = buildCalendar(ym);
@@ -174,6 +178,10 @@ export default function PublicationsPage() {
           <p style={{ fontSize: 12, color: "var(--t3)", marginTop: 4, fontWeight: 500 }}>План публикаций по дням · {ymLabel(ym)}</p>
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", borderRadius: 10, border: "1px solid var(--brd)", overflow: "hidden" }}>
+            <button onClick={() => setSection("plan")} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 12px", background: "rgba(157,107,255,0.15)", color: "var(--pu)", border: "none", fontSize: 11, fontWeight: 700, cursor: "default" }}><CalendarDays size={13} /> Контент-план</button>
+            <button onClick={() => setSection("pipeline")} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 12px", background: "transparent", color: "var(--t2)", border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer" }}><Wand2 size={13} /> Подготовка</button>
+          </div>
           <div style={{ display: "flex", borderRadius: 10, border: "1px solid var(--brd)", overflow: "hidden" }}>
             {([["calendar", "Календарь", CalendarDays], ["archive", "Архив", List]] as const).map(([v, lbl, Ic]) => (
               <button key={v} onClick={() => setView(v)}
