@@ -49,6 +49,8 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
   const [openId, setOpenId] = useState<number | null>(null);
   const [pulling, setPulling] = useState(false);
   const [myTeamId, setMyTeamId] = useState<number | null>(null);
+  const [draggedId, setDraggedId] = useState<number | null>(null);
+  const [dragOverCol, setDragOverCol] = useState<string | null>(null);
 
   useEffect(() => { load(); }, []);
 
@@ -107,6 +109,12 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
     setPulling(false);
   }
 
+  async function moveToColumn(colId: string, id: number) {
+    const col = COLUMNS.find(c => c.id === colId); if (!col) return;
+    setDraggedId(null); setDragOverCol(null);
+    await updatePub(id, { pub_status: col.statuses[0] });
+  }
+
   const byColumn = useMemo(() => {
     const m: Record<string, Publication[]> = {};
     for (const col of COLUMNS) m[col.id] = [];
@@ -157,8 +165,13 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
         <div style={{ display: "grid", gridTemplateColumns: `repeat(${COLUMNS.length}, minmax(210px, 1fr))`, gap: 10, overflowX: "auto", paddingBottom: 8 }}>
           {COLUMNS.map(col => {
             const items = byColumn[col.id] || [];
+            const isOver = dragOverCol === col.id;
             return (
-              <div key={col.id} style={{ background: "rgba(123,63,228,0.04)", border: "1px solid var(--brd)", borderRadius: 14, padding: 12, minHeight: 360, display: "flex", flexDirection: "column" }}>
+              <div key={col.id}
+                onDragOver={e => { e.preventDefault(); if (dragOverCol !== col.id) setDragOverCol(col.id); }}
+                onDragLeave={() => { if (dragOverCol === col.id) setDragOverCol(null); }}
+                onDrop={e => { e.preventDefault(); const id = parseInt(e.dataTransfer.getData("text/plain"), 10); if (id) moveToColumn(col.id, id); }}
+                style={{ background: "rgba(123,63,228,0.04)", border: `1px solid ${isOver ? col.color : "var(--brd)"}`, borderRadius: 14, padding: 12, minHeight: 360, display: "flex", flexDirection: "column", transition: "border-color .15s" }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, paddingBottom: 10, borderBottom: `2px solid ${col.color}` }}>
                   <h3 style={{ fontSize: 11, fontWeight: 800, color: "var(--t1)", textTransform: "uppercase", letterSpacing: 0.5 }}>{col.label}</h3>
                   <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 6, background: `${col.color}22`, color: col.color }}>{items.length}</span>
@@ -170,8 +183,11 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
                     const title = sc?.hook_text || sc?.hook || "Без темы";
                     const chans = (p.target_channels?.length ? p.target_channels : c?.platforms) || [];
                     return (
-                      <button key={p.id} onClick={() => setOpenId(p.id)}
-                        style={{ textAlign: "left", background: "var(--inset2)", border: "1px solid var(--track)", borderRadius: 11, padding: 10, cursor: "pointer", display: "flex", flexDirection: "column", gap: 6 }}>
+                      <div key={p.id} role="button" tabIndex={0} draggable
+                        onClick={() => setOpenId(p.id)}
+                        onDragStart={e => { setDraggedId(p.id); e.dataTransfer.setData("text/plain", String(p.id)); e.dataTransfer.effectAllowed = "move"; }}
+                        onDragEnd={() => { setDraggedId(null); setDragOverCol(null); }}
+                        style={{ textAlign: "left", background: "var(--inset2)", border: "1px solid var(--track)", borderRadius: 11, padding: 10, cursor: "grab", opacity: draggedId === p.id ? 0.4 : 1, display: "flex", flexDirection: "column", gap: 6 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
                           {c && <Avatar name={`${c.name} ${c.surname || ""}`} src={c.avatar_url} size={22} />}
                           <div style={{ minWidth: 0, flex: 1 }}>
@@ -185,7 +201,7 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
                           {p.ai_generated_at && <span style={{ fontSize: 8, color: "var(--pu)", marginLeft: "auto" }}>🤖 AI</span>}
                           {p.pub_status === "error" && <AlertTriangle size={11} style={{ color: "#ff5c7a", marginLeft: "auto" }} />}
                         </div>
-                      </button>
+                      </div>
                     );
                   })}
                 </div>
@@ -234,7 +250,7 @@ function PublicationModal({ pub, client, script, onClose, onUpdate, onApprove, o
 
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.72)", zIndex: 200, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "40px 20px", overflowY: "auto" }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 18, width: "100%", maxWidth: 720, padding: 24, display: "flex", flexDirection: "column", gap: 16, boxShadow: "0 24px 70px rgba(0,0,0,0.55)" }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 18, width: "100%", maxWidth: 820, padding: 24, display: "flex", flexDirection: "column", gap: 16, boxShadow: "0 24px 70px rgba(0,0,0,0.55)" }}>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
             {client && <Avatar name={`${client.name} ${client.surname || ""}`} src={client.avatar_url} size={40} />}
@@ -262,7 +278,7 @@ function PublicationModal({ pub, client, script, onClose, onUpdate, onApprove, o
 
         <div>
           {lbl("📄 Исходный текст (из сценария)")}
-          <textarea defaultValue={f.base_text || ""} onBlur={e => save({ base_text: e.target.value })} rows={3} placeholder="Текст ролика — основа для адаптаций" style={{ ...ta, fontSize: 12 }} />
+          <textarea defaultValue={f.base_text || ""} onBlur={e => save({ base_text: e.target.value })} rows={9} placeholder="Текст ролика — основа для адаптаций" style={{ ...ta, fontSize: 13, minHeight: 180 }} />
         </div>
 
         <button onClick={async () => { setBusy(true); await onRegenerate(pub.id); setBusy(false); }} disabled={busy}
