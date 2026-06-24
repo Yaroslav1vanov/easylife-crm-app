@@ -37,7 +37,7 @@ function toLocalInput(iso: string | null) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-export default function PublicationsPipeline({ onShowPlan }: { onShowPlan: () => void }) {
+export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () => void }) {
   const supabase = createClient();
   const [clients, setClients] = useState<Client[]>(getStore().clients || []);
   const [team, setTeam] = useState<TeamMember[]>(getStore().team || []);
@@ -45,6 +45,7 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan: () =>
   const [pubs, setPubs] = useState<Publication[]>([]);
   const [loading, setLoading] = useState(true);
   const [tableMissing, setTableMissing] = useState(false);
+  const [errMsg, setErrMsg] = useState<string | null>(null);
   const [openId, setOpenId] = useState<number | null>(null);
   const [pulling, setPulling] = useState(false);
   const [myTeamId, setMyTeamId] = useState<number | null>(null);
@@ -66,8 +67,11 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan: () =>
     setMyTeamId(tm.find(t => t.profile_id === uid)?.id ?? null);
 
     const { data, error } = await supabase.from("publications").select("*").order("created_at", { ascending: false });
-    if (error) setTableMissing(true);
-    else { setPubs((data || []) as Publication[]); setTableMissing(false); }
+    if (error) {
+      // только реально отсутствующая таблица → баннер «прогони миграцию»; прочее → показать текст
+      if (error.code === "42P01" || error.code === "PGRST205" || /does not exist|schema cache/i.test(error.message || "")) setTableMissing(true);
+      else setErrMsg(`${error.message}${error.code ? ` (${error.code})` : ""}`);
+    } else { setPubs((data || []) as Publication[]); setTableMissing(false); setErrMsg(null); }
     setLoading(false);
   }
 
@@ -123,11 +127,11 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan: () =>
     <div style={{ fontFamily: "'Manrope', sans-serif" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 14, flexWrap: "wrap", marginBottom: 16 }}>
         <div>
-          <h1 style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 22, fontWeight: 800, letterSpacing: -0.5 }}>Публикации · подготовка к выходу</h1>
+          <h1 style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 22, fontWeight: 800, letterSpacing: -0.5 }}>Metricool · подготовка постов</h1>
           <p style={{ fontSize: 12, color: "var(--t3)", marginTop: 4 }}>Готовое видео → AI-адаптация текста под соцсети → утверждение тимлидом → Metricool</p>
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          {Toggle}
+          {onShowPlan && Toggle}
           <button onClick={pullReady} disabled={pulling || tableMissing}
             style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: 10, background: "rgba(157,107,255,0.12)", border: "1px solid var(--brd)", color: "var(--pu)", fontSize: 12, fontWeight: 700, cursor: tableMissing ? "not-allowed" : "pointer" }}>
             <RefreshCw size={13} className={pulling ? "spin" : ""} /> {pulling ? "Подтягиваю…" : "Подтянуть готовые видео"}
@@ -143,6 +147,11 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan: () =>
           <div style={{ fontSize: 13, color: "var(--t2)", lineHeight: 1.6 }}>
             Прогони миграцию <code style={{ background: "var(--inset)", padding: "1px 6px", borderRadius: 5 }}>MIGRATION_2026-06-24_publications.sql</code> в Supabase → SQL Editor → Run. После этого появятся колонки, карточки и поля для текстов под каждую соцсеть.
           </div>
+        </div>
+      ) : errMsg ? (
+        <div style={{ padding: 24, borderRadius: 14, border: "1px solid rgba(255,92,122,0.4)", background: "rgba(255,92,122,0.08)", color: "var(--t1)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 800, marginBottom: 8 }}><AlertTriangle size={16} style={{ color: "#ff5c7a" }} /> Не удалось загрузить публикации</div>
+          <div style={{ fontSize: 13, color: "var(--t2)", lineHeight: 1.6 }}>{errMsg}</div>
         </div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: `repeat(${COLUMNS.length}, minmax(210px, 1fr))`, gap: 10, overflowX: "auto", paddingBottom: 8 }}>

@@ -64,10 +64,10 @@ drop policy if exists "auth insert publications" on public.publications;
 drop policy if exists "auth update publications" on public.publications;
 drop policy if exists "auth delete publications" on public.publications;
 
-create policy "auth read publications"   on public.publications for select to authenticated using (true);
-create policy "auth insert publications" on public.publications for insert to authenticated with check (true);
-create policy "auth update publications" on public.publications for update to authenticated using (true) with check (true);
-create policy "auth delete publications" on public.publications for delete to authenticated using (true);
+create policy "pub read"   on public.publications for select using (true);
+create policy "pub insert" on public.publications for insert with check (true);
+create policy "pub update" on public.publications for update using (true) with check (true);
+create policy "pub delete" on public.publications for delete using (true);
 
 -- 4) Автообновление updated_at ----------------------------------------------
 create or replace function public.touch_updated_at()

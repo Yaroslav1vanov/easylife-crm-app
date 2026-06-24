@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase-browser";
 import { useTheme } from "@/components/ThemeProvider";
 import Avatar from "@/components/Avatar";
 import {
-  LayoutDashboard, Users, Layers, FileText, Scissors, Send, Calendar,
+  LayoutDashboard, Users, Layers, FileText, Scissors, Send, Calendar, Rocket,
   HandshakeIcon, BarChart3, Settings, LogOut, Moon, Sun, ChevronUp, type LucideIcon,
 } from "lucide-react";
 
@@ -29,6 +29,7 @@ const navItems: NavItem[] = [
   { id: "scripts", path: "/dashboard/scripts", icon: FileText, label: "Сценарии" },
   { id: "montage", path: "/dashboard/montage", icon: Scissors, label: "Монтаж" },
   { id: "publications", path: "/dashboard/publications", icon: Send, label: "Публикации" },
+  { id: "metricool", path: "/dashboard/metricool", icon: Rocket, label: "Metricool" },
   { id: "calendar", path: "/dashboard/calendar", icon: Calendar, label: "Календарь" },
   { id: "team", path: "/dashboard/team", icon: HandshakeIcon, label: "Команда" },
   { id: "analytics", path: "/dashboard/analytics", icon: BarChart3, label: "Аналитика", soon: true },
