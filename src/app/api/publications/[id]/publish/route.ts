@@ -56,7 +56,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
       media: [pub.video_url],
     };
     if (network === "instagram") body.instagramData = { type: "REEL" };
-    if (network === "youtube") body.youtubeData = { title: pub.yt_title || "", type: "SHORT", tags: pub.yt_tags || [] };
+    if (network === "youtube") body.youtubeData = { title: pub.yt_title || "", type: "SHORT", tags: pub.yt_tags || [], madeForKids: false, privacy: "public" };
     const url = `${BASE}/v2/scheduler/posts?userToken=${encodeURIComponent(token)}&userId=${encodeURIComponent(userId)}&blogId=${blogId}`;
     try {
       const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json", "X-Mc-Auth": token }, body: JSON.stringify(body) });
