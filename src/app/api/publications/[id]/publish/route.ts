@@ -69,9 +69,9 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     if (network === "instagram") body.instagramData = { type: "REEL" };
     if (network === "youtube") body.youtubeData = { title: pub.yt_title || "", type: "SHORT", tags: pub.yt_tags || [], madeForKids: false, privacy: "public" };
     if (network === "tiktok") body.tiktokData = {
-      privacy: "PUBLIC_TO_EVERYONE",
+      privacyOption: "PUBLIC_TO_EVERYONE",
       disableComment: false, disableDuet: false, disableStitch: false,
-      commercialContent: false, yourBrand: false, brandedContent: false,
+      commercialContentThirdParty: false, commercialContentOwnBrand: false,
     };
     const url = `${BASE}/v2/scheduler/posts?userToken=${encodeURIComponent(token)}&userId=${encodeURIComponent(userId)}&blogId=${blogId}`;
     try {
