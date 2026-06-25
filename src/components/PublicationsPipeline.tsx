@@ -6,7 +6,7 @@ import { getStore, setStore } from "@/lib/store";
 import Avatar from "@/components/Avatar";
 import {
   Camera, Play, Music2, AtSign, Wand2, CheckCircle2, X, ExternalLink,
-  RefreshCw, AlertTriangle, Database, CalendarDays, type LucideIcon,
+  RefreshCw, AlertTriangle, Database, CalendarDays, Rocket, type LucideIcon,
 } from "lucide-react";
 
 type Channel = { id: string; label: string; Icon: LucideIcon };
@@ -51,6 +51,8 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
   const [myTeamId, setMyTeamId] = useState<number | null>(null);
   const [draggedId, setDraggedId] = useState<number | null>(null);
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
+  const [brands, setBrands] = useState<{ blogId: number; label: string }[] | null>(null);
+  const [brandsBusy, setBrandsBusy] = useState(false);
 
   useEffect(() => { load(); }, []);
 
@@ -109,6 +111,29 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
     setPulling(false);
   }
 
+  async function loadBrands() {
+    setBrandsBusy(true);
+    try {
+      const r = await fetch("/api/metricool/brands");
+      const j = await r.json();
+      if (!r.ok) { alert("Metricool: " + (j?.error || "ошибка")); setBrands([]); }
+      else setBrands(j.brands || []);
+    } catch (e: any) { alert("Metricool: " + String(e)); }
+    setBrandsBusy(false);
+  }
+
+  async function publishToMetricool(id: number) {
+    const r = await fetch(`/api/publications/${id}/publish`, { method: "POST" });
+    const j = await r.json();
+    if (!r.ok) {
+      setPubs(arr => arr.map(p => p.id === id ? { ...p, pub_status: "error", error_message: j?.error || "Metricool error" } : p));
+      alert("Metricool: " + (j?.error || "ошибка"));
+      return false;
+    }
+    setPubs(arr => arr.map(p => p.id === id ? { ...p, pub_status: "scheduled", error_message: null } : p));
+    return true;
+  }
+
   async function moveToColumn(colId: string, id: number) {
     const col = COLUMNS.find(c => c.id === colId); if (!col) return;
     setDraggedId(null); setDragOverCol(null);
@@ -140,12 +165,35 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
           {onShowPlan && Toggle}
+          <button onClick={loadBrands} disabled={brandsBusy}
+            style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: 10, background: "rgba(66,212,244,0.1)", border: "1px solid var(--brd)", color: "var(--cy)", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+            <Rocket size={13} /> {brandsBusy ? "Гружу…" : "Мои бренды"}
+          </button>
           <button onClick={pullReady} disabled={pulling || tableMissing}
             style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: 10, background: "rgba(157,107,255,0.12)", border: "1px solid var(--brd)", color: "var(--pu)", fontSize: 12, fontWeight: 700, cursor: tableMissing ? "not-allowed" : "pointer" }}>
             <RefreshCw size={13} className={pulling ? "spin" : ""} /> {pulling ? "Подтягиваю…" : "Подтянуть готовые видео"}
           </button>
         </div>
       </div>
+
+      {brands && (
+        <div style={{ marginBottom: 14, padding: "12px 14px", borderRadius: 12, border: "1px solid var(--brd)", background: "var(--inset)" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+            <span style={{ fontSize: 12, fontWeight: 800, color: "var(--t1)" }}>Бренды в Metricool ({brands.length}) — впиши нужный blogId в карточку клиента</span>
+            <button onClick={() => setBrands(null)} style={{ background: "transparent", border: "none", color: "var(--t3)", cursor: "pointer", fontSize: 14 }}>✕</button>
+          </div>
+          {brands.length === 0 ? <div style={{ fontSize: 12, color: "var(--t3)" }}>Пусто или нет доступа</div> : (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {brands.map(b => (
+                <span key={b.blogId} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 10px", borderRadius: 8, background: "var(--inset2)", border: "1px solid var(--track)", fontSize: 12 }}>
+                  <b style={{ color: "var(--cy)", fontFamily: "monospace" }}>{b.blogId}</b>
+                  <span style={{ color: "var(--t2)" }}>{b.label}</span>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {loading ? (
         <div style={{ padding: 40, textAlign: "center", color: "var(--t2)" }}>Загрузка…</div>
@@ -220,6 +268,7 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
           onUpdate={updatePub}
           onApprove={approve}
           onRegenerate={regenerate}
+          onPublish={publishToMetricool}
         />
       )}
       <style>{`.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}`}</style>
@@ -227,13 +276,14 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
   );
 }
 
-function PublicationModal({ pub, client, script, onClose, onUpdate, onApprove, onRegenerate }: {
+function PublicationModal({ pub, client, script, onClose, onUpdate, onApprove, onRegenerate, onPublish }: {
   pub: Publication; client?: Client; script?: Script;
   onClose: () => void; onUpdate: (id: number, patch: Partial<Publication>) => void;
-  onApprove: (id: number) => void; onRegenerate: (id: number) => void;
+  onApprove: (id: number) => void; onRegenerate: (id: number) => void; onPublish: (id: number) => Promise<boolean>;
 }) {
   const [tab, setTab] = useState("ig");
   const [busy, setBusy] = useState(false);
+  const [pubBusy, setPubBusy] = useState(false);
   const [f, setF] = useState(pub);
   useEffect(() => { setF(pub); }, [pub.id, pub.ai_generated_at, pub.pub_status]);
 
@@ -322,15 +372,21 @@ function PublicationModal({ pub, client, script, onClose, onUpdate, onApprove, o
         })()}
 
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, paddingTop: 4, borderTop: "1px solid var(--brd)", marginTop: 4 }}>
-          <span style={{ fontSize: 11, color: "var(--t3)" }}>{f.ai_model ? `модель: ${f.ai_model}` : ""}{f.error_message ? ` · ⚠ ${f.error_message}` : ""}</span>
-          {f.pub_status === "queued" || f.pub_status === "scheduled" ? (
-            <span style={{ fontSize: 12, fontWeight: 800, color: "var(--cy)" }}>✓ Утверждено · в очереди на Metricool</span>
-          ) : (
-            <button onClick={() => { onApprove(pub.id); onClose(); }}
-              style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 18px", borderRadius: 9, background: "linear-gradient(135deg, var(--cy), var(--pu))", border: "none", color: "#fff", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>
-              <CheckCircle2 size={14} /> Утвердить и в очередь
+          <span style={{ fontSize: 11, color: f.pub_status === "scheduled" ? "var(--cy)" : "var(--t3)" }}>
+            {f.pub_status === "scheduled" ? "✓ Запланировано в Metricool" : f.ai_model ? `модель: ${f.ai_model}` : ""}{f.error_message ? ` · ⚠ ${f.error_message}` : ""}
+          </span>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            {f.pub_status !== "queued" && f.pub_status !== "scheduled" && (
+              <button onClick={() => onApprove(pub.id)}
+                style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 16px", borderRadius: 9, background: "rgba(66,212,244,0.12)", border: "1px solid var(--brd)", color: "var(--cy)", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>
+                <CheckCircle2 size={14} /> Утвердить
+              </button>
+            )}
+            <button onClick={async () => { setPubBusy(true); const ok = await onPublish(pub.id); setPubBusy(false); if (ok) onClose(); }} disabled={pubBusy}
+              style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 18px", borderRadius: 9, background: "linear-gradient(135deg, var(--cy), var(--pu))", border: "none", color: "#fff", fontSize: 12, fontWeight: 800, cursor: pubBusy ? "default" : "pointer", opacity: pubBusy ? 0.7 : 1 }}>
+              <Rocket size={14} /> {pubBusy ? "Отправляю…" : "Опубликовать в Metricool"}
             </button>
-          )}
+          </div>
         </div>
       </div>
     </div>
