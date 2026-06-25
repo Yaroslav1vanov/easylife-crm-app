@@ -6,6 +6,16 @@ import { createClient } from "@/lib/supabase-server";
 const BASE = "https://app.metricool.com/api";
 const NET: Record<string, string> = { ig: "instagram", tt: "tiktok", yt: "youtube", threads: "threads" };
 
+// Подрезать текст под лимит по границе предложения/слова (страховка для Threads ≤500).
+function fit(text: string, max: number): string {
+  if (!text || text.length <= max) return text || "";
+  let t = text.slice(0, max);
+  const cut = Math.max(t.lastIndexOf(". "), t.lastIndexOf("! "), t.lastIndexOf("? "), t.lastIndexOf("\n"));
+  if (cut > max * 0.5) t = t.slice(0, cut + 1);
+  else { const sp = t.lastIndexOf(" "); if (sp > 0) t = t.slice(0, sp); }
+  return t.trim();
+}
+
 // UTC ISO → "YYYY-MM-DDTHH:mm:ss" в таймзоне клиента (Metricool ждёт локальное время + timezone)
 function tzIso(utcIso: string, tz: string) {
   const d = new Date(utcIso);
@@ -47,8 +57,9 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
 
   const results = await Promise.all(targets.map(async ch => {
     const network = NET[ch];
+    const raw = textFor(ch) || pub.base_text || "";
     const body: any = {
-      text: textFor(ch) || pub.base_text || "",
+      text: network === "threads" ? fit(raw, 500) : raw,
       providers: [{ network }],
       publicationDate: { dateTime, timezone: tz },
       draft: false,
