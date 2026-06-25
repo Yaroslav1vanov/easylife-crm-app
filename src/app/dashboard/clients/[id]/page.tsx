@@ -277,6 +277,17 @@ export default function ClientDetailPage() {
           />
           <span style={{ fontSize: 10, color: "var(--t3)" }}>id бренда в Metricool — узнать можно в разделе Metricool → «Мои бренды»</span>
         </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: "var(--t2)" }}>📨 Telegram topic ID:</span>
+          <input
+            type="number"
+            defaultValue={c.telegram_topic_id ?? ""}
+            onBlur={(e) => { const v = e.target.value ? Number(e.target.value) : null; if (v !== (c.telegram_topic_id ?? null)) updateClientField("telegram_topic_id", v); }}
+            placeholder="напр. 12"
+            style={{ width: 160, padding: "6px 10px", borderRadius: 8, background: "var(--bg)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 12, outline: "none" }}
+          />
+          <span style={{ fontSize: 10, color: "var(--t3)" }}>id топика (папки) клиента в ТГ — по нему бот понимает, чьё это видео</span>
+        </div>
       </div>
 
       {/* Контрактные месяцы + Что требует внимания */}
