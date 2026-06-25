@@ -284,8 +284,22 @@ function PublicationModal({ pub, client, script, onClose, onUpdate, onApprove, o
   const [tab, setTab] = useState("ig");
   const [busy, setBusy] = useState(false);
   const [pubBusy, setPubBusy] = useState(false);
+  const [upBusy, setUpBusy] = useState(false);
   const [f, setF] = useState(pub);
   useEffect(() => { setF(pub); }, [pub.id, pub.ai_generated_at, pub.pub_status]);
+
+  async function uploadVideo(file: File) {
+    setUpBusy(true);
+    try {
+      const r = await fetch("/api/r2/sign", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ filename: file.name, clientId: pub.client_id, scriptId: pub.script_id }) });
+      const j = await r.json();
+      if (!r.ok) { alert("R2: " + (j?.error || "ошибка подписи")); setUpBusy(false); return; }
+      const put = await fetch(j.uploadUrl, { method: "PUT", body: file, headers: file.type ? { "content-type": file.type } : {} });
+      if (!put.ok) { alert(`Загрузка в R2 не удалась (${put.status}). Проверь CORS бакета.`); setUpBusy(false); return; }
+      setF(p => ({ ...p, video_url: j.publicUrl })); onUpdate(pub.id, { video_url: j.publicUrl });
+    } catch (e: any) { alert("Ошибка загрузки: " + String(e)); }
+    setUpBusy(false);
+  }
 
   const channels = f.target_channels?.length ? f.target_channels : client?.platforms?.length ? client.platforms : ["ig", "tt", "yt", "threads"];
   const save = (patch: Partial<Publication>) => onUpdate(pub.id, patch);
@@ -316,8 +330,12 @@ function PublicationModal({ pub, client, script, onClose, onUpdate, onApprove, o
           <div>
             {lbl("🎬 Видео")}
             <div style={{ display: "flex", gap: 6 }}>
-              <input defaultValue={f.video_url || ""} onBlur={e => save({ video_url: e.target.value })} placeholder="ссылка на видео / Drive" style={{ ...ta, fontSize: 12 }} />
+              <input value={f.video_url || ""} onChange={e => setF(p => ({ ...p, video_url: e.target.value }))} onBlur={e => save({ video_url: e.target.value })} placeholder="ссылка или загрузи файл →" style={{ ...ta, fontSize: 12 }} />
               {f.video_url && <a href={f.video_url} target="_blank" rel="noreferrer" style={{ flexShrink: 0, padding: "0 12px", borderRadius: 9, background: "rgba(157,107,255,0.12)", border: "1px solid var(--brd)", color: "var(--pu)", display: "inline-flex", alignItems: "center" }}><ExternalLink size={15} /></a>}
+              <label style={{ flexShrink: 0, padding: "0 12px", borderRadius: 9, background: "rgba(66,212,244,0.12)", border: "1px solid var(--brd)", color: "var(--cy)", display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, cursor: upBusy ? "default" : "pointer", whiteSpace: "nowrap" }}>
+                {upBusy ? "Загружаю…" : "⬆ Файл"}
+                <input type="file" accept="video/*" disabled={upBusy} onChange={e => { const file = e.target.files?.[0]; if (file) uploadVideo(file); e.target.value = ""; }} style={{ display: "none" }} />
+              </label>
             </div>
           </div>
           <div>
