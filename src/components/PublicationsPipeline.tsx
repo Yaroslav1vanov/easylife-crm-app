@@ -229,7 +229,7 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
                   {items.map(p => {
                     const c = clientById[p.client_id]; const sc = scriptById[p.script_id];
                     const title = sc?.hook_text || sc?.hook || "Без темы";
-                    const chans = (p.target_channels?.length ? p.target_channels : c?.platforms) || [];
+                    const chans = p.target_channels?.length ? p.target_channels : c?.platforms?.length ? c.platforms : ["ig", "tt", "yt", "threads"];
                     return (
                       <div key={p.id} role="button" tabIndex={0} draggable
                         onClick={() => setOpenId(p.id)}
@@ -287,7 +287,7 @@ function PublicationModal({ pub, client, script, onClose, onUpdate, onApprove, o
   const [f, setF] = useState(pub);
   useEffect(() => { setF(pub); }, [pub.id, pub.ai_generated_at, pub.pub_status]);
 
-  const channels = (f.target_channels?.length ? f.target_channels : client?.platforms) || ["ig", "tt", "yt", "threads"];
+  const channels = f.target_channels?.length ? f.target_channels : client?.platforms?.length ? client.platforms : ["ig", "tt", "yt", "threads"];
   const save = (patch: Partial<Publication>) => onUpdate(pub.id, patch);
   const toggleChan = (id: string) => {
     const set = new Set(channels); set.has(id) ? set.delete(id) : set.add(id);

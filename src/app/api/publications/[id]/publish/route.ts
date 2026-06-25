@@ -37,7 +37,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
 
   const tz = client?.timezone || "Europe/Kyiv";
   const dateTime = tzIso(pub.publish_at, tz);
-  const channels: string[] = (pub.target_channels?.length ? pub.target_channels : client?.platforms) || [];
+  const channels: string[] = pub.target_channels?.length ? pub.target_channels : client?.platforms?.length ? client.platforms : ["ig", "tt", "yt", "threads"];
   const textFor = (ch: string) =>
     ch === "ig" ? pub.caption_ig : ch === "tt" ? pub.caption_tt :
     ch === "yt" ? (pub.yt_description || pub.yt_title) : ch === "threads" ? pub.threads_post : "";

@@ -24,7 +24,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
 
   const { data: client } = await sb.from("clients").select("name, surname, brand_voice, platforms").eq("id", pub.client_id).maybeSingle();
 
-  const channels: string[] = (pub.target_channels?.length ? pub.target_channels : client?.platforms) || ["ig", "tt", "yt", "threads"];
+  const channels: string[] = pub.target_channels?.length ? pub.target_channels : client?.platforms?.length ? client.platforms : ["ig", "tt", "yt", "threads"];
   const limitText = channels.map(c => `- ${LIMITS[c] || c}`).join("\n");
 
   const system = `Ты — опытный SMM-копирайтер агентства EasyLife AI. Твоя задача — адаптировать готовый текст ролика (сценарий) в нативные подписи под разные соцсети, строго в тоне голоса клиента. Пиши на том же языке, что и сценарий клиента. Не выдумывай фактов, которых нет в сценарии. Не используй clickbait, если тон клиента это запрещает. Верни ТОЛЬКО валидный JSON без markdown-обёртки.`;
