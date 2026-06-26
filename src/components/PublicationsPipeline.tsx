@@ -104,7 +104,7 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
   async function pullReady() {
     setPulling(true);
     const existing = new Set(pubs.map(p => p.script_id));
-    const ready = scripts.filter(s => s.video_status === "ready" && !existing.has(s.id));
+    const ready = scripts.filter(s => s.video_status === "ready" && !existing.has(s.id) && clientById[s.client_id]?.stage === "active");
     for (const s of ready) await db.ensurePublicationForScript(supabase, s, clientById[s.client_id]);
     const { data } = await supabase.from("publications").select("*").order("created_at", { ascending: false });
     setPubs((data || []) as Publication[]);
@@ -143,9 +143,16 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
   const byColumn = useMemo(() => {
     const m: Record<string, Publication[]> = {};
     for (const col of COLUMNS) m[col.id] = [];
-    for (const p of pubs) { const col = COLUMNS.find(c => c.statuses.includes(p.pub_status)); if (col) m[col.id].push(p); }
+    for (const p of pubs) {
+      const c = clientById[p.client_id];
+      if (!c || c.stage !== "active") continue; // прячем клиентов на паузе / ушедших
+      const col = COLUMNS.find(x => x.statuses.includes(p.pub_status));
+      if (col) m[col.id].push(p);
+    }
+    // ближайшие по дате публикации — сверху (без даты — в конец)
+    for (const col of COLUMNS) m[col.id].sort((a, b) => (a.publish_at || "9999").localeCompare(b.publish_at || "9999"));
     return m;
-  }, [pubs]);
+  }, [pubs, clientById]);
 
   const openPub = openId != null ? pubs.find(p => p.id === openId) || null : null;
 
