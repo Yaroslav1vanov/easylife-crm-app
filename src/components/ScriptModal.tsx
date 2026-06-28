@@ -35,13 +35,16 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
   const [hookText, setHookText] = useState(s.hook_text || "");
   const [refUrl, setRefUrl] = useState(s.ref_url || "");
   const [refText, setRefText] = useState(s.ref_text || "");
+  const [hook, setHook] = useState(s.hook || "");
   const [bodyText, setBodyText] = useState(s.body_text || "");
+  const [cta, setCta] = useState(s.cta || "");
   const [videoUrl, setVideoUrl] = useState(s.video_url || "");
   const [pubDate, setPubDate] = useState(s.pub_date || "");
 
   useEffect(() => {
     setHookText(s.hook_text || ""); setRefUrl(s.ref_url || ""); setRefText(s.ref_text || "");
-    setBodyText(s.body_text || ""); setVideoUrl(s.video_url || ""); setPubDate(s.pub_date || "");
+    setHook(s.hook || ""); setBodyText(s.body_text || ""); setCta(s.cta || "");
+    setVideoUrl(s.video_url || ""); setPubDate(s.pub_date || "");
   }, [s.id]);
 
   useEffect(() => {
@@ -130,12 +133,27 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
             rows={5} placeholder="Расшифровка текста исходного видео…" style={ta} />
         </div>
 
-        {/* Наш сценарий */}
-        <div>
-          {label("✨ Наш сценарий (переписанный под клиента)", "var(--pu)")}
-          <textarea value={bodyText} onChange={(e) => setBodyText(e.target.value)}
-            onBlur={() => { if (bodyText !== (s.body_text || "")) onUpdate(s.id, { body_text: bodyText }); }}
-            rows={9} placeholder="Финальный текст сценария…" style={{ ...ta, background: "rgba(157,107,255,0.07)" }} />
+        {/* Наш сценарий — 3 части, каждую можно усиливать отдельно */}
+        <div style={{ padding: 14, borderRadius: 12, background: "rgba(157,107,255,0.05)", border: "1px solid var(--brd)", display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 800, color: "var(--pu)", textTransform: "uppercase", letterSpacing: 0.5 }}>✨ Наш сценарий</div>
+          <div>
+            {label("1. Хук (первые секунды)", "var(--cy)")}
+            <textarea value={hook} onChange={(e) => setHook(e.target.value)}
+              onBlur={() => { if (hook !== (s.hook || "")) onUpdate(s.id, { hook }); }}
+              rows={2} placeholder="Цепляющее начало — ради чего досмотрят…" style={{ ...ta, background: "var(--inset2)" }} />
+          </div>
+          <div>
+            {label("2. Основной текст", "var(--pu)")}
+            <textarea value={bodyText} onChange={(e) => setBodyText(e.target.value)}
+              onBlur={() => { if (bodyText !== (s.body_text || "")) onUpdate(s.id, { body_text: bodyText }); }}
+              rows={7} placeholder="Тело сценария — мясо/смысл…" style={{ ...ta, background: "var(--inset2)" }} />
+          </div>
+          <div>
+            {label("3. Призыв (CTA)", "var(--gr)")}
+            <textarea value={cta} onChange={(e) => setCta(e.target.value)}
+              onBlur={() => { if (cta !== (s.cta || "")) onUpdate(s.id, { cta }); }}
+              rows={2} placeholder="Призыв к действию в конце…" style={{ ...ta, background: "var(--inset2)" }} />
+          </div>
         </div>
 
         {/* Опубликованное видео */}
