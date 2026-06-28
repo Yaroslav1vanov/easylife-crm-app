@@ -158,7 +158,7 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
         <div style={{ padding: 14, borderRadius: 12, background: "rgba(157,107,255,0.05)", border: "1px solid var(--brd)", display: "flex", flexDirection: "column", gap: 12 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
             <span style={{ fontSize: 11, fontWeight: 800, color: "var(--pu)", textTransform: "uppercase", letterSpacing: 0.5 }}>✨ Наш сценарий</span>
-            <button onClick={adaptFromDonor} disabled={adaptBusy || !(s.transcription || s.ref_text)}
+            <button onClick={() => adaptFromDonor()} disabled={adaptBusy || !(s.transcription || s.ref_text)}
               style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 13px", borderRadius: 8, background: "linear-gradient(135deg, var(--cy), var(--pu))", border: "none", color: "#fff", fontSize: 11, fontWeight: 800, cursor: adaptBusy ? "default" : "pointer", opacity: adaptBusy ? 0.7 : 1 }}>
               {adaptBusy ? "Адаптирую…" : "✨ Адаптировать под клиента"}
             </button>
