@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
 
 // «Оценка вирусности» = РАЗБОР ДОНОРА (шаг 2 методологии): вскрыть, какой элемент тащил ролик.
-const MODEL = process.env.ANALYZE_MODEL || "claude-sonnet-4-6";
+const MODEL = process.env.ANALYZE_MODEL || "claude-opus-4-8";
 
 const SYSTEM = `Ты — эксперт по виральности коротких видео (Reels/TikTok/Shorts). Работаешь по методологии «инженерия внимания».
 

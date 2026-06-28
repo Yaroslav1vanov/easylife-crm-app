@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
 
 // Адаптация сценария из донора: транскрибация + разбор (что сохранить) + тон клиента → Хук/Основной/Призыв.
-const MODEL = process.env.ADAPTER_MODEL || "claude-sonnet-4-6";
+const MODEL = process.env.SCRIPT_MODEL || "claude-opus-4-8";
 
 const SYSTEM = `Ты — топовый сценарист коротких видео по методологии «инженерия внимания». Не пишешь с нуля — берёшь донора (уже виральный ролик) и переносишь его РЫЧАГ на клиента, не потеряв то, что заставляло смотреть.
 
