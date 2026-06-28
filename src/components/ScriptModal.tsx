@@ -40,6 +40,18 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
   const [cta, setCta] = useState(s.cta || "");
   const [videoUrl, setVideoUrl] = useState(s.video_url || "");
   const [pubDate, setPubDate] = useState(s.pub_date || "");
+  const [adaptBusy, setAdaptBusy] = useState(false);
+
+  async function adaptFromDonor() {
+    setAdaptBusy(true);
+    try {
+      const r = await fetch(`/api/scripts/${s.id}/adapt`, { method: "POST" });
+      const j = await r.json();
+      if (!r.ok) alert("AI: " + (j?.error || "ошибка"));
+      else { setHook(j.hook || ""); setBodyText(j.body_text || ""); setCta(j.cta || ""); }
+    } catch (e: any) { alert(String(e)); }
+    setAdaptBusy(false);
+  }
 
   useEffect(() => {
     setHookText(s.hook_text || ""); setRefUrl(s.ref_url || ""); setRefText(s.ref_text || "");
@@ -133,9 +145,23 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
             rows={5} placeholder="Расшифровка текста исходного видео…" style={ta} />
         </div>
 
+        {/* Разбор донора — что именно тащило ролик (сохранить при адаптации) */}
+        {s.description && (
+          <div style={{ padding: 12, borderRadius: 11, background: "rgba(255,174,66,0.06)", border: "1px solid rgba(255,174,66,0.3)" }}>
+            <div style={{ fontSize: 10, fontWeight: 800, color: "var(--or)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>🔥 Разбор донора — рычаг, который надо сохранить</div>
+            <div style={{ fontSize: 12, lineHeight: 1.55, color: "var(--t1)", whiteSpace: "pre-wrap", maxHeight: 220, overflowY: "auto" }}>{s.description}</div>
+          </div>
+        )}
+
         {/* Наш сценарий — 3 части, каждую можно усиливать отдельно */}
         <div style={{ padding: 14, borderRadius: 12, background: "rgba(157,107,255,0.05)", border: "1px solid var(--brd)", display: "flex", flexDirection: "column", gap: 12 }}>
-          <div style={{ fontSize: 11, fontWeight: 800, color: "var(--pu)", textTransform: "uppercase", letterSpacing: 0.5 }}>✨ Наш сценарий</div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 11, fontWeight: 800, color: "var(--pu)", textTransform: "uppercase", letterSpacing: 0.5 }}>✨ Наш сценарий</span>
+            <button onClick={adaptFromDonor} disabled={adaptBusy || !(s.transcription || s.ref_text)}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 13px", borderRadius: 8, background: "linear-gradient(135deg, var(--cy), var(--pu))", border: "none", color: "#fff", fontSize: 11, fontWeight: 800, cursor: adaptBusy ? "default" : "pointer", opacity: adaptBusy ? 0.7 : 1 }}>
+              {adaptBusy ? "Адаптирую…" : "✨ Адаптировать под клиента"}
+            </button>
+          </div>
           <div>
             {label("1. Хук (первые секунды)", "var(--cy)")}
             <textarea value={hook} onChange={(e) => setHook(e.target.value)}
