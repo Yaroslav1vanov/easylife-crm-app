@@ -62,6 +62,12 @@ export type SocialSnapshot = {
   engagement_rate: number | null;
   created_at: string;
 };
+export type Reference = {
+  id: number; client_id: number; url: string; platform: string | null;
+  author: string | null; caption: string | null; transcript: string | null;
+  views: number | null; likes: number | null; comments: number | null;
+  thumbnail_url: string | null; note: string | null; fetched_at: string | null; created_at: string;
+};
 export type PubStatus = "adapting" | "review" | "queued" | "scheduled" | "published" | "error";
 export type Publication = {
   id: number;
@@ -420,6 +426,20 @@ const db = {
     const { error } = await sb.from("publications")
       .update({ pub_status: "queued", approved_by: teamMemberId, approved_at: new Date().toISOString() })
       .eq("id", id);
+    return { error };
+  },
+
+  // ===== Референсы (залётные ролики) =====
+  async getReferences(sb: SupabaseClient) {
+    const { data } = await sb.from("reference_videos").select("*").order("created_at", { ascending: false });
+    return (data || []) as Reference[];
+  },
+  async updateReference(sb: SupabaseClient, id: number, patch: Partial<Reference>) {
+    const { error } = await sb.from("reference_videos").update(patch).eq("id", id);
+    return { error };
+  },
+  async deleteReference(sb: SupabaseClient, id: number) {
+    const { error } = await sb.from("reference_videos").delete().eq("id", id);
     return { error };
   },
 };
