@@ -12,11 +12,13 @@ const SYSTEM = `Ты — топовый сценарист коротких ви
 
 ГЛАВНОЕ: сохрани РЫЧАГ донора (из разбора) — то, что тащило ролик. Контекст и примеры меняем под нишу/оффер клиента, смысловой механизм сохраняем. Не копируй дословно — уникализируй под клиента и его тон голоса.`;
 
-export async function POST(_req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, { params }: { params: { id: string } }) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return NextResponse.json({ error: "ANTHROPIC_API_KEY не задан" }, { status: 400 });
   const id = Number(params.id);
   if (!id) return NextResponse.json({ error: "bad id" }, { status: 400 });
+  const reqBody = await req.json().catch(() => ({}));
+  const instruction: string = (reqBody.instruction || "").trim();
 
   const sb = createClient();
   const { data: s } = await sb.from("scripts").select("*").eq("id", id).maybeSingle();
@@ -26,7 +28,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
 
   const { data: client } = await sb.from("clients").select("name, surname, niche, product, brand_voice").eq("id", s.client_id).maybeSingle();
 
-  const user = `КЛИЕНТ: ${client?.name || ""} ${client?.surname || ""}${client?.niche ? ` · ниша: ${client.niche}` : ""}${client?.product ? ` · продукт: ${client.product}` : ""}
+  const ctx = `КЛИЕНТ: ${client?.name || ""} ${client?.surname || ""}${client?.niche ? ` · ниша: ${client.niche}` : ""}${client?.product ? ` · продукт: ${client.product}` : ""}
 
 ТОН ГОЛОСА КЛИЕНТА (соблюдать строго):
 ${client?.brand_voice || "(не задан — пиши живо, экспертно, на «ты», минимум эмодзи)"}
@@ -37,9 +39,24 @@ ${s.description || "(разбор не делался — опирайся на 
 ТРАНСКРИБАЦИЯ ДОНОРА:
 """
 ${donor}
-"""
+"""`;
 
-Напиши адаптацию под клиента, сохранив рычаг донора и уникализировав под его нишу/оффер/тон. Верни ТОЛЬКО валидный JSON:
+  const task = instruction
+    ? `Текущая версия сценария:
+Хук: ${s.hook || "(пусто)"}
+Основной: ${s.body_text || "(пусто)"}
+Призыв: ${s.cta || "(пусто)"}
+
+ПРАВКА от автора: «${instruction}»
+
+Перепиши сценарий с учётом этой правки. Меняй то, что просит правка (и связанное с ней), остальное сохраняй. НЕ потеряй рычаг донора и тон клиента.`
+    : `Напиши адаптацию под клиента, сохранив рычаг донора и уникализировав под его нишу/оффер/тон.`;
+
+  const user = `${ctx}
+
+${task}
+
+Верни ТОЛЬКО валидный JSON:
 {
   "hook": "Хук — первые 1–2 секунды, останавливает скролл, открывает петлю",
   "body": "Основной текст — удержание + ценность, ритм короткими фразами, выполняет обещание хука 1:1",

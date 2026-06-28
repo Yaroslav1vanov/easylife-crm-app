@@ -41,14 +41,15 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
   const [videoUrl, setVideoUrl] = useState(s.video_url || "");
   const [pubDate, setPubDate] = useState(s.pub_date || "");
   const [adaptBusy, setAdaptBusy] = useState(false);
+  const [refine, setRefine] = useState("");
 
-  async function adaptFromDonor() {
+  async function adaptFromDonor(instruction?: string) {
     setAdaptBusy(true);
     try {
-      const r = await fetch(`/api/scripts/${s.id}/adapt`, { method: "POST" });
+      const r = await fetch(`/api/scripts/${s.id}/adapt`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ instruction: instruction || "" }) });
       const j = await r.json();
       if (!r.ok) alert("AI: " + (j?.error || "ошибка"));
-      else { setHook(j.hook || ""); setBodyText(j.body_text || ""); setCta(j.cta || ""); }
+      else { setHook(j.hook || ""); setBodyText(j.body_text || ""); setCta(j.cta || ""); if (instruction) setRefine(""); }
     } catch (e: any) { alert(String(e)); }
     setAdaptBusy(false);
   }
@@ -179,6 +180,19 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
             <textarea value={cta} onChange={(e) => setCta(e.target.value)}
               onBlur={() => { if (cta !== (s.cta || "")) onUpdate(s.id, { cta }); }}
               rows={2} placeholder="Призыв к действию в конце…" style={{ ...ta, background: "var(--inset2)" }} />
+          </div>
+          {/* Доработка по правке — мини-чат с AI */}
+          <div style={{ marginTop: 4, paddingTop: 12, borderTop: "1px solid var(--brd)" }}>
+            {label("↻ Что переделать? (правка для AI)", "var(--cy)")}
+            <div style={{ display: "flex", gap: 6 }}>
+              <textarea value={refine} onChange={(e) => setRefine(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && refine.trim()) adaptFromDonor(refine.trim()); }}
+                rows={2} placeholder="Напр.: хук агрессивнее · убери про X · сократи тело · добавь конкретику…" style={{ ...ta, fontSize: 12 }} />
+              <button onClick={() => refine.trim() && adaptFromDonor(refine.trim())} disabled={adaptBusy || !refine.trim()}
+                style={{ flexShrink: 0, padding: "0 14px", borderRadius: 9, background: "rgba(66,212,244,0.14)", border: "1px solid var(--brd)", color: "var(--cy)", fontSize: 11, fontWeight: 800, cursor: adaptBusy || !refine.trim() ? "default" : "pointer", whiteSpace: "nowrap" }}>
+                {adaptBusy ? "…" : "↻ Переделать"}
+              </button>
+            </div>
           </div>
         </div>
 
