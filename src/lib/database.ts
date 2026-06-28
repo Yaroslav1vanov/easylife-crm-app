@@ -62,11 +62,13 @@ export type SocialSnapshot = {
   engagement_rate: number | null;
   created_at: string;
 };
+export type RefStatus = "new" | "selected" | "review" | "approved";
 export type Reference = {
   id: number; client_id: number; url: string; platform: string | null;
   author: string | null; caption: string | null; transcript: string | null;
   views: number | null; likes: number | null; comments: number | null;
   thumbnail_url: string | null; note: string | null; fetched_at: string | null; created_at: string;
+  status: RefStatus; analysis: string | null; analyzed_at: string | null; script_id: number | null;
 };
 export type PubStatus = "adapting" | "review" | "queued" | "scheduled" | "published" | "error";
 export type Publication = {
