@@ -19,6 +19,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   if (!id) return NextResponse.json({ error: "bad id" }, { status: 400 });
   const reqBody = await req.json().catch(() => ({}));
   const instruction: string = (reqBody.instruction || "").trim();
+  const model: string = reqBody.model || MODEL;          // для A/B-сравнения моделей
+  const save: boolean = reqBody.save !== false;          // save=false → не писать в БД (dry-run)
 
   const sb = createClient();
   const { data: s } = await sb.from("scripts").select("*").eq("id", id).maybeSingle();
@@ -68,7 +70,7 @@ ${task}
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
-      body: JSON.stringify({ model: MODEL, max_tokens: 2000, system: SYSTEM, messages: [{ role: "user", content: user }] }),
+      body: JSON.stringify({ model, max_tokens: 2000, system: SYSTEM, messages: [{ role: "user", content: user }] }),
     });
     const j = await r.json();
     if (!r.ok) throw new Error(j?.error?.message || `Anthropic ${r.status}`);
@@ -80,7 +82,9 @@ ${task}
   catch { return NextResponse.json({ error: "AI вернул не-JSON", raw: text }, { status: 502 }); }
 
   const patch = { hook: parsed.hook || "", body_text: parsed.body || "", cta: parsed.cta || "" };
-  const { error } = await sb.from("scripts").update(patch).eq("id", id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true, ...patch });
+  if (save) {
+    const { error } = await sb.from("scripts").update(patch).eq("id", id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  return NextResponse.json({ ok: true, model, ...patch });
 }
