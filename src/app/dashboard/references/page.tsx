@@ -179,14 +179,15 @@ export default function ReferencesPage() {
       )}
 
       {openRef && <RefModal ref0={openRef} client={clientById[openRef.client_id]} onClose={() => setOpenId(null)} onNote={saveNote} onDelete={del}
-        onAnalyzed={(a) => patchRef(openRef.id, { analysis: a, analyzed_at: new Date().toISOString() })} />}
+        onAnalyzed={(a) => patchRef(openRef.id, { analysis: a, analyzed_at: new Date().toISOString() })}
+        onMove={(status) => { const id = openRef.id; setOpenId(null); moveTo(status, id); }} />}
       <style>{`.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
 }
 
-function RefModal({ ref0, client, onClose, onNote, onDelete, onAnalyzed }: {
-  ref0: Reference; client?: Client; onClose: () => void; onNote: (id: number, n: string) => void; onDelete: (id: number) => void; onAnalyzed: (a: string) => void;
+function RefModal({ ref0, client, onClose, onNote, onDelete, onAnalyzed, onMove }: {
+  ref0: Reference; client?: Client; onClose: () => void; onNote: (id: number, n: string) => void; onDelete: (id: number) => void; onAnalyzed: (a: string) => void; onMove: (status: RefStatus) => void;
 }) {
   const [busy, setBusy] = useState(false);
   const p = PLAT[ref0.platform || ""] || { label: ref0.platform || "?", Icon: FileText, color: "var(--t3)" };
@@ -218,6 +219,20 @@ function RefModal({ ref0, client, onClose, onNote, onDelete, onAnalyzed }: {
           <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 15, fontWeight: 800 }}><MessageCircle size={16} style={{ color: "var(--pu)" }} /> {fmtNum(ref0.comments)}</span>
           <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 15, fontWeight: 800 }}><Heart size={16} style={{ color: "var(--rd)" }} /> {fmtNum(ref0.likes)}</span>
           <a href={ref0.url} target="_blank" rel="noreferrer" style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 5, color: "var(--pu)", fontSize: 12, fontWeight: 700 }}>Открыть ролик <ExternalLink size={13} /></a>
+        </div>
+
+        {/* Стадия — кнопками (без перетаскивания) */}
+        <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 10, fontWeight: 700, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 0.5 }}>Стадия:</span>
+          {COLUMNS.map(col => {
+            const active = ref0.status === col.id;
+            return (
+              <button key={col.id} onClick={() => { if (!active) onMove(col.id); }} disabled={active}
+                style={{ padding: "6px 11px", borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: active ? "default" : "pointer", border: `1px solid ${active ? col.color : "var(--brd)"}`, background: active ? `${col.color}22` : "transparent", color: active ? col.color : "var(--t2)" }}>
+                {col.label}
+              </button>
+            );
+          })}
         </div>
 
         {/* Разбор донора */}
