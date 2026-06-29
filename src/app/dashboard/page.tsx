@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
 import db, { Client, Script, ClientMonth, TeamMember, Profile, OnboardingProgress } from "@/lib/database";
 import { getStore, setStore } from "@/lib/store";
-import { VIDEO_LEAD } from "@/components/ScriptModal";
+import { VIDEO_LEAD, SCRIPT_LEAD } from "@/components/ScriptModal";
 import Avatar from "@/components/Avatar";
 import {
   Users, Film, AlertCircle, CalendarCheck, Rocket,
@@ -996,15 +996,23 @@ function DashboardInner() {
   const myDeadlines = (() => {
     if (!meMember) return null;
     const isMontager = meMember.member_type === "montager";
+    const lead = isMontager ? VIDEO_LEAD : SCRIPT_LEAD;
     const items = scripts
       .filter(s => {
-        if (s.script_status !== "approved" || !s.pub_date) return false;
-        if (s.video_status === "ready" || s.video_status === "published") return false;
+        if (!s.pub_date) return false;
         const c = clients.find(x => x.id === s.client_id);
         if (!c || c.stage === "paused" || c.stage === "churned") return false;
-        return isMontager ? c.montager_id === meMember.id : c.teamlead_id === meMember.id;
+        if (isMontager) {
+          // монтажёр: сценарий согласован, видео ещё не готово → его задача
+          if (s.script_status !== "approved") return false;
+          if (s.video_status === "ready" || s.video_status === "published") return false;
+          return c.montager_id === meMember.id;
+        }
+        // тимлид: сценарий ещё не согласован → его задача
+        if (s.script_status === "approved") return false;
+        return c.teamlead_id === meMember.id;
       })
-      .map(s => ({ s, c: clients.find(x => x.id === s.client_id)!, due: minusDays(s.pub_date!, VIDEO_LEAD) }))
+      .map(s => ({ s, c: clients.find(x => x.id === s.client_id)!, due: minusDays(s.pub_date!, lead) }))
       .sort((a, b) => a.due.localeCompare(b.due));
     return { isMontager, items };
   })();
@@ -1052,11 +1060,15 @@ function DashboardInner() {
       </div>
 
       {/* ===== МОИ ДЕДЛАЙНЫ (для монтажёра/тимлида) ===== */}
-      {myDeadlines && myDeadlines.items.length > 0 && (
+      {myDeadlines && myDeadlines.items.length > 0 && (() => {
+        const path = myDeadlines.isMontager ? "/dashboard/montage" : "/dashboard/scripts";
+        const head = myDeadlines.isMontager ? "🎬 Мои дедлайны · монтаж" : "✍️ Мои дедлайны · сценарии";
+        const openLbl = myDeadlines.isMontager ? "Открыть монтаж" : "Открыть сценарии";
+        return (
         <div className="card" style={{ padding: 16, borderRadius: 16, marginBottom: 18 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
-            <div style={{ fontSize: 13, fontWeight: 800, color: "var(--t1)" }}>🎬 Мои дедлайны{myDeadlines.isMontager ? " · монтаж" : ""} <span style={{ color: "var(--t3)", fontWeight: 600 }}>({myDeadlines.items.length})</span></div>
-            <button onClick={() => router.push("/dashboard/montage")} style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "transparent", border: "none", color: "var(--pu)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Открыть монтаж <ArrowRight size={12} /></button>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "var(--t1)" }}>{head} <span style={{ color: "var(--t3)", fontWeight: 600 }}>({myDeadlines.items.length})</span></div>
+            <button onClick={() => router.push(path)} style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "transparent", border: "none", color: "var(--pu)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>{openLbl} <ArrowRight size={12} /></button>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {myDeadlines.items.slice(0, 8).map(({ s, c, due }) => {
@@ -1064,7 +1076,7 @@ function DashboardInner() {
               const color = diff < 0 ? "#ff5c7a" : diff <= 1 ? "#ffae42" : "#9d6bff";
               const txt = diff < 0 ? `просрочено ${-diff} дн` : diff === 0 ? "сегодня" : diff === 1 ? "завтра" : `через ${diff} дн`;
               return (
-                <button key={s.id} onClick={() => router.push("/dashboard/montage")}
+                <button key={s.id} onClick={() => router.push(path)}
                   style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 10, background: diff < 0 ? "rgba(255,92,122,0.07)" : "var(--inset2)", border: `1px solid ${diff < 0 ? color : "var(--track)"}`, cursor: "pointer", textAlign: "left" }}>
                   <Avatar name={`${c.name} ${c.surname || ""}`} src={c.avatar_url} size={26} />
                   <div style={{ minWidth: 0, flex: 1 }}>
@@ -1080,7 +1092,8 @@ function DashboardInner() {
             })}
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* ===== KPI ROW (без MRR) ===== */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 18 }} className="dashboard-v3-kpi">

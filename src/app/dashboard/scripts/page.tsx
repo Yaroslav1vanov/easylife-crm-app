@@ -52,12 +52,16 @@ export default function ScriptsPage() {
   const [focus, setFocus] = useState<"all" | "today" | "tomorrow" | "overdue">("all");
   const [menu, setMenu] = useState<null | "client" | "tl" | "focus">(null);
   const [openId, setOpenId] = useState<number | null>(null);
+  const [me, setMe] = useState<TeamMember | null>(null);
 
   useEffect(() => { load(); }, []);
   async function load() {
     // кэш уже показан из getStore() — обновляем в фоне
     const [cls, tm] = await Promise.all([db.getClients(supabase), db.getTeam(supabase)]);
     setClients(cls); setTeam(tm);
+    const { data: { session } } = await supabase.auth.getSession();
+    const uid = session?.user?.id;
+    if (uid) setMe(tm.find(t => t.profile_id === uid) || null);
     const [all, cmRes] = await Promise.all([db.getScriptsForClients(supabase, cls.map(c => c.id)), db.getClientMonths(supabase)]);
     setAllScripts(all); setClientMonths(cmRes?.data || []);
     setStore({ clients: cls, team: tm, scripts: all, clientMonths: cmRes?.data || [] });
@@ -71,6 +75,9 @@ export default function ScriptsPage() {
 
   const clientById = useMemo(() => Object.fromEntries(clients.map(c => [c.id, c])) as Record<number, Client>, [clients]);
   const teamleads = useMemo(() => team.filter(t => t.member_type === "teamlead" || t.member_type === "admin"), [team]);
+  const canMine = !!me && (me.member_type === "teamlead" || me.member_type === "admin");
+  const mineActive = !!me && tlFilter === me.id;
+  const toggleMine = () => { if (me) setTlFilter(mineActive ? "all" : me.id); };
   const cname = (id: number) => clientById[id]?.name || "?";
   const inScope = (cid: number) => {
     const c = clientById[cid]; if (!c) return false;
@@ -169,6 +176,12 @@ export default function ScriptsPage() {
               <button key={v} onClick={() => setView(v)} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 12px", background: view === v ? "rgba(157,107,255,0.15)" : "transparent", color: view === v ? "var(--pu)" : "var(--t2)", border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer" }}><Ic size={13} /> {l}</button>
             ))}
           </div>
+          {canMine && me && (
+            <button onClick={toggleMine} title={`Только мои сценарии (${me.name})`}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 10, border: `1px solid ${mineActive ? "var(--pu)" : "var(--brd)"}`, background: mineActive ? "rgba(157,107,255,0.18)" : "transparent", color: mineActive ? "var(--pu)" : "var(--t2)", fontSize: 11, fontWeight: 800, cursor: "pointer" }}>
+              <Avatar name={me.name} src={me.avatar_url} size={18} /> {mineActive ? "Мои ✓" : "Мои"}
+            </button>
+          )}
           <Drop label="Клиент" kind="client" value={clientFilter === "all" ? "Все" : cname(clientFilter)}>
             <button onClick={() => { setClientFilter("all"); setMenu(null); }} className="nav-item" style={{ fontSize: 11, padding: "7px 10px" }}>Все клиенты</button>
             {clients.map(c => <button key={c.id} onClick={() => { setClientFilter(c.id); setMenu(null); }} className="nav-item" style={{ fontSize: 11, padding: "7px 10px", gap: 8 }}><Avatar name={c.name} src={c.avatar_url} size={20} /> {c.name} {c.surname || ""}</button>)}
@@ -299,7 +312,9 @@ export default function ScriptsPage() {
 
       {/* KANBAN (доска — как сейчас) */}
       <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 10, color: "var(--t2)" }}>Доска сценариев</div>
-      <KanbanBoard scripts={kanbanScripts} clients={clients} columns={SCRIPT_COLUMNS} onUpdate={updateScript} showClient emptyHint="Пусто" />
+      <KanbanBoard scripts={kanbanScripts} clients={clients} columns={SCRIPT_COLUMNS} onUpdate={updateScript} showClient emptyHint="Пусто"
+        deadlineLeadDays={SCRIPT_LEAD}
+        deadlineDone={(s) => s.script_status === "approved"} />
 
       {openScript && (
         <ScriptModal script={openScript} client={clientById[openScript.client_id]} onClose={() => setOpenId(null)} onUpdate={updateScript} />
