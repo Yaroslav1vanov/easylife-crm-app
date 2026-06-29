@@ -158,6 +158,7 @@ export default function ClientsPage() {
   const [loading, setLoading] = useState(true);
   const [statusTab, setStatusTab] = useState<"active" | "paused" | "churned">("active");
   const [showAdd, setShowAdd] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [form, setForm] = useState({ name: "", surname: "", niche: "", package: 30, montager_id: 0, teamlead_id: 0, start_date: new Date().toISOString().split("T")[0], pub_date: "" });
   const router = useRouter();
   const supabase = createClient();
@@ -180,6 +181,18 @@ export default function ClientsPage() {
     setSnapshots(social);
     setOnbProgress(onb);
     setLoading(false);
+  }
+
+  async function refreshStats() {
+    setSyncing(true);
+    try {
+      const r = await fetch("/api/metricool/refresh-snapshots");
+      const j = await r.json();
+      if (!r.ok) alert("Metricool: " + (j?.error || r.status));
+      else if (j.written === 0 && j.note) alert(j.note);
+      await load();
+    } catch (e: any) { alert(String(e)); }
+    setSyncing(false);
   }
 
   async function handleCreate() {
@@ -243,8 +256,14 @@ export default function ClientsPage() {
         <button type="button" onClick={() => setShowAdd(true)}>+ Клиент</button>
       </div>
 
-      <div className="clients-v2-sync">
-        <i /> Статистика Metricool · {latestSync ? `обновлено ${formatSnapshotDate(latestSync)}` : "подключение ожидает настройки"}
+      <div className="clients-v2-sync" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+          <i /> Статистика Metricool · {latestSync ? `обновлено ${formatSnapshotDate(latestSync)}` : "данных пока нет"}
+        </span>
+        <button type="button" onClick={refreshStats} disabled={syncing}
+          style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 12px", borderRadius: 8, background: "rgba(66,212,244,0.12)", border: "1px solid var(--brd)", color: "var(--cy)", fontSize: 11, fontWeight: 700, cursor: syncing ? "default" : "pointer" }}>
+          {syncing ? "Обновляю…" : "↻ Обновить статистику"}
+        </button>
       </div>
 
       {/* Вкладки по статусу */}
