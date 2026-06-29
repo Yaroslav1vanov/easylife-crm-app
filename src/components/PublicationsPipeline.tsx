@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase-browser";
 import db, { Client, Script, TeamMember, Publication, PubStatus } from "@/lib/database";
 import { getStore, setStore } from "@/lib/store";
 import Avatar from "@/components/Avatar";
+import { DEFAULT_TZ, tzShort, nowInTz, utcToZonedInput, zonedInputToUtc, fmtInTz } from "@/lib/tz";
 import {
   Camera, Play, Music2, AtSign, Wand2, CheckCircle2, X, ExternalLink,
   RefreshCw, AlertTriangle, Database, CalendarDays, Rocket, Plus, Images, Film, Trash2, type LucideIcon,
@@ -24,18 +25,7 @@ const COLUMNS: { id: string; label: string; color: string; statuses: PubStatus[]
   { id: "error", label: "Ошибка", color: "#ff5c7a", statuses: ["error"] },
 ];
 
-const RU_MONTHS_GEN = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
-function fmtDateTime(iso: string | null) {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  return `${d.getDate()} ${RU_MONTHS_GEN[d.getMonth()]} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-}
-function toLocalInput(iso: string | null) {
-  if (!iso) return "";
-  const d = new Date(iso);
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
-}
+// время публикации показывается/задаётся в поясе клиента — см. helpers из @/lib/tz
 
 export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () => void }) {
   const supabase = createClient();
@@ -277,7 +267,7 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
                           {c && <Avatar name={`${c.name} ${c.surname || ""}`} src={c.avatar_url} size={22} />}
                           <div style={{ minWidth: 0, flex: 1 }}>
                             <div style={{ fontSize: 10, fontWeight: 700, color: "var(--t1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c?.name} {c?.surname || ""}</div>
-                            <div style={{ fontSize: 8, color: "var(--t3)", fontFamily: "monospace" }}>{isCar ? "карусель" : `#${sc?.order_num ?? "?"}`} · {fmtDateTime(p.publish_at)}</div>
+                            <div style={{ fontSize: 8, color: "var(--t3)", fontFamily: "monospace" }}>{isCar ? "карусель" : `#${sc?.order_num ?? "?"}`} · {fmtInTz(p.publish_at, c?.timezone || DEFAULT_TZ)}</div>
                           </div>
                           {isCar
                             ? <span title="Карусель" style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 8, fontWeight: 800, color: "var(--or)", background: "rgba(255,174,66,0.14)", padding: "2px 5px", borderRadius: 5 }}><Images size={9} />{(p.media_urls?.length || 0)}</span>
@@ -330,6 +320,7 @@ function PublicationModal({ pub, client, script, onClose, onUpdate, onApprove, o
 
   const isCarousel = pub.content_type === "carousel";
   const allowedChannels = isCarousel ? ["ig", "threads"] : ["ig", "tt", "yt", "threads"];
+  const tz = client?.timezone || DEFAULT_TZ; // время публикации — по поясу клиента
 
   async function uploadSlides(files: File[]) {
     setUpBusy(true);
@@ -407,8 +398,8 @@ function PublicationModal({ pub, client, script, onClose, onUpdate, onApprove, o
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                 <div>
-                  <span style={{ fontSize: 9, fontWeight: 700, color: "var(--t3)", marginRight: 6 }}>📅 Публиковать</span>
-                  <input type="datetime-local" defaultValue={toLocalInput(f.publish_at)} onBlur={e => save({ publish_at: e.target.value ? new Date(e.target.value).toISOString() : null })} style={{ ...ta, fontSize: 12, width: "auto", display: "inline-block" }} />
+                  <span style={{ fontSize: 9, fontWeight: 700, color: "var(--t3)", marginRight: 6 }}>📅 Публиковать · {tzShort(tz)}</span>
+                  <input type="datetime-local" defaultValue={utcToZonedInput(f.publish_at, tz)} onBlur={e => save({ publish_at: e.target.value ? zonedInputToUtc(e.target.value, tz) : null })} style={{ ...ta, fontSize: 12, width: "auto", display: "inline-block" }} />
                 </div>
                 <label style={{ flexShrink: 0, padding: "8px 12px", borderRadius: 9, background: "rgba(66,212,244,0.12)", border: "1px solid var(--brd)", color: "var(--cy)", display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, cursor: upBusy ? "default" : "pointer", whiteSpace: "nowrap" }}>
                   {upBusy ? "Загружаю…" : "⬆ Добавить слайды"}
@@ -448,8 +439,9 @@ function PublicationModal({ pub, client, script, onClose, onUpdate, onApprove, o
               </div>
             </div>
             <div>
-              {lbl("📅 Публиковать")}
-              <input type="datetime-local" defaultValue={toLocalInput(f.publish_at)} onBlur={e => save({ publish_at: e.target.value ? new Date(e.target.value).toISOString() : null })} style={{ ...ta, fontSize: 12 }} />
+              {lbl(`📅 Публиковать · время клиента (${tzShort(tz)})`)}
+              <input type="datetime-local" defaultValue={utcToZonedInput(f.publish_at, tz)} onBlur={e => save({ publish_at: e.target.value ? zonedInputToUtc(e.target.value, tz) : null })} style={{ ...ta, fontSize: 12 }} />
+              <div style={{ fontSize: 9, color: "var(--t3)", marginTop: 4 }}>🕒 сейчас у клиента {nowInTz(tz)} · выйдет {fmtInTz(f.publish_at, tz)}</div>
             </div>
           </div>
         )}

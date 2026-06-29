@@ -49,7 +49,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
   if (!isCarousel && media.length < 1) return NextResponse.json({ error: "Нет ссылки на видео (нужен прямой URL, который Metricool сможет скачать)" }, { status: 400 });
   if (!pub.publish_at) return NextResponse.json({ error: "Не задана дата/время публикации" }, { status: 400 });
 
-  const tz = client?.timezone || "Europe/Kyiv";
+  const tz = client?.timezone || "America/New_York"; // дефолт — US Eastern (см. lib/tz)
   const dateTime = tzIso(pub.publish_at, tz);
   // карусель уходит только в сети, поддерживающие набор картинок (IG / Threads)
   const allow = isCarousel ? ["ig", "threads"] : ["ig", "tt", "yt", "threads"];

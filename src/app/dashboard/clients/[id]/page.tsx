@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase-browser";
 import db, { Client, Script, ChecklistTask, TeamMember, ClientMonth, OnboardingProgress } from "@/lib/database";
 import AvatarUploader from "@/components/AvatarUploader";
 import MetricoolBrandPicker from "@/components/MetricoolBrandPicker";
+import { CLIENT_TIMEZONES, DEFAULT_TZ, nowInTz } from "@/lib/tz";
 import ClientMonthsTimeline from "@/components/ClientMonthsTimeline";
 import ClientOverview from "@/components/ClientOverview";
 import ClientProduction from "@/components/ClientProduction";
@@ -272,6 +273,17 @@ export default function ClientDetailPage() {
             blogId={c.metricool_blog_id ?? null}
             onPick={(v) => { if (v !== (c.metricool_blog_id ?? null)) updateClientField("metricool_blog_id", v); }}
           />
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: "var(--t2)" }}>🕒 Часовой пояс клиента:</span>
+          <select
+            value={c.timezone || DEFAULT_TZ}
+            onChange={(e) => updateClientField("timezone", e.target.value)}
+            style={{ padding: "6px 10px", borderRadius: 8, background: "var(--bg)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 12, outline: "none", cursor: "pointer" }}
+          >
+            {CLIENT_TIMEZONES.map(t => <option key={t.tz} value={t.tz}>{t.label}</option>)}
+          </select>
+          <span style={{ fontSize: 10, color: "var(--t3)" }}>в этом поясе задаётся время публикаций · сейчас там {nowInTz(c.timezone || DEFAULT_TZ)}</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8, flexWrap: "wrap" }}>
           <span style={{ fontSize: 11, fontWeight: 700, color: "var(--t2)" }}>📨 Telegram topic ID:</span>
