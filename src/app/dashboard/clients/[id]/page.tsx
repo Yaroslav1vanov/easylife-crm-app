@@ -4,6 +4,7 @@ import { useRouter, useParams } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
 import db, { Client, Script, ChecklistTask, TeamMember, ClientMonth, OnboardingProgress } from "@/lib/database";
 import AvatarUploader from "@/components/AvatarUploader";
+import MetricoolBrandPicker from "@/components/MetricoolBrandPicker";
 import ClientMonthsTimeline from "@/components/ClientMonthsTimeline";
 import ClientOverview from "@/components/ClientOverview";
 import ClientProduction from "@/components/ClientProduction";
@@ -266,16 +267,11 @@ export default function ClientDetailPage() {
           placeholder="Напр.: Экспертно, без воды. 1–2 эмодзи max. Только русский. Любит цифры и конкретику. Без clickbait."
           style={{ width: "100%", padding: "10px 12px", borderRadius: 9, background: "var(--bg)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 13, outline: "none", resize: "vertical", fontFamily: "inherit", lineHeight: 1.5 }}
         />
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: "var(--t2)" }}>🚀 Metricool blog ID:</span>
-          <input
-            type="number"
-            defaultValue={c.metricool_blog_id ?? ""}
-            onBlur={(e) => { const v = e.target.value ? Number(e.target.value) : null; if (v !== (c.metricool_blog_id ?? null)) updateClientField("metricool_blog_id", v); }}
-            placeholder="напр. 1234567"
-            style={{ width: 160, padding: "6px 10px", borderRadius: 8, background: "var(--bg)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 12, outline: "none" }}
+        <div style={{ marginTop: 10 }}>
+          <MetricoolBrandPicker
+            blogId={c.metricool_blog_id ?? null}
+            onPick={(v) => { if (v !== (c.metricool_blog_id ?? null)) updateClientField("metricool_blog_id", v); }}
           />
-          <span style={{ fontSize: 10, color: "var(--t3)" }}>id бренда в Metricool — узнать можно в разделе Metricool → «Мои бренды»</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8, flexWrap: "wrap" }}>
           <span style={{ fontSize: 11, fontWeight: 700, color: "var(--t2)" }}>📨 Telegram topic ID:</span>
