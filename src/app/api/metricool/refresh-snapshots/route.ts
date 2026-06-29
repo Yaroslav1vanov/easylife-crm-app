@@ -36,20 +36,57 @@ export async function GET(req: Request) {
   const from30 = new Date(today.getTime() - 30 * 864e5);
   const snapDate = ymd(today);
 
+  const mcGet = async (path: string) => {
+    try { const r = await fetch(`${BASE}${path}${path.includes("?") ? "&" : "?"}${auth}`, { headers }); if (!r.ok) return null; return await r.json().catch(() => null); }
+    catch { return null; }
+  };
+  const range = `from=${ymd(from30)}T00:00:00&to=${ymd(today)}T23:59:59&timezone=Europe/Kyiv`;
+  const netName: Record<string, string> = { ig: "instagram", tt: "tiktok", yt: "youtube" };
+  // сумма по таймлайну метрики за период (account-level)
+  const aggSum = async (net: string, metric: string, subject: string, blogId: number) => {
+    const j = await mcGet(`/v2/analytics/timelines?network=${net}&metric=${metric}&subject=${subject}&${range}&blogId=${blogId}`);
+    const arr: any[] = Array.isArray(j?.data) ? j.data : Array.isArray(j) ? j : [];
+    if (!arr.length) return null;
+    let s = 0, has = false;
+    for (const pt of arr) { const val = ci(pt, "value", "values", "y", "count"); if (val != null) { s += Number(val) || 0; has = true; } }
+    return has ? Math.round(s) : null;
+  };
+  const aggLast = async (net: string, metric: string, subject: string, blogId: number) => {
+    const j = await mcGet(`/v2/analytics/timelines?network=${net}&metric=${metric}&subject=${subject}&${range}&blogId=${blogId}`);
+    const arr: any[] = Array.isArray(j?.data) ? j.data : Array.isArray(j) ? j : [];
+    if (!arr.length) return null;
+    const last = arr[arr.length - 1]; const val = ci(last, "value", "values", "y", "count");
+    return val != null ? Math.round(Number(val)) : null;
+  };
+
   const rows: any[] = [];
   for (const c of clients) {
     const plats: string[] = (c.platforms || []).filter((p: string) => NET[p]);
+    const blogId = c.metricool_blog_id;
     for (const p of plats) {
       try {
-        const u = `${BASE}/stats/values/${NET[p]}?start=${compact(from30)}&end=${compact(today)}&blogId=${c.metricool_blog_id}&${auth}`;
-        const r = await fetch(u, { headers });
-        if (!r.ok) { rows.push({ client_id: c.id, platform: p, error: `HTTP ${r.status}` }); continue; }
-        const v = await r.json().catch(() => null);
-        const followers = int(ci(v, "Followers", "followers", "followers_count", "subscribers", "subscriberCount"));
-        const reach = int(ci(v, "reach"));
-        const engaged = int(ci(v, "accounts_engaged", "interactions"));
-        const er = reach && engaged != null ? Math.round((engaged / reach) * 10000) / 100 : null;
-        rows.push({ client_id: c.id, client: c.name, platform: p, snapshot_date: snapDate, followers, reach_30d: reach, engagement_rate: er, _raw_keys: v && typeof v === "object" ? Object.keys(v) : v });
+        // followers: IG — через values; TT — followers_count из account-таймлайна
+        let followers: number | null = null, reach: number | null = null, er: number | null = null;
+        let dbg: any = {};
+        if (p === "ig") {
+          const v = await mcGet(`/stats/values/INSTAGRAM?start=${compact(from30)}&end=${compact(today)}&blogId=${blogId}`);
+          followers = int(ci(v, "Followers", "followers"));
+          const engaged = int(ci(v, "accounts_engaged"));
+          const valReach = int(ci(v, "reach"));
+          // 30-дневный охват: сумма reach по постам/аккаунту из таймлайна (values.reach = за день)
+          reach = await aggSum("instagram", "reach", "posts", blogId) ?? valReach;
+          er = reach && engaged != null ? Math.round((engaged / reach) * 10000) / 100 : null;
+          dbg = { values_reach_day: valReach, agg_reach_posts: reach, engaged };
+        } else if (p === "tt") {
+          followers = await aggLast("tiktok", "followers_count", "account", blogId);
+          reach = await aggSum("tiktok", "reach", "video", blogId);
+          dbg = { followers, reach };
+        } else if (p === "yt") {
+          // у YouTube в API нет подписчиков; берём просмотры за период как «охват»
+          reach = await aggSum("youtube", "views", "videos", blogId);
+          dbg = { yt_views: reach };
+        }
+        rows.push({ client_id: c.id, client: c.name, platform: p, snapshot_date: snapDate, followers, reach_30d: reach, engagement_rate: er, _dbg: dbg });
       } catch (e: any) { rows.push({ client_id: c.id, platform: p, error: String(e) }); }
     }
   }
