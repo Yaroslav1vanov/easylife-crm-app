@@ -101,6 +101,19 @@ export type Publication = {
   updated_at: string;
 };
 
+export type AnalyticsDaily = {
+  id: number; client_id: number; blog_id: number | null; network: string; snap_date: string;
+  followers: number | null; reach: number | null; views: number | null; accounts_engaged: number | null;
+  raw: any; created_at: string;
+};
+export type AnalyticsPost = {
+  id: number; client_id: number; blog_id: number | null; network: string; post_id: string;
+  post_type: string | null; published_at: string | null; url: string | null; thumbnail_url: string | null;
+  content: string | null; views: number | null; likes: number | null; comments: number | null;
+  shares: number | null; saved: number | null; reach: number | null; engagement: number | null;
+  raw: any; fetched_at: string;
+};
+
 const db = {
   // Profile
   async getProfile(sb: SupabaseClient) {
@@ -445,6 +458,16 @@ const db = {
       .update({ pub_status: "queued", approved_by: teamMemberId, approved_at: new Date().toISOString() })
       .eq("id", id);
     return { error };
+  },
+
+  // ===== Аналитика (снапшоты из Metricool) =====
+  async getAnalyticsDaily(sb: SupabaseClient) {
+    const { data } = await sb.from("analytics_daily").select("*").order("snap_date", { ascending: true });
+    return (data || []) as AnalyticsDaily[];
+  },
+  async getAnalyticsPosts(sb: SupabaseClient) {
+    const { data } = await sb.from("analytics_posts").select("*").order("published_at", { ascending: false });
+    return (data || []) as AnalyticsPost[];
   },
 
   // ===== Референсы (залётные ролики) =====

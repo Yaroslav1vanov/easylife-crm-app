@@ -32,7 +32,7 @@ const navItems: NavItem[] = [
   { id: "publications", path: "/dashboard/publications", icon: Send, label: "Публикации" },
   { id: "calendar", path: "/dashboard/calendar", icon: Calendar, label: "Календарь" },
   { id: "team", path: "/dashboard/team", icon: HandshakeIcon, label: "Команда" },
-  { id: "analytics", path: "/dashboard/analytics", icon: BarChart3, label: "Аналитика", soon: true },
+  { id: "analytics", path: "/dashboard/analytics", icon: BarChart3, label: "Аналитика" },
   { id: "settings", path: "/dashboard/settings", icon: Settings, label: "Настройки" },
 ];
 
