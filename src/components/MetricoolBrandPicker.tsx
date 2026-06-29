@@ -66,7 +66,7 @@ export default function MetricoolBrandPicker({ blogId, onPick }: { blogId: numbe
         </button>
 
         {open && brands && (
-          <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 60, width: 280, maxHeight: 320, overflowY: "auto", background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 12, padding: 6, boxShadow: "0 16px 40px rgba(0,0,0,0.5)" }}>
+          <div style={{ position: "absolute", bottom: "calc(100% + 6px)", left: 0, zIndex: 200, width: 280, maxHeight: 320, overflowY: "auto", background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 12, padding: 6, boxShadow: "0 -16px 40px rgba(0,0,0,0.5)" }}>
             <div style={{ fontSize: 10, fontWeight: 800, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 0.5, padding: "6px 8px" }}>Бренды Metricool ({brands.length})</div>
             {brands.length === 0 ? (
               <div style={{ fontSize: 12, color: "var(--t3)", padding: "8px" }}>{err ? `Ошибка: ${err}` : "Пусто или нет доступа"}</div>
