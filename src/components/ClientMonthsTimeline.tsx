@@ -48,20 +48,12 @@ export default function ClientMonthsTimeline({ clientId, clientName, clientMonth
     setBusy(null);
   }
 
-  // Изменить пакет месяца и синхронизировать число сценариев под него:
-  // меньше пакета — добавляем пустые; больше — удаляем лишние ПУСТЫЕ (idea) карточки.
+  // Пакет — это цель месяца (квота). Меняем только число, карточки не сидируем:
+  // сценарии рождаются из референсов и считаются с момента «Взято в работу».
   async function setPackage(m: ClientMonth, n: number) {
     setBusy(m.id);
     const { error } = await db.updateClientMonth(supabase, m.id, { package: n });
-    if (error) { alert("Ошибка: " + (error.message || error)); setBusy(null); setEditingPkg(null); return; }
-    const list = scripts.filter(s => s.month_number === m.month_number).sort((a, b) => a.order_num - b.order_num);
-    if (n > list.length) {
-      await db.addScriptsForMonth(supabase, clientId, m.month_number, n - list.length);
-    } else if (n < list.length) {
-      const empty = list.filter(s => (s.script_status === "notStarted" || !s.script_status) && !s.hook_text && !s.body_text && !s.ref_url && !s.ref_text && (!s.video_status || s.video_status === "notStarted"));
-      const toRemove = Math.min(list.length - n, empty.length);
-      for (const v of empty.slice(empty.length - toRemove)) await db.deleteScript(supabase, v.id);
-    }
+    if (error) { alert("Ошибка: " + (error.message || error)); }
     setEditingPkg(null);
     await onChange();
     setBusy(null);
@@ -137,9 +129,7 @@ export default function ClientMonthsTimeline({ clientId, clientName, clientMonth
       status,
     });
     if (error) { alert("Ошибка: " + (error.message || error)); setBusy(null); return; }
-    // Сразу создаём пустые карточки сценариев под пакет — чтобы канбан этого месяца был готов.
-    const { error: scrErr } = await db.addScriptsForMonth(supabase, clientId, renewModal.nextN, pkg);
-    if (scrErr) { alert("Месяц создан, но сценарии не добавились: " + (scrErr.message || scrErr)); }
+    // Пустые сценарии больше НЕ создаём: пакет — это цель, а карточки рождаются из референсов.
     setRenewModal(null);
     onActivateMonth(renewModal.nextN);
     await onChange();

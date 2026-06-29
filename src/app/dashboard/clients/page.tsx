@@ -80,7 +80,7 @@ function ClientCard({
   }, [available, selected]);
 
   const { latest, growth } = socialMetric(snapshots, selected);
-  const plan = production.total || production.month?.package || client.package || 0;
+  const plan = production.month?.package || client.package || production.total || 0;
   const progress = plan > 0 ? Math.min(100, Math.round((production.ready / plan) * 100)) : 0;
   const fullName = `${client.name} ${client.surname || ""}`.trim();
 
@@ -264,10 +264,14 @@ export default function ClientsPage() {
       || months.sort((a, b) => b.month_number - a.month_number)[0]
       || null;
     const rows = scripts.filter((script) => script.client_id === clientId && (!month || script.month_number === month.month_number));
+    // Считаем РЕАЛЬНУЮ работу, а не висячие идеи:
+    // сценарии = взяты в работу и дальше; ролики = взяты в монтаж и дальше.
+    const inWork = ["inProgress", "review", "approved"];
+    const inMontage = ["inProgress", "review", "ready", "published"];
     return {
       pub: rows.filter((script) => script.video_status === "published").length,
-      ready: rows.filter((script) => script.video_status === "ready" || script.video_status === "published").length,
-      scr: rows.filter((script) => script.script_status === "approved").length,
+      ready: rows.filter((script) => inMontage.includes(script.video_status)).length,
+      scr: rows.filter((script) => inWork.includes(script.script_status)).length,
       total: rows.length,
       month,
     };

@@ -68,9 +68,10 @@ export default function ScriptsPage() {
     setLoading(false);
   }
   async function updateScript(id: number, patch: Partial<Script>) {
-    await db.updateScript(supabase, id, patch);
-    setAllScripts(arr => arr.map(s => s.id === id ? { ...s, ...patch } : s));
-    patchScriptInStore(id, patch);
+    const res = await db.updateScript(supabase, id, patch);
+    const final = res?.patch || patch; // включает присвоенный order_num при «взято в работу»
+    setAllScripts(arr => arr.map(s => s.id === id ? { ...s, ...final } : s));
+    patchScriptInStore(id, final);
   }
 
   const clientById = useMemo(() => Object.fromEntries(clients.map(c => [c.id, c])) as Record<number, Client>, [clients]);

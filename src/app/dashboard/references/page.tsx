@@ -85,10 +85,9 @@ export default function ReferencesPage() {
     const { data: months } = await supabase.from("client_months").select("month_number,status").eq("client_id", ref.client_id);
     const sorted = (months || []).sort((a: any, b: any) => b.month_number - a.month_number);
     const mn = (sorted.find((m: any) => m.status === "active") || sorted[0])?.month_number || 1;
-    const { data: ex } = await supabase.from("scripts").select("order_num").eq("client_id", ref.client_id).eq("month_number", mn).order("order_num", { ascending: false }).limit(1);
-    const order = ((ex?.[0]?.order_num as number) || 0) + 1;
+    // order_num = 0 → «Идея» без номера; номер присвоится при «Взято в работу»
     const { data: sc, error } = await supabase.from("scripts").insert({
-      client_id: ref.client_id, month_number: mn, order_num: order,
+      client_id: ref.client_id, month_number: mn, order_num: 0,
       hook: "", ref_url: ref.url, ref_text: ref.transcript || "", transcription: ref.transcript || "",
       hook_text: ref.caption ? ref.caption.slice(0, 80) : "", body_text: "", cta: "",
       description: ref.analysis || "", script_status: "notStarted", video_status: "notStarted", pub_date: null, ready_at: null,

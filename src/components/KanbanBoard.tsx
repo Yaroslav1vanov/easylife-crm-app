@@ -206,7 +206,8 @@ type PreviewProps = {
 };
 
 function KanbanCardPreview({ script: s, client: c, color, dragging, moving, showClient, deadline, onDragStart, onDragEnd, onClick }: PreviewProps) {
-  const title = s.hook_text || s.hook || `Сценарий #${s.order_num}`;
+  const numLabel = s.order_num && s.order_num > 0 ? `#${s.order_num}` : "идея";
+  const title = s.hook_text || s.hook || (s.order_num && s.order_num > 0 ? `Сценарий #${s.order_num}` : "Идея из референса");
   const titleShort = title.length > 70 ? title.slice(0, 67) + "..." : title;
   return (
     <div
@@ -229,11 +230,11 @@ function KanbanCardPreview({ script: s, client: c, color, dragging, moving, show
           <Avatar name={`${c.name} ${c.surname || ""}`} src={c.avatar_url} size={22} />
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: "var(--t1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name} {c.surname || ""}</div>
-            <div style={{ fontSize: 8, color: "var(--t3)", fontFamily: "monospace" }}>M{s.month_number} · #{s.order_num}</div>
+            <div style={{ fontSize: 8, color: "var(--t3)", fontFamily: "monospace" }}>M{s.month_number} · {numLabel}</div>
           </div>
         </div>
       ) : (
-        <div style={{ fontSize: 9, color: "var(--t3)", fontFamily: "monospace" }}>#{s.order_num} · M{s.month_number}</div>
+        <div style={{ fontSize: 9, color: "var(--t3)", fontFamily: "monospace" }}>{numLabel} · M{s.month_number}</div>
       )}
       <div style={{ fontSize: 11, color: "var(--t1)", lineHeight: 1.35, fontWeight: 500 }}>{titleShort}</div>
       {deadline && (

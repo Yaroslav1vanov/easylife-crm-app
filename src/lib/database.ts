@@ -174,6 +174,13 @@ const db = {
       videos_deadline: plus10,
     }).eq("id", data);
     await sb.from("client_months").update({ status: "onboarding" }).eq("client_id", data).eq("month_number", 1);
+    // RPC по старой логике сидирует пустые карточки под пакет — удаляем их:
+    // сценарии теперь рождаются из референсов, пакет = цель.
+    await sb.from("scripts").delete().eq("client_id", data)
+      .or("script_status.is.null,script_status.eq.notStarted")
+      .or("hook_text.is.null,hook_text.eq.")
+      .or("body_text.is.null,body_text.eq.")
+      .or("ref_url.is.null,ref_url.eq.");
     return { clientId: data, error };
   },
   async updateClient(sb: SupabaseClient, id: number, updates: Partial<Client>) {
@@ -220,13 +227,24 @@ const db = {
     if (updates.video_status === "ready" && updates.ready_at === undefined) {
       merged.ready_at = new Date().toISOString().slice(0, 10);
     }
+    // Нумерация: при ПЕРВОМ переходе в «Взято в работу» присваиваем следующий номер
+    // по этому клиенту+месяцу (#1, #2…), если у карточки номера ещё нет (order_num = 0).
+    if (updates.script_status === "inProgress") {
+      const { data: cur } = await sb.from("scripts").select("client_id, month_number, order_num").eq("id", id).maybeSingle();
+      if (cur && (!cur.order_num || cur.order_num <= 0)) {
+        const { data: mx } = await sb.from("scripts").select("order_num")
+          .eq("client_id", cur.client_id).eq("month_number", cur.month_number)
+          .order("order_num", { ascending: false }).limit(1);
+        merged.order_num = ((mx?.[0]?.order_num as number) || 0) + 1;
+      }
+    }
     // When moving into 'published' — keep ready_at as-is (the day it became ready remains historical).
     // If pub_date is being set and there's no ready_at yet on the row, set ready_at = pub_date as a fallback.
     if (updates.video_status === "published" && updates.ready_at === undefined && updates.pub_date) {
       // Only fills if NULL — Supabase update can't conditionally coalesce, so we'd need a separate read; skip for now.
     }
     const { error } = await sb.from("scripts").update(merged).eq("id", id);
-    return { error };
+    return { error, patch: merged as Partial<Script> };
   },
   async addMonthScripts(sb: SupabaseClient, clientId: number) {
     const { error } = await sb.rpc("add_month_scripts", { p_client_id: clientId });
@@ -239,18 +257,11 @@ const db = {
   // Insert ONE empty script (idea card) into a (client, month_number). order_num = max+1.
   // Used by the "+ Добавить" button in the kanban "Идея" column.
   async createScript(sb: SupabaseClient, clientId: number, monthNumber: number) {
-    const { data: existing } = await sb
-      .from("scripts")
-      .select("order_num")
-      .eq("client_id", clientId)
-      .eq("month_number", monthNumber)
-      .order("order_num", { ascending: false })
-      .limit(1);
-    const nextOrder = (existing && existing[0]?.order_num ? existing[0].order_num : 0) + 1;
+    // order_num = 0 → «Идея» без номера; номер присвоится при «Взято в работу»
     const { data, error } = await sb.from("scripts").insert({
       client_id: clientId,
       month_number: monthNumber,
-      order_num: nextOrder,
+      order_num: 0,
       hook: "", ref_url: "", transcription: "", hook_text: "", body_text: "", cta: "",
       description: "", script_status: "notStarted", video_status: "notStarted",
       pub_date: null as string | null, ready_at: null as string | null,

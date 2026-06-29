@@ -69,9 +69,10 @@ export default function MontagePage() {
     setLoading(false);
   }
   async function updateScript(id: number, patch: Partial<Script>) {
-    await db.updateScript(supabase, id, patch);
-    setAllScripts(arr => arr.map(s => s.id === id ? { ...s, ...patch } : s));
-    patchScriptInStore(id, patch);
+    const res = await db.updateScript(supabase, id, patch);
+    const final = res?.patch || patch;
+    setAllScripts(arr => arr.map(s => s.id === id ? { ...s, ...final } : s));
+    patchScriptInStore(id, final);
     // видео «Готово к публикации» → автоматически заводим карточку в «Публикациях»
     if (patch.video_status === "ready") {
       const s = allScripts.find(x => x.id === id);
