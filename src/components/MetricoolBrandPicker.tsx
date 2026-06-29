@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { Rocket, Check, X, ChevronDown, Link2 } from "lucide-react";
+import { Rocket, Check, X, ChevronDown, Link2, ExternalLink } from "lucide-react";
 
 type Brand = { blogId: number; label: string };
 
@@ -48,6 +48,14 @@ export default function MetricoolBrandPicker({ blogId, onPick }: { blogId: numbe
         </span>
       ) : (
         <span style={{ fontSize: 12, color: "var(--t3)" }}>не привязан</span>
+      )}
+
+      {/* открыть аналитику бренда в Metricool */}
+      {blogId != null && (
+        <a href={`/api/metricool/open?blogId=${blogId}`} target="_blank" rel="noreferrer"
+          style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 8, background: "linear-gradient(135deg, var(--cy), var(--pu))", color: "#fff", fontSize: 12, fontWeight: 700, textDecoration: "none" }}>
+          Аналитика в Metricool <ExternalLink size={12} />
+        </a>
       )}
 
       {/* кнопка выбора */}

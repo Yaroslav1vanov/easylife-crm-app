@@ -1,8 +1,0 @@
-{
-  "crons": [
-    {
-      "path": "/api/cron/metricool-snapshot",
-      "schedule": "0 6 * * *"
-    }
-  ]
-}
