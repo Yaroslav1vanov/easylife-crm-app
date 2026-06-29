@@ -6,7 +6,7 @@ import { getStore, setStore } from "@/lib/store";
 import Avatar from "@/components/Avatar";
 import {
   Camera, Play, Music2, AtSign, Wand2, CheckCircle2, X, ExternalLink,
-  RefreshCw, AlertTriangle, Database, CalendarDays, Rocket, type LucideIcon,
+  RefreshCw, AlertTriangle, Database, CalendarDays, Rocket, Plus, Images, Film, Trash2, type LucideIcon,
 } from "lucide-react";
 
 type Channel = { id: string; label: string; Icon: LucideIcon };
@@ -53,6 +53,7 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
   const [brands, setBrands] = useState<{ blogId: number; label: string }[] | null>(null);
   const [brandsBusy, setBrandsBusy] = useState(false);
+  const [carouselPicker, setCarouselPicker] = useState(false);
 
   useEffect(() => { load(); }, []);
 
@@ -109,6 +110,14 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
     const { data } = await supabase.from("publications").select("*").order("created_at", { ascending: false });
     setPubs((data || []) as Publication[]);
     setPulling(false);
+  }
+
+  async function createCarousel(clientId: number) {
+    setCarouselPicker(false);
+    const { data, error } = await db.createCarouselPublication(supabase, clientId, clientById[clientId]);
+    if (error || !data) { alert("Не удалось создать карусель: " + (error?.message || "")); return; }
+    setPubs(arr => [data, ...arr]);
+    setOpenId(data.id);
   }
 
   async function loadBrands() {
@@ -176,6 +185,25 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
             style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: 10, background: "rgba(66,212,244,0.1)", border: "1px solid var(--brd)", color: "var(--cy)", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
             <Rocket size={13} /> {brandsBusy ? "Гружу…" : "Мои бренды"}
           </button>
+          <div style={{ position: "relative" }}>
+            <button onClick={() => setCarouselPicker(v => !v)} disabled={tableMissing}
+              style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: 10, background: "rgba(255,174,66,0.12)", border: "1px solid var(--brd)", color: "var(--or)", fontSize: 12, fontWeight: 700, cursor: tableMissing ? "not-allowed" : "pointer" }}>
+              <Images size={13} /> + Карусель
+            </button>
+            {carouselPicker && (
+              <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 50, width: 240, maxHeight: 320, overflowY: "auto", background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 12, padding: 6, boxShadow: "0 16px 40px rgba(0,0,0,0.5)" }}>
+                <div style={{ fontSize: 10, fontWeight: 800, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 0.5, padding: "6px 8px" }}>Карусель для клиента</div>
+                {clients.filter(c => c.stage === "active").map(c => (
+                  <button key={c.id} onClick={() => createCarousel(c.id)}
+                    style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "7px 8px", borderRadius: 8, background: "transparent", border: "none", color: "var(--t1)", fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "left" }}
+                    onMouseEnter={e => (e.currentTarget.style.background = "var(--inset2)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                    <Avatar name={`${c.name} ${c.surname || ""}`} src={c.avatar_url} size={22} />
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name} {c.surname || ""}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <button onClick={pullReady} disabled={pulling || tableMissing}
             style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: 10, background: "rgba(157,107,255,0.12)", border: "1px solid var(--brd)", color: "var(--pu)", fontSize: 12, fontWeight: 700, cursor: tableMissing ? "not-allowed" : "pointer" }}>
             <RefreshCw size={13} className={pulling ? "spin" : ""} /> {pulling ? "Подтягиваю…" : "Подтянуть готовые видео"}
@@ -234,9 +262,11 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
                 <div style={{ display: "flex", flexDirection: "column", gap: 7, flex: 1 }}>
                   {items.length === 0 && <div style={{ padding: "26px 8px", textAlign: "center", color: "var(--t3)", fontSize: 10, fontStyle: "italic" }}>Пусто</div>}
                   {items.map(p => {
-                    const c = clientById[p.client_id]; const sc = scriptById[p.script_id];
-                    const title = sc?.hook_text || sc?.hook || "Без темы";
-                    const chans = p.target_channels?.length ? p.target_channels : c?.platforms?.length ? c.platforms : ["ig", "tt", "yt", "threads"];
+                    const c = clientById[p.client_id]; const sc = p.script_id != null ? scriptById[p.script_id] : undefined;
+                    const isCar = p.content_type === "carousel";
+                    const title = (isCar ? (p.base_text || p.caption_ig) : (sc?.hook_text || sc?.hook)) || (isCar ? "Карусель без текста" : "Без темы");
+                    const allowCh = isCar ? ["ig", "threads"] : ["ig", "tt", "yt", "threads"];
+                    const chans = (p.target_channels?.length ? p.target_channels : c?.platforms?.length ? c.platforms : allowCh).filter(x => allowCh.includes(x));
                     return (
                       <div key={p.id} role="button" tabIndex={0} draggable
                         onClick={() => setOpenId(p.id)}
@@ -247,8 +277,11 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
                           {c && <Avatar name={`${c.name} ${c.surname || ""}`} src={c.avatar_url} size={22} />}
                           <div style={{ minWidth: 0, flex: 1 }}>
                             <div style={{ fontSize: 10, fontWeight: 700, color: "var(--t1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c?.name} {c?.surname || ""}</div>
-                            <div style={{ fontSize: 8, color: "var(--t3)", fontFamily: "monospace" }}>#{sc?.order_num ?? "?"} · {fmtDateTime(p.publish_at)}</div>
+                            <div style={{ fontSize: 8, color: "var(--t3)", fontFamily: "monospace" }}>{isCar ? "карусель" : `#${sc?.order_num ?? "?"}`} · {fmtDateTime(p.publish_at)}</div>
                           </div>
+                          {isCar
+                            ? <span title="Карусель" style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 8, fontWeight: 800, color: "var(--or)", background: "rgba(255,174,66,0.14)", padding: "2px 5px", borderRadius: 5 }}><Images size={9} />{(p.media_urls?.length || 0)}</span>
+                            : <Film size={11} style={{ color: "var(--t3)", flexShrink: 0 }} />}
                         </div>
                         <div style={{ fontSize: 11, color: "var(--t1)", lineHeight: 1.35 }}>{title.length > 64 ? title.slice(0, 61) + "…" : title}</div>
                         <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
@@ -270,7 +303,7 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
         <PublicationModal
           pub={openPub}
           client={clientById[openPub.client_id]}
-          script={scriptById[openPub.script_id]}
+          script={openPub.script_id != null ? scriptById[openPub.script_id] : undefined}
           onClose={() => setOpenId(null)}
           onUpdate={updatePub}
           onApprove={approve}
@@ -295,6 +328,39 @@ function PublicationModal({ pub, client, script, onClose, onUpdate, onApprove, o
   const [f, setF] = useState(pub);
   useEffect(() => { setF(pub); }, [pub.id, pub.ai_generated_at, pub.pub_status]);
 
+  const isCarousel = pub.content_type === "carousel";
+  const allowedChannels = isCarousel ? ["ig", "threads"] : ["ig", "tt", "yt", "threads"];
+
+  async function uploadSlides(files: File[]) {
+    setUpBusy(true);
+    const uploaded: string[] = [];
+    try {
+      for (const file of files) {
+        const r = await fetch("/api/r2/sign", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ kind: "image", filename: file.name, clientId: pub.client_id, scriptId: pub.id }) });
+        const j = await r.json();
+        if (!r.ok) { alert("R2: " + (j?.error || "ошибка подписи")); break; }
+        const put = await fetch(j.uploadUrl, { method: "PUT", body: file, headers: file.type ? { "content-type": file.type } : {} });
+        if (!put.ok) { alert(`Загрузка слайда не удалась (${put.status}). Проверь CORS бакета.`); break; }
+        uploaded.push(j.publicUrl);
+      }
+      if (uploaded.length) {
+        const next = [...(f.media_urls || []), ...uploaded];
+        setF(p => ({ ...p, media_urls: next })); onUpdate(pub.id, { media_urls: next });
+      }
+    } catch (e: any) { alert("Ошибка загрузки: " + String(e)); }
+    setUpBusy(false);
+  }
+  function removeSlide(idx: number) {
+    const next = (f.media_urls || []).filter((_, i) => i !== idx);
+    setF(p => ({ ...p, media_urls: next })); onUpdate(pub.id, { media_urls: next });
+  }
+  function moveSlide(idx: number, dir: -1 | 1) {
+    const arr = [...(f.media_urls || [])]; const j = idx + dir;
+    if (j < 0 || j >= arr.length) return;
+    [arr[idx], arr[j]] = [arr[j], arr[idx]];
+    setF(p => ({ ...p, media_urls: arr })); onUpdate(pub.id, { media_urls: arr });
+  }
+
   async function uploadVideo(file: File) {
     setUpBusy(true);
     try {
@@ -308,7 +374,7 @@ function PublicationModal({ pub, client, script, onClose, onUpdate, onApprove, o
     setUpBusy(false);
   }
 
-  const channels = f.target_channels?.length ? f.target_channels : client?.platforms?.length ? client.platforms : ["ig", "tt", "yt", "threads"];
+  const channels = (f.target_channels?.length ? f.target_channels : client?.platforms?.length ? client.platforms : allowedChannels).filter(x => allowedChannels.includes(x));
   const save = (patch: Partial<Publication>) => onUpdate(pub.id, patch);
   const toggleChan = (id: string) => {
     const set = new Set(channels); set.has(id) ? set.delete(id) : set.add(id);
@@ -327,33 +393,70 @@ function PublicationModal({ pub, client, script, onClose, onUpdate, onApprove, o
             {client && <Avatar name={`${client.name} ${client.surname || ""}`} src={client.avatar_url} size={40} />}
             <div style={{ minWidth: 0 }}>
               <div style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 16, fontWeight: 800 }}>{client?.name} {client?.surname || ""}</div>
-              <div style={{ fontSize: 11, color: "var(--t3)" }}>#{script?.order_num ?? "?"} · {script?.hook_text || script?.hook || "Без темы"}</div>
+              <div style={{ fontSize: 11, color: "var(--t3)" }}>{isCarousel ? "🖼 Карусель" : `#${script?.order_num ?? "?"} · ${script?.hook_text || script?.hook || "Без темы"}`}</div>
             </div>
           </div>
           <button onClick={onClose} style={{ flexShrink: 0, width: 34, height: 34, borderRadius: 9, background: "var(--track)", border: "1px solid var(--brd)", color: "var(--t2)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><X size={16} /></button>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, padding: 12, borderRadius: 12, background: "var(--inset)", border: "1px solid var(--brd)" }}>
-          <div>
-            {lbl("🎬 Видео")}
-            <div style={{ display: "flex", gap: 6 }}>
-              <input value={f.video_url || ""} onChange={e => setF(p => ({ ...p, video_url: e.target.value }))} onBlur={e => save({ video_url: e.target.value })} placeholder="ссылка или загрузи файл →" style={{ ...ta, fontSize: 12 }} />
-              {f.video_url && <a href={f.video_url} target="_blank" rel="noreferrer" style={{ flexShrink: 0, padding: "0 12px", borderRadius: 9, background: "rgba(157,107,255,0.12)", border: "1px solid var(--brd)", color: "var(--pu)", display: "inline-flex", alignItems: "center" }}><ExternalLink size={15} /></a>}
-              <label style={{ flexShrink: 0, padding: "0 12px", borderRadius: 9, background: "rgba(66,212,244,0.12)", border: "1px solid var(--brd)", color: "var(--cy)", display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, cursor: upBusy ? "default" : "pointer", whiteSpace: "nowrap" }}>
-                {upBusy ? "Загружаю…" : "⬆ Файл"}
-                <input type="file" accept="video/*" disabled={upBusy} onChange={e => { const file = e.target.files?.[0]; if (file) uploadVideo(file); e.target.value = ""; }} style={{ display: "none" }} />
-              </label>
+        {isCarousel ? (
+          <div style={{ padding: 12, borderRadius: 12, background: "var(--inset)", border: "1px solid var(--brd)", display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                {lbl(`🖼 Слайды карусели (${(f.media_urls || []).length})`)}
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <div>
+                  <span style={{ fontSize: 9, fontWeight: 700, color: "var(--t3)", marginRight: 6 }}>📅 Публиковать</span>
+                  <input type="datetime-local" defaultValue={toLocalInput(f.publish_at)} onBlur={e => save({ publish_at: e.target.value ? new Date(e.target.value).toISOString() : null })} style={{ ...ta, fontSize: 12, width: "auto", display: "inline-block" }} />
+                </div>
+                <label style={{ flexShrink: 0, padding: "8px 12px", borderRadius: 9, background: "rgba(66,212,244,0.12)", border: "1px solid var(--brd)", color: "var(--cy)", display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, cursor: upBusy ? "default" : "pointer", whiteSpace: "nowrap" }}>
+                  {upBusy ? "Загружаю…" : "⬆ Добавить слайды"}
+                  <input type="file" accept="image/*" multiple disabled={upBusy} onChange={e => { const files = Array.from(e.target.files || []); if (files.length) uploadSlides(files); e.target.value = ""; }} style={{ display: "none" }} />
+                </label>
+              </div>
+            </div>
+            {(f.media_urls || []).length === 0 ? (
+              <div style={{ padding: "20px 8px", textAlign: "center", color: "var(--t3)", fontSize: 12, fontStyle: "italic" }}>Слайдов пока нет — загрузи PNG/JPG (порядок = порядок в карусели)</div>
+            ) : (
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {(f.media_urls || []).map((url, i) => (
+                  <div key={url} style={{ position: "relative", width: 92, borderRadius: 10, overflow: "hidden", border: "1px solid var(--track)", background: "var(--inset2)" }}>
+                    <a href={url} target="_blank" rel="noreferrer"><img src={url} alt={`слайд ${i + 1}`} style={{ width: "100%", height: 115, objectFit: "cover", display: "block" }} /></a>
+                    <span style={{ position: "absolute", top: 4, left: 4, fontSize: 9, fontWeight: 800, color: "#fff", background: "rgba(0,0,0,0.6)", borderRadius: 5, padding: "1px 5px" }}>{i + 1}</span>
+                    <button onClick={() => removeSlide(i)} title="Удалить" style={{ position: "absolute", top: 4, right: 4, width: 18, height: 18, borderRadius: 5, background: "rgba(255,92,122,0.85)", border: "none", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Trash2 size={10} /></button>
+                    <div style={{ display: "flex", borderTop: "1px solid var(--track)" }}>
+                      <button onClick={() => moveSlide(i, -1)} disabled={i === 0} style={{ flex: 1, padding: "3px 0", background: "transparent", border: "none", color: i === 0 ? "var(--t3)" : "var(--t2)", cursor: i === 0 ? "default" : "pointer", fontSize: 11 }}>←</button>
+                      <button onClick={() => moveSlide(i, 1)} disabled={i === (f.media_urls || []).length - 1} style={{ flex: 1, padding: "3px 0", background: "transparent", border: "none", color: i === (f.media_urls || []).length - 1 ? "var(--t3)" : "var(--t2)", cursor: "pointer", fontSize: 11 }}>→</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, padding: 12, borderRadius: 12, background: "var(--inset)", border: "1px solid var(--brd)" }}>
+            <div>
+              {lbl("🎬 Видео")}
+              <div style={{ display: "flex", gap: 6 }}>
+                <input value={f.video_url || ""} onChange={e => setF(p => ({ ...p, video_url: e.target.value }))} onBlur={e => save({ video_url: e.target.value })} placeholder="ссылка или загрузи файл →" style={{ ...ta, fontSize: 12 }} />
+                {f.video_url && <a href={f.video_url} target="_blank" rel="noreferrer" style={{ flexShrink: 0, padding: "0 12px", borderRadius: 9, background: "rgba(157,107,255,0.12)", border: "1px solid var(--brd)", color: "var(--pu)", display: "inline-flex", alignItems: "center" }}><ExternalLink size={15} /></a>}
+                <label style={{ flexShrink: 0, padding: "0 12px", borderRadius: 9, background: "rgba(66,212,244,0.12)", border: "1px solid var(--brd)", color: "var(--cy)", display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, cursor: upBusy ? "default" : "pointer", whiteSpace: "nowrap" }}>
+                  {upBusy ? "Загружаю…" : "⬆ Файл"}
+                  <input type="file" accept="video/*" disabled={upBusy} onChange={e => { const file = e.target.files?.[0]; if (file) uploadVideo(file); e.target.value = ""; }} style={{ display: "none" }} />
+                </label>
+              </div>
+            </div>
+            <div>
+              {lbl("📅 Публиковать")}
+              <input type="datetime-local" defaultValue={toLocalInput(f.publish_at)} onBlur={e => save({ publish_at: e.target.value ? new Date(e.target.value).toISOString() : null })} style={{ ...ta, fontSize: 12 }} />
             </div>
           </div>
-          <div>
-            {lbl("📅 Публиковать")}
-            <input type="datetime-local" defaultValue={toLocalInput(f.publish_at)} onBlur={e => save({ publish_at: e.target.value ? new Date(e.target.value).toISOString() : null })} style={{ ...ta, fontSize: 12 }} />
-          </div>
-        </div>
+        )}
 
         <div>
-          {lbl("📄 Исходный текст (из сценария)")}
-          <textarea defaultValue={f.base_text || ""} onBlur={e => save({ base_text: e.target.value })} rows={9} placeholder="Текст ролика — основа для адаптаций" style={{ ...ta, fontSize: 13, minHeight: 180 }} />
+          {lbl(isCarousel ? "📄 Текст карусели (основа подписи)" : "📄 Исходный текст (из сценария)")}
+          <textarea defaultValue={f.base_text || ""} onBlur={e => save({ base_text: e.target.value })} rows={9} placeholder={isCarousel ? "Подпись/идея карусели — основа для адаптаций под IG/Threads" : "Текст ролика — основа для адаптаций"} style={{ ...ta, fontSize: 13, minHeight: 180 }} />
         </div>
 
         <button onClick={async () => { setBusy(true); await onRegenerate(pub.id); setBusy(false); }} disabled={busy}
@@ -362,7 +465,7 @@ function PublicationModal({ pub, client, script, onClose, onUpdate, onApprove, o
         </button>
 
         <div style={{ display: "flex", gap: 6, borderBottom: "1px solid var(--brd)", paddingBottom: 2, flexWrap: "wrap" }}>
-          {CHANNELS.map(ch => {
+          {CHANNELS.filter(ch => allowedChannels.includes(ch.id)).map(ch => {
             const on = channels.includes(ch.id);
             return (
               <button key={ch.id} onClick={() => setTab(ch.id)}

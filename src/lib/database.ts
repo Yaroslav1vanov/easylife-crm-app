@@ -71,10 +71,13 @@ export type Reference = {
   status: RefStatus; analysis: string | null; analyzed_at: string | null; script_id: number | null;
 };
 export type PubStatus = "adapting" | "review" | "queued" | "scheduled" | "published" | "error";
+export type ContentType = "reel" | "carousel";
 export type Publication = {
   id: number;
-  script_id: number;
+  script_id: number | null;
   client_id: number;
+  content_type: ContentType;
+  media_urls: string[] | null;
   video_url: string | null;
   video_thumbnail_url: string | null;
   publish_at: string | null;
@@ -419,6 +422,19 @@ const db = {
     };
     const { error } = await sb.from("publications").upsert(row, { onConflict: "script_id", ignoreDuplicates: true });
     return { error };
+  },
+  // Создаёт пустую карусель (без сценария) — слайды и текст заполняются вручную в карточке.
+  async createCarouselPublication(sb: SupabaseClient, clientId: number, client?: Client) {
+    const row = {
+      script_id: null,
+      client_id: clientId,
+      content_type: "carousel" as ContentType,
+      media_urls: [] as string[],
+      target_channels: (client?.platforms || []).filter(p => p === "ig" || p === "threads"),
+      pub_status: "adapting" as PubStatus,
+    };
+    const { data, error } = await sb.from("publications").insert(row).select("*").single();
+    return { data: (data || null) as Publication | null, error };
   },
   async updatePublication(sb: SupabaseClient, id: number, patch: Partial<Publication>) {
     const { error } = await sb.from("publications").update(patch).eq("id", id);

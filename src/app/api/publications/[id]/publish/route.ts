@@ -42,12 +42,18 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
 
   const blogId = client?.metricool_blog_id;
   if (!blogId) return NextResponse.json({ error: "У клиента не задан metricool_blog_id (укажи в карточке клиента)" }, { status: 400 });
-  if (!pub.video_url) return NextResponse.json({ error: "Нет ссылки на видео (нужен прямой URL, который Metricool сможет скачать)" }, { status: 400 });
+
+  const isCarousel = pub.content_type === "carousel";
+  const media: string[] = isCarousel ? (pub.media_urls || []).filter(Boolean) : (pub.video_url ? [pub.video_url] : []);
+  if (isCarousel && media.length < 1) return NextResponse.json({ error: "Нет картинок-слайдов карусели (загрузи хотя бы одну)" }, { status: 400 });
+  if (!isCarousel && media.length < 1) return NextResponse.json({ error: "Нет ссылки на видео (нужен прямой URL, который Metricool сможет скачать)" }, { status: 400 });
   if (!pub.publish_at) return NextResponse.json({ error: "Не задана дата/время публикации" }, { status: 400 });
 
   const tz = client?.timezone || "Europe/Kyiv";
   const dateTime = tzIso(pub.publish_at, tz);
-  const channels: string[] = pub.target_channels?.length ? pub.target_channels : client?.platforms?.length ? client.platforms : ["ig", "tt", "yt", "threads"];
+  // карусель уходит только в сети, поддерживающие набор картинок (IG / Threads)
+  const allow = isCarousel ? ["ig", "threads"] : ["ig", "tt", "yt", "threads"];
+  const channels: string[] = (pub.target_channels?.length ? pub.target_channels : client?.platforms?.length ? client.platforms : allow).filter((ch: string) => allow.includes(ch));
   const textFor = (ch: string) =>
     ch === "ig" ? pub.caption_ig : ch === "tt" ? pub.caption_tt :
     ch === "yt" ? (pub.yt_description || pub.yt_title) : ch === "threads" ? pub.threads_post : "";
@@ -64,9 +70,9 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
       publicationDate: { dateTime, timezone: tz },
       draft: false,
       autoPublish: true,
-      media: [pub.video_url],
+      media,
     };
-    if (network === "instagram") body.instagramData = { type: "REEL" };
+    if (network === "instagram") body.instagramData = { type: isCarousel ? "POST" : "REEL" };
     if (network === "youtube") body.youtubeData = { title: pub.yt_title || "", type: "SHORT", tags: pub.yt_tags || [], madeForKids: false, privacy: "public" };
     if (network === "tiktok") body.tiktokData = {
       privacyOption: "PUBLIC_TO_EVERYONE",

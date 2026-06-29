@@ -12,12 +12,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "R2_* переменные не заданы в окружении" }, { status: 400 });
 
   const body = await req.json().catch(() => ({}));
-  const filename: string = body.filename || "video.mp4";
+  const kind: string = body.kind === "image" ? "image" : "video";   // карусель грузит картинки
+  const filename: string = body.filename || (kind === "image" ? "slide.jpg" : "video.mp4");
   const clientId = body.clientId ?? "x";
   const scriptId = body.scriptId ?? Date.now();
-  const ext = (filename.split(".").pop() || "mp4").toLowerCase().replace(/[^a-z0-9]/g, "") || "mp4";
+  const defExt = kind === "image" ? "jpg" : "mp4";
+  const ext = (filename.split(".").pop() || defExt).toLowerCase().replace(/[^a-z0-9]/g, "") || defExt;
   const rand = Math.random().toString(36).slice(2, 8);
-  const key = `videos/${clientId}/${scriptId}-${rand}.${ext}`;
+  const folder = kind === "image" ? "images" : "videos";
+  const key = `${folder}/${clientId}/${scriptId}-${rand}.${ext}`;
 
   const r2 = new AwsClient({ accessKeyId, secretAccessKey, region: "auto", service: "s3" });
   const endpoint = `https://${accountId}.r2.cloudflarestorage.com/${bucket}/${key}`;
