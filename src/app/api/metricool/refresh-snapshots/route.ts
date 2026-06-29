@@ -41,22 +41,11 @@ export async function GET(req: Request) {
     catch { return null; }
   };
   const range = `from=${ymd(from30)}T00:00:00&to=${ymd(today)}T23:59:59&timezone=Europe/Kyiv`;
-  const netName: Record<string, string> = { ig: "instagram", tt: "tiktok", yt: "youtube" };
-  // сумма по таймлайну метрики за период (account-level)
-  const aggSum = async (net: string, metric: string, subject: string, blogId: number) => {
-    const j = await mcGet(`/v2/analytics/timelines?network=${net}&metric=${metric}&subject=${subject}&${range}&blogId=${blogId}`);
-    const arr: any[] = Array.isArray(j?.data) ? j.data : Array.isArray(j) ? j : [];
-    if (!arr.length) return null;
+  const listOf = (j: any): any[] => (Array.isArray(j?.data) ? j.data : Array.isArray(j) ? j : []);
+  const sumField = (arr: any[], ...keys: string[]) => {
     let s = 0, has = false;
-    for (const pt of arr) { const val = ci(pt, "value", "values", "y", "count"); if (val != null) { s += Number(val) || 0; has = true; } }
+    for (const it of arr) { const v = ci(it, ...keys); if (v != null) { s += Number(v) || 0; has = true; } }
     return has ? Math.round(s) : null;
-  };
-  const aggLast = async (net: string, metric: string, subject: string, blogId: number) => {
-    const j = await mcGet(`/v2/analytics/timelines?network=${net}&metric=${metric}&subject=${subject}&${range}&blogId=${blogId}`);
-    const arr: any[] = Array.isArray(j?.data) ? j.data : Array.isArray(j) ? j : [];
-    if (!arr.length) return null;
-    const last = arr[arr.length - 1]; const val = ci(last, "value", "values", "y", "count");
-    return val != null ? Math.round(Number(val)) : null;
   };
 
   const rows: any[] = [];
@@ -65,26 +54,28 @@ export async function GET(req: Request) {
     const blogId = c.metricool_blog_id;
     for (const p of plats) {
       try {
-        // followers: IG — через values; TT — followers_count из account-таймлайна
         let followers: number | null = null, reach: number | null = null, er: number | null = null;
         let dbg: any = {};
         if (p === "ig") {
+          // подписчики — текущее число; охват/ER — суммарно по постам и рилсам за 30 дней
           const v = await mcGet(`/stats/values/INSTAGRAM?start=${compact(from30)}&end=${compact(today)}&blogId=${blogId}`);
           followers = int(ci(v, "Followers", "followers"));
-          const engaged = int(ci(v, "accounts_engaged"));
-          const valReach = int(ci(v, "reach"));
-          // 30-дневный охват: сумма reach по постам/аккаунту из таймлайна (values.reach = за день)
-          reach = await aggSum("instagram", "reach", "posts", blogId) ?? valReach;
-          er = reach && engaged != null ? Math.round((engaged / reach) * 10000) / 100 : null;
-          dbg = { values_reach_day: valReach, agg_reach_posts: reach, engaged };
+          const posts = listOf(await mcGet(`/v2/analytics/posts/instagram?${range}&blogId=${blogId}`));
+          const reels = listOf(await mcGet(`/v2/analytics/reels/instagram?${range}&blogId=${blogId}`));
+          const all = [...posts, ...reels];
+          reach = sumField(all, "reach");
+          const inter = sumField(all, "interactions");
+          er = reach && inter != null ? Math.round((inter / reach) * 10000) / 100 : null;
+          dbg = { posts: posts.length, reels: reels.length, reach, inter };
         } else if (p === "tt") {
-          followers = await aggLast("tiktok", "followers_count", "account", blogId);
-          reach = await aggSum("tiktok", "reach", "video", blogId);
-          dbg = { followers, reach };
+          // у TikTok в публичном API нет подписчиков/reach; берём просмотры за период как «охват»
+          const vids = listOf(await mcGet(`/v2/analytics/posts/tiktok?${range}&blogId=${blogId}`));
+          reach = sumField(vids, "viewCount", "views");
+          dbg = { videos: vids.length, views: reach };
         } else if (p === "yt") {
-          // у YouTube в API нет подписчиков; берём просмотры за период как «охват»
-          reach = await aggSum("youtube", "views", "videos", blogId);
-          dbg = { yt_views: reach };
+          const vids = listOf(await mcGet(`/stats/youtube/videos?start=${compact(from30)}&end=${compact(today)}&blogId=${blogId}`));
+          reach = sumField(vids, "views", "viewCount");
+          dbg = { videos: vids.length, views: reach };
         }
         rows.push({ client_id: c.id, client: c.name, platform: p, snapshot_date: snapDate, followers, reach_30d: reach, engagement_rate: er, _dbg: dbg });
       } catch (e: any) { rows.push({ client_id: c.id, platform: p, error: String(e) }); }
