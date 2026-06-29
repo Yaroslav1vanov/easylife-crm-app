@@ -63,6 +63,7 @@ function ClientCard({
   accent,
   isOnboarding,
   onOpen,
+  onSetStage,
 }: {
   client: Client;
   production: ClientProduction;
@@ -70,6 +71,7 @@ function ClientCard({
   accent: string;
   isOnboarding: boolean;
   onOpen: () => void;
+  onSetStage: (stage: "active" | "paused" | "churned") => void;
 }) {
   const available = useMemo(() => activePlatforms(client, snapshots), [client, snapshots]);
   const [selected, setSelected] = useState<Platform>(available[0] || "ig");
@@ -139,6 +141,25 @@ function ClientCard({
         <i><span style={{ width: `${progress}%` }} /></i>
       </div>
 
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+        <select
+          value={client.stage || "active"}
+          onChange={(e) => onSetStage(e.target.value as "active" | "paused" | "churned")}
+          title="Статус клиента"
+          style={{ padding: "6px 8px", borderRadius: 8, background: "var(--inset2, rgba(255,255,255,0.04))", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}
+        >
+          <option value="active">🟢 В работе</option>
+          <option value="paused">⏸ На паузе</option>
+          <option value="churned">📦 Архив</option>
+        </select>
+        {(client as any).metricool_blog_id != null && (
+          <a href={`/api/metricool/open?blogId=${(client as any).metricool_blog_id}`} target="_blank" rel="noreferrer"
+            style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 10px", borderRadius: 8, background: "rgba(66,212,244,0.12)", border: "1px solid var(--brd)", color: "var(--cy)", fontSize: 11, fontWeight: 700, textDecoration: "none" }}>
+            📊 Metricool ↗
+          </a>
+        )}
+      </div>
+
       <footer className="client-v2-footer">
         <span><i>{initials(client.montager?.name || "—")}</i>{client.montager?.name || "Монтажёр —"}</span>
         <span><i>{initials(client.teamlead?.name || "—")}</i>{client.teamlead?.name || "Тимлид —"}</span>
@@ -181,6 +202,12 @@ export default function ClientsPage() {
     setSnapshots(social);
     setOnbProgress(onb);
     setLoading(false);
+  }
+
+  async function setStage(clientId: number, stage: "active" | "paused" | "churned") {
+    setClients((arr) => arr.map((c) => c.id === clientId ? { ...c, stage } : c)); // мгновенно в UI
+    await db.updateClient(supabase, clientId, { stage } as any);
+    load();
   }
 
   async function refreshStats() {
@@ -358,6 +385,7 @@ export default function ClientsPage() {
                 accent={clientAccents[index % clientAccents.length]}
                 isOnboarding={(onbMap[client.id]?.pending_tasks ?? 0) > 0}
                 onOpen={() => router.push(`/dashboard/clients/${client.id}`)}
+                onSetStage={(stage) => setStage(client.id, stage)}
               />
             </div>
           ))}
