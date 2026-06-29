@@ -48,6 +48,31 @@ export async function GET(req: Request) {
     }
   }
 
+  // ── поиск источника числа подписчиков (для кривой роста) ──
+  const day = isoLocal(to).slice(0, 10).replace(/-/g, "");      // yyyyMMdd для legacy /stats
+  const dayFrom = isoLocal(from).slice(0, 10).replace(/-/g, "");
+  const legacy = `start=${dayFrom}&end=${day}&blogId=${blogId}`;
+  async function tryRaw(label: string, path: string) {
+    const u = `${BASE}${path}${path.includes("?") ? "&" : "?"}${auth}`;
+    try {
+      const r = await fetch(u, { headers });
+      const t = await r.text();
+      let b: any; try { b = JSON.parse(t); } catch { b = t.slice(0, 300); }
+      const sample = b && typeof b === "object"
+        ? (Array.isArray(b) ? { isArray: true, len: b.length, first: b[0] ?? null } : { keys: Object.keys(b).slice(0, 20), preview: JSON.stringify(b).slice(0, 400) })
+        : b;
+      return { label, ok: r.ok, status: r.status, sample };
+    } catch (e: any) { return { label, ok: false, status: 0, error: String(e) }; }
+  }
+  const followerTries = await Promise.all([
+    tryRaw("values_INSTAGRAM", `/stats/values/INSTAGRAM?${legacy}`),
+    tryRaw("values_SUMMARY", `/stats/values/SUMMARY?${legacy}`),
+    tryRaw("explore_followers", `/explore/followers/${blogId}?${legacy}`),
+    tryRaw("agg_ig_reach", `/v2/analytics/aggregation?network=instagram&metric=reach&${range}`),
+    tryRaw("agg_tt_followers", `/v2/analytics/aggregation?network=tiktok&metric=followers_count&${range}`),
+    tryRaw("timeline_tt_followers", `/v2/analytics/timelines?network=tiktok&metric=followers_count&${range}`),
+  ]);
+
   // полный дамп нужных эндпоинтов, чтобы спроектировать схему снапшотов
   async function full(path: string) {
     const u = `${BASE}${path}${path.includes("?") ? "&" : "?"}${auth}&blogId=${blogId}`;
@@ -68,7 +93,8 @@ export async function GET(req: Request) {
 
   return NextResponse.json({
     blogId, brandLabel, range: { from: isoLocal(from), to: isoLocal(to) },
-    brand_summary_full: summary,                       // весь объект — ищем тут подписчиков/охваты
+    follower_sources: followerTries,                   // где взять текущее число подписчиков
+    brand_summary_status: summary.status,
     sample_post_ig: { status: postsIg.status, first: firstOf(postsIg) },
     sample_reel_ig: { status: reelsIg.status, first: firstOf(reelsIg) },
     sample_post_tt: { status: postsTt.status, first: firstOf(postsTt) },
