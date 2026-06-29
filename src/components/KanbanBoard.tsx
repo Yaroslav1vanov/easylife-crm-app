@@ -2,8 +2,31 @@
 import { useEffect, useMemo, useState } from "react";
 import { Client, Script } from "@/lib/database";
 import Avatar from "@/components/Avatar";
-import ScriptModal, { fmtDateShort } from "@/components/ScriptModal";
+import ScriptModal, { fmtDateShort, addDaysIso } from "@/components/ScriptModal";
 import { ExternalLink, Calendar as CalendarIcon, Plus, type LucideIcon } from "lucide-react";
+
+const pad2 = (n: number) => String(n).padStart(2, "0");
+function todayIsoLocal() { const d = new Date(); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; }
+function daysBetweenIso(aIso: string, bIso: string) {
+  return Math.round((new Date(`${aIso}T00:00:00`).getTime() - new Date(`${bIso}T00:00:00`).getTime()) / 86400000);
+}
+// Считает дедлайн готовности (= дата публикации − lead дней) и его срочность.
+function deadlineInfo(s: Script, lead: number, done: boolean, todayIso: string) {
+  if (!s.pub_date) return null;
+  const due = addDaysIso(s.pub_date, -lead);
+  const diff = daysBetweenIso(due, todayIso); // <0 просрочено, 0 сегодня, 1 завтра
+  let tone: "done" | "overdue" | "soon" | "future" = "future";
+  if (done) tone = "done";
+  else if (diff < 0) tone = "overdue";
+  else if (diff <= 1) tone = "soon";
+  const color = tone === "done" ? "#8a8f98" : tone === "overdue" ? "#ff5c7a" : tone === "soon" ? "#ffae42" : "#9d6bff";
+  const text = done ? "готово"
+    : diff < 0 ? `просрочено ${-diff} дн`
+    : diff === 0 ? "сегодня"
+    : diff === 1 ? "завтра"
+    : `через ${diff} дн`;
+  return { due, diff, tone, color, text };
+}
 
 export type KanbanColumn = {
   id: string;
@@ -29,9 +52,15 @@ type Props = {
   /** В какой колонке показывать кнопку добавления (по умолчанию — первая). */
   addColumnId?: string;
   onDelete?: (id: number) => Promise<void> | void;
+  /** Если задано — на карточках показывается дедлайн готовности (= pub_date − N дней), цвет по срочности, сортировка по сроку. */
+  deadlineLeadDays?: number;
+  /** Когда вернёт true — карточка считается «сдана» (дедлайн неактуален). */
+  deadlineDone?: (s: Script) => boolean;
 };
 
-export default function KanbanBoard({ scripts, clients, columns, onUpdate, showClient = false, minColWidth = 220, emptyHint = "Пусто", onAddCard, addColumnId, onDelete }: Props) {
+export default function KanbanBoard({ scripts, clients, columns, onUpdate, showClient = false, minColWidth = 220, emptyHint = "Пусто", onAddCard, addColumnId, onDelete, deadlineLeadDays, deadlineDone }: Props) {
+  const todayIso = todayIsoLocal();
+  const hasDeadline = deadlineLeadDays != null;
   const [openId, setOpenId] = useState<number | null>(null);
   const [draggedId, setDraggedId] = useState<number | null>(null);
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
@@ -48,8 +77,13 @@ export default function KanbanBoard({ scripts, clients, columns, onUpdate, showC
       const col = columns.find(c => c.matches(s));
       if (col) out[col.id].push(s);
     }
+    // дедлайн-режим: самые горящие — наверх (по due = pub_date − lead), без даты — в конец
+    if (hasDeadline) {
+      const dueOf = (s: Script) => (s.pub_date ? addDaysIso(s.pub_date, -deadlineLeadDays!) : "9999-99-99");
+      for (const col of columns) out[col.id].sort((a, b) => dueOf(a).localeCompare(dueOf(b)));
+    }
     return out;
-  }, [scripts, columns]);
+  }, [scripts, columns, hasDeadline, deadlineLeadDays]);
 
   const openScript = openId != null ? scripts.find(s => s.id === openId) || null : null;
 
@@ -131,6 +165,7 @@ export default function KanbanBoard({ scripts, clients, columns, onUpdate, showC
                       dragging={draggedId === s.id}
                       moving={movingScript === s.id}
                       showClient={showClient}
+                      deadline={hasDeadline ? deadlineInfo(s, deadlineLeadDays!, deadlineDone?.(s) ?? false, todayIso) : null}
                       onDragStart={(e) => { setDraggedId(s.id); e.dataTransfer.setData("text/plain", String(s.id)); e.dataTransfer.effectAllowed = "move"; }}
                       onDragEnd={() => { setDraggedId(null); setDragOverCol(null); }}
                       onClick={() => setOpenId(s.id)}
@@ -164,12 +199,13 @@ type PreviewProps = {
   dragging: boolean;
   moving: boolean;
   showClient: boolean;
+  deadline?: ReturnType<typeof deadlineInfo>;
   onDragStart: (e: React.DragEvent) => void;
   onDragEnd: () => void;
   onClick: () => void;
 };
 
-function KanbanCardPreview({ script: s, client: c, color, dragging, moving, showClient, onDragStart, onDragEnd, onClick }: PreviewProps) {
+function KanbanCardPreview({ script: s, client: c, color, dragging, moving, showClient, deadline, onDragStart, onDragEnd, onClick }: PreviewProps) {
   const title = s.hook_text || s.hook || `Сценарий #${s.order_num}`;
   const titleShort = title.length > 70 ? title.slice(0, 67) + "..." : title;
   return (
@@ -179,8 +215,8 @@ function KanbanCardPreview({ script: s, client: c, color, dragging, moving, show
       onDragEnd={onDragEnd}
       onClick={onClick}
       style={{
-        background: "var(--inset2)",
-        border: "1px solid var(--track)",
+        background: deadline?.tone === "overdue" ? "rgba(255,92,122,0.07)" : "var(--inset2)",
+        border: deadline && deadline.tone !== "done" && deadline.tone !== "future" ? `1px solid ${deadline.color}` : "1px solid var(--track)",
         borderRadius: 11,
         padding: 10,
         cursor: "grab",
@@ -200,12 +236,17 @@ function KanbanCardPreview({ script: s, client: c, color, dragging, moving, show
         <div style={{ fontSize: 9, color: "var(--t3)", fontFamily: "monospace" }}>#{s.order_num} · M{s.month_number}</div>
       )}
       <div style={{ fontSize: 11, color: "var(--t1)", lineHeight: 1.35, fontWeight: 500 }}>{titleShort}</div>
+      {deadline && (
+        <div style={{ display: "inline-flex", alignSelf: "flex-start", alignItems: "center", gap: 5, padding: "3px 8px", borderRadius: 7, fontSize: 10, fontWeight: 800, background: `${deadline.color}1f`, color: deadline.color }}>
+          🎬 сдать {fmtDateShort(deadline.due)} · {deadline.text}
+        </div>
+      )}
       <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 9, color: "var(--t3)", flexWrap: "wrap" }}>
         {s.ref_url && <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}><ExternalLink size={9} /> реф</span>}
         {s.ref_text && <span>📝 транскр.</span>}
         {s.body_text && <span style={{ color: color }}>✨ сценарий</span>}
         {s.video_url && <span style={{ color: "var(--gr)" }}>▶ видео</span>}
-        {s.pub_date && <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}><CalendarIcon size={9} /> {fmtDateShort(s.pub_date)}</span>}
+        {s.pub_date && <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}><CalendarIcon size={9} /> {deadline ? "публ. " : ""}{fmtDateShort(s.pub_date)}</span>}
       </div>
     </div>
   );

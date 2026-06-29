@@ -53,12 +53,16 @@ export default function MontagePage() {
   const [focus, setFocus] = useState<"all" | "today" | "tomorrow" | "overdue">("all");
   const [menu, setMenu] = useState<null | "client" | "tl" | "mg" | "focus">(null);
   const [openId, setOpenId] = useState<number | null>(null);
+  const [me, setMe] = useState<TeamMember | null>(null);
 
   useEffect(() => { load(); }, []);
   async function load() {
     // кэш уже показан из getStore() — обновляем в фоне
     const [cls, tm] = await Promise.all([db.getClients(supabase), db.getTeam(supabase)]);
     setClients(cls); setTeam(tm);
+    const { data: { session } } = await supabase.auth.getSession();
+    const uid = session?.user?.id;
+    if (uid) setMe(tm.find(t => t.profile_id === uid) || null);
     const [all, cmRes] = await Promise.all([db.getScriptsForClients(supabase, cls.map(c => c.id)), db.getClientMonths(supabase)]);
     setAllScripts(all); setClientMonths(cmRes?.data || []);
     setStore({ clients: cls, team: tm, scripts: all, clientMonths: cmRes?.data || [] });
@@ -79,6 +83,13 @@ export default function MontagePage() {
   const teamleads = useMemo(() => team.filter(t => t.member_type === "teamlead" || t.member_type === "admin"), [team]);
   const montagers = useMemo(() => team.filter(t => t.member_type === "montager"), [team]);
   const cname = (id: number) => clientById[id]?.name || "?";
+  const myKind: "mg" | "tl" | null = me ? (me.member_type === "montager" ? "mg" : "tl") : null;
+  const mineActive = !!me && (myKind === "mg" ? mgFilter === me.id : tlFilter === me.id);
+  const toggleMine = () => {
+    if (!me) return;
+    if (myKind === "mg") setMgFilter(mineActive ? "all" : me.id);
+    else setTlFilter(mineActive ? "all" : me.id);
+  };
   const inScope = (cid: number) => {
     const c = clientById[cid]; if (!c) return false;
     if (clientFilter !== "all" && cid !== clientFilter) return false;
@@ -180,6 +191,12 @@ export default function MontagePage() {
               <button key={v} onClick={() => setView(v)} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 12px", background: view === v ? "rgba(157,107,255,0.15)" : "transparent", color: view === v ? "var(--pu)" : "var(--t2)", border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer" }}><Ic size={13} /> {l}</button>
             ))}
           </div>
+          {me && (
+            <button onClick={toggleMine} title={`Только мои задачи (${me.name})`}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 10, border: `1px solid ${mineActive ? "var(--pu)" : "var(--brd)"}`, background: mineActive ? "rgba(157,107,255,0.18)" : "transparent", color: mineActive ? "var(--pu)" : "var(--t2)", fontSize: 11, fontWeight: 800, cursor: "pointer" }}>
+              <Avatar name={me.name} src={me.avatar_url} size={18} /> {mineActive ? "Мои ✓" : "Мои"}
+            </button>
+          )}
           <Drop label="Клиент" kind="client" value={clientFilter === "all" ? "Все" : cname(clientFilter)}>
             <button onClick={() => { setClientFilter("all"); setMenu(null); }} className="nav-item" style={{ fontSize: 11, padding: "7px 10px" }}>Все клиенты</button>
             {clients.map(c => <button key={c.id} onClick={() => { setClientFilter(c.id); setMenu(null); }} className="nav-item" style={{ fontSize: 11, padding: "7px 10px", gap: 8 }}><Avatar name={c.name} src={c.avatar_url} size={20} /> {c.name} {c.surname || ""}</button>)}
@@ -314,7 +331,9 @@ export default function MontagePage() {
 
       {/* KANBAN (доска монтажа — как сейчас) */}
       <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 10, color: "var(--t2)" }}>Доска монтажа</div>
-      <KanbanBoard scripts={kanbanScripts} clients={clients} columns={MONTAGE_COLUMNS} onUpdate={updateScript} showClient emptyHint="Пусто" />
+      <KanbanBoard scripts={kanbanScripts} clients={clients} columns={MONTAGE_COLUMNS} onUpdate={updateScript} showClient emptyHint="Пусто"
+        deadlineLeadDays={VIDEO_LEAD}
+        deadlineDone={(s) => s.video_status === "ready" || s.video_status === "published"} />
 
       {openScript && (
         <ScriptModal script={openScript} client={clientById[openScript.client_id]} onClose={() => setOpenId(null)} onUpdate={updateScript} />
