@@ -48,12 +48,30 @@ export async function GET(req: Request) {
     }
   }
 
-  const results = await Promise.all([
-    probe("timeline_followers_ig", `/v2/analytics/timelines?network=instagram&metric=followers&${range}`),
-    probe("posts_ig", `/v2/analytics/posts/instagram?${range}`),
-    probe("reels_ig", `/v2/analytics/reels/instagram?${range}`),
-    probe("brand_summary", `/v2/analytics/brand-summary/posts?${range}`),
-  ]);
+  // полный дамп нужных эндпоинтов, чтобы спроектировать схему снапшотов
+  async function full(path: string) {
+    const u = `${BASE}${path}${path.includes("?") ? "&" : "?"}${auth}&blogId=${blogId}`;
+    const r = await fetch(u, { headers });
+    const text = await r.text();
+    let body: any; try { body = JSON.parse(text); } catch { body = text.slice(0, 400); }
+    return { ok: r.ok, status: r.status, body };
+  }
 
-  return NextResponse.json({ blogId, brandLabel, range: { from: isoLocal(from), to: isoLocal(to) }, results });
+  const [summary, postsIg, reelsIg, postsTt, postsTh] = await Promise.all([
+    full(`/v2/analytics/brand-summary/posts?${range}`),
+    full(`/v2/analytics/posts/instagram?${range}`),
+    full(`/v2/analytics/reels/instagram?${range}`),
+    full(`/v2/analytics/posts/tiktok?${range}`),
+    full(`/v2/analytics/posts/threads?${range}`),
+  ]);
+  const firstOf = (res: any) => Array.isArray(res.body?.data) ? res.body.data[0] ?? null : res.body;
+
+  return NextResponse.json({
+    blogId, brandLabel, range: { from: isoLocal(from), to: isoLocal(to) },
+    brand_summary_full: summary,                       // весь объект — ищем тут подписчиков/охваты
+    sample_post_ig: { status: postsIg.status, first: firstOf(postsIg) },
+    sample_reel_ig: { status: reelsIg.status, first: firstOf(reelsIg) },
+    sample_post_tt: { status: postsTt.status, first: firstOf(postsTt) },
+    sample_post_th: { status: postsTh.status, first: firstOf(postsTh) },
+  });
 }
