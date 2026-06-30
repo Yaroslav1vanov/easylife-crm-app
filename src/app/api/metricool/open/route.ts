@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 // Перекидывает на аналитику конкретного бренда в Metricool.
 // URL-шаблон настраивается через env METRICOOL_ANALYTICS_URL (плейсхолдеры {userId} {blogId}),
 // чтобы поправить точный адрес без передеплоя кода. По умолчанию — сводка бренда.
-const DEFAULT_TPL = "https://app.metricool.com/analytics/summary?userId={userId}&blogId={blogId}";
+const DEFAULT_TPL = "https://app.metricool.com/";
 
 export async function GET(req: Request) {
   const userId = process.env.METRICOOL_USER_ID || "";
