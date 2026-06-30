@@ -44,7 +44,8 @@ export default function TeamPage() {
   }
 
   const byId = useMemo(() => Object.fromEntries(team.map(t => [t.id, t])) as Record<number, TeamMember>, [team]);
-  const activeClients = useMemo(() => clients.filter(c => c.stage !== "churned"), [clients]);
+  // только клиенты в работе (на паузе и в архиве — не показываем)
+  const activeClients = useMemo(() => clients.filter(c => c.stage === "active"), [clients]);
   // клиенты сотрудника (как менеджер ИЛИ как монтажёр, для админа — оба)
   const clientsOf = (m: TeamMember) => activeClients.filter(c =>
     m.member_type === "montager" ? c.montager_id === m.id :
