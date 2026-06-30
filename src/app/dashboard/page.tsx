@@ -767,9 +767,11 @@ function DashboardInner() {
 
     // onboarding в фазе (pending > 0)
     const onboardingActive = onbProgresses.filter(o => o.pending_tasks > 0);
-    const onboardingClients = onboardingActive
+    const obDeadlineOf = (c: Client) => (c as any).onboarding_deadline || (c.start_date ? new Date(new Date(c.start_date).getTime() + 10 * 86400000).toISOString().slice(0, 10) : "9999-12-31");
+    const onboardingClients = (onboardingActive
       .map(o => ({ progress: o, client: clients.find(c => c.id === o.client_id) }))
-      .filter(x => !!x.client) as { progress: OnboardingProgress; client: Client }[];
+      .filter(x => !!x.client) as { progress: OnboardingProgress; client: Client }[])
+      .sort((a, b) => obDeadlineOf(a.client).localeCompare(obDeadlineOf(b.client))); // кто горит — выше
 
     const scriptsByClientMonth = (cm: ClientMonth) =>
       scripts.filter(s => s.client_id === cm.client_id && s.month_number === cm.month_number);
@@ -1117,30 +1119,26 @@ function DashboardInner() {
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 10 }}>
             {data.onboardingClients.map(({ client: c, progress: p }) => {
-              const startedDays = Math.max(0, daysBetween(((c as any).created_at as string) || todayIso, todayIso));
-              const daysTotal = 10;
-              const daysLeft = Math.max(0, daysTotal - startedDays);
-              const dayProgressPct = Math.min(100, Math.round((startedDays / daysTotal) * 100));
+              const deadline = (c as any).onboarding_deadline || (c.start_date ? new Date(new Date(c.start_date).getTime() + 10 * 86400000).toISOString().slice(0, 10) : null);
+              const daysLeft = deadline ? Math.round(daysBetween(todayIso, deadline)) : null; // >0 = ещё есть время
+              const dlColor = daysLeft == null ? "var(--t3)" : daysLeft < 0 ? "var(--rd)" : daysLeft <= 2 ? "var(--or)" : "var(--gr)";
+              const dlText = daysLeft == null ? "дата не задана" : daysLeft < 0 ? `просрочен ${-daysLeft} дн` : daysLeft === 0 ? "сегодня" : daysLeft === 1 ? "завтра" : `осталось ${daysLeft} дн`;
               const taskProgress = p.progress_pct || 0;
-              // pace по онбордингу
-              const expectedDone = Math.round((startedDays / daysTotal) * (p.total_tasks - p.skipped_tasks));
-              const realDone = p.done_tasks;
-              const delta = realDone - expectedDone;
-              const paceLabel = delta >= 0 ? `опережает +${delta}` : `отстаёт ${delta}`;
-              const paceColor = delta >= 0 ? "var(--gr)" : delta >= -2 ? "var(--or)" : "var(--rd)";
               return (
-                <button key={c.id} onClick={() => router.push(`/dashboard/clients/${c.id}/onboarding`)} style={{ textAlign: "left", padding: 12, borderRadius: 12, background: "var(--inset)", border: "1px solid var(--brd)", cursor: "pointer", display: "flex", flexDirection: "column", gap: 10 }}>
+                <button key={c.id} onClick={() => router.push(`/dashboard/clients/${c.id}/onboarding`)} style={{ textAlign: "left", padding: 12, borderRadius: 12, background: "var(--inset)", border: `1px solid ${daysLeft != null && daysLeft < 0 ? "var(--rd)" : "var(--brd)"}`, cursor: "pointer", display: "flex", flexDirection: "column", gap: 10 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     <Avatar name={`${c.name} ${c.surname || ""}`} src={c.avatar_url} size={40} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 700, color: "var(--t1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name} {c.surname || ""}</div>
-                      <div style={{ fontSize: 9, fontWeight: 700, color: paceColor, textTransform: "uppercase", marginTop: 2, letterSpacing: 0.4 }}>{paceLabel}</div>
+                      <div style={{ fontSize: 10, fontWeight: 800, color: dlColor, marginTop: 2 }}>
+                        🚀 до {deadline ? fmtDateShort(deadline) : "—"} · {dlText}
+                      </div>
                     </div>
                     <div style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 18, fontWeight: 800, color: "#ffae42" }}>{taskProgress}%</div>
                   </div>
                   <div>
                     <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 600, marginBottom: 4 }}>
-                      Задачи: {p.done_tasks}/{p.total_tasks - p.skipped_tasks} · День {startedDays}/{daysTotal}
+                      Задачи: {p.done_tasks}/{p.total_tasks - p.skipped_tasks}
                     </div>
                     <div style={{ height: 5, borderRadius: 3, background: "var(--track)", overflow: "hidden" }}>
                       <div style={{ width: `${taskProgress}%`, height: "100%", background: "linear-gradient(90deg, #ffae42, #ff5c7a)", borderRadius: 3, transition: "width .3s" }} />

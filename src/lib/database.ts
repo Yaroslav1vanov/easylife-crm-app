@@ -10,7 +10,7 @@ export type Client = {
   telegram_topic_id?: number | null;
   package: number; montager_id: number | null; teamlead_id: number | null; priority: string;
   stage: string; start_date: string; pub_date: string | null; scripts_deadline: string | null;
-  videos_deadline: string | null; first_pub_date: string | null; target_audience: string;
+  videos_deadline: string | null; first_pub_date: string | null; onboarding_deadline?: string | null; target_audience: string;
   problem: string; system_idea: string; global_result: string; top5_pains: string[];
   sheet_url?: string | null;
   montager?: TeamMember; teamlead?: TeamMember;
@@ -172,8 +172,20 @@ const db = {
       first_pub_date: params.pub_date || plus10,
       scripts_deadline: plus10,
       videos_deadline: plus10,
+      onboarding_deadline: plus10, // фиксированная дата окончания онбординга (редактируется в карточке)
     }).eq("id", data);
-    await sb.from("client_months").update({ status: "onboarding" }).eq("client_id", data).eq("month_number", 1);
+    // Подстраховка: гарантируем контрактный месяц M1 (онбординг) — иначе клиент
+    // «проваливается» с дашборда (он строится по месяцам). RPC иногда его не создаёт.
+    const { data: m1 } = await sb.from("client_months").select("id").eq("client_id", data).eq("month_number", 1).maybeSingle();
+    if (m1) {
+      await sb.from("client_months").update({ status: "onboarding" }).eq("id", m1.id);
+    } else {
+      const monthEnd = new Date(start.getTime() + 30 * 86400000).toISOString().slice(0, 10);
+      await sb.from("client_months").insert({
+        client_id: data, month_number: 1, status: "onboarding",
+        package: params.package || 30, start_date: startDate, end_date: monthEnd,
+      });
+    }
     // RPC по старой логике сидирует пустые карточки под пакет — удаляем их:
     // сценарии теперь рождаются из референсов, пакет = цель.
     await sb.from("scripts").delete().eq("client_id", data)

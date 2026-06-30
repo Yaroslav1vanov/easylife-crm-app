@@ -118,6 +118,11 @@ export default function ClientDetailPage() {
 
   const c = client;
   const todayIso = new Date().toISOString().slice(0, 10);
+  const obDeadline = c.onboarding_deadline || null;
+  const obDaysLeft = obDeadline ? Math.round((new Date(`${obDeadline}T00:00:00`).getTime() - new Date(`${todayIso}T00:00:00`).getTime()) / 86400000) : null;
+  const obDone = !!onbProgress && onbProgress.pending_tasks === 0;
+  const obColor = obDone ? "var(--gr)" : obDaysLeft == null ? "var(--t3)" : obDaysLeft < 0 ? "var(--rd)" : obDaysLeft <= 2 ? "var(--or)" : "var(--t2)";
+  const obWhen = obDaysLeft == null ? "" : obDaysLeft < 0 ? `просрочен ${-obDaysLeft} дн` : obDaysLeft === 0 ? "сегодня" : obDaysLeft === 1 ? "завтра" : `осталось ${obDaysLeft} дн`;
   const currentMonthNum = computeCurrentMonth(clientMonths, todayIso);
   const currentM = clientMonths.find(m => m.month_number === currentMonthNum) || null;
   const currentMonthScripts = scripts.filter(s => s.month_number === currentMonthNum);
@@ -226,6 +231,14 @@ export default function ClientDetailPage() {
               <span style={{ color: "var(--t3)" }}>→</span>
             </button>
           )}
+          {/* Дедлайн онбординга — редактируемая дата + отсчёт */}
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "6px 12px", borderRadius: 9, background: "rgba(255,174,66,0.07)", border: "1px solid var(--brd)" }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--t2)" }}>🚀 Онбординг до</span>
+            <input type="date" defaultValue={obDeadline || ""} onBlur={(e) => { const v = e.target.value || null; if (v !== obDeadline) updateClientField("onboarding_deadline", v); }}
+              style={{ padding: "3px 6px", borderRadius: 7, background: "var(--bg)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 11, outline: "none", colorScheme: "dark" }} />
+            {obDone ? <span style={{ fontSize: 10, fontWeight: 700, color: "var(--gr)" }}>✓ завершён</span>
+              : obWhen && <span style={{ fontSize: 10, fontWeight: 800, color: obColor }}>{obWhen}</span>}
+          </div>
           <div style={{ flex: 1, minWidth: 10 }} />
           <span style={{ fontSize: 10, color: "var(--t3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>📊 Google Sheet</span>
           {editingSheet ? (

@@ -83,6 +83,9 @@ function ClientCard({
   const plan = production.month?.package || client.package || production.total || 0;
   const progress = plan > 0 ? Math.min(100, Math.round((production.ready / plan) * 100)) : 0;
   const fullName = `${client.name} ${client.surname || ""}`.trim();
+  const obDl = isOnboarding ? ((client as any).onboarding_deadline as string | null) : null;
+  const obLeft = obDl ? Math.round((new Date(`${obDl}T00:00:00`).getTime() - new Date(new Date().toISOString().slice(0, 10) + "T00:00:00").getTime()) / 86400000) : null;
+  const obColor = obLeft == null ? "var(--or)" : obLeft < 0 ? "#ff5c7a" : obLeft <= 2 ? "#ffae42" : "#a8e063";
 
   return (
     <article className="client-v2-card" style={{ "--client-accent": accent } as React.CSSProperties}>
@@ -99,9 +102,18 @@ function ClientCard({
           <p>{client.niche || "Ниша не указана"}</p>
         </div>
         <span className={`client-v2-status ${isOnboarding ? "onboarding" : "production"}`}>
-          {isOnboarding ? "онбординг" : "производство"}
+          {isOnboarding ? (obDl ? `онбординг · до ${formatSnapshotDate(obDl)}` : "онбординг") : "производство"}
         </span>
       </div>
+
+      {isOnboarding && obLeft != null && (
+        <div style={{ display: "flex", alignItems: "center", gap: 7, margin: "0 0 10px", padding: "6px 10px", borderRadius: 9, background: `${obColor}14`, border: `1px solid ${obColor}55` }}>
+          <span style={{ fontSize: 11 }}>🚀</span>
+          <span style={{ fontSize: 11, fontWeight: 800, color: obColor }}>
+            {obLeft < 0 ? `Онбординг просрочен ${-obLeft} дн` : obLeft === 0 ? "Онбординг — дедлайн сегодня" : obLeft === 1 ? "Онбординг — дедлайн завтра" : `До конца онбординга ${obLeft} дн`}
+          </span>
+        </div>
+      )}
 
       <div className="client-v2-platform-tabs">
         {platforms.map((platform) => {
