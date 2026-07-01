@@ -73,6 +73,10 @@ export default function ScriptsPage() {
     setAllScripts(arr => arr.map(s => s.id === id ? { ...s, ...final } : s));
     patchScriptInStore(id, final);
   }
+  // Вернуть сценарий в «Идею»: снимаем дату публикации → уходит из плана/просрочки, остаётся название
+  async function sendToIdea(id: number) {
+    await updateScript(id, { script_status: "notStarted", pub_date: null });
+  }
 
   const clientById = useMemo(() => Object.fromEntries(clients.map(c => [c.id, c])) as Record<number, Client>, [clients]);
   const teamleads = useMemo(() => team.filter(t => t.member_type === "teamlead" || t.member_type === "admin"), [team]);
@@ -228,8 +232,8 @@ export default function ScriptsPage() {
               const od = daysBetween(sl.due, todayIso);
               const reason = sl.status === "done" ? "готов" : sl.status === "frozen" ? "заморожен" : sl.status === "overdue" ? `просрочен ${od} дн.` : sl.due === todayIso ? "на сегодня" : sl.due === tomorrowIso ? "на завтра" : `к ${fmtDateShort(sl.due)}`;
               return (
-                <button key={sl.s.id} onClick={() => setOpenId(sl.s.id)}
-                  style={{ width: "100%", display: "grid", gridTemplateColumns: "1.5fr 1.4fr auto auto", gap: 12, alignItems: "center", padding: "11px 16px", borderBottom: "1px solid var(--brd)", background: "transparent", borderLeft: "none", borderRight: "none", borderTop: "none", cursor: "pointer", textAlign: "left", color: "var(--t1)" }}>
+                <div key={sl.s.id} role="button" tabIndex={0} onClick={() => setOpenId(sl.s.id)}
+                  style={{ width: "100%", display: "grid", gridTemplateColumns: "1.5fr 1.4fr auto auto auto", gap: 12, alignItems: "center", padding: "11px 16px", borderBottom: "1px solid var(--brd)", cursor: "pointer", textAlign: "left", color: "var(--t1)" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}>
                     <Avatar name={`${c.name} ${c.surname || ""}`} src={c.avatar_url} size={28} />
                     <div style={{ minWidth: 0 }}><div style={{ fontSize: 12, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name} {c.surname || ""}</div><div style={{ fontSize: 9, color: "var(--t3)" }}>M{sl.s.month_number} · #{sl.s.order_num} · {team.find(t => t.id === c.teamlead_id)?.name || "—"}</div></div>
@@ -237,7 +241,9 @@ export default function ScriptsPage() {
                   <div style={{ fontSize: 12, color: "var(--t2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sl.s.hook_text || sl.s.hook || "— без темы —"}</div>
                   <div style={{ fontSize: 11, fontWeight: 700, color: "var(--t1)", whiteSpace: "nowrap" }}>📅 {fmtDateShort(sl.due)}</div>
                   <span style={{ fontSize: 10, fontWeight: 700, color: col, background: `${col}1f`, border: `1px solid ${col}55`, padding: "3px 8px", borderRadius: 6, whiteSpace: "nowrap" }}>{reason}</span>
-                </button>
+                  <button onClick={(e) => { e.stopPropagation(); sendToIdea(sl.s.id); }} title="Вернуть в «Идею» — снимет дату, уйдёт из просрочки"
+                    style={{ fontSize: 10, fontWeight: 700, color: "var(--t2)", background: "transparent", border: "1px solid var(--brd)", padding: "5px 9px", borderRadius: 7, whiteSpace: "nowrap", cursor: "pointer" }}>↩ В идею</button>
+                </div>
               );
             })
           )}
