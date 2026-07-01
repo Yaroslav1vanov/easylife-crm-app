@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
 import { useTheme } from "@/components/ThemeProvider";
+import { sectionAllowed } from "@/components/RoleContext";
 import Avatar from "@/components/Avatar";
 import {
   LayoutDashboard, Users, Layers, FileText, Scissors, Send, Calendar, Rocket, Flame,
@@ -45,6 +46,7 @@ const ROLE_LABEL: Record<string, string> = {
 };
 
 export function Sidebar({ userRole }: { userRole: string }) {
+  // sectionAllowed прячет разделы, не доступные роли (напр. монтажёр видит только Дашборд/Монтаж/Референсы)
   const router = useRouter();
   const pathname = usePathname();
   const supabase = createClient();
@@ -93,7 +95,7 @@ export function Sidebar({ userRole }: { userRole: string }) {
 
   const NavList = ({ compact = false }: { compact?: boolean }) => (
     <nav style={{ flex: 1, padding: compact ? 6 : 8, display: "flex", flexDirection: "column", gap: 2 }}>
-      {navItems.map(item => {
+      {navItems.filter(item => sectionAllowed(userRole, item.id)).map(item => {
         const active = isActive(item.path);
         const Icon = item.icon;
         return (

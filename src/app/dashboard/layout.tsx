@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase-server";
 import { Sidebar } from "@/components/Sidebar";
+import { RoleProvider } from "@/components/RoleContext";
+import RoleGuard from "@/components/RoleGuard";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const sb = createClient();
@@ -14,12 +16,15 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const userRole = profile?.role || "montager";
 
   return (
-    <div className="flex min-h-screen" style={{ background: "var(--bg)" }}>
-      <Sidebar userRole={userRole} />
-      {/* Desktop: margin-left for sidebar. Mobile: margin-top for top bar */}
-      <main className="flex-1 md:ml-[210px] ml-0 mt-[50px] md:mt-0 p-3 md:p-5 overflow-auto min-w-0">
-        {children}
-      </main>
-    </div>
+    <RoleProvider role={userRole}>
+      <RoleGuard role={userRole} />
+      <div className="flex min-h-screen" style={{ background: "var(--bg)" }}>
+        <Sidebar userRole={userRole} />
+        {/* Desktop: margin-left for sidebar. Mobile: margin-top for top bar */}
+        <main className="flex-1 md:ml-[210px] ml-0 mt-[50px] md:mt-0 p-3 md:p-5 overflow-auto min-w-0">
+          {children}
+        </main>
+      </div>
+    </RoleProvider>
   );
 }

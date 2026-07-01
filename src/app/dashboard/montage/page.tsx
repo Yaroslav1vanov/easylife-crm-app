@@ -7,6 +7,7 @@ import Avatar from "@/components/Avatar";
 import KanbanBoard from "@/components/KanbanBoard";
 import ScriptModal, { VIDEO_LEAD, fmtDateShort, addDaysIso } from "@/components/ScriptModal";
 import { MONTAGE_COLUMNS } from "@/components/kanbanConfigs";
+import { useIsMontager } from "@/components/RoleContext";
 import {
   Filter, ChevronDown, ChevronLeft, ChevronRight, CalendarDays, Table as TableIcon,
 } from "lucide-react";
@@ -54,6 +55,9 @@ export default function MontagePage() {
   const [menu, setMenu] = useState<null | "client" | "tl" | "mg" | "focus">(null);
   const [openId, setOpenId] = useState<number | null>(null);
   const [me, setMe] = useState<TeamMember | null>(null);
+  const isMontager = useIsMontager();
+  // Монтажёр видит только свои карточки — жёстко фиксируем фильтр на себя
+  useEffect(() => { if (isMontager && me) setMgFilter(me.id); }, [isMontager, me]);
 
   useEffect(() => { load(); }, []);
   async function load() {
@@ -192,6 +196,7 @@ export default function MontagePage() {
               <button key={v} onClick={() => setView(v)} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 12px", background: view === v ? "rgba(157,107,255,0.15)" : "transparent", color: view === v ? "var(--pu)" : "var(--t2)", border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer" }}><Ic size={13} /> {l}</button>
             ))}
           </div>
+          {!isMontager && <>
           {me && (
             <button onClick={toggleMine} title={`Только мои задачи (${me.name})`}
               style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 10, border: `1px solid ${mineActive ? "var(--pu)" : "var(--brd)"}`, background: mineActive ? "rgba(157,107,255,0.18)" : "transparent", color: mineActive ? "var(--pu)" : "var(--t2)", fontSize: 11, fontWeight: 800, cursor: "pointer" }}>
@@ -210,6 +215,7 @@ export default function MontagePage() {
             <button onClick={() => { setMgFilter("all"); setMenu(null); }} className="nav-item" style={{ fontSize: 11, padding: "7px 10px" }}>Все монтажёры</button>
             {montagers.map(t => <button key={t.id} onClick={() => { setMgFilter(t.id); setMenu(null); }} className="nav-item" style={{ fontSize: 11, padding: "7px 10px", gap: 8 }}><Avatar name={t.name} src={t.avatar_url} size={20} /> {t.name}</button>)}
           </Drop>
+          </>}
           <Drop label="Показать" kind="focus" value={FOCUS_OPTS.find(o => o.v === focus)!.l}>
             {FOCUS_OPTS.map(o => <button key={o.v} onClick={() => { setFocus(o.v); setMenu(null); }} className="nav-item" style={{ fontSize: 11, padding: "7px 10px", color: focus === o.v ? "var(--pu)" : undefined }}>{o.l}</button>)}
           </Drop>
@@ -334,10 +340,11 @@ export default function MontagePage() {
       <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 10, color: "var(--t2)" }}>Доска монтажа</div>
       <KanbanBoard scripts={kanbanScripts} clients={clients} columns={MONTAGE_COLUMNS} onUpdate={updateScript} showClient emptyHint="Пусто"
         deadlineLeadDays={VIDEO_LEAD}
-        deadlineDone={(s) => s.video_status === "ready" || s.video_status === "published"} />
+        deadlineDone={(s) => s.video_status === "ready" || s.video_status === "published"}
+        canEditScript={!isMontager} />
 
       {openScript && (
-        <ScriptModal script={openScript} client={clientById[openScript.client_id]} onClose={() => setOpenId(null)} onUpdate={updateScript} />
+        <ScriptModal script={openScript} client={clientById[openScript.client_id]} onClose={() => setOpenId(null)} onUpdate={updateScript} canEdit={!isMontager} />
       )}
     </div>
   );

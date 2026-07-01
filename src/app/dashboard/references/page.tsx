@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase-browser";
 import db, { Client, Reference, RefStatus } from "@/lib/database";
 import { getStore, setStore } from "@/lib/store";
+import { useIsMontager } from "@/components/RoleContext";
 import Avatar from "@/components/Avatar";
 import {
   Camera, Music2, Play, Plus, ExternalLink, Trash2, Eye, MessageCircle, Heart,
@@ -24,6 +25,7 @@ const fmtNum = (n: number | null) => n == null ? "—" : n >= 1e6 ? (n / 1e6).to
 
 export default function ReferencesPage() {
   const supabase = createClient();
+  const isMontager = useIsMontager(); // монтажёру — только чтение
   const [clients, setClients] = useState<Client[]>(getStore().clients || []);
   const [refs, setRefs] = useState<Reference[]>([]);
   const [loading, setLoading] = useState(true);
@@ -74,6 +76,7 @@ export default function ReferencesPage() {
   async function del(id: number) { if (!confirm("Удалить референс?")) return; await db.deleteReference(supabase, id); setRefs(a => a.filter(r => r.id !== id)); setOpenId(null); }
 
   async function moveTo(status: RefStatus, id: number) {
+    if (isMontager) return; // монтажёр не меняет статусы
     setDraggedId(null); setDragOverCol(null);
     const ref = refs.find(r => r.id === id); if (!ref || ref.status === status) return;
     if (status === "approved" && !ref.script_id) { await createScript(ref); return; }
@@ -113,6 +116,7 @@ export default function ReferencesPage() {
         </div>
       ) : (
         <>
+          {!isMontager && (
           <div style={{ display: "flex", gap: 8, marginBottom: 16, alignItems: "flex-start" }}>
             <div style={{ position: "relative", flexShrink: 0 }}>
               <button onClick={() => setMenu(m => !m)} style={{ height: 44, padding: "0 14px", borderRadius: 10, background: "rgba(123,63,228,0.1)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
@@ -130,6 +134,7 @@ export default function ReferencesPage() {
               {adding ? <Loader2 size={15} className="spin" /> : <Plus size={15} />} {adding ? "Тяну…" : "Добавить"}
             </button>
           </div>
+          )}
 
           <div style={{ display: "grid", gridTemplateColumns: `repeat(${COLUMNS.length}, minmax(230px, 1fr))`, gap: 10, overflowX: "auto", paddingBottom: 8 }}>
             {COLUMNS.map(col => {
@@ -150,11 +155,11 @@ export default function ReferencesPage() {
                     {items.map(r => {
                       const p = PLAT[r.platform || ""] || { label: r.platform || "?", Icon: FileText, color: "var(--t3)" };
                       return (
-                        <div key={r.id} draggable
-                          onDragStart={e => { setDraggedId(r.id); e.dataTransfer.setData("text/plain", String(r.id)); e.dataTransfer.effectAllowed = "move"; }}
+                        <div key={r.id} draggable={!isMontager}
+                          onDragStart={e => { if (isMontager) return; setDraggedId(r.id); e.dataTransfer.setData("text/plain", String(r.id)); e.dataTransfer.effectAllowed = "move"; }}
                           onDragEnd={() => { setDraggedId(null); setDragOverCol(null); }}
                           onClick={() => setOpenId(r.id)}
-                          style={{ background: "var(--inset2)", border: "1px solid var(--track)", borderRadius: 11, padding: 9, cursor: "grab", opacity: draggedId === r.id ? 0.4 : 1, display: "flex", flexDirection: "column", gap: 7 }}>
+                          style={{ background: "var(--inset2)", border: "1px solid var(--track)", borderRadius: 11, padding: 9, cursor: isMontager ? "pointer" : "grab", opacity: draggedId === r.id ? 0.4 : 1, display: "flex", flexDirection: "column", gap: 7 }}>
                           {r.thumbnail_url && <img src={r.thumbnail_url} alt="" style={{ width: "100%", height: 110, objectFit: "cover", borderRadius: 8 }} />}
                           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                             <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 700, color: p.color }}><p.Icon size={11} /> {p.label}</span>
@@ -177,7 +182,7 @@ export default function ReferencesPage() {
         </>
       )}
 
-      {openRef && <RefModal ref0={openRef} client={clientById[openRef.client_id]} onClose={() => setOpenId(null)} onNote={saveNote} onDelete={del}
+      {openRef && <RefModal ref0={openRef} client={clientById[openRef.client_id]} onClose={() => setOpenId(null)} onNote={saveNote} onDelete={del} readOnly={isMontager}
         onAnalyzed={(a) => patchRef(openRef.id, { analysis: a, analyzed_at: new Date().toISOString() })}
         onMove={(status) => { const id = openRef.id; setOpenId(null); moveTo(status, id); }} />}
       <style>{`.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}`}</style>
@@ -185,8 +190,8 @@ export default function ReferencesPage() {
   );
 }
 
-function RefModal({ ref0, client, onClose, onNote, onDelete, onAnalyzed, onMove }: {
-  ref0: Reference; client?: Client; onClose: () => void; onNote: (id: number, n: string) => void; onDelete: (id: number) => void; onAnalyzed: (a: string) => void; onMove: (status: RefStatus) => void;
+function RefModal({ ref0, client, onClose, onNote, onDelete, onAnalyzed, onMove, readOnly = false }: {
+  ref0: Reference; client?: Client; onClose: () => void; onNote: (id: number, n: string) => void; onDelete: (id: number) => void; onAnalyzed: (a: string) => void; onMove: (status: RefStatus) => void; readOnly?: boolean;
 }) {
   const [busy, setBusy] = useState(false);
   const p = PLAT[ref0.platform || ""] || { label: ref0.platform || "?", Icon: FileText, color: "var(--t3)" };
@@ -221,6 +226,7 @@ function RefModal({ ref0, client, onClose, onNote, onDelete, onAnalyzed, onMove 
         </div>
 
         {/* Стадия — кнопками (без перетаскивания) */}
+        {!readOnly && (
         <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
           <span style={{ fontSize: 10, fontWeight: 700, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 0.5 }}>Стадия:</span>
           {COLUMNS.map(col => {
@@ -233,15 +239,18 @@ function RefModal({ ref0, client, onClose, onNote, onDelete, onAnalyzed, onMove 
             );
           })}
         </div>
+        )}
 
         {/* Разбор донора */}
         <div style={{ padding: 14, borderRadius: 12, background: "rgba(255,174,66,0.06)", border: "1px solid rgba(255,174,66,0.3)" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: ref0.analysis ? 10 : 0 }}>
             <span style={{ fontSize: 12, fontWeight: 800, color: "var(--or)" }}>🔥 Разбор донора (оценка вирусности)</span>
+            {!readOnly && (
             <button onClick={analyze} disabled={busy || !ref0.transcript}
               style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 8, background: "rgba(255,174,66,0.15)", border: "1px solid rgba(255,174,66,0.4)", color: "var(--or)", fontSize: 11, fontWeight: 800, cursor: busy ? "default" : "pointer" }}>
               {busy ? <Loader2 size={13} className="spin" /> : <Flame size={13} />} {busy ? "Анализ…" : ref0.analysis ? "Заново" : "Оценить"}
             </button>
+            )}
           </div>
           {ref0.analysis && <div style={{ fontSize: 12.5, lineHeight: 1.6, color: "var(--t1)", whiteSpace: "pre-wrap" }}>{ref0.analysis}</div>}
           {!ref0.transcript && <div style={{ fontSize: 11, color: "var(--t3)", marginTop: 6 }}>Нет транскрибации — анализ недоступен.</div>}
@@ -256,12 +265,14 @@ function RefModal({ ref0, client, onClose, onNote, onDelete, onAnalyzed, onMove 
 
         <div>
           <div style={{ fontSize: 10, fontWeight: 700, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 5 }}>Заметка</div>
-          <textarea defaultValue={ref0.note || ""} onBlur={e => { if (e.target.value !== (ref0.note || "")) onNote(ref0.id, e.target.value); }} rows={2} placeholder="Почему залетел / что адаптируем…" style={ta} />
+          <textarea defaultValue={ref0.note || ""} readOnly={readOnly} onBlur={e => { if (!readOnly && e.target.value !== (ref0.note || "")) onNote(ref0.id, e.target.value); }} rows={2} placeholder="Почему залетел / что адаптируем…" style={ta} />
         </div>
 
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 4, borderTop: "1px solid var(--brd)" }}>
-          {ref0.script_id ? <span style={{ fontSize: 12, fontWeight: 700, color: "var(--gr)", display: "inline-flex", alignItems: "center", gap: 6 }}><CheckCircle2 size={14} /> Сценарий создан</span> : <span style={{ fontSize: 11, color: "var(--t3)" }}>Перетащи в «Утверждены» → создастся сценарий</span>}
+          {ref0.script_id ? <span style={{ fontSize: 12, fontWeight: 700, color: "var(--gr)", display: "inline-flex", alignItems: "center", gap: 6 }}><CheckCircle2 size={14} /> Сценарий создан</span> : <span style={{ fontSize: 11, color: "var(--t3)" }}>{readOnly ? "" : "Перетащи в «Утверждены» → создастся сценарий"}</span>}
+          {!readOnly && (
           <button onClick={() => onDelete(ref0.id)} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 8, background: "transparent", border: "1px solid rgba(255,92,122,0.4)", color: "var(--rd)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}><Trash2 size={13} /> Удалить</button>
+          )}
         </div>
       </div>
     </div>

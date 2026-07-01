@@ -29,9 +29,12 @@ type Props = {
   onClose: () => void;
   onUpdate: (id: number, patch: Partial<Script>) => Promise<void> | void;
   onDelete?: (id: number) => Promise<void> | void;
+  /** false → даты и тексты только для чтения (роль монтажёра). Видео прикрепить можно. */
+  canEdit?: boolean;
 };
 
-export default function ScriptModal({ script: s, client: c, onClose, onUpdate, onDelete }: Props) {
+export default function ScriptModal({ script: s, client: c, onClose, onUpdate, onDelete, canEdit = true }: Props) {
+  const ro = !canEdit; // read-only для монтажёра
   const [hookText, setHookText] = useState(s.hook_text || "");
   const [refUrl, setRefUrl] = useState(s.ref_url || "");
   const [refText, setRefText] = useState(s.ref_text || "");
@@ -93,8 +96,8 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
               {c ? `${c.name} ${c.surname || ""} · ` : ""}M{s.month_number} · сценарий #{s.order_num}
             </div>
             <input
-              value={hookText} onChange={(e) => setHookText(e.target.value)}
-              onBlur={() => { if (hookText !== (s.hook_text || "")) onUpdate(s.id, { hook_text: hookText }); }}
+              value={hookText} onChange={(e) => setHookText(e.target.value)} readOnly={ro}
+              onBlur={() => { if (!ro && hookText !== (s.hook_text || "")) onUpdate(s.id, { hook_text: hookText }); }}
               placeholder="Тема / хук сценария…"
               style={{ width: "100%", background: "transparent", border: "none", outline: "none", color: "var(--t1)", fontSize: 19, fontWeight: 800, fontFamily: "'Unbounded', sans-serif", letterSpacing: -0.3 }}
             />
@@ -107,10 +110,10 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
         {/* Сроки */}
         <div style={{ display: "grid", gridTemplateColumns: "auto 1fr 1fr", gap: 12, alignItems: "end", padding: 14, borderRadius: 12, background: "var(--inset)", border: "1px solid var(--brd)" }}>
           <div>
-            {label("📅 Публикация")}
-            <input type="date" value={pubDate} onChange={(e) => setPubDate(e.target.value)}
-              onBlur={() => { if (pubDate !== (s.pub_date || "")) onUpdate(s.id, { pub_date: pubDate || null }); }}
-              style={{ ...ta, fontSize: 12, width: 160 }} />
+            {label(ro ? "📅 Публикация (только чтение)" : "📅 Публикация")}
+            <input type="date" value={pubDate} onChange={(e) => setPubDate(e.target.value)} readOnly={ro} disabled={ro}
+              onBlur={() => { if (!ro && pubDate !== (s.pub_date || "")) onUpdate(s.id, { pub_date: pubDate || null }); }}
+              style={{ ...ta, fontSize: 12, width: 160, opacity: ro ? 0.6 : 1 }} />
           </div>
           <div style={{ textAlign: "center" }}>
             <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4 }}>Сценарий к</div>
@@ -126,8 +129,8 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
         <div>
           {label("🎬 Референс — ссылка на исходник")}
           <div style={{ display: "flex", gap: 6 }}>
-            <input value={refUrl} onChange={(e) => setRefUrl(e.target.value)}
-              onBlur={() => { if (refUrl !== (s.ref_url || "")) onUpdate(s.id, { ref_url: refUrl }); }}
+            <input value={refUrl} onChange={(e) => setRefUrl(e.target.value)} readOnly={ro}
+              onBlur={() => { if (!ro && refUrl !== (s.ref_url || "")) onUpdate(s.id, { ref_url: refUrl }); }}
               placeholder="https://…" style={{ ...ta, fontSize: 12 }} />
             {s.ref_url && (
               <a href={s.ref_url.startsWith("http") ? s.ref_url : `https://${s.ref_url}`} target="_blank" rel="noopener noreferrer"
@@ -141,8 +144,8 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
         {/* Транскрибация */}
         <div>
           {label("📝 Транскрибация референса")}
-          <textarea value={refText} onChange={(e) => setRefText(e.target.value)}
-            onBlur={() => { if (refText !== (s.ref_text || "")) onUpdate(s.id, { ref_text: refText }); }}
+          <textarea value={refText} onChange={(e) => setRefText(e.target.value)} readOnly={ro}
+            onBlur={() => { if (!ro && refText !== (s.ref_text || "")) onUpdate(s.id, { ref_text: refText }); }}
             rows={5} placeholder="Расшифровка текста исходного видео…" style={ta} />
         </div>
 
@@ -158,30 +161,33 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
         <div style={{ padding: 14, borderRadius: 12, background: "rgba(157,107,255,0.05)", border: "1px solid var(--brd)", display: "flex", flexDirection: "column", gap: 12 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
             <span style={{ fontSize: 11, fontWeight: 800, color: "var(--pu)", textTransform: "uppercase", letterSpacing: 0.5 }}>✨ Наш сценарий</span>
+            {!ro && (
             <button onClick={() => adaptFromDonor()} disabled={adaptBusy || !(s.transcription || s.ref_text)}
               style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 13px", borderRadius: 8, background: "linear-gradient(135deg, var(--cy), var(--pu))", border: "none", color: "#fff", fontSize: 11, fontWeight: 800, cursor: adaptBusy ? "default" : "pointer", opacity: adaptBusy ? 0.7 : 1 }}>
               {adaptBusy ? "Адаптирую…" : "✨ Адаптировать под клиента"}
             </button>
+            )}
           </div>
           <div>
             {label("1. Хук (первые секунды)", "var(--cy)")}
-            <textarea value={hook} onChange={(e) => setHook(e.target.value)}
-              onBlur={() => { if (hook !== (s.hook || "")) onUpdate(s.id, { hook }); }}
+            <textarea value={hook} onChange={(e) => setHook(e.target.value)} readOnly={ro}
+              onBlur={() => { if (!ro && hook !== (s.hook || "")) onUpdate(s.id, { hook }); }}
               rows={2} placeholder="Цепляющее начало — ради чего досмотрят…" style={{ ...ta, background: "var(--inset2)" }} />
           </div>
           <div>
             {label("2. Основной текст", "var(--pu)")}
-            <textarea value={bodyText} onChange={(e) => setBodyText(e.target.value)}
-              onBlur={() => { if (bodyText !== (s.body_text || "")) onUpdate(s.id, { body_text: bodyText }); }}
+            <textarea value={bodyText} onChange={(e) => setBodyText(e.target.value)} readOnly={ro}
+              onBlur={() => { if (!ro && bodyText !== (s.body_text || "")) onUpdate(s.id, { body_text: bodyText }); }}
               rows={7} placeholder="Тело сценария — мясо/смысл…" style={{ ...ta, background: "var(--inset2)" }} />
           </div>
           <div>
             {label("3. Призыв (CTA)", "var(--gr)")}
-            <textarea value={cta} onChange={(e) => setCta(e.target.value)}
-              onBlur={() => { if (cta !== (s.cta || "")) onUpdate(s.id, { cta }); }}
+            <textarea value={cta} onChange={(e) => setCta(e.target.value)} readOnly={ro}
+              onBlur={() => { if (!ro && cta !== (s.cta || "")) onUpdate(s.id, { cta }); }}
               rows={2} placeholder="Призыв к действию в конце…" style={{ ...ta, background: "var(--inset2)" }} />
           </div>
-          {/* Доработка по правке — мини-чат с AI */}
+          {/* Доработка по правке — мини-чат с AI (только для тех, кто может редактировать) */}
+          {!ro && (
           <div style={{ marginTop: 4, paddingTop: 12, borderTop: "1px solid var(--brd)" }}>
             {label("↻ Что переделать? (правка для AI)", "var(--cy)")}
             <div style={{ display: "flex", gap: 6 }}>
@@ -194,6 +200,7 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
               </button>
             </div>
           </div>
+          )}
         </div>
 
         {/* Опубликованное видео */}
@@ -216,7 +223,7 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
 
         {/* Footer */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, paddingTop: 4 }}>
-          {onDelete ? (
+          {onDelete && !ro ? (
             <button onClick={() => { if (confirm("Удалить этот сценарий?")) onDelete(s.id); }}
               style={{ padding: "8px 12px", borderRadius: 9, background: "transparent", border: "1px solid rgba(255,92,122,0.4)", color: "var(--rd)", fontSize: 11, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}>
               <Trash2 size={13} /> Удалить
