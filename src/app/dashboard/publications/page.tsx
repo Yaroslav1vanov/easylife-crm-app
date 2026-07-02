@@ -80,6 +80,7 @@ export default function PublicationsPage() {
   const [openId, setOpenId] = useState<number | null>(null);
   const [autoOpen, setAutoOpen] = useState(false);
   const [poolOpen, setPoolOpen] = useState(true);
+  const [slotMenu, setSlotMenu] = useState<string | null>(null); // dayIso с открытым меню «+ Рилз/Карусель»
 
   useEffect(() => { load(); }, []);
 
@@ -104,14 +105,20 @@ export default function PublicationsPage() {
     const ms = clientMonths.filter(m => m.client_id === clientId && m.status !== "closed" && m.status !== "cancelled");
     return (ms.find(m => m.status === "active") || ms.find(m => m.status === "onboarding") || ms.sort((a, b) => b.month_number - a.month_number)[0])?.month_number || 1;
   }
-  // Создать пустой слот-дату (скелет плана) для клиента на день
-  async function createSlot(clientId: number, dayIso: string) {
+  // Создать пустой слот-дату (скелет плана) для клиента на день, с типом контента
+  async function createSlot(clientId: number, dayIso: string, contentType: "reel" | "carousel") {
     const { data } = await supabase.from("scripts").insert({
       client_id: clientId, month_number: activeMonthOf(clientId), order_num: 0,
       hook: "", ref_url: "", ref_text: "", transcription: "", hook_text: "", body_text: "", cta: "",
       description: "", script_status: "notStarted", video_status: "notStarted", pub_date: dayIso, ready_at: null,
+      content_type: contentType,
     }).select().single();
     if (data) setAllScripts(arr => [...arr, data as Script]);
+    setSlotMenu(null);
+  }
+  async function deleteSlot(id: number) {
+    await db.deleteScript(supabase, id);
+    setAllScripts(arr => arr.filter(s => s.id !== id));
   }
 
   const teamleads = useMemo(() => team.filter(t => t.member_type === "teamlead" || t.member_type === "admin"), [team]);
@@ -176,11 +183,13 @@ export default function PublicationsPage() {
     if (!s) return;
     // Совмещение: если на этот день у клиента есть пустой слот-скелет — «наполняем» его
     const emptyOnDay = allScripts.find(x => x.id !== id && x.client_id === s.client_id && x.pub_date === dayIso && isEmptySlot(x));
+    let ctPatch: Partial<Script> = {};
     if (emptyOnDay && !isEmptySlot(s)) {
+      ctPatch = { content_type: emptyOnDay.content_type || "reel" }; // сценарий занимает тип слота
       await db.deleteScript(supabase, emptyOnDay.id);
       setAllScripts(arr => arr.filter(x => x.id !== emptyOnDay.id));
     }
-    if (s.pub_date !== dayIso) await updateScript(id, { pub_date: dayIso });
+    if (s.pub_date !== dayIso || ctPatch.content_type) await updateScript(id, { pub_date: dayIso, ...ctPatch });
   }
 
   if (loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--t2)" }}>Загрузка…</div>;
@@ -277,7 +286,7 @@ export default function PublicationsPage() {
             🗓️ <b style={{ color: "var(--t1)" }}>План месяца:</b>
             {clientFilter === "all"
               ? <span>выбери клиента в фильтре ↑ — на днях появится «+», чтобы расставить даты выхода рилзов.</span>
-              : <span>жми <b style={{ color: "var(--pu)" }}>+</b> на нужных днях — расставь скелет дат. Потом перетащи готовые сценарии из пула на слот <span style={{ color: "var(--t3)" }}>(🕓 слот = пустая дата, ждёт сценарий)</span>.</span>}
+              : <span>жми <b style={{ color: "var(--pu)" }}>+</b> на дне → выбери <b>🎬 Рилз</b> или <b>🖼 Карусель</b>. Потом перетащи готовый сценарий из пула на слот. Удалить слот — крестик <b>×</b> на нём.</span>}
           </div>
           {pool.length > 0 && (
             <div className="card" style={{ padding: 14, borderRadius: 14, marginBottom: 14 }}>
@@ -324,7 +333,7 @@ export default function PublicationsPage() {
                         onDragLeave={() => { if (dragOverDay === dayIso) setDragOverDay(null); }}
                         onDrop={(e) => { e.preventDefault(); handleDropDay(dayIso); }}
                         style={{
-                          minHeight: 96, borderRadius: 10, padding: 7,
+                          minHeight: 96, borderRadius: 10, padding: 7, position: "relative",
                           background: isOver ? "rgba(157,107,255,0.12)" : isToday ? "rgba(66,212,244,0.06)" : "var(--inset)",
                           border: `1px solid ${isOver ? "var(--pu)" : isToday ? "var(--cy)" : "var(--brd)"}`,
                           display: "flex", flexDirection: "column", gap: 4, transition: "border-color .12s, background .12s",
@@ -334,23 +343,32 @@ export default function PublicationsPage() {
                           <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
                             {items.length > 0 && <span style={{ fontSize: 9, color: "var(--t3)", fontWeight: 700 }}>{items.length}</span>}
                             {clientFilter !== "all" && (
-                              <button onClick={(e) => { e.stopPropagation(); createSlot(clientFilter as number, dayIso); }}
-                                title="Запланировать рилз на этот день" style={{ width: 18, height: 18, borderRadius: 6, background: "rgba(157,107,255,0.15)", border: "1px solid var(--brd)", color: "var(--pu)", cursor: "pointer", fontSize: 13, fontWeight: 800, lineHeight: 1, padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
+                              <button onClick={(e) => { e.stopPropagation(); setSlotMenu(m => m === dayIso ? null : dayIso); }}
+                                title="Запланировать на этот день" style={{ width: 18, height: 18, borderRadius: 6, background: "rgba(157,107,255,0.15)", border: "1px solid var(--brd)", color: "var(--pu)", cursor: "pointer", fontSize: 13, fontWeight: 800, lineHeight: 1, padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
                             )}
                           </div>
                         </div>
+                        {slotMenu === dayIso && clientFilter !== "all" && (
+                          <div onClick={(e) => e.stopPropagation()} style={{ position: "absolute", top: 26, right: 6, zIndex: 40, background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 9, padding: 4, boxShadow: "0 12px 30px rgba(0,0,0,0.5)", display: "flex", flexDirection: "column", gap: 2, minWidth: 120 }}>
+                            <button onClick={() => createSlot(clientFilter as number, dayIso, "reel")} className="nav-item" style={{ fontSize: 11, padding: "6px 8px", gap: 7 }}>🎬 Рилз</button>
+                            <button onClick={() => createSlot(clientFilter as number, dayIso, "carousel")} className="nav-item" style={{ fontSize: 11, padding: "6px 8px", gap: 7 }}>🖼 Карусель</button>
+                          </div>
+                        )}
                         <div style={{ display: "flex", flexDirection: "column", gap: 3, overflow: "hidden" }}>
                           {items.slice(0, 4).map(s => {
                             const c = clientById[s.client_id];
                             const meta = STATUS_META[slotStatus(s, todayIso)];
                             const empty = isEmptySlot(s);
+                            const tIcon = s.content_type === "carousel" ? "🖼" : "🎬";
                             return (
                               <div key={s.id} draggable onDragStart={() => setDragId(s.id)} onDragEnd={() => { setDragId(null); setDragOverDay(null); }}
-                                onClick={() => setOpenId(s.id)} title={`${c?.name} · ${meta.label}${empty ? " — пусто, перетащи сюда сценарий" : ""}`}
+                                onClick={() => setOpenId(s.id)} title={`${c?.name} · ${s.content_type === "carousel" ? "карусель" : "рилз"} · ${meta.label}${empty ? " — пусто, перетащи сюда сценарий" : ""}`}
                                 style={{ display: "flex", alignItems: "center", gap: 5, padding: "3px 5px", borderRadius: 6, background: `${meta.color}1c`, border: `1px ${empty ? "dashed" : "solid"} ${meta.color}${empty ? "66" : "40"}`, cursor: "grab", opacity: dragId === s.id ? 0.4 : 1 }}>
-                                <span style={{ width: 6, height: 6, borderRadius: "50%", background: meta.color, flexShrink: 0 }} />
+                                <span style={{ fontSize: 10, flexShrink: 0 }}>{tIcon}</span>
                                 <Avatar name={c ? `${c.name} ${c.surname || ""}` : "?"} src={c?.avatar_url} size={14} />
-                                <span style={{ fontSize: 9, color: "var(--t1)", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{empty ? "🕓 слот" : c?.name}</span>
+                                <span style={{ fontSize: 9, color: "var(--t1)", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{empty ? "слот" : c?.name}</span>
+                                <button onClick={(e) => { e.stopPropagation(); if (empty || confirm("Удалить эту публикацию из плана?")) deleteSlot(s.id); }}
+                                  title="Удалить" style={{ flexShrink: 0, width: 14, height: 14, borderRadius: 4, background: "transparent", border: "none", color: "var(--t3)", cursor: "pointer", fontSize: 11, lineHeight: 1, padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
                               </div>
                             );
                           })}
