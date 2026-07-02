@@ -31,10 +31,13 @@ type Props = {
   onDelete?: (id: number) => Promise<void> | void;
   /** false → даты и тексты только для чтения (роль монтажёра). Видео прикрепить можно. */
   canEdit?: boolean;
+  /** Дату сдачи монтажа (ready_at) правит только владелец/админ. Остальные её видят, но не меняют. */
+  canEditReadyAt?: boolean;
 };
 
-export default function ScriptModal({ script: s, client: c, onClose, onUpdate, onDelete, canEdit = true }: Props) {
+export default function ScriptModal({ script: s, client: c, onClose, onUpdate, onDelete, canEdit = true, canEditReadyAt = false }: Props) {
   const ro = !canEdit; // read-only для монтажёра
+  const roReady = !canEditReadyAt; // дату сдачи меняет только владелец/админ
   const [hookText, setHookText] = useState(s.hook_text || "");
   const [refUrl, setRefUrl] = useState(s.ref_url || "");
   const [refText, setRefText] = useState(s.ref_text || "");
@@ -43,6 +46,7 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
   const [cta, setCta] = useState(s.cta || "");
   const [videoUrl, setVideoUrl] = useState(s.video_url || "");
   const [pubDate, setPubDate] = useState(s.pub_date || "");
+  const [readyAt, setReadyAt] = useState(s.ready_at || "");
   const [adaptBusy, setAdaptBusy] = useState(false);
   const [refine, setRefine] = useState("");
 
@@ -60,7 +64,7 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
   useEffect(() => {
     setHookText(s.hook_text || ""); setRefUrl(s.ref_url || ""); setRefText(s.ref_text || "");
     setHook(s.hook || ""); setBodyText(s.body_text || ""); setCta(s.cta || "");
-    setVideoUrl(s.video_url || ""); setPubDate(s.pub_date || "");
+    setVideoUrl(s.video_url || ""); setPubDate(s.pub_date || ""); setReadyAt(s.ready_at || "");
   }, [s.id]);
 
   useEffect(() => {
@@ -108,12 +112,21 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
         </div>
 
         {/* Сроки */}
-        <div style={{ display: "grid", gridTemplateColumns: "auto 1fr 1fr", gap: 12, alignItems: "end", padding: 14, borderRadius: 12, background: "var(--inset)", border: "1px solid var(--brd)" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "auto auto 1fr 1fr", gap: 12, alignItems: "end", padding: 14, borderRadius: 12, background: "var(--inset)", border: "1px solid var(--brd)" }}>
           <div>
             {label(ro ? "📅 Публикация (только чтение)" : "📅 Публикация")}
             <input type="date" value={pubDate} onChange={(e) => setPubDate(e.target.value)} readOnly={ro} disabled={ro}
               onBlur={() => { if (!ro && pubDate !== (s.pub_date || "")) onUpdate(s.id, { pub_date: pubDate || null }); }}
-              style={{ ...ta, fontSize: 12, width: 160, opacity: ro ? 0.6 : 1 }} />
+              style={{ ...ta, fontSize: 12, width: 150, opacity: ro ? 0.6 : 1 }} />
+          </div>
+          <div>
+            {label(roReady ? "✂️ Смонтировано (фиксируется авто)" : "✂️ Смонтировано (дата сдачи)")}
+            <input type="date" value={readyAt} onChange={(e) => setReadyAt(e.target.value)} readOnly={roReady} disabled={roReady}
+              onBlur={() => { if (!roReady && readyAt !== (s.ready_at || "")) onUpdate(s.id, { ready_at: readyAt || null }); }}
+              title={roReady
+                ? "День сдачи монтажа. Проставляется автоматически при переносе ролика в «Готово к публикации» и не редактируется. Менять может только владелец."
+                : "День сдачи монтажа — по нему начисляется ЗП монтажёру. Ставится авто при переносе в «Готово к публикации», при необходимости поправь вручную."}
+              style={{ ...ta, fontSize: 12, width: 150, opacity: roReady ? 0.6 : 1, cursor: roReady ? "not-allowed" : "auto" }} />
           </div>
           <div style={{ textAlign: "center" }}>
             <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4 }}>Сценарий к</div>

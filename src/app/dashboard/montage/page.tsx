@@ -7,7 +7,7 @@ import Avatar from "@/components/Avatar";
 import KanbanBoard from "@/components/KanbanBoard";
 import ScriptModal, { VIDEO_LEAD, fmtDateShort, addDaysIso } from "@/components/ScriptModal";
 import { MONTAGE_COLUMNS } from "@/components/kanbanConfigs";
-import { useIsMontager } from "@/components/RoleContext";
+import { useIsMontager, useCanEditReadyAt } from "@/components/RoleContext";
 import {
   Filter, ChevronDown, ChevronLeft, ChevronRight, CalendarDays, Table as TableIcon,
 } from "lucide-react";
@@ -56,6 +56,7 @@ export default function MontagePage() {
   const [openId, setOpenId] = useState<number | null>(null);
   const [me, setMe] = useState<TeamMember | null>(null);
   const isMontager = useIsMontager();
+  const canEditReadyAt = useCanEditReadyAt();
   // Монтажёр видит только свои карточки — жёстко фиксируем фильтр на себя
   useEffect(() => { if (isMontager && me) setMgFilter(me.id); }, [isMontager, me]);
 
@@ -341,10 +342,10 @@ export default function MontagePage() {
       <KanbanBoard scripts={kanbanScripts} clients={clients} columns={MONTAGE_COLUMNS} onUpdate={updateScript} showClient emptyHint="Пусто"
         deadlineLeadDays={VIDEO_LEAD}
         deadlineDone={(s) => s.video_status === "ready" || s.video_status === "published"}
-        canEditScript={!isMontager} />
+        canEditScript={!isMontager} canEditReadyAt={canEditReadyAt} />
 
       {openScript && (
-        <ScriptModal script={openScript} client={clientById[openScript.client_id]} onClose={() => setOpenId(null)} onUpdate={updateScript} canEdit={!isMontager} />
+        <ScriptModal script={openScript} client={clientById[openScript.client_id]} onClose={() => setOpenId(null)} onUpdate={updateScript} canEdit={!isMontager} canEditReadyAt={canEditReadyAt} />
       )}
     </div>
   );

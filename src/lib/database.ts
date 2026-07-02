@@ -250,10 +250,13 @@ const db = {
         merged.order_num = ((mx?.[0]?.order_num as number) || 0) + 1;
       }
     }
-    // When moving into 'published' — keep ready_at as-is (the day it became ready remains historical).
-    // If pub_date is being set and there's no ready_at yet on the row, set ready_at = pub_date as a fallback.
-    if (updates.video_status === "published" && updates.ready_at === undefined && updates.pub_date) {
-      // Only fills if NULL — Supabase update can't conditionally coalesce, so we'd need a separate read; skip for now.
+    // Если карточку двигают сразу в «Опубликовано», минуя «Готово к публикации» —
+    // дата сдачи (ready_at) осталась бы пустой, и монтаж «уехал» бы в месяц публикации.
+    // Поэтому: при переходе в published, если ready_at ещё не проставлен — ставим сегодня.
+    // (Существующий ready_at сохраняем как есть — это исторический день сдачи.)
+    if (updates.video_status === "published" && updates.ready_at === undefined) {
+      const { data: cur } = await sb.from("scripts").select("ready_at").eq("id", id).maybeSingle();
+      if (cur && !cur.ready_at) merged.ready_at = new Date().toISOString().slice(0, 10);
     }
     const { error } = await sb.from("scripts").update(merged).eq("id", id);
     return { error, patch: merged as Partial<Script> };

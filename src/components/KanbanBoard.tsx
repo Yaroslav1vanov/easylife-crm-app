@@ -60,9 +60,11 @@ type Props = {
   deadlineShow?: (s: Script) => boolean;
   /** false → в модалке даты/тексты только для чтения (роль монтажёра). Перетаскивание карточек остаётся. */
   canEditScript?: boolean;
+  /** true → в модалке дату сдачи монтажа можно править (только владелец/админ). */
+  canEditReadyAt?: boolean;
 };
 
-export default function KanbanBoard({ scripts, clients, columns, onUpdate, showClient = false, minColWidth = 220, emptyHint = "Пусто", onAddCard, addColumnId, onDelete, deadlineLeadDays, deadlineDone, deadlineShow, canEditScript = true }: Props) {
+export default function KanbanBoard({ scripts, clients, columns, onUpdate, showClient = false, minColWidth = 220, emptyHint = "Пусто", onAddCard, addColumnId, onDelete, deadlineLeadDays, deadlineDone, deadlineShow, canEditScript = true, canEditReadyAt = false }: Props) {
   const todayIso = todayIsoLocal();
   const hasDeadline = deadlineLeadDays != null;
   const [openId, setOpenId] = useState<number | null>(null);
@@ -190,6 +192,7 @@ export default function KanbanBoard({ scripts, clients, columns, onUpdate, showC
           onUpdate={onUpdate}
           onDelete={onDelete ? async (id) => { await onDelete(id); setOpenId(null); } : undefined}
           canEdit={canEditScript}
+          canEditReadyAt={canEditReadyAt}
         />
       )}
     </>

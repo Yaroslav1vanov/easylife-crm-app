@@ -7,6 +7,7 @@ import Avatar from "@/components/Avatar";
 import KanbanBoard from "@/components/KanbanBoard";
 import ScriptModal, { SCRIPT_LEAD, fmtDateShort, addDaysIso } from "@/components/ScriptModal";
 import { SCRIPT_COLUMNS } from "@/components/kanbanConfigs";
+import { useCanEditReadyAt } from "@/components/RoleContext";
 import {
   Filter, ChevronDown, ChevronLeft, ChevronRight, X, CalendarDays, Table as TableIcon,
 } from "lucide-react";
@@ -35,6 +36,7 @@ function buildCalendar(ym: string): (string | null)[][] {
 
 export default function ScriptsPage() {
   const supabase = createClient();
+  const canEditReadyAt = useCanEditReadyAt();
   const todayIso = isoOf(new Date());
   const tomorrowIso = addDaysIso(todayIso, 1);
 
@@ -325,10 +327,11 @@ export default function ScriptsPage() {
       <KanbanBoard scripts={kanbanScripts} clients={clients} columns={SCRIPT_COLUMNS} onUpdate={updateScript} showClient emptyHint="Пусто"
         deadlineLeadDays={SCRIPT_LEAD}
         deadlineDone={(s) => s.script_status === "approved"}
-        deadlineShow={(s) => s.script_status === "inProgress" || s.script_status === "review"} />
+        deadlineShow={(s) => s.script_status === "inProgress" || s.script_status === "review"}
+        canEditReadyAt={canEditReadyAt} />
 
       {openScript && (
-        <ScriptModal script={openScript} client={clientById[openScript.client_id]} onClose={() => setOpenId(null)} onUpdate={updateScript} />
+        <ScriptModal script={openScript} client={clientById[openScript.client_id]} onClose={() => setOpenId(null)} onUpdate={updateScript} canEditReadyAt={canEditReadyAt} />
       )}
     </div>
   );

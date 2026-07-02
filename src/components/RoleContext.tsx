@@ -16,6 +16,12 @@ export function useRole(): Role {
 export function useIsMontager(): boolean {
   return useContext(RoleCtx) === "montager";
 }
+// Дату сдачи монтажа (ready_at) может править ТОЛЬКО владелец/админ —
+// монтажёр и тимлид её видят, но не меняют (чтобы даты не «переставляли» задним числом).
+export function useCanEditReadyAt(): boolean {
+  const r = useContext(RoleCtx);
+  return r === "owner" || r === "admin";
+}
 // Разделы, доступные роли (для сайдбара и гварда маршрутов).
 export const ALLOWED_SECTIONS: Record<string, string[] | "all"> = {
   montager: ["dashboard", "montage", "references"],
