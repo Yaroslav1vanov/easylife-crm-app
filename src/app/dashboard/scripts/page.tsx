@@ -100,7 +100,9 @@ export default function ScriptsPage() {
       if (!s.pub_date || !inScope(s.client_id)) continue;
       const due = addDaysIso(s.pub_date, -SCRIPT_LEAD);
       const frozen = clientById[s.client_id]?.stage !== "active";
-      const status: Slot["status"] = s.script_status === "approved" ? "done" : frozen ? "frozen" : (due < todayIso ? "overdue" : "due");
+      // Просрочка — только у взятых в работу (inProgress/review). «Идея»/пустой слот не просрочен.
+      const taken = s.script_status === "inProgress" || s.script_status === "review";
+      const status: Slot["status"] = s.script_status === "approved" ? "done" : frozen ? "frozen" : (taken && due < todayIso ? "overdue" : "due");
       if (focus === "today" && due !== todayIso) continue;
       if (focus === "tomorrow" && due !== tomorrowIso) continue;
       if (focus === "overdue" && status !== "overdue") continue;
@@ -129,8 +131,9 @@ export default function ScriptsPage() {
 
   const summary = useMemo(() => {
     const all = allScripts.filter(s => s.pub_date && inScope(s.client_id) && clientById[s.client_id]?.stage === "active");
+    const taken = (s: Script) => s.script_status === "inProgress" || s.script_status === "review";
     const today = all.filter(s => s.script_status !== "approved" && addDaysIso(s.pub_date!, -SCRIPT_LEAD) === todayIso).length;
-    const overdue = all.filter(s => s.script_status !== "approved" && addDaysIso(s.pub_date!, -SCRIPT_LEAD) < todayIso).length;
+    const overdue = all.filter(s => taken(s) && addDaysIso(s.pub_date!, -SCRIPT_LEAD) < todayIso).length;
     const week = planSlots.filter(sl => sl.due >= weekDays[0] && sl.due <= weekDays[6]).length;
     return { today, overdue, week };
   }, [allScripts, clientFilter, tlFilter, todayIso, planSlots, weekDays]);
@@ -321,7 +324,8 @@ export default function ScriptsPage() {
       <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 10, color: "var(--t2)" }}>Доска сценариев</div>
       <KanbanBoard scripts={kanbanScripts} clients={clients} columns={SCRIPT_COLUMNS} onUpdate={updateScript} showClient emptyHint="Пусто"
         deadlineLeadDays={SCRIPT_LEAD}
-        deadlineDone={(s) => s.script_status === "approved"} />
+        deadlineDone={(s) => s.script_status === "approved"}
+        deadlineShow={(s) => s.script_status === "inProgress" || s.script_status === "review"} />
 
       {openScript && (
         <ScriptModal script={openScript} client={clientById[openScript.client_id]} onClose={() => setOpenId(null)} onUpdate={updateScript} />

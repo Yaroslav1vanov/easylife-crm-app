@@ -56,11 +56,13 @@ type Props = {
   deadlineLeadDays?: number;
   /** Когда вернёт true — карточка считается «сдана» (дедлайн неактуален). */
   deadlineDone?: (s: Script) => boolean;
+  /** Если задан и вернёт false — бейдж дедлайна не показывается (напр. «идея» ещё не в работе). */
+  deadlineShow?: (s: Script) => boolean;
   /** false → в модалке даты/тексты только для чтения (роль монтажёра). Перетаскивание карточек остаётся. */
   canEditScript?: boolean;
 };
 
-export default function KanbanBoard({ scripts, clients, columns, onUpdate, showClient = false, minColWidth = 220, emptyHint = "Пусто", onAddCard, addColumnId, onDelete, deadlineLeadDays, deadlineDone, canEditScript = true }: Props) {
+export default function KanbanBoard({ scripts, clients, columns, onUpdate, showClient = false, minColWidth = 220, emptyHint = "Пусто", onAddCard, addColumnId, onDelete, deadlineLeadDays, deadlineDone, deadlineShow, canEditScript = true }: Props) {
   const todayIso = todayIsoLocal();
   const hasDeadline = deadlineLeadDays != null;
   const [openId, setOpenId] = useState<number | null>(null);
@@ -167,7 +169,7 @@ export default function KanbanBoard({ scripts, clients, columns, onUpdate, showC
                       dragging={draggedId === s.id}
                       moving={movingScript === s.id}
                       showClient={showClient}
-                      deadline={hasDeadline ? deadlineInfo(s, deadlineLeadDays!, deadlineDone?.(s) ?? false, todayIso) : null}
+                      deadline={hasDeadline && (deadlineShow ? deadlineShow(s) : true) ? deadlineInfo(s, deadlineLeadDays!, deadlineDone?.(s) ?? false, todayIso) : null}
                       onDragStart={(e) => { setDraggedId(s.id); e.dataTransfer.setData("text/plain", String(s.id)); e.dataTransfer.effectAllowed = "move"; }}
                       onDragEnd={() => { setDraggedId(null); setDragOverCol(null); }}
                       onClick={() => setOpenId(s.id)}

@@ -34,18 +34,26 @@ function buildCalendar(ym: string): (string | null)[][] {
   return weeks;
 }
 
-type SlotStatus = "published" | "overdue" | "today" | "ready_waiting" | "not_ready";
+type SlotStatus = "published" | "overdue" | "today" | "ready_waiting" | "not_ready" | "planned";
 const STATUS_META: Record<SlotStatus, { color: string; label: string }> = {
   published: { color: "#34a853", label: "Опубликовано" },
   overdue: { color: "#ff5c7a", label: "Просрочено" },
   today: { color: "#ffae42", label: "Сегодня" },
   ready_waiting: { color: "#42d4f4", label: "Готово, ждёт" },
   not_ready: { color: "#6b7280", label: "Не готово" },
+  planned: { color: "#9d6bff", label: "Слот (план)" },
 };
+// «Взят в работу» = сценарий уже начали (не «идея»). Только такие могут быть просрочены.
+const isTaken = (s: Script) => !!s.script_status && s.script_status !== "notStarted";
+// Пустой слот-скелет: только дата, без содержимого и не начат.
+const isEmptySlot = (s: Script) => !isTaken(s) && !s.hook_text && !s.hook && !s.body_text && !s.ref_url && !s.ref_text && (!s.video_status || s.video_status === "notStarted");
 function slotStatus(s: Script, todayIso: string): SlotStatus {
   if (s.video_status === "published") return "published";
   const ready = s.video_status === "ready";
-  if (s.pub_date && s.pub_date < todayIso) return "overdue";
+  // Пустой запланированный слот (скелет) — не просрочка, это план
+  if (isEmptySlot(s)) return "planned";
+  // Просрочка — только для взятых в работу (по договорённости)
+  if (isTaken(s) && s.pub_date && s.pub_date < todayIso) return "overdue";
   if (s.pub_date === todayIso) return "today";
   return ready ? "ready_waiting" : "not_ready";
 }
@@ -89,6 +97,21 @@ export default function PublicationsPage() {
   async function updateScript(id: number, patch: Partial<Script>) {
     await db.updateScript(supabase, id, patch);
     setAllScripts(arr => arr.map(s => s.id === id ? { ...s, ...patch } : s));
+  }
+
+  // Активный контрактный месяц клиента (куда крепим слот)
+  function activeMonthOf(clientId: number): number {
+    const ms = clientMonths.filter(m => m.client_id === clientId && m.status !== "closed" && m.status !== "cancelled");
+    return (ms.find(m => m.status === "active") || ms.find(m => m.status === "onboarding") || ms.sort((a, b) => b.month_number - a.month_number)[0])?.month_number || 1;
+  }
+  // Создать пустой слот-дату (скелет плана) для клиента на день
+  async function createSlot(clientId: number, dayIso: string) {
+    const { data } = await supabase.from("scripts").insert({
+      client_id: clientId, month_number: activeMonthOf(clientId), order_num: 0,
+      hook: "", ref_url: "", ref_text: "", transcription: "", hook_text: "", body_text: "", cta: "",
+      description: "", script_status: "notStarted", video_status: "notStarted", pub_date: dayIso, ready_at: null,
+    }).select().single();
+    if (data) setAllScripts(arr => [...arr, data as Script]);
   }
 
   const teamleads = useMemo(() => team.filter(t => t.member_type === "teamlead" || t.member_type === "admin"), [team]);
@@ -150,7 +173,14 @@ export default function PublicationsPage() {
     const id = dragId;
     setDragId(null); setDragOverDay(null);
     const s = allScripts.find(x => x.id === id);
-    if (s && s.pub_date !== dayIso) await updateScript(id, { pub_date: dayIso });
+    if (!s) return;
+    // Совмещение: если на этот день у клиента есть пустой слот-скелет — «наполняем» его
+    const emptyOnDay = allScripts.find(x => x.id !== id && x.client_id === s.client_id && x.pub_date === dayIso && isEmptySlot(x));
+    if (emptyOnDay && !isEmptySlot(s)) {
+      await db.deleteScript(supabase, emptyOnDay.id);
+      setAllScripts(arr => arr.filter(x => x.id !== emptyOnDay.id));
+    }
+    if (s.pub_date !== dayIso) await updateScript(id, { pub_date: dayIso });
   }
 
   if (loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--t2)" }}>Загрузка…</div>;
@@ -243,6 +273,12 @@ export default function PublicationsPage() {
 
       {view === "calendar" ? (
         <>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 13px", borderRadius: 11, background: "rgba(157,107,255,0.06)", border: "1px solid var(--brd)", marginBottom: 12, fontSize: 12, color: "var(--t2)", flexWrap: "wrap" }}>
+            🗓️ <b style={{ color: "var(--t1)" }}>План месяца:</b>
+            {clientFilter === "all"
+              ? <span>выбери клиента в фильтре ↑ — на днях появится «+», чтобы расставить даты выхода рилзов.</span>
+              : <span>жми <b style={{ color: "var(--pu)" }}>+</b> на нужных днях — расставь скелет дат. Потом перетащи готовые сценарии из пула на слот <span style={{ color: "var(--t3)" }}>(🕓 слот = пустая дата, ждёт сценарий)</span>.</span>}
+          </div>
           {pool.length > 0 && (
             <div className="card" style={{ padding: 14, borderRadius: 14, marginBottom: 14 }}>
               <button onClick={() => setPoolOpen(v => !v)} style={{ background: "transparent", border: "none", color: "var(--t1)", cursor: "pointer", display: "flex", alignItems: "center", gap: 8, fontSize: 12, fontWeight: 800, marginBottom: poolOpen ? 10 : 0 }}>
@@ -295,19 +331,26 @@ export default function PublicationsPage() {
                         }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                           <span style={{ fontSize: 11, fontWeight: 700, color: isToday ? "var(--cy)" : "var(--t2)" }}>{dnum}{isToday ? " · сегодня" : ""}</span>
-                          {items.length > 0 && <span style={{ fontSize: 9, color: "var(--t3)", fontWeight: 700 }}>{items.length}</span>}
+                          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                            {items.length > 0 && <span style={{ fontSize: 9, color: "var(--t3)", fontWeight: 700 }}>{items.length}</span>}
+                            {clientFilter !== "all" && (
+                              <button onClick={(e) => { e.stopPropagation(); createSlot(clientFilter as number, dayIso); }}
+                                title="Запланировать рилз на этот день" style={{ width: 18, height: 18, borderRadius: 6, background: "rgba(157,107,255,0.15)", border: "1px solid var(--brd)", color: "var(--pu)", cursor: "pointer", fontSize: 13, fontWeight: 800, lineHeight: 1, padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
+                            )}
+                          </div>
                         </div>
                         <div style={{ display: "flex", flexDirection: "column", gap: 3, overflow: "hidden" }}>
                           {items.slice(0, 4).map(s => {
                             const c = clientById[s.client_id];
                             const meta = STATUS_META[slotStatus(s, todayIso)];
+                            const empty = isEmptySlot(s);
                             return (
                               <div key={s.id} draggable onDragStart={() => setDragId(s.id)} onDragEnd={() => { setDragId(null); setDragOverDay(null); }}
-                                onClick={() => setOpenId(s.id)} title={`${c?.name} · ${meta.label}`}
-                                style={{ display: "flex", alignItems: "center", gap: 5, padding: "3px 5px", borderRadius: 6, background: `${meta.color}1c`, border: `1px solid ${meta.color}40`, cursor: "grab", opacity: dragId === s.id ? 0.4 : 1 }}>
+                                onClick={() => setOpenId(s.id)} title={`${c?.name} · ${meta.label}${empty ? " — пусто, перетащи сюда сценарий" : ""}`}
+                                style={{ display: "flex", alignItems: "center", gap: 5, padding: "3px 5px", borderRadius: 6, background: `${meta.color}1c`, border: `1px ${empty ? "dashed" : "solid"} ${meta.color}${empty ? "66" : "40"}`, cursor: "grab", opacity: dragId === s.id ? 0.4 : 1 }}>
                                 <span style={{ width: 6, height: 6, borderRadius: "50%", background: meta.color, flexShrink: 0 }} />
                                 <Avatar name={c ? `${c.name} ${c.surname || ""}` : "?"} src={c?.avatar_url} size={14} />
-                                <span style={{ fontSize: 9, color: "var(--t1)", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c?.name}</span>
+                                <span style={{ fontSize: 9, color: "var(--t1)", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{empty ? "🕓 слот" : c?.name}</span>
                               </div>
                             );
                           })}
