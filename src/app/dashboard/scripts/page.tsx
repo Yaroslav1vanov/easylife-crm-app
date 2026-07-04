@@ -51,8 +51,9 @@ export default function ScriptsPage() {
   const [ym, setYm] = useState(ymOfDate(new Date()));
   const [clientFilter, setClientFilter] = useState<"all" | number>("all");
   const [tlFilter, setTlFilter] = useState<"all" | number>("all");
+  const [monthFilter, setMonthFilter] = useState<"all" | number>("all"); // контрактный месяц (M1/M2/…)
   const [focus, setFocus] = useState<"all" | "today" | "tomorrow" | "overdue">("all");
-  const [menu, setMenu] = useState<null | "client" | "tl" | "focus">(null);
+  const [menu, setMenu] = useState<null | "client" | "tl" | "month" | "focus">(null);
   const [openId, setOpenId] = useState<number | null>(null);
   const [me, setMe] = useState<TeamMember | null>(null);
 
@@ -94,12 +95,21 @@ export default function ScriptsPage() {
     if (c.stage !== "active" && clientFilter !== cid) return false;
     return true;
   };
+  const matchMonth = (s: Script) => monthFilter === "all" || (s.month_number || 1) === monthFilter;
+  const availableMonths = useMemo(() => {
+    const set = new Set<number>();
+    allScripts.forEach(s => { if (inScope(s.client_id)) set.add(s.month_number || 1); });
+    return Array.from(set).sort((a, b) => a - b);
+  }, [allScripts, clientFilter, tlFilter, clientById]);
+  useEffect(() => {
+    if (monthFilter !== "all" && !availableMonths.includes(monthFilter)) setMonthFilter("all");
+  }, [availableMonths, monthFilter]);
 
   type Slot = { s: Script; due: string; status: "done" | "overdue" | "due" | "frozen" };
   const planSlots = useMemo<Slot[]>(() => {
     const out: Slot[] = [];
     for (const s of allScripts) {
-      if (!s.pub_date || !inScope(s.client_id)) continue;
+      if (!s.pub_date || !inScope(s.client_id) || !matchMonth(s)) continue;
       const due = addDaysIso(s.pub_date, -SCRIPT_LEAD);
       const frozen = clientById[s.client_id]?.stage !== "active";
       // Просрочка — только у взятых в работу (inProgress/review). «Идея»/пустой слот не просрочен.
@@ -111,7 +121,7 @@ export default function ScriptsPage() {
       out.push({ s, due, status });
     }
     return out;
-  }, [allScripts, clientFilter, tlFilter, focus, todayIso, tomorrowIso, clientById]);
+  }, [allScripts, clientFilter, tlFilter, monthFilter, focus, todayIso, tomorrowIso, clientById]);
 
   const byClientDay = useMemo(() => {
     const m: Record<string, Record<string, Slot[]>> = {};
@@ -141,7 +151,7 @@ export default function ScriptsPage() {
   }, [allScripts, clientFilter, tlFilter, todayIso, planSlots, weekDays]);
 
   // Канбан снизу — все сценарии в скоупе фильтров
-  const kanbanScripts = useMemo(() => allScripts.filter(s => inScope(s.client_id)), [allScripts, clientFilter, tlFilter, clientById]);
+  const kanbanScripts = useMemo(() => allScripts.filter(s => inScope(s.client_id) && matchMonth(s)), [allScripts, clientFilter, tlFilter, monthFilter, clientById]);
   const scopeCount = clients.filter(c => inScope(c.id)).length;
   const openScript = openId != null ? allScripts.find(s => s.id === openId) || null : null;
 
@@ -199,6 +209,10 @@ export default function ScriptsPage() {
           <Drop label="Тимлид" kind="tl" value={tlFilter === "all" ? "Все" : (team.find(t => t.id === tlFilter)?.name || "—")}>
             <button onClick={() => { setTlFilter("all"); setMenu(null); }} className="nav-item" style={{ fontSize: 11, padding: "7px 10px" }}>Все тимлиды</button>
             {teamleads.map(t => <button key={t.id} onClick={() => { setTlFilter(t.id); setMenu(null); }} className="nav-item" style={{ fontSize: 11, padding: "7px 10px", gap: 8 }}><Avatar name={t.name} src={t.avatar_url} size={20} /> {t.name}</button>)}
+          </Drop>
+          <Drop label="Месяц" kind="month" value={monthFilter === "all" ? "Все" : `M${monthFilter}`}>
+            <button onClick={() => { setMonthFilter("all"); setMenu(null); }} className="nav-item" style={{ fontSize: 11, padding: "7px 10px" }}>Все месяцы</button>
+            {availableMonths.map(m => <button key={m} onClick={() => { setMonthFilter(m); setMenu(null); }} className="nav-item" style={{ fontSize: 11, padding: "7px 10px" }}>M{m} — {clientFilter === "all" ? "по всем клиентам" : "контрактный месяц"}</button>)}
           </Drop>
           <Drop label="Показать" kind="focus" value={FOCUS_OPTS.find(o => o.v === focus)!.l}>
             {FOCUS_OPTS.map(o => <button key={o.v} onClick={() => { setFocus(o.v); setMenu(null); }} className="nav-item" style={{ fontSize: 11, padding: "7px 10px", color: focus === o.v ? "var(--pu)" : undefined }}>{o.l}</button>)}

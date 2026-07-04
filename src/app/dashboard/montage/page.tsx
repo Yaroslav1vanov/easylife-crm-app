@@ -51,8 +51,9 @@ export default function MontagePage() {
   const [clientFilter, setClientFilter] = useState<"all" | number>("all");
   const [tlFilter, setTlFilter] = useState<"all" | number>("all");
   const [mgFilter, setMgFilter] = useState<"all" | number>("all");
+  const [monthFilter, setMonthFilter] = useState<"all" | number>("all"); // контрактный месяц (M1/M2/…)
   const [focus, setFocus] = useState<"all" | "today" | "tomorrow" | "overdue">("all");
-  const [menu, setMenu] = useState<null | "client" | "tl" | "mg" | "focus">(null);
+  const [menu, setMenu] = useState<null | "client" | "tl" | "mg" | "month" | "focus">(null);
   const [openId, setOpenId] = useState<number | null>(null);
   const [me, setMe] = useState<TeamMember | null>(null);
   const isMontager = useIsMontager();
@@ -105,13 +106,24 @@ export default function MontagePage() {
     if (c.stage !== "active" && clientFilter !== cid) return false;
     return true;
   };
+  const matchMonth = (s: Script) => monthFilter === "all" || (s.month_number || 1) === monthFilter;
+  // Доступные контрактные месяцы (M1/M2/…) в текущем срезе клиентов — для дропдауна.
+  const availableMonths = useMemo(() => {
+    const set = new Set<number>();
+    allScripts.forEach(s => { if (inScope(s.client_id)) set.add(s.month_number || 1); });
+    return Array.from(set).sort((a, b) => a - b);
+  }, [allScripts, clientFilter, tlFilter, mgFilter, clientById]);
+  // Если выбранный месяц пропал из среза (сменили клиента) — сбрасываем на «Все».
+  useEffect(() => {
+    if (monthFilter !== "all" && !availableMonths.includes(monthFilter)) setMonthFilter("all");
+  }, [availableMonths, monthFilter]);
 
   type Slot = { s: Script; due: string; status: "done" | "overdue" | "due" | "frozen" };
   const planSlots = useMemo<Slot[]>(() => {
     const out: Slot[] = [];
     for (const s of allScripts) {
       // в монтаж попадают согласованные сценарии
-      if (s.script_status !== "approved" || !s.pub_date || !inScope(s.client_id)) continue;
+      if (s.script_status !== "approved" || !s.pub_date || !inScope(s.client_id) || !matchMonth(s)) continue;
       const due = addDaysIso(s.pub_date, -VIDEO_LEAD);
       const ready = s.video_status === "ready" || s.video_status === "published";
       const frozen = clientById[s.client_id]?.stage !== "active";
@@ -122,7 +134,7 @@ export default function MontagePage() {
       out.push({ s, due, status });
     }
     return out;
-  }, [allScripts, clientFilter, tlFilter, mgFilter, focus, todayIso, tomorrowIso, clientById]);
+  }, [allScripts, clientFilter, tlFilter, mgFilter, monthFilter, focus, todayIso, tomorrowIso, clientById]);
 
   const byClientDay = useMemo(() => {
     const m: Record<string, Record<string, Slot[]>> = {};
@@ -152,7 +164,7 @@ export default function MontagePage() {
     return { today, overdue, week };
   }, [allScripts, clientFilter, tlFilter, mgFilter, todayIso, planSlots, weekDays]);
 
-  const kanbanScripts = useMemo(() => allScripts.filter(s => s.script_status === "approved" && inScope(s.client_id)), [allScripts, clientFilter, tlFilter, mgFilter, clientById]);
+  const kanbanScripts = useMemo(() => allScripts.filter(s => s.script_status === "approved" && inScope(s.client_id) && matchMonth(s)), [allScripts, clientFilter, tlFilter, mgFilter, monthFilter, clientById]);
   const scopeCount = clients.filter(c => inScope(c.id)).length;
   const openScript = openId != null ? allScripts.find(s => s.id === openId) || null : null;
 
@@ -215,6 +227,10 @@ export default function MontagePage() {
           <Drop label="Монтажёр" kind="mg" value={mgFilter === "all" ? "Все" : (team.find(t => t.id === mgFilter)?.name || "—")}>
             <button onClick={() => { setMgFilter("all"); setMenu(null); }} className="nav-item" style={{ fontSize: 11, padding: "7px 10px" }}>Все монтажёры</button>
             {montagers.map(t => <button key={t.id} onClick={() => { setMgFilter(t.id); setMenu(null); }} className="nav-item" style={{ fontSize: 11, padding: "7px 10px", gap: 8 }}><Avatar name={t.name} src={t.avatar_url} size={20} /> {t.name}</button>)}
+          </Drop>
+          <Drop label="Месяц" kind="month" value={monthFilter === "all" ? "Все" : `M${monthFilter}`}>
+            <button onClick={() => { setMonthFilter("all"); setMenu(null); }} className="nav-item" style={{ fontSize: 11, padding: "7px 10px" }}>Все месяцы</button>
+            {availableMonths.map(m => <button key={m} onClick={() => { setMonthFilter(m); setMenu(null); }} className="nav-item" style={{ fontSize: 11, padding: "7px 10px" }}>M{m} — {clientFilter === "all" ? "по всем клиентам" : "контрактный месяц"}</button>)}
           </Drop>
           </>}
           <Drop label="Показать" kind="focus" value={FOCUS_OPTS.find(o => o.v === focus)!.l}>
