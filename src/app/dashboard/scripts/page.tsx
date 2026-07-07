@@ -80,6 +80,11 @@ export default function ScriptsPage() {
   async function sendToIdea(id: number) {
     await updateScript(id, { script_status: "notStarted", pub_date: null });
   }
+  // Удалить сценарий (пустой / дубль / уже сделанный)
+  async function deleteScript(id: number) {
+    await db.deleteScript(supabase, id);
+    setAllScripts(arr => arr.filter(s => s.id !== id));
+  }
 
   const clientById = useMemo(() => Object.fromEntries(clients.map(c => [c.id, c])) as Record<number, Client>, [clients]);
   const teamleads = useMemo(() => team.filter(t => t.member_type === "teamlead" || t.member_type === "admin"), [team]);
@@ -342,7 +347,8 @@ export default function ScriptsPage() {
         deadlineLeadDays={SCRIPT_LEAD}
         deadlineDone={(s) => s.script_status === "approved"}
         deadlineShow={(s) => s.script_status === "inProgress" || s.script_status === "review"}
-        canEditReadyAt={canEditReadyAt} />
+        canEditReadyAt={canEditReadyAt}
+        onDelete={deleteScript} />
 
       {openScript && (
         <ScriptModal script={openScript} client={clientById[openScript.client_id]} onClose={() => setOpenId(null)} onUpdate={updateScript} canEditReadyAt={canEditReadyAt} />
