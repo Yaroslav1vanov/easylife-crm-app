@@ -6,6 +6,7 @@ import db, { Client, Script, ChecklistTask, TeamMember, ClientMonth, OnboardingP
 import AvatarUploader from "@/components/AvatarUploader";
 import MetricoolBrandPicker from "@/components/MetricoolBrandPicker";
 import { CLIENT_TIMEZONES, DEFAULT_TZ, nowInTz } from "@/lib/tz";
+import { WEEKDAYS_RU, weeklyQuotaOf, BATCH_BUFFER_DAYS } from "@/lib/batches";
 import ClientMonthsTimeline from "@/components/ClientMonthsTimeline";
 import ClientOverview from "@/components/ClientOverview";
 import ClientProduction from "@/components/ClientProduction";
@@ -308,6 +309,39 @@ export default function ClientDetailPage() {
             style={{ width: 160, padding: "6px 10px", borderRadius: 8, background: "var(--bg)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 12, outline: "none" }}
           />
           <span style={{ fontSize: 10, color: "var(--t3)" }}>id топика (папки) клиента в ТГ — по нему бот понимает, чьё это видео</span>
+        </div>
+        {/* Недельные партии: день сдачи видео + квота + день проверки контента */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8, flexWrap: "wrap", paddingTop: 10, borderTop: "1px dashed var(--brd)" }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: "var(--t2)" }}>📦 День сдачи видео:</span>
+          <select
+            value={c.delivery_day ?? ""}
+            onChange={(e) => updateClientField("delivery_day", e.target.value ? Number(e.target.value) : null)}
+            style={{ padding: "6px 10px", borderRadius: 8, background: "var(--bg)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 12, outline: "none", cursor: "pointer" }}
+          >
+            <option value="">не задан</option>
+            {WEEKDAYS_RU.map((w, i) => <option key={i} value={i + 1}>{w}</option>)}
+          </select>
+          <span style={{ fontSize: 11, fontWeight: 700, color: "var(--t2)", marginLeft: 6 }}>Роликов/нед:</span>
+          <input
+            type="number"
+            defaultValue={c.weekly_quota ?? ""}
+            placeholder={`авто: ${weeklyQuotaOf(c)}`}
+            onBlur={(e) => { const v = e.target.value ? Number(e.target.value) : null; if (v !== (c.weekly_quota ?? null)) updateClientField("weekly_quota", v); }}
+            style={{ width: 90, padding: "6px 10px", borderRadius: 8, background: "var(--bg)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 12, outline: "none" }}
+          />
+          <span style={{ fontSize: 10, color: "var(--t3)" }}>партия на неделю вперёд · готовность за {BATCH_BUFFER_DAYS} дня до сдачи</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: "var(--t2)" }}>📋 День проверки контента:</span>
+          <select
+            value={c.review_day ?? ""}
+            onChange={(e) => updateClientField("review_day", e.target.value ? Number(e.target.value) : null)}
+            style={{ padding: "6px 10px", borderRadius: 8, background: "var(--bg)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 12, outline: "none", cursor: "pointer" }}
+          >
+            <option value="">не задан</option>
+            {WEEKDAYS_RU.map((w, i) => <option key={i} value={i + 1}>{w}</option>)}
+          </select>
+          <span style={{ fontSize: 10, color: "var(--t3)" }}>в этот день тимлид сдаёт референсы и сценарии по клиенту на проверку</span>
         </div>
       </div>
 

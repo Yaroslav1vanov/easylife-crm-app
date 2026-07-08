@@ -8,6 +8,9 @@ export type Client = {
   metricool_blog_id?: number | null; platforms?: string[] | null;
   brand_voice?: string | null; timezone?: string | null; default_post_time?: string | null;
   telegram_topic_id?: number | null;
+  delivery_day?: number | null;  // день сдачи партии видео клиенту (1=Пн…7=Вс)
+  weekly_quota?: number | null;  // роликов в неделю (null = авто из пакета)
+  review_day?: number | null;    // день сдачи рефов/сценариев на проверку
   package: number; montager_id: number | null; teamlead_id: number | null; priority: string;
   stage: string; start_date: string; pub_date: string | null; scripts_deadline: string | null;
   videos_deadline: string | null; first_pub_date: string | null; onboarding_deadline?: string | null; target_audience: string;

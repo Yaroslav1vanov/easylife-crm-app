@@ -7,7 +7,7 @@ import { sectionAllowed } from "@/components/RoleContext";
 import Avatar from "@/components/Avatar";
 import {
   LayoutDashboard, Users, Layers, FileText, Scissors, Send, Calendar, Rocket, Flame,
-  HandshakeIcon, BarChart3, Settings, LogOut, Moon, Sun, ChevronUp, type LucideIcon,
+  HandshakeIcon, BarChart3, ClipboardList, Settings, LogOut, Moon, Sun, ChevronUp, type LucideIcon,
 } from "lucide-react";
 
 function BrandMark({ size = 26 }: { size?: number }) {
@@ -34,6 +34,7 @@ const navItems: NavItem[] = [
   { id: "calendar", path: "/dashboard/calendar", icon: Calendar, label: "Календарь" },
   { id: "team", path: "/dashboard/team", icon: HandshakeIcon, label: "Команда" },
   { id: "analytics", path: "/dashboard/analytics", icon: BarChart3, label: "Аналитика" },
+  { id: "reports", path: "/dashboard/reports", icon: ClipboardList, label: "Отчёты" },
   { id: "settings", path: "/dashboard/settings", icon: Settings, label: "Настройки" },
 ];
 
