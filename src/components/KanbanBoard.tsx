@@ -3,7 +3,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Client, Script } from "@/lib/database";
 import Avatar from "@/components/Avatar";
 import ScriptModal, { fmtDateShort, addDaysIso } from "@/components/ScriptModal";
-import { ExternalLink, Calendar as CalendarIcon, Plus, type LucideIcon } from "lucide-react";
+import ConfirmDialog from "@/components/ConfirmDialog";
+import { ExternalLink, Calendar as CalendarIcon, Plus, CheckSquare, Trash2, Undo2, X, type LucideIcon } from "lucide-react";
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
 function todayIsoLocal() { const d = new Date(); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; }
@@ -72,8 +73,32 @@ export default function KanbanBoard({ scripts, clients, columns, onUpdate, showC
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
   const [movingScript, setMovingScript] = useState<number | null>(null);
   const [adding, setAdding] = useState(false);
+  // Массовый выбор (галочками): удалить пачкой / вернуть в идею
+  const selectable = !!onDelete && canEditScript;
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [bulkConfirm, setBulkConfirm] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const addColId = addColumnId || columns[0]?.id;
+
+  const toggleSelect = (id: number) => setSelected(prev => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
+  const exitSelect = () => { setSelectMode(false); setSelected(new Set()); };
+  async function bulkDelete() {
+    if (!onDelete) return;
+    setBulkBusy(true);
+    for (const id of Array.from(selected)) await onDelete(id);
+    setBulkBusy(false); setBulkConfirm(false); exitSelect();
+  }
+  async function bulkToIdea() {
+    setBulkBusy(true);
+    for (const id of Array.from(selected)) await onUpdate(id, { script_status: "notStarted", pub_date: null } as Partial<Script>);
+    setBulkBusy(false); exitSelect();
+  }
 
   // Распределение по колонкам
   const byColumn = useMemo(() => {
@@ -112,6 +137,14 @@ export default function KanbanBoard({ scripts, clients, columns, onUpdate, showC
 
   return (
     <>
+      {selectable && (
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
+          <button onClick={() => selectMode ? exitSelect() : setSelectMode(true)}
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 9, border: `1px solid ${selectMode ? "var(--cy)" : "var(--brd)"}`, background: selectMode ? "rgba(66,212,244,0.12)" : "transparent", color: selectMode ? "var(--cy)" : "var(--t2)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+            <CheckSquare size={13} /> {selectMode ? "Отменить выбор" : "Выбрать несколько"}
+          </button>
+        </div>
+      )}
       <div style={{ display: "grid", gridTemplateColumns: `repeat(${columns.length}, minmax(${minColWidth}px, 1fr))`, gap: 10, overflowX: "auto", paddingBottom: 8 }}>
         {columns.map(col => {
           const Icon = col.Icon;
@@ -172,9 +205,11 @@ export default function KanbanBoard({ scripts, clients, columns, onUpdate, showC
                       moving={movingScript === s.id}
                       showClient={showClient}
                       deadline={hasDeadline && (deadlineShow ? deadlineShow(s) : true) ? deadlineInfo(s, deadlineLeadDays!, deadlineDone?.(s) ?? false, todayIso) : null}
-                      onDragStart={(e) => { setDraggedId(s.id); e.dataTransfer.setData("text/plain", String(s.id)); e.dataTransfer.effectAllowed = "move"; }}
+                      selectMode={selectMode}
+                      selected={selected.has(s.id)}
+                      onDragStart={(e) => { if (selectMode) { e.preventDefault(); return; } setDraggedId(s.id); e.dataTransfer.setData("text/plain", String(s.id)); e.dataTransfer.effectAllowed = "move"; }}
                       onDragEnd={() => { setDraggedId(null); setDragOverCol(null); }}
-                      onClick={() => setOpenId(s.id)}
+                      onClick={() => selectMode ? toggleSelect(s.id) : setOpenId(s.id)}
                     />
                   );
                 })}
@@ -195,6 +230,35 @@ export default function KanbanBoard({ scripts, clients, columns, onUpdate, showC
           canEditReadyAt={canEditReadyAt}
         />
       )}
+
+      {/* Плавающая панель массовых действий */}
+      {selectMode && (
+        <div style={{ position: "fixed", left: "50%", bottom: 24, transform: "translateX(-50%)", zIndex: 300, display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", borderRadius: 14, background: "var(--side)", border: "1px solid var(--brd)", boxShadow: "0 16px 50px rgba(0,0,0,0.6)", flexWrap: "wrap", justifyContent: "center" }}>
+          <span style={{ fontSize: 12, fontWeight: 800, color: "var(--t1)", whiteSpace: "nowrap" }}>
+            Выбрано: <span style={{ color: "var(--cy)" }}>{selected.size}</span>
+          </span>
+          <button onClick={bulkToIdea} disabled={bulkBusy || selected.size === 0}
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 13px", borderRadius: 9, background: "rgba(157,107,255,0.12)", border: "1px solid var(--brd)", color: "var(--pu)", fontSize: 11, fontWeight: 700, cursor: bulkBusy || selected.size === 0 ? "default" : "pointer", opacity: selected.size === 0 ? 0.5 : 1 }}>
+            <Undo2 size={13} /> {bulkBusy ? "…" : "В идею"}
+          </button>
+          <button onClick={() => setBulkConfirm(true)} disabled={bulkBusy || selected.size === 0}
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 13px", borderRadius: 9, background: "rgba(255,92,122,0.12)", border: "1px solid rgba(255,92,122,0.4)", color: "#ff5c7a", fontSize: 11, fontWeight: 700, cursor: bulkBusy || selected.size === 0 ? "default" : "pointer", opacity: selected.size === 0 ? 0.5 : 1 }}>
+            <Trash2 size={13} /> {bulkBusy ? "…" : "Удалить"}
+          </button>
+          <button onClick={exitSelect} title="Выйти из режима выбора"
+            style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 30, height: 30, borderRadius: 9, background: "transparent", border: "1px solid var(--brd)", color: "var(--t3)", cursor: "pointer" }}>
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={bulkConfirm}
+        title={`Удалить ${selected.size} ${selected.size === 1 ? "сценарий" : selected.size < 5 ? "сценария" : "сценариев"}?`}
+        text="Выбранные карточки будут удалены безвозвратно."
+        onCancel={() => setBulkConfirm(false)}
+        onConfirm={bulkDelete}
+      />
     </>
   );
 }
@@ -208,31 +272,39 @@ type PreviewProps = {
   moving: boolean;
   showClient: boolean;
   deadline?: ReturnType<typeof deadlineInfo>;
+  selectMode?: boolean;
+  selected?: boolean;
   onDragStart: (e: React.DragEvent) => void;
   onDragEnd: () => void;
   onClick: () => void;
 };
 
-function KanbanCardPreview({ script: s, client: c, color, dragging, moving, showClient, deadline, onDragStart, onDragEnd, onClick }: PreviewProps) {
+function KanbanCardPreview({ script: s, client: c, color, dragging, moving, showClient, deadline, selectMode = false, selected = false, onDragStart, onDragEnd, onClick }: PreviewProps) {
   const numLabel = s.order_num && s.order_num > 0 ? `#${s.order_num}` : "идея";
   const title = s.hook_text || s.hook || (s.order_num && s.order_num > 0 ? `Сценарий #${s.order_num}` : "Идея из референса");
   const titleShort = title.length > 70 ? title.slice(0, 67) + "..." : title;
   return (
     <div
-      draggable
+      draggable={!selectMode}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onClick={onClick}
       style={{
-        background: deadline?.tone === "overdue" ? "rgba(255,92,122,0.07)" : "var(--inset2)",
-        border: deadline && deadline.tone !== "done" && deadline.tone !== "future" ? `1px solid ${deadline.color}` : "1px solid var(--track)",
+        position: "relative",
+        background: selected ? "rgba(66,212,244,0.08)" : deadline?.tone === "overdue" ? "rgba(255,92,122,0.07)" : "var(--inset2)",
+        border: selected ? "1px solid var(--cy)" : deadline && deadline.tone !== "done" && deadline.tone !== "future" ? `1px solid ${deadline.color}` : "1px solid var(--track)",
         borderRadius: 11,
         padding: 10,
-        cursor: "grab",
+        cursor: selectMode ? "pointer" : "grab",
         opacity: dragging || moving ? 0.4 : 1,
-        transition: "border .15s, opacity .15s",
+        transition: "border .15s, opacity .15s, background .15s",
         display: "flex", flexDirection: "column", gap: 6,
       }}>
+      {selectMode && (
+        <span style={{ position: "absolute", top: 8, right: 8, width: 18, height: 18, borderRadius: 6, border: `1.5px solid ${selected ? "var(--cy)" : "var(--brd)"}`, background: selected ? "var(--cy)" : "var(--inset)", color: "#0a0118", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 900, lineHeight: 1 }}>
+          {selected ? "✓" : ""}
+        </span>
+      )}
       {showClient && c ? (
         <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
           <Avatar name={`${c.name} ${c.surname || ""}`} src={c.avatar_url} size={22} />

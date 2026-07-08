@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Client, Script } from "@/lib/database";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import { ExternalLink, X, Trash2 } from "lucide-react";
 
 export const SCRIPT_LEAD = 5, VIDEO_LEAD = 2; // дней до публикации
@@ -49,6 +50,7 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
   const [readyAt, setReadyAt] = useState(s.ready_at || "");
   const [adaptBusy, setAdaptBusy] = useState(false);
   const [refine, setRefine] = useState("");
+  const [confirmDel, setConfirmDel] = useState(false);
 
   async function adaptFromDonor(instruction?: string) {
     setAdaptBusy(true);
@@ -237,7 +239,7 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
         {/* Footer */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, paddingTop: 4 }}>
           {onDelete && !ro ? (
-            <button onClick={() => { if (confirm("Удалить этот сценарий?")) onDelete(s.id); }}
+            <button onClick={() => setConfirmDel(true)}
               style={{ padding: "8px 12px", borderRadius: 9, background: "transparent", border: "1px solid rgba(255,92,122,0.4)", color: "var(--rd)", fontSize: 11, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}>
               <Trash2 size={13} /> Удалить
             </button>
@@ -248,6 +250,14 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
           </button>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmDel}
+        title="Удалить сценарий?"
+        text={`«${hookText || `Сценарий #${s.order_num || "—"}`}» будет удалён безвозвратно.`}
+        onCancel={() => setConfirmDel(false)}
+        onConfirm={() => { setConfirmDel(false); onDelete?.(s.id); }}
+      />
     </div>
   );
 }
