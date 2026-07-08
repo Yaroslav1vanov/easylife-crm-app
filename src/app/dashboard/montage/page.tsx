@@ -8,6 +8,7 @@ import KanbanBoard from "@/components/KanbanBoard";
 import ScriptModal, { VIDEO_LEAD, fmtDateShort, addDaysIso } from "@/components/ScriptModal";
 import { MONTAGE_COLUMNS } from "@/components/kanbanConfigs";
 import { useIsMontager, useCanEditReadyAt } from "@/components/RoleContext";
+import { batchFor, wdShort, type Batch } from "@/lib/batches";
 import {
   Filter, ChevronDown, ChevronLeft, ChevronRight, CalendarDays, Table as TableIcon,
 } from "lucide-react";
@@ -168,6 +169,17 @@ export default function MontagePage() {
   const scopeCount = clients.filter(c => inScope(c.id)).length;
   const openScript = openId != null ? allScripts.find(s => s.id === openId) || null : null;
 
+  // Недельные партии: у кого задан день сдачи — считаем ближайшую партию
+  const batches = useMemo<Batch[]>(() => {
+    const out: Batch[] = [];
+    for (const c of clients) {
+      if (c.stage !== "active" || !c.delivery_day || !inScope(c.id)) continue;
+      const b = batchFor(c, allScripts, todayIso);
+      if (b) out.push(b);
+    }
+    return out.sort((a, b) => a.deliveryIso.localeCompare(b.deliveryIso));
+  }, [clients, allScripts, clientFilter, tlFilter, mgFilter, todayIso]);
+
   if (loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--t2)" }}>Загрузка…</div>;
 
   const statusCol = (st: Slot["status"]) => st === "done" ? "#a8e063" : st === "overdue" ? "#ff5c7a" : st === "frozen" ? "#8a8f98" : "#ffae42";
@@ -253,6 +265,54 @@ export default function MontagePage() {
           </div>
         ))}
       </div>
+
+      {/* 📦 НЕДЕЛЬНЫЕ ПАРТИИ — сдача клиенту пачкой раз в неделю */}
+      {batches.length > 0 && (
+        <div className="card" style={{ padding: 14, borderRadius: 16, marginBottom: 14 }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: "var(--t1)", marginBottom: 10 }}>
+            📦 Партии на неделю <span style={{ fontSize: 10, fontWeight: 500, color: "var(--t3)" }}>— сдаём клиенту пачкой в его день · готовность за 3 дня до сдачи</span>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))", gap: 10 }}>
+            {batches.map(b => {
+              const c = b.client;
+              const complete = b.planned.length > 0 && b.done >= b.planned.length && b.planned.length >= b.quota;
+              const readyDiff = daysBetween(todayIso, b.readyByIso); // >0 = ещё есть время
+              const late = !complete && readyDiff < 0;
+              const soon = !complete && readyDiff >= 0 && readyDiff <= 1;
+              const color = complete ? "#a8e063" : late ? "#ff5c7a" : soon ? "#ffae42" : "#9d6bff";
+              const stateTxt = complete ? "партия готова ✓"
+                : late ? `готовность просрочена ${-readyDiff} дн`
+                : readyDiff === 0 ? "готовность сегодня"
+                : readyDiff === 1 ? "готовность завтра"
+                : `готовность к ${fmtDateShort(b.readyByIso)}`;
+              const underplanned = b.planned.length < b.quota;
+              const pct = b.planned.length ? Math.round((b.done / b.planned.length) * 100) : 0;
+              return (
+                <div key={c.id} style={{ padding: 12, borderRadius: 12, background: late ? "rgba(255,92,122,0.06)" : "var(--inset)", border: `1px solid ${complete || late || soon ? color : "var(--brd)"}` }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 8 }}>
+                    <Avatar name={`${c.name} ${c.surname || ""}`} src={c.avatar_url} size={30} />
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "var(--t1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name} {c.surname || ""}</div>
+                      <div style={{ fontSize: 9, color: "var(--t3)" }}>сдача: {wdShort(c.delivery_day)} · {fmtDateShort(b.deliveryIso)} · монтаж: {team.find(t => t.id === c.montager_id)?.name || "—"}</div>
+                    </div>
+                    <div style={{ textAlign: "right", flexShrink: 0 }}>
+                      <div style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 17, fontWeight: 800, color }}>{b.done}/{b.quota}</div>
+                      <div style={{ fontSize: 8, color: "var(--t3)", textTransform: "uppercase" }}>готово</div>
+                    </div>
+                  </div>
+                  <div style={{ height: 5, borderRadius: 3, background: "var(--track)", overflow: "hidden", marginBottom: 7 }}>
+                    <div style={{ width: `${pct}%`, height: "100%", background: color, borderRadius: 3, transition: "width .3s" }} />
+                  </div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color }}>{stateTxt}</div>
+                  {underplanned && (
+                    <div style={{ fontSize: 9, color: "#ffae42", marginTop: 4 }}>⚠ запланировано {b.planned.length}/{b.quota} — тимлиду добавить слоты на неделю {fmtDateShort(b.weekStart)}–{fmtDateShort(b.weekEnd)}</div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* CONTENT PLAN */}
       {focus !== "all" ? (
@@ -358,7 +418,13 @@ export default function MontagePage() {
       <KanbanBoard scripts={kanbanScripts} clients={clients} columns={MONTAGE_COLUMNS} onUpdate={updateScript} showClient emptyHint="Пусто"
         deadlineLeadDays={VIDEO_LEAD}
         deadlineDone={(s) => s.video_status === "ready" || s.video_status === "published"}
-        canEditScript={!isMontager} canEditReadyAt={canEditReadyAt} />
+        canEditScript={!isMontager} canEditReadyAt={canEditReadyAt}
+        cardAction={{
+          show: (s) => s.script_status === "approved" && s.video_status !== "ready" && s.video_status !== "published",
+          label: "✓ Сдать",
+          color: "#a8e063",
+          run: (s) => updateScript(s.id, { video_status: "ready" }),
+        }} />
 
       {openScript && (
         <ScriptModal script={openScript} client={clientById[openScript.client_id]} onClose={() => setOpenId(null)} onUpdate={updateScript} canEdit={!isMontager} canEditReadyAt={canEditReadyAt} />

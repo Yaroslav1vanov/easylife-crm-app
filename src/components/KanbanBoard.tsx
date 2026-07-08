@@ -63,9 +63,16 @@ type Props = {
   canEditScript?: boolean;
   /** true → в модалке дату сдачи монтажа можно править (только владелец/админ). */
   canEditReadyAt?: boolean;
+  /** Быстрое действие на карточке (напр. «✓ Сдать» в монтаже) — кнопка без открытия модалки. */
+  cardAction?: {
+    show: (s: Script) => boolean;
+    label: string;
+    color?: string;
+    run: (s: Script) => Promise<void> | void;
+  };
 };
 
-export default function KanbanBoard({ scripts, clients, columns, onUpdate, showClient = false, minColWidth = 220, emptyHint = "Пусто", onAddCard, addColumnId, onDelete, deadlineLeadDays, deadlineDone, deadlineShow, canEditScript = true, canEditReadyAt = false }: Props) {
+export default function KanbanBoard({ scripts, clients, columns, onUpdate, showClient = false, minColWidth = 220, emptyHint = "Пусто", onAddCard, addColumnId, onDelete, deadlineLeadDays, deadlineDone, deadlineShow, canEditScript = true, canEditReadyAt = false, cardAction }: Props) {
   const todayIso = todayIsoLocal();
   const hasDeadline = deadlineLeadDays != null;
   const [openId, setOpenId] = useState<number | null>(null);
@@ -207,6 +214,7 @@ export default function KanbanBoard({ scripts, clients, columns, onUpdate, showC
                       deadline={hasDeadline && (deadlineShow ? deadlineShow(s) : true) ? deadlineInfo(s, deadlineLeadDays!, deadlineDone?.(s) ?? false, todayIso) : null}
                       selectMode={selectMode}
                       selected={selected.has(s.id)}
+                      action={cardAction && !selectMode && cardAction.show(s) ? { label: cardAction.label, color: cardAction.color || col.color, onClick: () => cardAction.run(s) } : null}
                       onDragStart={(e) => { if (selectMode) { e.preventDefault(); return; } setDraggedId(s.id); e.dataTransfer.setData("text/plain", String(s.id)); e.dataTransfer.effectAllowed = "move"; }}
                       onDragEnd={() => { setDraggedId(null); setDragOverCol(null); }}
                       onClick={() => selectMode ? toggleSelect(s.id) : setOpenId(s.id)}
@@ -274,12 +282,13 @@ type PreviewProps = {
   deadline?: ReturnType<typeof deadlineInfo>;
   selectMode?: boolean;
   selected?: boolean;
+  action?: { label: string; color: string; onClick: () => Promise<void> | void } | null;
   onDragStart: (e: React.DragEvent) => void;
   onDragEnd: () => void;
   onClick: () => void;
 };
 
-function KanbanCardPreview({ script: s, client: c, color, dragging, moving, showClient, deadline, selectMode = false, selected = false, onDragStart, onDragEnd, onClick }: PreviewProps) {
+function KanbanCardPreview({ script: s, client: c, color, dragging, moving, showClient, deadline, selectMode = false, selected = false, action, onDragStart, onDragEnd, onClick }: PreviewProps) {
   const numLabel = s.order_num && s.order_num > 0 ? `#${s.order_num}` : "идея";
   const title = s.hook_text || s.hook || (s.order_num && s.order_num > 0 ? `Сценарий #${s.order_num}` : "Идея из референса");
   const titleShort = title.length > 70 ? title.slice(0, 67) + "..." : title;
@@ -329,6 +338,13 @@ function KanbanCardPreview({ script: s, client: c, color, dragging, moving, show
         {s.video_url && <span style={{ color: "var(--gr)" }}>▶ видео</span>}
         {s.pub_date && <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}><CalendarIcon size={9} /> {deadline ? "публ. " : ""}{fmtDateShort(s.pub_date)}</span>}
       </div>
+      {action && (
+        <button
+          onClick={(e) => { e.stopPropagation(); action.onClick(); }}
+          style={{ marginTop: 2, padding: "6px 10px", borderRadius: 8, background: `${action.color}1c`, border: `1px solid ${action.color}55`, color: action.color, fontSize: 10, fontWeight: 800, cursor: "pointer" }}>
+          {action.label}
+        </button>
+      )}
     </div>
   );
 }
