@@ -2,7 +2,9 @@
 import { useEffect, useState } from "react";
 import { Client, Script } from "@/lib/database";
 import ConfirmDialog from "@/components/ConfirmDialog";
-import { ExternalLink, X, Trash2 } from "lucide-react";
+import { ExternalLink, X, Trash2, Eye, Heart, MessageCircle, RefreshCw, Swords } from "lucide-react";
+
+const fmtNum = (n: number | null | undefined) => n == null ? "—" : n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(1) + "K" : String(n);
 
 export const SCRIPT_LEAD = 5, VIDEO_LEAD = 2; // дней до публикации
 
@@ -51,6 +53,22 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
   const [adaptBusy, setAdaptBusy] = useState(false);
   const [refine, setRefine] = useState("");
   const [confirmDel, setConfirmDel] = useState(false);
+  const [duelBusy, setDuelBusy] = useState(false);
+
+  async function refreshDuel() {
+    setDuelBusy(true);
+    try {
+      const r = await fetch(`/api/scripts/${s.id}/stats-duel`, { method: "POST" });
+      const j = await r.json();
+      if (!r.ok) { alert("Статистика: " + (j?.error || "ошибка")); }
+      else {
+        const { ok, ourFound, ourHint, ...patch } = j;
+        onUpdate(s.id, patch);
+        if (ourHint) alert(ourHint);
+      }
+    } catch (e: any) { alert(String(e)); }
+    setDuelBusy(false);
+  }
 
   async function adaptFromDonor(instruction?: string) {
     setAdaptBusy(true);
@@ -236,6 +254,50 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
           </div>
         )}
 
+        {/* ⚔ Дуэль: исходник vs наше видео */}
+        {(s.ref_url || s.ref_views != null || isPublished) && (() => {
+          const rV = s.ref_views ?? null, oV = s.our_views ?? null;
+          const ratio = rV && oV != null ? oV / rV : null;
+          const verdict = ratio == null ? null
+            : ratio >= 1 ? { t: "🔥 залетело лучше исходника", c: "#a8e063" }
+            : ratio >= 0.5 ? { t: "🟢 хорошо, близко к исходнику", c: "#a8e063" }
+            : ratio >= 0.2 ? { t: "🟡 средне", c: "#ffae42" }
+            : { t: "🔴 слабо зашло", c: "#ff5c7a" };
+          const Col = ({ title, url, v, l, cm, accent }: { title: string; url?: string | null; v: number | null; l: number | null; cm: number | null; accent: string }) => (
+            <div style={{ flex: 1, minWidth: 0, textAlign: "center" }}>
+              <div style={{ fontSize: 9, fontWeight: 800, color: accent, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>{title}</div>
+              <div style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 22, fontWeight: 800, color: "var(--t1)", display: "inline-flex", alignItems: "center", gap: 6 }}><Eye size={16} style={{ color: accent }} /> {fmtNum(v)}</div>
+              <div style={{ display: "flex", justifyContent: "center", gap: 12, marginTop: 6, fontSize: 11, color: "var(--t2)", fontWeight: 700 }}>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}><MessageCircle size={12} style={{ color: "var(--pu)" }} /> {fmtNum(cm)}</span>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}><Heart size={12} style={{ color: "var(--rd)" }} /> {fmtNum(l)}</span>
+              </div>
+              {url ? <a href={url.startsWith("http") ? url : `https://${url}`} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 8, fontSize: 10, fontWeight: 700, color: accent, textDecoration: "none" }}>открыть <ExternalLink size={11} /></a> : <div style={{ marginTop: 8, fontSize: 10, color: "var(--t3)" }}>нет ссылки</div>}
+            </div>
+          );
+          return (
+            <div style={{ padding: 14, borderRadius: 12, background: "rgba(66,212,244,0.05)", border: "1px solid var(--brd)" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 12, fontWeight: 800, color: "var(--t1)" }}><Swords size={14} style={{ color: "var(--cy)" }} /> Результат · исходник vs наше</span>
+                <button onClick={refreshDuel} disabled={duelBusy}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 11px", borderRadius: 8, background: "rgba(66,212,244,0.12)", border: "1px solid var(--brd)", color: "var(--cy)", fontSize: 10, fontWeight: 800, cursor: duelBusy ? "default" : "pointer" }}>
+                  <RefreshCw size={12} className={duelBusy ? "spin" : ""} /> {duelBusy ? "Тяну…" : "обновить"}
+                </button>
+              </div>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                <Col title="Исходник (реф)" url={s.ref_url} v={rV} l={s.ref_likes ?? null} cm={s.ref_comments ?? null} accent="#9d6bff" />
+                <div style={{ alignSelf: "center", fontSize: 18, color: "var(--t3)", fontWeight: 800 }}>→</div>
+                <Col title="Наше видео" url={s.video_url} v={oV} l={s.our_likes ?? null} cm={s.our_comments ?? null} accent="#42d4f4" />
+              </div>
+              {verdict && (
+                <div style={{ marginTop: 12, textAlign: "center", padding: "7px", borderRadius: 8, background: `${verdict.c}18`, color: verdict.c, fontSize: 12, fontWeight: 800 }}>
+                  {verdict.t} · наше = {Math.round((ratio as number) * 100)}% от исходника
+                </div>
+              )}
+              {s.our_stats_at && <div style={{ marginTop: 8, textAlign: "center", fontSize: 9, color: "var(--t3)" }}>обновлено {fmtDateShort(s.our_stats_at)}</div>}
+            </div>
+          );
+        })()}
+
         {/* Footer */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, paddingTop: 4 }}>
           {onDelete && !ro ? (
@@ -251,6 +313,7 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
         </div>
       </div>
 
+      <style>{`.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}`}</style>
       <ConfirmDialog
         open={confirmDel}
         title="Удалить сценарий?"

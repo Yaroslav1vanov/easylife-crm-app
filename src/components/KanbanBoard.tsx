@@ -337,6 +337,11 @@ function KanbanCardPreview({ script: s, client: c, color, dragging, moving, show
         {s.body_text && <span style={{ color: color }}>✨ сценарий</span>}
         {s.video_url && <span style={{ color: "var(--gr)" }}>▶ видео</span>}
         {s.pub_date && <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}><CalendarIcon size={9} /> {deadline ? "публ. " : ""}{fmtDateShort(s.pub_date)}</span>}
+        {s.ref_views && s.our_views != null && (() => {
+          const r = s.our_views / s.ref_views;
+          const c = r >= 1 ? "#a8e063" : r >= 0.5 ? "#a8e063" : r >= 0.2 ? "#ffae42" : "#ff5c7a";
+          return <span style={{ marginLeft: "auto", fontWeight: 800, color: c }}>⚔ {Math.round(r * 100)}%</span>;
+        })()}
       </div>
       {action && (
         <button

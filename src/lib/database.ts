@@ -23,6 +23,9 @@ export type Script = {
   ref_url: string; ref_text?: string | null; transcription: string; hook_text: string; body_text: string; cta: string;
   description: string; script_status: string; video_status: string; pub_date: string | null;
   ready_at: string | null; video_url?: string | null; content_type?: string | null;
+  // «Дуэль» статистики: исходник (реф) vs наше опубликованное видео
+  ref_views?: number | null; ref_likes?: number | null; ref_comments?: number | null;
+  our_views?: number | null; our_likes?: number | null; our_comments?: number | null; our_stats_at?: string | null;
 };
 export type ChecklistTask = {
   id: number; client_id: number; phase: string; task_name: string; task_order: number;

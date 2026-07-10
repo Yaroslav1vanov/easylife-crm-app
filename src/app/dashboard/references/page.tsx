@@ -92,6 +92,7 @@ export default function ReferencesPage() {
     const { data: sc, error } = await supabase.from("scripts").insert({
       client_id: ref.client_id, month_number: mn, order_num: 0,
       hook: "", ref_url: ref.url, ref_text: ref.transcript || "", transcription: ref.transcript || "",
+      ref_views: ref.views, ref_likes: ref.likes, ref_comments: ref.comments,
       hook_text: ref.caption ? ref.caption.slice(0, 80) : "", body_text: "", cta: "",
       description: ref.analysis || "", script_status: "notStarted", video_status: "notStarted", pub_date: null, ready_at: null,
     }).select().single();
