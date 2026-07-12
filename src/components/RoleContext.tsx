@@ -24,7 +24,7 @@ export function useCanEditReadyAt(): boolean {
 }
 // Разделы, доступные роли (для сайдбара и гварда маршрутов).
 export const ALLOWED_SECTIONS: Record<string, string[] | "all"> = {
-  montager: ["dashboard", "montage", "references"],
+  montager: ["dashboard", "montage", "references", "guide"],
 };
 export function sectionAllowed(role: Role, sectionId: string): boolean {
   const allow = ALLOWED_SECTIONS[role];
