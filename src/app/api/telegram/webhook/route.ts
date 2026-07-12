@@ -12,7 +12,7 @@ export const maxDuration = 60;
 
 const fmt = (n: number | null) => n == null ? "—" : n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(1) + "K" : String(n);
 
-async function process(msg: any) {
+async function handleMessage(msg: any) {
   const chatId = msg.chat?.id;
   const threadId: number | undefined = msg.message_thread_id;
   const urls = extractUrls(msg).filter(u => detectPlatform(u));
@@ -49,6 +49,6 @@ export async function POST(req: Request) {
 
   const update = await req.json().catch(() => null);
   const msg = update?.message || update?.channel_post || update?.edited_message;
-  if (msg) waitUntil(process(msg)); // ack мгновенно, обработка в фоне
+  if (msg) waitUntil(handleMessage(msg)); // ack мгновенно, обработка в фоне
   return NextResponse.json({ ok: true });
 }
