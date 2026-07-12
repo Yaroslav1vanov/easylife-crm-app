@@ -71,15 +71,23 @@ export async function ingestReference(rawUrl: string, clientId: number): Promise
     try {
       const tr = await fetch(`${BASE}/v2/instagram/media/transcript?url=${encodeURIComponent(url)}`, { headers: { "x-api-key": key } });
       const tj = await tr.json().catch(() => null);
-      transcript = tj?.transcript || tj?.text || tj?.data?.transcript ||
-        (Array.isArray(tj?.transcripts) ? tj.transcripts.map((x: any) => x?.text || x).join(" ") : null);
+      transcript = tj?.transcript || tj?.text || tj?.data?.transcript || tj?.transcripts || null;
     } catch {}
   }
+
+  // Любой формат транскрибации → чистая строка (без «[object Object]»)
+  const toText = (v: any): string | null => {
+    if (v == null) return null;
+    if (typeof v === "string") return v.trim() || null;
+    if (Array.isArray(v)) { const s = v.map(toText).filter(Boolean).join(" "); return s || null; }
+    if (typeof v === "object") { const s = toText(v.text ?? v.transcript ?? v.value ?? v.content); return s; }
+    return String(v);
+  };
 
   const row = {
     client_id: clientId, url, platform,
     author: author || null, caption: caption || null,
-    transcript: typeof transcript === "string" ? transcript : transcript ? JSON.stringify(transcript) : null,
+    transcript: toText(transcript),
     views: num(views), likes: num(likes), comments: num(comments),
     thumbnail_url: thumbnail || null,
     fetched_at: new Date().toISOString(),

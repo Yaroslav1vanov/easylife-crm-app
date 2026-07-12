@@ -22,6 +22,12 @@ const COLUMNS: { id: RefStatus; label: string; color: string }[] = [
   { id: "approved", label: "Утверждены", color: "#a8e063" },
 ];
 const fmtNum = (n: number | null) => n == null ? "—" : n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(1) + "K" : String(n);
+// Битые транскрибации из объектов («[object Object]») показываем как пусто, чтобы можно было вписать заново
+const cleanTranscript = (t: string | null | undefined) => {
+  if (!t) return "";
+  const s = String(t).replace(/\[object Object\]/g, "").trim();
+  return s;
+};
 
 export default function ReferencesPage() {
   const supabase = createClient();
@@ -73,6 +79,7 @@ export default function ReferencesPage() {
   }
   function patchRef(id: number, p: Partial<Reference>) { setRefs(a => a.map(r => r.id === id ? { ...r, ...p } : r)); }
   async function saveNote(id: number, note: string) { await db.updateReference(supabase, id, { note }); patchRef(id, { note }); }
+  async function saveTranscript(id: number, transcript: string | null) { await db.updateReference(supabase, id, { transcript }); patchRef(id, { transcript }); }
   async function del(id: number) { if (!confirm("Удалить референс?")) return; await db.deleteReference(supabase, id); setRefs(a => a.filter(r => r.id !== id)); setOpenId(null); }
 
   async function moveTo(status: RefStatus, id: number) {
@@ -183,7 +190,7 @@ export default function ReferencesPage() {
         </>
       )}
 
-      {openRef && <RefModal ref0={openRef} client={clientById[openRef.client_id]} onClose={() => setOpenId(null)} onNote={saveNote} onDelete={del} readOnly={isMontager}
+      {openRef && <RefModal ref0={openRef} client={clientById[openRef.client_id]} onClose={() => setOpenId(null)} onNote={saveNote} onTranscript={saveTranscript} onDelete={del} readOnly={isMontager}
         onAnalyzed={(a) => patchRef(openRef.id, { analysis: a, analyzed_at: new Date().toISOString() })}
         onMove={(status) => { const id = openRef.id; setOpenId(null); moveTo(status, id); }} />}
       <style>{`.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}`}</style>
@@ -191,8 +198,8 @@ export default function ReferencesPage() {
   );
 }
 
-function RefModal({ ref0, client, onClose, onNote, onDelete, onAnalyzed, onMove, readOnly = false }: {
-  ref0: Reference; client?: Client; onClose: () => void; onNote: (id: number, n: string) => void; onDelete: (id: number) => void; onAnalyzed: (a: string) => void; onMove: (status: RefStatus) => void; readOnly?: boolean;
+function RefModal({ ref0, client, onClose, onNote, onTranscript, onDelete, onAnalyzed, onMove, readOnly = false }: {
+  ref0: Reference; client?: Client; onClose: () => void; onNote: (id: number, n: string) => void; onTranscript: (id: number, t: string | null) => void; onDelete: (id: number) => void; onAnalyzed: (a: string) => void; onMove: (status: RefStatus) => void; readOnly?: boolean;
 }) {
   const [busy, setBusy] = useState(false);
   const p = PLAT[ref0.platform || ""] || { label: ref0.platform || "?", Icon: FileText, color: "var(--t3)" };
@@ -257,12 +264,16 @@ function RefModal({ ref0, client, onClose, onNote, onDelete, onAnalyzed, onMove,
           {!ref0.transcript && <div style={{ fontSize: 11, color: "var(--t3)", marginTop: 6 }}>Нет транскрибации — анализ недоступен.</div>}
         </div>
 
-        {ref0.transcript && (
-          <div>
-            <div style={{ fontSize: 10, fontWeight: 700, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 5 }}>📝 Транскрибация</div>
-            <div style={{ padding: "10px 12px", borderRadius: 9, background: "var(--inset2)", border: "1px solid var(--brd)", fontSize: 12.5, lineHeight: 1.5, maxHeight: 200, overflowY: "auto", whiteSpace: "pre-wrap" }}>{ref0.transcript}</div>
+        <div>
+          <div style={{ fontSize: 10, fontWeight: 700, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 5, display: "flex", alignItems: "center", gap: 8 }}>
+            📝 Транскрибация
+            {!ref0.transcript && <span style={{ fontSize: 9, fontWeight: 500, color: "var(--t3)", textTransform: "none", letterSpacing: 0 }}>— нет озвучки? впиши текст вручную, потом жми «Оценить»</span>}
           </div>
-        )}
+          <textarea key={ref0.id} defaultValue={cleanTranscript(ref0.transcript)} readOnly={readOnly}
+            onBlur={e => { const v = e.target.value; if (!readOnly && v !== (ref0.transcript || "")) onTranscript(ref0.id, v || null); }}
+            rows={5} placeholder="Текст ролика / что говорится или показывается на экране…"
+            style={{ ...ta, minHeight: 90 }} />
+        </div>
 
         <div>
           <div style={{ fontSize: 10, fontWeight: 700, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 5 }}>Заметка</div>
