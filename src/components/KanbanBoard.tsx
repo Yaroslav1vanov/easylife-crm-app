@@ -70,9 +70,11 @@ type Props = {
     color?: string;
     run: (s: Script) => Promise<void> | void;
   };
+  /** Если задано — в панели массового выбора появится кнопка «📄 Для клиента» (экспорт выбранных). */
+  onBulkExport?: (ids: number[]) => void;
 };
 
-export default function KanbanBoard({ scripts, clients, columns, onUpdate, showClient = false, minColWidth = 220, emptyHint = "Пусто", onAddCard, addColumnId, onDelete, deadlineLeadDays, deadlineDone, deadlineShow, canEditScript = true, canEditReadyAt = false, cardAction }: Props) {
+export default function KanbanBoard({ scripts, clients, columns, onUpdate, showClient = false, minColWidth = 220, emptyHint = "Пусто", onAddCard, addColumnId, onDelete, deadlineLeadDays, deadlineDone, deadlineShow, canEditScript = true, canEditReadyAt = false, cardAction, onBulkExport }: Props) {
   const todayIso = todayIsoLocal();
   const hasDeadline = deadlineLeadDays != null;
   const [openId, setOpenId] = useState<number | null>(null);
@@ -81,7 +83,7 @@ export default function KanbanBoard({ scripts, clients, columns, onUpdate, showC
   const [movingScript, setMovingScript] = useState<number | null>(null);
   const [adding, setAdding] = useState(false);
   // Массовый выбор (галочками): удалить пачкой / вернуть в идею
-  const selectable = !!onDelete && canEditScript;
+  const selectable = (!!onDelete || !!onBulkExport) && canEditScript;
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [bulkConfirm, setBulkConfirm] = useState(false);
@@ -245,6 +247,12 @@ export default function KanbanBoard({ scripts, clients, columns, onUpdate, showC
           <span style={{ fontSize: 12, fontWeight: 800, color: "var(--t1)", whiteSpace: "nowrap" }}>
             Выбрано: <span style={{ color: "var(--cy)" }}>{selected.size}</span>
           </span>
+          {onBulkExport && (
+            <button onClick={() => { onBulkExport(Array.from(selected)); }} disabled={selected.size === 0}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 13px", borderRadius: 9, background: "rgba(66,212,244,0.12)", border: "1px solid var(--brd)", color: "var(--cy)", fontSize: 11, fontWeight: 700, cursor: selected.size === 0 ? "default" : "pointer", opacity: selected.size === 0 ? 0.5 : 1 }}>
+              📄 Для клиента
+            </button>
+          )}
           <button onClick={bulkToIdea} disabled={bulkBusy || selected.size === 0}
             style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 13px", borderRadius: 9, background: "rgba(157,107,255,0.12)", border: "1px solid var(--brd)", color: "var(--pu)", fontSize: 11, fontWeight: 700, cursor: bulkBusy || selected.size === 0 ? "default" : "pointer", opacity: selected.size === 0 ? 0.5 : 1 }}>
             <Undo2 size={13} /> {bulkBusy ? "…" : "В идею"}

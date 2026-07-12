@@ -86,6 +86,33 @@ export default function ScriptsPage() {
     setAllScripts(arr => arr.filter(s => s.id !== id));
   }
 
+  // Выгрузить выбранные сценарии в HTML-файл для отправки клиенту на утверждение (скачивается локально)
+  function exportForClient(ids: number[]) {
+    const chosen = allScripts.filter(s => ids.includes(s.id)).sort((a, b) => a.client_id - b.client_id || (a.order_num || 0) - (b.order_num || 0));
+    if (!chosen.length) return;
+    const clientIds = Array.from(new Set(chosen.map(s => s.client_id)));
+    const title = clientIds.length === 1 ? cname(clientIds[0]) : "Клиенты";
+    const esc = (t: any) => String(t ?? "").replace(/[&<>]/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[m] as string)).replace(/\n/g, "<br>");
+    const RU = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
+    const d = new Date(); const today = `${d.getDate()} ${RU[d.getMonth()]} ${d.getFullYear()}`;
+    const cards = chosen.map((s, i) => `
+      <article class="c">
+        <div class="ch"><span class="num">Сценарий ${i + 1}</span>${clientIds.length > 1 ? `<span class="cl">${esc(cname(s.client_id))}</span>` : ""}</div>
+        <div class="b"><div class="l hook">🔵 Хук</div><p>${esc(s.hook || s.hook_text || "—")}</p></div>
+        <div class="b"><div class="l body">🟣 Основной текст</div><p>${esc(s.body_text || "—")}</p></div>
+        <div class="b"><div class="l cta">🟢 Призыв</div><p>${esc(s.cta || "—")}</p></div>
+      </article>`).join("");
+    const html = `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Сценарии — ${esc(title)} (${chosen.length})</title>
+<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:#f4f5f8;color:#1a1a2e;line-height:1.6;padding:32px 16px 64px;-webkit-font-smoothing:antialiased}.w{max-width:760px;margin:0 auto}header{text-align:center;margin-bottom:36px}header h1{font-size:26px;margin-bottom:6px;letter-spacing:-.5px}header .s{color:#8a8aa0;font-size:14px}.c{background:#fff;border-radius:18px;padding:26px 28px;margin-bottom:22px;box-shadow:0 2px 18px rgba(40,30,80,.06);border:1px solid #ecebf3}.ch{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid #f0eff6}.num{font-weight:800;font-size:17px;color:#6a3df0}.cl{font-size:12px;color:#9a9ab0}.b{margin-bottom:18px}.b:last-child{margin-bottom:0}.l{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px}.l.hook{color:#2f9be0}.l.body{color:#8a5cf0}.l.cta{color:#3aaf5c}.b p{font-size:16px;white-space:normal}footer{text-align:center;color:#b3b3c4;font-size:12px;margin-top:36px}@media print{body{background:#fff;padding:0}.c{box-shadow:none;border:1px solid #ddd;break-inside:avoid}}</style></head>
+<body><div class="w"><header><h1>Сценарии — ${esc(title)}</h1><div class="s">${chosen.length} ${chosen.length === 1 ? "сценарий" : chosen.length < 5 ? "сценария" : "сценариев"} · ${today}</div></header>${cards}<footer>Подготовлено в EasyLife AI</footer></div></body></html>`;
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `Сценарии_${title.replace(/\s+/g, "_")}_${chosen.length}шт.html`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
   const clientById = useMemo(() => Object.fromEntries(clients.map(c => [c.id, c])) as Record<number, Client>, [clients]);
   const teamleads = useMemo(() => team.filter(t => t.member_type === "teamlead" || t.member_type === "admin"), [team]);
   const canMine = !!me && (me.member_type === "teamlead" || me.member_type === "admin");
@@ -348,7 +375,8 @@ export default function ScriptsPage() {
         deadlineDone={(s) => s.script_status === "approved"}
         deadlineShow={(s) => s.script_status === "inProgress" || s.script_status === "review"}
         canEditReadyAt={canEditReadyAt}
-        onDelete={deleteScript} />
+        onDelete={deleteScript}
+        onBulkExport={exportForClient} />
 
       {openScript && (
         <ScriptModal script={openScript} client={clientById[openScript.client_id]} onClose={() => setOpenId(null)} onUpdate={updateScript} canEditReadyAt={canEditReadyAt} />
