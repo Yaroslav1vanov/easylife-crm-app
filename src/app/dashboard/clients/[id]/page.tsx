@@ -28,6 +28,7 @@ export default function ClientDetailPage() {
   const { id } = useParams();
   const clientId = parseInt(id as string);
   const [client, setClient] = useState<Client | null>(null);
+  const [reportMonth, setReportMonth] = useState(() => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; });
   const [scripts, setScripts] = useState<Script[]>([]);
   const [checklist, setChecklist] = useState<ChecklistTask[]>([]);
   const [team, setTeam] = useState<TeamMember[]>([]);
@@ -343,6 +344,26 @@ export default function ClientDetailPage() {
           </select>
           <span style={{ fontSize: 10, color: "var(--t3)" }}>в этот день тимлид сдаёт референсы и сценарии по клиенту на проверку</span>
         </div>
+      </div>
+
+      {/* 📄 Отчёт клиенту за месяц (из Metricool) */}
+      <div className="card mb-3" style={{ padding: "12px 14px", borderRadius: 12, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 12, fontWeight: 800, color: "var(--t1)" }}>📄 Отчёт клиенту</span>
+        {c.metricool_blog_id ? (
+          <>
+            <select value={reportMonth} onChange={(e) => setReportMonth(e.target.value)}
+              style={{ padding: "6px 10px", borderRadius: 8, background: "var(--bg)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 12, cursor: "pointer" }}>
+              {Array.from({ length: 12 }, (_, i) => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - i); const v = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; const RU = ["январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"]; return <option key={v} value={v}>{RU[d.getMonth()]} {d.getFullYear()}</option>; })}
+            </select>
+            <a href={`/api/clients/${clientId}/report?month=${reportMonth}`} target="_blank" rel="noreferrer"
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 9, background: "linear-gradient(135deg, #2ee6c8, #b6f500)", color: "#070526", fontSize: 12, fontWeight: 800, textDecoration: "none" }}>
+              Сгенерировать →
+            </a>
+            <span style={{ fontSize: 10, color: "var(--t3)" }}>откроется в новой вкладке · данные из Metricool · Cmd+P → PDF</span>
+          </>
+        ) : (
+          <span style={{ fontSize: 11, color: "var(--t3)" }}>сначала привяжи бренд Metricool (кнопка «Привязать бренд» выше)</span>
+        )}
       </div>
 
       {/* Контрактные месяцы + Что требует внимания */}
