@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
 import db, { Client, Script, TeamMember, ClientMonth } from "@/lib/database";
 import Avatar from "@/components/Avatar";
+import Tour, { TourButton, type TourStep } from "@/components/Tour";
 import {
   AlertTriangle, CalendarClock, CheckCircle2, Clock, Wand2,
   Filter, ChevronDown, ChevronLeft, ChevronRight, X, ExternalLink, CalendarDays, List, type LucideIcon,
@@ -81,6 +82,7 @@ export default function PublicationsPage() {
   const [autoOpen, setAutoOpen] = useState(false);
   const [poolOpen, setPoolOpen] = useState(true);
   const [slotMenu, setSlotMenu] = useState<string | null>(null); // dayIso с открытым меню «+ Рилз/Карусель»
+  const [tourOpen, setTourOpen] = useState(false);
 
   useEffect(() => { load(); }, []);
 
@@ -204,6 +206,15 @@ export default function PublicationsPage() {
     { Icon: Clock, label: "Скоро (3 дня), не готово", val: alerts.soon, color: "#9d6bff" },
   ];
 
+  const PUB_TOUR: TourStep[] = [
+    { title: "Раздел «Публикации» — контент-план", text: "Тут расставляем ролики и карусели по дням месяца: кто, что и когда выходит. Это план — сама заливка в соцсети идёт в разделе «Metricool».", action: () => setOpenId(null) },
+    { target: "pub-alerts", title: "Сводка по плану", text: "Мгновенно видно: сколько просрочено, что публиковать сегодня, сколько роликов готово и что горит в ближайшие 3 дня, но ещё не готово.", action: () => setOpenId(null) },
+    { target: "pub-filters", title: "Фильтры — сначала выбери клиента", text: "Чтобы расставлять даты, выбери здесь клиента. Пока выбрано «Все» — кнопки «+» на днях не появятся (иначе непонятно, кому планировать).", action: () => setOpenId(null) },
+    { target: "pub-calendar", title: "Календарь — ставим даты выхода", text: "У выбранного клиента на нужном дне жми «+» → выбери 🎬 Рилз или 🖼 Карусель — появится слот. Готовый сценарий перетащи из пула на день. Крестик × на плашке — убрать из плана. Цвет плашки = статус (легенда внизу).", action: () => setOpenId(null) },
+    { target: "pub-pool", title: "Пул «Не запланировано»", text: "Здесь ролики без даты. Перетаскивай их прямо на дни календаря — или используй авто-раскладку (следующий шаг).", action: () => setOpenId(null) },
+    { target: "pub-auto", title: "«Разложить по дням» — автоматом", text: "Не хочешь тащить вручную — жми: выбери клиента, дату старта и шаг (напр. каждый 1 день) — CRM сама расставит все незапланированные ролики по календарю.", action: () => setOpenId(null) },
+  ];
+
   return (
     <div style={{ fontFamily: "'Manrope', sans-serif" }}>
       {/* HEADER */}
@@ -213,6 +224,7 @@ export default function PublicationsPage() {
           <p style={{ fontSize: 12, color: "var(--t3)", marginTop: 4, fontWeight: 500 }}>План публикаций по дням · {ymLabel(ym)}</p>
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <TourButton onClick={() => setTourOpen(true)} />
           <div style={{ display: "flex", borderRadius: 10, border: "1px solid var(--brd)", overflow: "hidden" }}>
             {([["calendar", "Календарь", CalendarDays], ["archive", "Архив", List]] as const).map(([v, lbl, Ic]) => (
               <button key={v} onClick={() => setView(v)}
@@ -221,7 +233,7 @@ export default function PublicationsPage() {
               </button>
             ))}
           </div>
-          <button onClick={() => setAutoOpen(true)}
+          <button data-tour="pub-auto" onClick={() => setAutoOpen(true)}
             style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "8px 14px", borderRadius: 10, background: "linear-gradient(135deg, var(--cy), var(--pu))", color: "#fff", border: "none", fontSize: 11, fontWeight: 800, cursor: "pointer" }}>
             <Wand2 size={13} /> Разложить по дням
           </button>
@@ -234,7 +246,7 @@ export default function PublicationsPage() {
       </div>
 
       {/* ALERT PLASHKI */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 16 }} className="pub-alerts">
+      <div data-tour="pub-alerts" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 16 }} className="pub-alerts">
         {alertCards.map(a => {
           const I = a.Icon;
           const on = a.val > 0;
@@ -253,7 +265,7 @@ export default function PublicationsPage() {
       </div>
 
       {/* FILTERS */}
-      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 14, flexWrap: "wrap" }}>
+      <div data-tour="pub-filters" style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 14, flexWrap: "wrap" }}>
         <FilterDropdown label="Клиент" open={menuOpen === "client"} onToggle={() => setMenuOpen(menuOpen === "client" ? null : "client")}
           value={clientFilter === "all" ? "Все" : (clientById[clientFilter]?.name || "—")}>
           <button onClick={() => { setClientFilter("all"); setMenuOpen(null); }} className="nav-item" style={{ fontSize: 11, padding: "7px 10px" }}>Все клиенты</button>
@@ -289,7 +301,7 @@ export default function PublicationsPage() {
               : <span>жми <b style={{ color: "var(--pu)" }}>+</b> на дне → выбери <b>🎬 Рилз</b> или <b>🖼 Карусель</b>. Потом перетащи готовый сценарий из пула на слот. Удалить слот — крестик <b>×</b> на нём.</span>}
           </div>
           {pool.length > 0 && (
-            <div className="card" style={{ padding: 14, borderRadius: 14, marginBottom: 14 }}>
+            <div data-tour="pub-pool" className="card" style={{ padding: 14, borderRadius: 14, marginBottom: 14 }}>
               <button onClick={() => setPoolOpen(v => !v)} style={{ background: "transparent", border: "none", color: "var(--t1)", cursor: "pointer", display: "flex", alignItems: "center", gap: 8, fontSize: 12, fontWeight: 800, marginBottom: poolOpen ? 10 : 0 }}>
                 <ChevronDown size={14} style={{ transform: poolOpen ? "none" : "rotate(-90deg)", transition: ".15s" }} />
                 Не запланировано <span style={{ padding: "2px 7px", borderRadius: 6, background: "rgba(157,107,255,0.15)", color: "var(--pu)", fontSize: 10, fontWeight: 700 }}>{pool.length}</span>
@@ -314,7 +326,7 @@ export default function PublicationsPage() {
             </div>
           )}
 
-          <div className="card" style={{ padding: 14, borderRadius: 16 }}>
+          <div data-tour="pub-calendar" className="card" style={{ padding: 14, borderRadius: 16 }}>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 6, marginBottom: 6 }}>
               {WD.map(d => <div key={d} style={{ fontSize: 10, fontWeight: 700, color: "var(--t3)", textAlign: "center", textTransform: "uppercase", letterSpacing: 0.5 }}>{d}</div>)}
             </div>
@@ -408,6 +420,7 @@ export default function PublicationsPage() {
           }} />
       )}
 
+      <Tour steps={PUB_TOUR} open={tourOpen} onClose={() => setTourOpen(false)} />
       <style jsx>{`
         @media (max-width: 900px) { :global(.pub-alerts) { grid-template-columns: repeat(2, 1fr) !important; } }
       `}</style>

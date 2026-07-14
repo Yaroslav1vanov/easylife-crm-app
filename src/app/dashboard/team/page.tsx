@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase-browser";
 import db, { TeamMember, Client } from "@/lib/database";
 import AvatarUploader from "@/components/AvatarUploader";
 import Avatar from "@/components/Avatar";
+import Tour, { TourButton, type TourStep } from "@/components/Tour";
 import { Crown, Users2, Scissors, Plus, X, UserPlus, AlertTriangle, type LucideIcon } from "lucide-react";
 
 type RoleDef = { type: string; title: string; color: string; Icon: LucideIcon; roleNoun: string };
@@ -24,6 +25,7 @@ export default function TeamPage() {
   const [newName, setNewName] = useState("");
   const [newRole, setNewRole] = useState("Монтажёр");
   const [newType, setNewType] = useState("montager");
+  const [tourOpen, setTourOpen] = useState(false);
 
   useEffect(() => { load(); }, []);
   async function load() {
@@ -77,6 +79,13 @@ export default function TeamPage() {
     );
   }
 
+  const TEAM_TOUR: TourStep[] = [
+    { title: "Раздел «Команда»", text: "Тут вся команда по ролям и видно, кто за каких клиентов отвечает. Коротко пройдёмся." },
+    { target: "team-roles", title: "Карточки по ролям", text: "Сотрудники сгруппированы: Админы · Менеджеры (тимлиды) · Монтажёры. На карточке — аватар, число закреплённых клиентов и чипы с самими клиентами. У монтажёра это «в монтаже», у менеджера — «клиентов». Закрепление клиента задаётся в карточке клиента (монтажёр/тимлид)." },
+    { target: "team-nomontager", title: "Клиенты без монтажёра", text: "Красная плашка — активные клиенты, которым НЕ назначен монтажёр (никто не делает им ролики). Клик по клиенту открывает его карточку, чтобы назначить. Если плашки нет — всё распределено.", action: () => {} },
+    { target: "team-add", title: "Добавить сотрудника", text: "«Добавить» — заводим человека: имя, должность и роль. Роль важна: она задаёт ДОСТУПЫ — монтажёр видит только Дашборд, Монтаж, Референсы и Инструкцию; менеджер и админ видят всё.", action: () => setShowAdd(true) },
+  ];
+
   return (
     <div style={{ fontFamily: "'Manrope', sans-serif", maxWidth: 1100 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 14, flexWrap: "wrap", marginBottom: 18 }}>
@@ -86,10 +95,13 @@ export default function TeamPage() {
             {counts("teamlead")} менеджеров · {counts("montager")} монтажёров · {counts("admin")} админ · кто за кого отвечает
           </p>
         </div>
-        <button onClick={() => setShowAdd(v => !v)}
-          style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "10px 16px", borderRadius: 11, background: "linear-gradient(135deg, var(--cy), var(--pu))", color: "#fff", border: "none", cursor: "pointer", fontSize: 12, fontWeight: 800 }}>
-          <UserPlus size={15} /> Добавить
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <TourButton onClick={() => setTourOpen(true)} />
+          <button data-tour="team-add" onClick={() => setShowAdd(v => !v)}
+            style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "10px 16px", borderRadius: 11, background: "linear-gradient(135deg, var(--cy), var(--pu))", color: "#fff", border: "none", cursor: "pointer", fontSize: 12, fontWeight: 800 }}>
+            <UserPlus size={15} /> Добавить
+          </button>
+        </div>
       </div>
 
       {showAdd && (
@@ -112,6 +124,7 @@ export default function TeamPage() {
         </div>
       )}
 
+      <div data-tour="team-roles">
       {ROLES.map(role => {
         const members = team.filter(m => m.member_type === role.type);
         if (members.length === 0) return null;
@@ -158,9 +171,10 @@ export default function TeamPage() {
           </div>
         );
       })}
+      </div>
 
       {noMontager.length > 0 && (
-        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 12, background: "rgba(255,92,122,0.07)", border: "1px solid rgba(255,92,122,0.3)", flexWrap: "wrap" }}>
+        <div data-tour="team-nomontager" style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 12, background: "rgba(255,92,122,0.07)", border: "1px solid rgba(255,92,122,0.3)", flexWrap: "wrap" }}>
           <AlertTriangle size={15} style={{ color: "#ff5c7a", flexShrink: 0 }} />
           <span style={{ fontSize: 12, fontWeight: 700, color: "var(--t1)" }}>Активные клиенты без монтажёра ({noMontager.length}):</span>
           {noMontager.map(c => (
@@ -171,6 +185,7 @@ export default function TeamPage() {
           ))}
         </div>
       )}
+      <Tour steps={TEAM_TOUR} open={tourOpen} onClose={() => setTourOpen(false)} />
     </div>
   );
 }

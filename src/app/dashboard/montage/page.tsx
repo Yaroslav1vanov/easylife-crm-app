@@ -11,12 +11,6 @@ import { useIsMontager, useCanEditReadyAt } from "@/components/RoleContext";
 import { batchFor, wdShort, type Batch } from "@/lib/batches";
 import Tour, { TourButton, type TourStep } from "@/components/Tour";
 
-const MONTAGE_TOUR: TourStep[] = [
-  { title: "Раздел «Монтаж»", text: "Тут ты делаешь видео и сдаёшь их партиями. Покажу за 4 шага, куда смотреть." },
-  { target: "montage-filters", title: "Только свои задачи", text: "Нажми «Мои» — увидишь только своих клиентов. «Показать» — сегодня / просрочено." },
-  { target: "montage-batches", title: "Партии на неделю — главное", text: "По каждому клиенту: сколько видео и к какому дню сдать пачкой. Партия должна быть готова за 3 дня до дня сдачи (запас на перемонтаж). Красный = горит." },
-  { target: "montage-board", title: "Доска и кнопка «Сдать»", text: "Бери сценарии из «Согласовано» → монтируй. Сдал видео → жми «✓ Сдать» прямо на карточке (без перетаскивания). Даты и тексты не трогаешь — только чтение." },
-];
 import {
   Filter, ChevronDown, ChevronLeft, ChevronRight, CalendarDays, Table as TableIcon,
 } from "lucide-react";
@@ -188,6 +182,19 @@ export default function MontagePage() {
     }
     return out.sort((a, b) => a.deliveryIso.localeCompare(b.deliveryIso));
   }, [clients, allScripts, clientFilter, tlFilter, mgFilter, todayIso]);
+
+  const mgCloseModal = () => setOpenId(null);
+  const mgSampleId = (kanbanScripts[0] || allScripts.find(s => s.script_status === "approved"))?.id ?? null;
+  const mgOpenSample = () => { if (mgSampleId != null) setOpenId(mgSampleId); };
+  const MONTAGE_TOUR: TourStep[] = [
+    { title: "Раздел «Монтаж»", text: "Тут ты монтируешь видео и сдаёшь их партиями. Проведу по шагам — что смотреть и как сдавать.", action: mgCloseModal },
+    { target: "montage-filters", title: "Только свои задачи", text: "Нажми «Мои» — увидишь только своих клиентов. «Показать» — фильтр по срокам (сегодня / просрочено).", action: mgCloseModal },
+    { target: "montage-batches", title: "Партии на неделю — главное", text: "По каждому клиенту: сколько видео и к какому дню сдать одной пачкой. Партия должна быть готова за 3 дня до дня сдачи (запас на правки). Красный = горит.", action: mgCloseModal },
+    { target: "montage-board", title: "Доска монтажа", text: "Бери сценарии из колонки «Согласовано» и монтируй. Сейчас откроем карточку и посмотрим, что внутри для монтажёра.", action: mgCloseModal },
+    { target: "sm-ref", title: "① По чему монтировать", text: "Референс-ссылка на исходник + транскрибация: смотри, как сделан оригинал, и монтируй по готовому сценарию ниже. Тексты и даты ты не редактируешь — только читаешь.", action: mgOpenSample },
+    { target: "sm-ready", title: "② Дата сдачи монтажа", text: "«Смонтировано» — день сдачи, по нему считается ЗП. Обычно проставляется автоматически, когда ролик уходит в «Готово к публикации».", action: mgOpenSample },
+    { target: "montage-board", title: "③ Кнопка «✓ Сдать»", text: "Смонтировал — жми «✓ Сдать» прямо на карточке (перетаскивать не нужно). Ролик уйдёт в «Готово к публикации» и попадёт в раздел Metricool на выгрузку.", action: mgCloseModal },
+  ];
 
   if (loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--t2)" }}>Загрузка…</div>;
 
@@ -439,7 +446,7 @@ export default function MontagePage() {
       {openScript && (
         <ScriptModal script={openScript} client={clientById[openScript.client_id]} onClose={() => setOpenId(null)} onUpdate={updateScript} canEdit={!isMontager} canEditReadyAt={canEditReadyAt} />
       )}
-      <Tour steps={MONTAGE_TOUR} open={tourOpen} onClose={() => setTourOpen(false)} />
+      <Tour steps={MONTAGE_TOUR} open={tourOpen} onClose={() => { setTourOpen(false); setOpenId(null); }} />
     </div>
   );
 }

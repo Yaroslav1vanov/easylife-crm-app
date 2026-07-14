@@ -5,6 +5,7 @@ import db, { Client, Reference, RefStatus } from "@/lib/database";
 import { getStore, setStore } from "@/lib/store";
 import { useIsMontager } from "@/components/RoleContext";
 import Avatar from "@/components/Avatar";
+import Tour, { TourButton, type TourStep } from "@/components/Tour";
 import {
   Camera, Music2, Play, Plus, ExternalLink, Trash2, Eye, MessageCircle, Heart,
   ChevronDown, Filter, FileText, Database, Loader2, Flame, X, CheckCircle2,
@@ -43,6 +44,7 @@ export default function ReferencesPage() {
   const [openId, setOpenId] = useState<number | null>(null);
   const [draggedId, setDraggedId] = useState<number | null>(null);
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
+  const [tourOpen, setTourOpen] = useState(false);
 
   useEffect(() => { load(); }, []);
   async function load() {
@@ -108,13 +110,29 @@ export default function ReferencesPage() {
     patchRef(ref.id, { status: "approved", script_id: sc.id });
   }
 
+  const refCloseModal = () => setOpenId(null);
+  const refSampleId = (refs.find(r => r.client_id === clientId) || refs[0])?.id ?? null;
+  const refOpenSample = () => { if (refSampleId != null) setOpenId(refSampleId); };
+  const REF_TOUR: TourStep[] = [
+    { title: "Референсы · залётные ролики", text: "Тут собираем чужие «залетевшие» ролики как образцы, оцениваем их и превращаем в сценарии для клиента. Проведу по всей цепочке.", action: refCloseModal },
+    { target: "ref-add", title: "Добавить референс", text: "Сначала выбери клиента слева, потом вставь ссылку на TikTok / Instagram / YouTube-ролик и жми «Добавить». CRM сама подтянет просмотры, лайки, превью и (если есть) расшифровку. Ещё можно просто кидать ссылки в наш Telegram-канал — бот сам разложит их по клиентам.", action: refCloseModal },
+    { target: "ref-board", title: "Колонки отбора", text: "Референс едет: Все → Отобраны → На утверждении → Утверждены. Тащи карточки мышкой. Как только перетащишь в «Утверждены» — CRM автоматически создаёт сценарий у этого клиента (со ссылкой, статами и разбором). Откроем карточку.", action: refCloseModal },
+    { target: "rm-stats", title: "① Статы исходника", text: "Просмотры / комментарии / лайки оригинала. По ним видно, насколько ролик реально «залетел» — берём в работу только сильные образцы.", action: refOpenSample },
+    { target: "rm-transcript", title: "② Транскрибация", text: "Текст ролика. Обычно подтягивается сам. Если озвучки нет (например, просто видеоряд) — впиши вручную, что говорится/показывается: без текста AI не сможет оценить и адаптировать.", action: refOpenSample },
+    { target: "rm-analysis", title: "③ Разбор донора (оценка вирусности)", text: "Жми «Оценить» — AI разберёт, ЗА СЧЁТ ЧЕГО ролик залетел (хук, структура, триггеры). Этот разбор потом переносится в сценарий как подсказка. Нужна транскрибация.", action: refOpenSample },
+    { target: "rm-stage", title: "④ В работу → сценарий", text: "Кнопками стадии переведи референс в «Утверждены» — и у клиента сразу появится готовая карточка-сценарий в разделе «Сценарии», куда уже перенесены ссылка, статы и разбор. Дальше — обычная работа над сценарием.", action: refOpenSample },
+  ];
+
   if (loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--t2)" }}>Загрузка…</div>;
 
   return (
     <div style={{ fontFamily: "'Manrope', sans-serif" }}>
-      <div style={{ marginBottom: 14 }}>
-        <h1 style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 22, fontWeight: 800, letterSpacing: -0.5 }}>Референсы · залётные ролики</h1>
-        <p style={{ fontSize: 12, color: "var(--t3)", marginTop: 4 }}>Сначала выбери клиента → потом вставь ссылку на ролик</p>
+      <div style={{ marginBottom: 14, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <div>
+          <h1 style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 22, fontWeight: 800, letterSpacing: -0.5 }}>Референсы · залётные ролики</h1>
+          <p style={{ fontSize: 12, color: "var(--t3)", marginTop: 4 }}>Сначала выбери клиента → потом вставь ссылку на ролик</p>
+        </div>
+        <TourButton onClick={() => setTourOpen(true)} />
       </div>
 
       {tableMissing ? (
@@ -125,7 +143,7 @@ export default function ReferencesPage() {
       ) : (
         <>
           {!isMontager && (
-          <div style={{ display: "flex", gap: 8, marginBottom: 16, alignItems: "flex-start" }}>
+          <div data-tour="ref-add" style={{ display: "flex", gap: 8, marginBottom: 16, alignItems: "flex-start" }}>
             <div style={{ position: "relative", flexShrink: 0 }}>
               <button onClick={() => setMenu(m => !m)} style={{ height: 44, padding: "0 14px", borderRadius: 10, background: "rgba(123,63,228,0.1)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
                 <Filter size={13} /><span style={{ color: "var(--t3)", fontWeight: 500 }}>Клиент:</span>{curClient ? `${curClient.name} ${curClient.surname || ""}` : "выбери"}<ChevronDown size={13} />
@@ -144,7 +162,7 @@ export default function ReferencesPage() {
           </div>
           )}
 
-          <div style={{ display: "grid", gridTemplateColumns: `repeat(${COLUMNS.length}, minmax(230px, 1fr))`, gap: 10, overflowX: "auto", paddingBottom: 8 }}>
+          <div data-tour="ref-board" style={{ display: "grid", gridTemplateColumns: `repeat(${COLUMNS.length}, minmax(230px, 1fr))`, gap: 10, overflowX: "auto", paddingBottom: 8 }}>
             {COLUMNS.map(col => {
               const items = byColumn[col.id] || [];
               const isOver = dragOverCol === col.id;
@@ -193,6 +211,7 @@ export default function ReferencesPage() {
       {openRef && <RefModal ref0={openRef} client={clientById[openRef.client_id]} onClose={() => setOpenId(null)} onNote={saveNote} onTranscript={saveTranscript} onDelete={del} readOnly={isMontager}
         onAnalyzed={(a) => patchRef(openRef.id, { analysis: a, analyzed_at: new Date().toISOString() })}
         onMove={(status) => { const id = openRef.id; setOpenId(null); moveTo(status, id); }} />}
+      <Tour steps={REF_TOUR} open={tourOpen} onClose={() => { setTourOpen(false); setOpenId(null); }} />
       <style>{`.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
@@ -226,7 +245,7 @@ function RefModal({ ref0, client, onClose, onNote, onTranscript, onDelete, onAna
           <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: 9, background: "var(--track)", border: "1px solid var(--brd)", color: "var(--t2)", cursor: "pointer" }}><X size={15} /></button>
         </div>
 
-        <div style={{ display: "flex", gap: 18, alignItems: "center" }}>
+        <div data-tour="rm-stats" style={{ display: "flex", gap: 18, alignItems: "center" }}>
           <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 15, fontWeight: 800 }}><Eye size={16} style={{ color: "var(--cy)" }} /> {fmtNum(ref0.views)}</span>
           <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 15, fontWeight: 800 }}><MessageCircle size={16} style={{ color: "var(--pu)" }} /> {fmtNum(ref0.comments)}</span>
           <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 15, fontWeight: 800 }}><Heart size={16} style={{ color: "var(--rd)" }} /> {fmtNum(ref0.likes)}</span>
@@ -235,7 +254,7 @@ function RefModal({ ref0, client, onClose, onNote, onTranscript, onDelete, onAna
 
         {/* Стадия — кнопками (без перетаскивания) */}
         {!readOnly && (
-        <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
+        <div data-tour="rm-stage" style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
           <span style={{ fontSize: 10, fontWeight: 700, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 0.5 }}>Стадия:</span>
           {COLUMNS.map(col => {
             const active = ref0.status === col.id;
@@ -250,7 +269,7 @@ function RefModal({ ref0, client, onClose, onNote, onTranscript, onDelete, onAna
         )}
 
         {/* Разбор донора */}
-        <div style={{ padding: 14, borderRadius: 12, background: "rgba(255,174,66,0.06)", border: "1px solid rgba(255,174,66,0.3)" }}>
+        <div data-tour="rm-analysis" style={{ padding: 14, borderRadius: 12, background: "rgba(255,174,66,0.06)", border: "1px solid rgba(255,174,66,0.3)" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: ref0.analysis ? 10 : 0 }}>
             <span style={{ fontSize: 12, fontWeight: 800, color: "var(--or)" }}>🔥 Разбор донора (оценка вирусности)</span>
             {!readOnly && (
@@ -264,7 +283,7 @@ function RefModal({ ref0, client, onClose, onNote, onTranscript, onDelete, onAna
           {!ref0.transcript && <div style={{ fontSize: 11, color: "var(--t3)", marginTop: 6 }}>Нет транскрибации — анализ недоступен.</div>}
         </div>
 
-        <div>
+        <div data-tour="rm-transcript">
           <div style={{ fontSize: 10, fontWeight: 700, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 5, display: "flex", alignItems: "center", gap: 8 }}>
             📝 Транскрибация
             {!ref0.transcript && <span style={{ fontSize: 9, fontWeight: 500, color: "var(--t3)", textTransform: "none", letterSpacing: 0 }}>— нет озвучки? впиши текст вручную, потом жми «Оценить»</span>}

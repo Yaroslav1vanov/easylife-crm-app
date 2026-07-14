@@ -6,6 +6,7 @@ import db, { Client, Script, ClientMonth, TeamMember, Profile, OnboardingProgres
 import { getStore, setStore } from "@/lib/store";
 import { VIDEO_LEAD, SCRIPT_LEAD } from "@/components/ScriptModal";
 import Avatar from "@/components/Avatar";
+import Tour, { TourButton, type TourStep } from "@/components/Tour";
 import {
   Users, Film, AlertCircle, CalendarCheck, Rocket,
   Plus, Calendar as CalendarIcon, ChevronLeft, ChevronRight, ChevronDown,
@@ -687,6 +688,7 @@ function DashboardInner() {
   const [taskFilter, setTaskFilter] = useState<"all" | number>("all"); // team_member id or "all"
   const [taskFilterOpen, setTaskFilterOpen] = useState(false);
   const [expandedTask, setExpandedTask] = useState<"onboarding" | "scripts" | "montage" | "publish" | null>(null);
+  const [tourOpen, setTourOpen] = useState(false);
   // Clients table
   const [clientsView, setClientsView] = useState<"table" | "cards">("table");
   const [searchQuery, setSearchQuery] = useState("");
@@ -1020,6 +1022,15 @@ function DashboardInner() {
   })();
   const PaceIcon = data.pipelinePace.icon === "up" ? TrendingUp : data.pipelinePace.icon === "down" ? TrendingDown : Minus;
 
+  const DASH_TOUR: TourStep[] = [
+    { title: "Главная — твой день в CRM", text: "Дашборд собирает всё важное на сегодня: что горит лично тебе, общие цифры и задачи по этапам. Пробегусь по блокам сверху вниз." },
+    { target: "dash-mydeadlines", title: "«Мои дедлайны» — начни отсюда", text: "Тут ТВОИ задачи с датами сдачи: у монтажёра — что смонтировать, у сценариста — что написать. Красное = просрочено. Клик по строке — сразу в нужный раздел. Если блока нет — значит на тебе сейчас нет горящих задач." },
+    { target: "dash-kpi", title: "Ключевые цифры", text: "Всего клиентов · сколько на онбординге · сколько роликов осталось сделать по пакетам · сколько клиентов просрочено. Клик по «На онбординге» прокрутит к списку ниже." },
+    { target: "dash-onboarding", title: "Кто на онбординге", text: "Новые клиенты в фазе вхождения: дедлайн онбординга и % выполнения чек-листа. Клик по клиенту — открыть его онбординг-задачи. (Блок появляется, только если кто-то онбордится.)" },
+    { target: "dash-row2", title: "Внимание и производство", text: "Слева — клиенты, которые «требуют внимания» (отстают/просрочены). Справа — производство контента: сколько сделано и в каком темпе идём к плану месяца." },
+    { target: "dash-row3", title: "Загрузка команды и «Что нужно сделать»", text: "Слева — загрузка по сотрудникам. Справа — все задачи по этапам (онбординг / сценарии / монтаж / публикация) с фильтром по сотруднику: удобно раздавать и проверять работу." },
+  ];
+
   return (
     <div className="dashboard-v3" style={{ fontFamily: "'Manrope', sans-serif" }}>
       {/* ===== HEADER ===== */}
@@ -1031,6 +1042,7 @@ function DashboardInner() {
           <div style={{ fontSize: 12, color: "var(--t3)", marginTop: 4, fontWeight: 500 }}>{todayFullRu(today)}</div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <TourButton onClick={() => setTourOpen(true)} />
           <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 12, background: "rgba(123,63,228,0.08)", border: "1px solid var(--brd)" }}>
             <button onClick={() => setSelectedMonth(s => ymShift(s, -1))} style={{ background: "transparent", border: "none", color: "var(--t2)", cursor: "pointer", padding: 4, display: "flex", alignItems: "center" }}><ChevronLeft size={14} /></button>
             <CalendarIcon size={14} style={{ color: "var(--t3)" }} />
@@ -1067,7 +1079,7 @@ function DashboardInner() {
         const head = myDeadlines.isMontager ? "🎬 Мои дедлайны · монтаж" : "✍️ Мои дедлайны · сценарии";
         const openLbl = myDeadlines.isMontager ? "Открыть монтаж" : "Открыть сценарии";
         return (
-        <div className="card" style={{ padding: 16, borderRadius: 16, marginBottom: 18 }}>
+        <div data-tour="dash-mydeadlines" className="card" style={{ padding: 16, borderRadius: 16, marginBottom: 18 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
             <div style={{ fontSize: 13, fontWeight: 800, color: "var(--t1)" }}>{head} <span style={{ color: "var(--t3)", fontWeight: 600 }}>({myDeadlines.items.length})</span></div>
             <button onClick={() => router.push(path)} style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "transparent", border: "none", color: "var(--pu)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>{openLbl} <ArrowRight size={12} /></button>
@@ -1098,7 +1110,7 @@ function DashboardInner() {
       })()}
 
       {/* ===== KPI ROW (без MRR) ===== */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 18 }} className="dashboard-v3-kpi">
+      <div data-tour="dash-kpi" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 18 }} className="dashboard-v3-kpi">
         <KPICard title="Всего клиентов" value={String(data.activeClients.length)} caption={`активных + ${data.onboardingClients.length} на онбординге`} Icon={Users} color="#42d4f4" />
         <KPICard title="На онбординге" value={String(data.onboardingClients.length)} caption={data.onboardingClients.length === 0 ? "никто не онбордится" : `в фазе вхождения`} Icon={Rocket} color="#ffae42" onClick={data.onboardingClients.length ? () => { const el = document.getElementById("onboarding-section"); el?.scrollIntoView({ behavior: "smooth" }); } : undefined} />
         <KPICard title="Осталось сделать" value={String(data.planRolls)} caption={`из ${data.totalPackage} в пакетах`} Icon={Film} color="#9d6bff" />
@@ -1107,7 +1119,7 @@ function DashboardInner() {
 
       {/* ===== ONBOARDING SECTION ===== */}
       {data.onboardingClients.length > 0 && (
-        <div id="onboarding-section" className="card" style={{ padding: 18, borderRadius: 18, marginBottom: 18, borderColor: "rgba(255,174,66,0.3)", background: "linear-gradient(135deg, rgba(255,174,66,0.06), rgba(123,63,228,0.04))" }}>
+        <div id="onboarding-section" data-tour="dash-onboarding" className="card" style={{ padding: 18, borderRadius: 18, marginBottom: 18, borderColor: "rgba(255,174,66,0.3)", background: "linear-gradient(135deg, rgba(255,174,66,0.06), rgba(123,63,228,0.04))" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <Rocket size={18} style={{ color: "#ffae42" }} strokeWidth={1.8} />
@@ -1152,7 +1164,7 @@ function DashboardInner() {
       )}
 
       {/* ===== ROW 2: Attention + Pipeline ===== */}
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(360px, 1fr) 2fr", gap: 12, marginBottom: 18 }} className="dashboard-v3-row2">
+      <div data-tour="dash-row2" style={{ display: "grid", gridTemplateColumns: "minmax(360px, 1fr) 2fr", gap: 12, marginBottom: 18 }} className="dashboard-v3-row2">
         <div className="card" style={{ padding: 18, borderRadius: 18 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
             <h3 style={{ fontSize: 14, fontWeight: 800, color: "var(--t1)" }}>
@@ -1228,7 +1240,7 @@ function DashboardInner() {
       </div>
 
       {/* ===== ROW 3: Команда + Контракты + Сегодня ===== */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 18 }} className="dashboard-v3-row3">
+      <div data-tour="dash-row3" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 18 }} className="dashboard-v3-row3">
         {/* Загрузка команды — теперь конкретные задачи */}
         <div className="card" style={{ padding: 18, borderRadius: 18 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
@@ -1463,6 +1475,7 @@ function DashboardInner() {
           :global(.dashboard-v3-row3) { grid-template-columns: 1fr !important; }
         }
       `}</style>
+      <Tour steps={DASH_TOUR} open={tourOpen} onClose={() => setTourOpen(false)} />
     </div>
   );
 }

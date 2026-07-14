@@ -139,7 +139,7 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
               onBlur={() => { if (!ro && pubDate !== (s.pub_date || "")) onUpdate(s.id, { pub_date: pubDate || null }); }}
               style={{ ...ta, fontSize: 12, width: 150, opacity: ro ? 0.6 : 1 }} />
           </div>
-          <div>
+          <div data-tour="sm-ready">
             {label(roReady ? "✂️ Смонтировано (фиксируется авто)" : "✂️ Смонтировано (дата сдачи)")}
             <input type="date" value={readyAt} onChange={(e) => setReadyAt(e.target.value)} readOnly={roReady} disabled={roReady}
               onBlur={() => { if (!roReady && readyAt !== (s.ready_at || "")) onUpdate(s.id, { ready_at: readyAt || null }); }}
@@ -159,7 +159,7 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
         </div>
 
         {/* Референс — ссылка */}
-        <div>
+        <div data-tour="sm-ref">
           {label("🎬 Референс — ссылка на исходник")}
           <div style={{ display: "flex", gap: 6 }}>
             <input value={refUrl} onChange={(e) => setRefUrl(e.target.value)} readOnly={ro}

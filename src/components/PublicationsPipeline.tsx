@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase-browser";
 import db, { Client, Script, TeamMember, Publication, PubStatus } from "@/lib/database";
 import { getStore, setStore } from "@/lib/store";
 import Avatar from "@/components/Avatar";
+import Tour, { TourButton, type TourStep } from "@/components/Tour";
 import { DEFAULT_TZ, tzShort, nowInTz, utcToZonedInput, zonedInputToUtc, fmtInTz } from "@/lib/tz";
 import {
   Camera, Play, Music2, AtSign, Wand2, CheckCircle2, X, ExternalLink,
@@ -44,6 +45,7 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
   const [brands, setBrands] = useState<{ blogId: number; label: string }[] | null>(null);
   const [brandsBusy, setBrandsBusy] = useState(false);
   const [carouselPicker, setCarouselPicker] = useState(false);
+  const [tourOpen, setTourOpen] = useState(false);
 
   useEffect(() => { load(); }, []);
 
@@ -155,6 +157,22 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
 
   const openPub = openId != null ? pubs.find(p => p.id === openId) || null : null;
 
+  // Пример-публикация для тура: берём рилз (чтобы показать блок видео), иначе любую
+  const tourSampleId = (pubs.find(p => p.content_type !== "carousel") || pubs[0])?.id ?? null;
+  const ppCloseModal = () => setOpenId(null);
+  const ppOpenSample = () => { if (tourSampleId != null) setOpenId(tourSampleId); };
+  const PIPELINE_TOUR: TourStep[] = [
+    { title: "Metricool · подготовка постов", text: "Тут готовое видео превращается в пост и уходит во все соцсети клиента через Metricool. Проведу по всей цепочке — от видео до публикации.", action: ppCloseModal },
+    { target: "pp-pull", title: "Шаг 0 · Подтянуть готовые видео", text: "Жми — CRM возьмёт все ролики со статусом «Готово» у активных клиентов и создаст под них карточки постов в первой колонке. Карусель добавляется отдельной кнопкой «+ Карусель».", action: ppCloseModal },
+    { target: "pp-brands", title: "«Мои бренды» (настроить один раз)", text: "Показывает список аккаунтов, подключённых к Metricool, с их blogId. Этот blogId нужно один раз вписать в карточку клиента — иначе CRM не знает, в какой аккаунт публиковать.", action: ppCloseModal },
+    { target: "pp-board", title: "Доска статусов", text: "Пост едет по колонкам: На адаптации → На утверждении → Запланировано → Опубликовано. Можно тащить карточки мышкой. Сейчас откроем карточку и пройдём её насквозь.", action: ppCloseModal },
+    { target: "pm-media", title: "① Видео и время выхода", text: "Залей видео файлом (⬆ Файл) или вставь ссылку. Справа — дата и ВРЕМЯ публикации по часовому поясу КЛИЕНТА (не нашему): под подписью видно, сколько сейчас времени у клиента и когда выйдет пост.", action: ppOpenSample },
+    { target: "pm-basetext", title: "② Исходный текст", text: "Впиши сюда основной текст ролика — это «сырьё». AI на его основе сделает отдельные версии подписи под каждую соцсеть. Чем толковее исходник, тем лучше адаптации.", action: ppOpenSample },
+    { target: "pm-ai", title: "③ Сгенерить тексты под соцсети", text: "Одна кнопка — AI пишет РАЗНЫЕ тексты под Instagram, TikTok, YouTube и Threads (у каждой свои лимиты и стиль). Не нравится — жми ещё раз «Сгенерить заново».", action: ppOpenSample },
+    { target: "pm-tabs", title: "④ Вкладки соцсетей — куда и какой текст", text: "Вот здесь и решается, «что куда». Переключай вкладки IG / TikTok / YouTube / Threads. В каждой: галочка «Публиковать в …» (СНЯТА — туда НЕ уйдёт) и своё поле текста. У YouTube — заголовок + описание + теги, у остальных — подпись. Проверь/поправь текст в каждой отмеченной сети.", action: ppOpenSample },
+    { target: "pm-publish", title: "⑤ Утвердить и отправить в Metricool", text: "«Утвердить» — тимлид подтверждает пост (карточка уходит в «Запланировано»). «Опубликовать в Metricool» — CRM отправляет пост во ВСЕ отмеченные соцсети на заданное время. Ошибка вылезет в колонке «Ошибка» с причиной.", action: ppOpenSample },
+  ];
+
   const Toggle = (
     <div style={{ display: "flex", borderRadius: 10, border: "1px solid var(--brd)", overflow: "hidden" }}>
       <button onClick={onShowPlan} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 12px", background: "transparent", color: "var(--t2)", border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer" }}><CalendarDays size={13} /> Контент-план</button>
@@ -171,11 +189,12 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
           {onShowPlan && Toggle}
-          <button onClick={loadBrands} disabled={brandsBusy}
+          <TourButton onClick={() => setTourOpen(true)} />
+          <button data-tour="pp-brands" onClick={loadBrands} disabled={brandsBusy}
             style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: 10, background: "rgba(66,212,244,0.1)", border: "1px solid var(--brd)", color: "var(--cy)", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
             <Rocket size={13} /> {brandsBusy ? "Гружу…" : "Мои бренды"}
           </button>
-          <div style={{ position: "relative" }}>
+          <div data-tour="pp-carousel" style={{ position: "relative" }}>
             <button onClick={() => setCarouselPicker(v => !v)} disabled={tableMissing}
               style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: 10, background: "rgba(255,174,66,0.12)", border: "1px solid var(--brd)", color: "var(--or)", fontSize: 12, fontWeight: 700, cursor: tableMissing ? "not-allowed" : "pointer" }}>
               <Images size={13} /> + Карусель
@@ -194,7 +213,7 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
               </div>
             )}
           </div>
-          <button onClick={pullReady} disabled={pulling || tableMissing}
+          <button data-tour="pp-pull" onClick={pullReady} disabled={pulling || tableMissing}
             style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: 10, background: "rgba(157,107,255,0.12)", border: "1px solid var(--brd)", color: "var(--pu)", fontSize: 12, fontWeight: 700, cursor: tableMissing ? "not-allowed" : "pointer" }}>
             <RefreshCw size={13} className={pulling ? "spin" : ""} /> {pulling ? "Подтягиваю…" : "Подтянуть готовые видео"}
           </button>
@@ -235,7 +254,7 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
           <div style={{ fontSize: 13, color: "var(--t2)", lineHeight: 1.6 }}>{errMsg}</div>
         </div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: `repeat(${COLUMNS.length}, minmax(210px, 1fr))`, gap: 10, overflowX: "auto", paddingBottom: 8 }}>
+        <div data-tour="pp-board" style={{ display: "grid", gridTemplateColumns: `repeat(${COLUMNS.length}, minmax(210px, 1fr))`, gap: 10, overflowX: "auto", paddingBottom: 8 }}>
           {COLUMNS.map(col => {
             const items = byColumn[col.id] || [];
             const isOver = dragOverCol === col.id;
@@ -301,6 +320,7 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
           onPublish={publishToMetricool}
         />
       )}
+      <Tour steps={PIPELINE_TOUR} open={tourOpen} onClose={() => { setTourOpen(false); setOpenId(null); }} />
       <style>{`.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
@@ -391,7 +411,7 @@ function PublicationModal({ pub, client, script, onClose, onUpdate, onApprove, o
         </div>
 
         {isCarousel ? (
-          <div style={{ padding: 12, borderRadius: 12, background: "var(--inset)", border: "1px solid var(--brd)", display: "flex", flexDirection: "column", gap: 10 }}>
+          <div data-tour="pm-media" style={{ padding: 12, borderRadius: 12, background: "var(--inset)", border: "1px solid var(--brd)", display: "flex", flexDirection: "column", gap: 10 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 {lbl(`🖼 Слайды карусели (${(f.media_urls || []).length})`)}
@@ -426,7 +446,7 @@ function PublicationModal({ pub, client, script, onClose, onUpdate, onApprove, o
             )}
           </div>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, padding: 12, borderRadius: 12, background: "var(--inset)", border: "1px solid var(--brd)" }}>
+          <div data-tour="pm-media" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, padding: 12, borderRadius: 12, background: "var(--inset)", border: "1px solid var(--brd)" }}>
             <div>
               {lbl("🎬 Видео")}
               <div style={{ display: "flex", gap: 6 }}>
@@ -446,17 +466,17 @@ function PublicationModal({ pub, client, script, onClose, onUpdate, onApprove, o
           </div>
         )}
 
-        <div>
+        <div data-tour="pm-basetext">
           {lbl(isCarousel ? "📄 Текст карусели (основа подписи)" : "📄 Исходный текст (из сценария)")}
           <textarea defaultValue={f.base_text || ""} onBlur={e => save({ base_text: e.target.value })} rows={9} placeholder={isCarousel ? "Подпись/идея карусели — основа для адаптаций под IG/Threads" : "Текст ролика — основа для адаптаций"} style={{ ...ta, fontSize: 13, minHeight: 180 }} />
         </div>
 
-        <button onClick={async () => { setBusy(true); await onRegenerate(pub.id); setBusy(false); }} disabled={busy}
+        <button data-tour="pm-ai" onClick={async () => { setBusy(true); await onRegenerate(pub.id); setBusy(false); }} disabled={busy}
           style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "10px", borderRadius: 10, background: "rgba(157,107,255,0.1)", border: "1px dashed var(--pu)", color: "var(--pu)", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>
           <Wand2 size={14} /> {busy ? "Генерю адаптации…" : f.ai_generated_at ? "Сгенерить заново" : "Сгенерить тексты под соцсети (AI)"}
         </button>
 
-        <div style={{ display: "flex", gap: 6, borderBottom: "1px solid var(--brd)", paddingBottom: 2, flexWrap: "wrap" }}>
+        <div data-tour="pm-tabs" style={{ display: "flex", gap: 6, borderBottom: "1px solid var(--brd)", paddingBottom: 2, flexWrap: "wrap" }}>
           {CHANNELS.filter(ch => allowedChannels.includes(ch.id)).map(ch => {
             const on = channels.includes(ch.id);
             return (
@@ -491,7 +511,7 @@ function PublicationModal({ pub, client, script, onClose, onUpdate, onApprove, o
           );
         })()}
 
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, paddingTop: 4, borderTop: "1px solid var(--brd)", marginTop: 4 }}>
+        <div data-tour="pm-publish" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, paddingTop: 4, borderTop: "1px solid var(--brd)", marginTop: 4 }}>
           <span style={{ fontSize: 11, color: f.pub_status === "scheduled" ? "var(--cy)" : "var(--t3)" }}>
             {f.pub_status === "scheduled" ? "✓ Запланировано в Metricool" : f.ai_model ? `модель: ${f.ai_model}` : ""}{f.error_message ? ` · ⚠ ${f.error_message}` : ""}
           </span>

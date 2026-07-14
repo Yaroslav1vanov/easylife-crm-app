@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
 import db, { Client, ClientMonth, Script, SocialSnapshot, TeamMember, OnboardingProgress } from "@/lib/database";
+import Tour, { TourButton, type TourStep } from "@/components/Tour";
 
 type Platform = "ig" | "tt" | "yt";
 type ClientProduction = { pub: number; ready: number; scr: number; total: number; month: ClientMonth | null };
@@ -192,6 +193,7 @@ export default function ClientsPage() {
   const [statusTab, setStatusTab] = useState<"active" | "paused" | "churned">("active");
   const [showAdd, setShowAdd] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [tourOpen, setTourOpen] = useState(false);
   const [form, setForm] = useState({ name: "", surname: "", niche: "", package: 30, montager_id: 0, teamlead_id: 0, start_date: new Date().toISOString().split("T")[0], pub_date: "" });
   const router = useRouter();
   const supabase = createClient();
@@ -289,6 +291,15 @@ export default function ClientsPage() {
     };
   }
 
+  const CLIENTS_TOUR: TourStep[] = [
+    { title: "Раздел «Клиенты»", text: "Тут все клиенты агентства: их соц-статистика, объём контента за месяц и статус. Отсюда заходим внутрь клиента и берём отчёты. Покажу по шагам." },
+    { target: "cl-tabs", title: "Наборы по статусу", text: "Переключай: Активные (в работе) · На паузе · Архив (ушли). Число в кружке — сколько клиентов в каждом. На паузе и в архиве клиенты не планируются в публикации." },
+    { target: "cl-sync", title: "Обновить статистику из Metricool", text: "Жми «↻ Обновить статистику» — CRM подтянет из Metricool свежие подписчики, охваты и ER по всем клиентам. Слева видно, когда обновляли в последний раз." },
+    { target: "cl-card", title: "Карточка клиента — что внутри", text: "Вкладки IG / TikTok / YouTube — переключают соц-цифры (подписчики, охват, ER, рост за 30 дней). Ниже — прогресс месяца: сколько роликов и сценариев готово из пакета. Кнопка «📊 Metricool ↗» открывает аналитику клиента, «Открыть →» — карточку клиента, где онбординг и кнопка месячного отчёта." },
+    { target: "cl-card", title: "Статус клиента", text: "Выпадашка 🟢 В работе / ⏸ На паузе / 📦 Архив прямо на карточке — меняет статус мгновенно. Клиент уедет в соответствующую вкладку сверху.", action: () => {} },
+    { target: "cl-add", title: "Добавить клиента", text: "«+ Клиент» — завести нового: имя, ниша, пакет (кол-во роликов), монтажёр, тимлид и даты старта. После создания он появится в «Активных»." },
+  ];
+
   return (
     <div className="clients-v2">
       <div className="clients-v2-top">
@@ -296,10 +307,13 @@ export default function ClientsPage() {
           <h1>Клиенты <span>({clients.length})</span></h1>
           <p>Клиенты в работе, контент и соц-статистика</p>
         </div>
-        <button type="button" onClick={() => setShowAdd(true)}>+ Клиент</button>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <TourButton onClick={() => setTourOpen(true)} />
+          <button type="button" data-tour="cl-add" onClick={() => setShowAdd(true)}>+ Клиент</button>
+        </div>
       </div>
 
-      <div className="clients-v2-sync" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+      <div data-tour="cl-sync" className="clients-v2-sync" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
           <i /> Статистика Metricool · {latestSync ? `обновлено ${formatSnapshotDate(latestSync)}` : "данных пока нет"}
         </span>
@@ -310,7 +324,7 @@ export default function ClientsPage() {
       </div>
 
       {/* Вкладки по статусу */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 18, flexWrap: "wrap" }}>
+      <div data-tour="cl-tabs" style={{ display: "flex", gap: 8, marginBottom: 18, flexWrap: "wrap" }}>
         {statusTabs.map(t => {
           const active = statusTab === t.key;
           return (
@@ -393,7 +407,7 @@ export default function ClientsPage() {
       ) : (
         <div className="clients-v2-grid">
           {visibleClients.map((client, index) => (
-            <div key={client.id} style={{ opacity: statusTab === "churned" ? 0.72 : 1 }}>
+            <div key={client.id} data-tour={index === 0 ? "cl-card" : undefined} style={{ opacity: statusTab === "churned" ? 0.72 : 1 }}>
               <ClientCard
                 client={client}
                 production={productionFor(client.id)}
@@ -407,6 +421,7 @@ export default function ClientsPage() {
           ))}
         </div>
       )}
+      <Tour steps={CLIENTS_TOUR} open={tourOpen} onClose={() => setTourOpen(false)} />
     </div>
   );
 }
