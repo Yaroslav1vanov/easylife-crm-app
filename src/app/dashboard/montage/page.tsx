@@ -9,6 +9,14 @@ import ScriptModal, { VIDEO_LEAD, fmtDateShort, addDaysIso } from "@/components/
 import { MONTAGE_COLUMNS } from "@/components/kanbanConfigs";
 import { useIsMontager, useCanEditReadyAt } from "@/components/RoleContext";
 import { batchFor, wdShort, type Batch } from "@/lib/batches";
+import Tour, { TourButton, type TourStep } from "@/components/Tour";
+
+const MONTAGE_TOUR: TourStep[] = [
+  { title: "Раздел «Монтаж»", text: "Тут ты делаешь видео и сдаёшь их партиями. Покажу за 4 шага, куда смотреть." },
+  { target: "montage-filters", title: "Только свои задачи", text: "Нажми «Мои» — увидишь только своих клиентов. «Показать» — сегодня / просрочено." },
+  { target: "montage-batches", title: "Партии на неделю — главное", text: "По каждому клиенту: сколько видео и к какому дню сдать пачкой. Партия должна быть готова за 3 дня до дня сдачи (запас на перемонтаж). Красный = горит." },
+  { target: "montage-board", title: "Доска и кнопка «Сдать»", text: "Бери сценарии из «Согласовано» → монтируй. Сдал видео → жми «✓ Сдать» прямо на карточке (без перетаскивания). Даты и тексты не трогаешь — только чтение." },
+];
 import {
   Filter, ChevronDown, ChevronLeft, ChevronRight, CalendarDays, Table as TableIcon,
 } from "lucide-react";
@@ -53,6 +61,7 @@ export default function MontagePage() {
   const [tlFilter, setTlFilter] = useState<"all" | number>("all");
   const [mgFilter, setMgFilter] = useState<"all" | number>("all");
   const [monthFilter, setMonthFilter] = useState<"all" | number>("all"); // контрактный месяц (M1/M2/…)
+  const [tourOpen, setTourOpen] = useState(false);
   const [focus, setFocus] = useState<"all" | "today" | "tomorrow" | "overdue">("all");
   const [menu, setMenu] = useState<null | "client" | "tl" | "mg" | "month" | "focus">(null);
   const [openId, setOpenId] = useState<number | null>(null);
@@ -215,7 +224,8 @@ export default function MontagePage() {
             {(tlFilter !== "all" || clientFilter !== "all" || mgFilter !== "all") && <span style={{ color: "var(--pu)", fontWeight: 700 }}> · {scopeCount} {scopeCount === 1 ? "клиент" : scopeCount < 5 ? "клиента" : "клиентов"} в фильтре</span>}
           </p>
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+        <div data-tour="montage-filters" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <TourButton onClick={() => setTourOpen(true)} />
           <div style={{ display: "flex", border: "1px solid var(--brd)", borderRadius: 10, overflow: "hidden" }}>
             {([["week", "Неделя", TableIcon], ["month", "Месяц", CalendarDays]] as const).map(([v, l, Ic]) => (
               <button key={v} onClick={() => setView(v)} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 12px", background: view === v ? "rgba(157,107,255,0.15)" : "transparent", color: view === v ? "var(--pu)" : "var(--t2)", border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer" }}><Ic size={13} /> {l}</button>
@@ -268,7 +278,7 @@ export default function MontagePage() {
 
       {/* 📦 НЕДЕЛЬНЫЕ ПАРТИИ — сдача клиенту пачкой раз в неделю */}
       {batches.length > 0 && (
-        <div className="card" style={{ padding: 14, borderRadius: 16, marginBottom: 14 }}>
+        <div data-tour="montage-batches" className="card" style={{ padding: 14, borderRadius: 16, marginBottom: 14 }}>
           <div style={{ fontSize: 12, fontWeight: 800, color: "var(--t1)", marginBottom: 10 }}>
             📦 Партии на неделю <span style={{ fontSize: 10, fontWeight: 500, color: "var(--t3)" }}>— сдаём клиенту пачкой в его день · готовность за 3 дня до сдачи</span>
           </div>
@@ -414,7 +424,7 @@ export default function MontagePage() {
       )}
 
       {/* KANBAN (доска монтажа — как сейчас) */}
-      <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 10, color: "var(--t2)" }}>Доска монтажа</div>
+      <div data-tour="montage-board" style={{ fontSize: 13, fontWeight: 800, marginBottom: 10, color: "var(--t2)" }}>Доска монтажа</div>
       <KanbanBoard scripts={kanbanScripts} clients={clients} columns={MONTAGE_COLUMNS} onUpdate={updateScript} showClient emptyHint="Пусто"
         deadlineLeadDays={VIDEO_LEAD}
         deadlineDone={(s) => s.video_status === "ready" || s.video_status === "published"}
@@ -429,6 +439,7 @@ export default function MontagePage() {
       {openScript && (
         <ScriptModal script={openScript} client={clientById[openScript.client_id]} onClose={() => setOpenId(null)} onUpdate={updateScript} canEdit={!isMontager} canEditReadyAt={canEditReadyAt} />
       )}
+      <Tour steps={MONTAGE_TOUR} open={tourOpen} onClose={() => setTourOpen(false)} />
     </div>
   );
 }

@@ -8,6 +8,15 @@ import KanbanBoard from "@/components/KanbanBoard";
 import ScriptModal, { SCRIPT_LEAD, fmtDateShort, addDaysIso } from "@/components/ScriptModal";
 import { SCRIPT_COLUMNS } from "@/components/kanbanConfigs";
 import { useCanEditReadyAt } from "@/components/RoleContext";
+import Tour, { TourButton, type TourStep } from "@/components/Tour";
+
+const SCRIPT_TOUR: TourStep[] = [
+  { title: "Раздел «Сценарии»", text: "Тут пишем сценарии и ведём их по колонкам от идеи до согласования с клиентом. Покажу за 5 шагов, где что." },
+  { target: "scripts-filters", title: "Фильтры сверху", text: "Выбери клиента, тимлида и «Показать» (сегодня / просрочено). Кнопка «Мои» — показать только твоих клиентов." },
+  { target: "scripts-plan", title: "Сводка по срокам", text: "Сколько сценариев нужно на сегодня, сколько просрочено и сколько за неделю. Клик по строке ниже — открыть и поправить дату." },
+  { target: "scripts-board", title: "Доска — главное", text: "Тащи карточки мышкой: Идея → Взято в работу → На согласовании → Согласовано. Открой карточку → «✨ Адаптировать под клиента» — AI напишет хук/текст/призыв." },
+  { target: "scripts-board", title: "Отправить клиенту", text: "Кнопка «☑ Выбрать несколько» над доской → отметь галочками написанные → «📄 Для клиента» → скачается красивый HTML-файл на утверждение." },
+];
 import {
   Filter, ChevronDown, ChevronLeft, ChevronRight, X, CalendarDays, Table as TableIcon,
 } from "lucide-react";
@@ -56,6 +65,7 @@ export default function ScriptsPage() {
   const [menu, setMenu] = useState<null | "client" | "tl" | "month" | "focus">(null);
   const [openId, setOpenId] = useState<number | null>(null);
   const [me, setMe] = useState<TeamMember | null>(null);
+  const [tourOpen, setTourOpen] = useState(false);
 
   useEffect(() => { load(); }, []);
   async function load() {
@@ -222,7 +232,8 @@ export default function ScriptsPage() {
             {(tlFilter !== "all" || clientFilter !== "all") && <span style={{ color: "var(--pu)", fontWeight: 700 }}> · {scopeCount} {scopeCount === 1 ? "клиент" : scopeCount < 5 ? "клиента" : "клиентов"} в фильтре</span>}
           </p>
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+        <div data-tour="scripts-filters" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <TourButton onClick={() => setTourOpen(true)} />
           <div style={{ display: "flex", border: "1px solid var(--brd)", borderRadius: 10, overflow: "hidden" }}>
             {([["week", "Неделя", TableIcon], ["month", "Месяц", CalendarDays]] as const).map(([v, l, Ic]) => (
               <button key={v} onClick={() => setView(v)} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 12px", background: view === v ? "rgba(157,107,255,0.15)" : "transparent", color: view === v ? "var(--pu)" : "var(--t2)", border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer" }}><Ic size={13} /> {l}</button>
@@ -258,7 +269,7 @@ export default function ScriptsPage() {
       </div>
 
       {/* SUMMARY */}
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
+      <div data-tour="scripts-plan" style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
         {[{ v: summary.today, l: "на сегодня", c: "#42d4f4" }, { v: summary.overdue, l: "просрочено", c: "#ff5c7a" }, { v: summary.week, l: "за неделю", c: "#9d6bff" }].map((x, i) => (
           <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", borderRadius: 13, border: `1px solid ${x.v > 0 ? x.c + "55" : "var(--brd)"}`, background: x.v > 0 ? `${x.c}14` : "var(--card)" }}>
             <span style={{ width: 9, height: 9, borderRadius: 3, background: x.c }} />
@@ -369,7 +380,7 @@ export default function ScriptsPage() {
       )}
 
       {/* KANBAN (доска — как сейчас) */}
-      <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 10, color: "var(--t2)" }}>Доска сценариев</div>
+      <div data-tour="scripts-board" style={{ fontSize: 13, fontWeight: 800, marginBottom: 10, color: "var(--t2)" }}>Доска сценариев</div>
       <KanbanBoard scripts={kanbanScripts} clients={clients} columns={SCRIPT_COLUMNS} onUpdate={updateScript} showClient emptyHint="Пусто"
         deadlineLeadDays={SCRIPT_LEAD}
         deadlineDone={(s) => s.script_status === "approved"}
@@ -381,6 +392,7 @@ export default function ScriptsPage() {
       {openScript && (
         <ScriptModal script={openScript} client={clientById[openScript.client_id]} onClose={() => setOpenId(null)} onUpdate={updateScript} canEditReadyAt={canEditReadyAt} />
       )}
+      <Tour steps={SCRIPT_TOUR} open={tourOpen} onClose={() => setTourOpen(false)} />
     </div>
   );
 }
