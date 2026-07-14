@@ -10,13 +10,6 @@ import { SCRIPT_COLUMNS } from "@/components/kanbanConfigs";
 import { useCanEditReadyAt } from "@/components/RoleContext";
 import Tour, { TourButton, type TourStep } from "@/components/Tour";
 
-const SCRIPT_TOUR: TourStep[] = [
-  { title: "Раздел «Сценарии»", text: "Тут пишем сценарии и ведём их по колонкам от идеи до согласования с клиентом. Покажу за 5 шагов, где что." },
-  { target: "scripts-filters", title: "Фильтры сверху", text: "Выбери клиента, тимлида и «Показать» (сегодня / просрочено). Кнопка «Мои» — показать только твоих клиентов." },
-  { target: "scripts-plan", title: "Сводка по срокам", text: "Сколько сценариев нужно на сегодня, сколько просрочено и сколько за неделю. Клик по строке ниже — открыть и поправить дату." },
-  { target: "scripts-board", title: "Доска — главное", text: "Тащи карточки мышкой: Идея → Взято в работу → На согласовании → Согласовано. Открой карточку → «✨ Адаптировать под клиента» — AI напишет хук/текст/призыв." },
-  { target: "scripts-board", title: "Отправить клиенту", text: "Кнопка «☑ Выбрать несколько» над доской → отметь галочками написанные → «📄 Для клиента» → скачается красивый HTML-файл на утверждение." },
-];
 import {
   Filter, ChevronDown, ChevronLeft, ChevronRight, X, CalendarDays, Table as TableIcon,
 } from "lucide-react";
@@ -196,6 +189,22 @@ export default function ScriptsPage() {
   const kanbanScripts = useMemo(() => allScripts.filter(s => inScope(s.client_id) && matchMonth(s)), [allScripts, clientFilter, tlFilter, monthFilter, clientById]);
   const scopeCount = clients.filter(c => inScope(c.id)).length;
   const openScript = openId != null ? allScripts.find(s => s.id === openId) || null : null;
+
+  // Пример-сценарий для тура: берём тот, где уже есть текст (чтобы было что показать)
+  const tourSampleId = (kanbanScripts.find(s => s.hook || s.body_text || s.ref_text || s.transcription) || kanbanScripts[0] || allScripts[0])?.id ?? null;
+  const closeModal = () => setOpenId(null);
+  const openSample = () => { if (tourSampleId != null) setOpenId(tourSampleId); };
+  const scriptTour: TourStep[] = [
+    { title: "Раздел «Сценарии»", text: "Тут пишем сценарии и ведём их по колонкам от идеи до согласования с клиентом. Проведу по шагам — где что и как.", action: closeModal },
+    { target: "scripts-filters", title: "Фильтры сверху", text: "Выбери клиента, тимлида и «Показать» (сегодня / просрочено). Кнопка «Мои» — только твои клиенты.", action: closeModal },
+    { target: "scripts-plan", title: "Сводка по срокам", text: "Сколько сценариев нужно на сегодня, сколько просрочено, сколько за неделю. Клик по строке ниже — открыть и поправить дату.", action: closeModal },
+    { target: "scripts-board", title: "Доска — сердце раздела", text: "Тащи карточки мышкой по колонкам: Идея → Взято в работу → На согласовании → Согласовано. Сейчас откроем одну карточку и разберём изнутри.", action: closeModal },
+    { target: "sm-date", title: "① Дата публикации", text: "Ставь дату, когда ролик должен ВЫЙТИ в соцсети. От неё автоматически считаются сроки «сценарий к» и «видео к» — не путай с датой сдачи монтажа.", action: openSample },
+    { target: "sm-parts", title: "② Сам сценарий — 3 части", text: "Хук (первые секунды) · Основной текст · Призыв. Пиши прямо в этих полях — сохраняется само, как только уводишь курсор из поля.", action: openSample },
+    { target: "sm-adapt", title: "③ «Адаптировать под клиента»", text: "Не хочешь писать с нуля? Жми — AI возьмёт референс и транскрибацию и напишет хук/текст/призыв в тоне и под нишу клиента.", action: openSample },
+    { target: "sm-refine", title: "④ Не нравится — переделай", text: "Напиши, что поправить («хук агрессивнее», «сократи тело», «добавь конкретику») и жми «↻ Переделать» — AI перепишет с учётом правки. Можно гонять сколько нужно.", action: openSample },
+    { target: "scripts-board", title: "⑤ Отправить клиенту", text: "Готовые сценарии: «☑ Выбрать несколько» над доской → отметь галочками → «📄 Для клиента» → скачается красивый HTML-файл на утверждение.", action: closeModal },
+  ];
 
   if (loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--t2)" }}>Загрузка…</div>;
 
@@ -392,7 +401,7 @@ export default function ScriptsPage() {
       {openScript && (
         <ScriptModal script={openScript} client={clientById[openScript.client_id]} onClose={() => setOpenId(null)} onUpdate={updateScript} canEditReadyAt={canEditReadyAt} />
       )}
-      <Tour steps={SCRIPT_TOUR} open={tourOpen} onClose={() => setTourOpen(false)} />
+      <Tour steps={scriptTour} open={tourOpen} onClose={() => { setTourOpen(false); setOpenId(null); }} />
     </div>
   );
 }

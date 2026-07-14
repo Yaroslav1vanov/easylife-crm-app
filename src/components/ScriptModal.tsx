@@ -133,7 +133,7 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
 
         {/* Сроки */}
         <div style={{ display: "grid", gridTemplateColumns: "auto auto 1fr 1fr", gap: 12, alignItems: "end", padding: 14, borderRadius: 12, background: "var(--inset)", border: "1px solid var(--brd)" }}>
-          <div>
+          <div data-tour="sm-date">
             {label(ro ? "📅 Публикация (только чтение)" : "📅 Публикация")}
             <input type="date" value={pubDate} onChange={(e) => setPubDate(e.target.value)} readOnly={ro} disabled={ro}
               onBlur={() => { if (!ro && pubDate !== (s.pub_date || "")) onUpdate(s.id, { pub_date: pubDate || null }); }}
@@ -191,11 +191,11 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
         )}
 
         {/* Наш сценарий — 3 части, каждую можно усиливать отдельно */}
-        <div style={{ padding: 14, borderRadius: 12, background: "rgba(157,107,255,0.05)", border: "1px solid var(--brd)", display: "flex", flexDirection: "column", gap: 12 }}>
+        <div data-tour="sm-parts" style={{ padding: 14, borderRadius: 12, background: "rgba(157,107,255,0.05)", border: "1px solid var(--brd)", display: "flex", flexDirection: "column", gap: 12 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
             <span style={{ fontSize: 11, fontWeight: 800, color: "var(--pu)", textTransform: "uppercase", letterSpacing: 0.5 }}>✨ Наш сценарий</span>
             {!ro && (
-            <button onClick={() => adaptFromDonor()} disabled={adaptBusy || !(s.transcription || s.ref_text)}
+            <button data-tour="sm-adapt" onClick={() => adaptFromDonor()} disabled={adaptBusy || !(s.transcription || s.ref_text)}
               style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 13px", borderRadius: 8, background: "linear-gradient(135deg, var(--cy), var(--pu))", border: "none", color: "#fff", fontSize: 11, fontWeight: 800, cursor: adaptBusy ? "default" : "pointer", opacity: adaptBusy ? 0.7 : 1 }}>
               {adaptBusy ? "Адаптирую…" : "✨ Адаптировать под клиента"}
             </button>
@@ -221,7 +221,7 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
           </div>
           {/* Доработка по правке — мини-чат с AI (только для тех, кто может редактировать) */}
           {!ro && (
-          <div style={{ marginTop: 4, paddingTop: 12, borderTop: "1px solid var(--brd)" }}>
+          <div data-tour="sm-refine" style={{ marginTop: 4, paddingTop: 12, borderTop: "1px solid var(--brd)" }}>
             {label("↻ Что переделать? (правка для AI)", "var(--cy)")}
             <div style={{ display: "flex", gap: 6 }}>
               <textarea value={refine} onChange={(e) => setRefine(e.target.value)}

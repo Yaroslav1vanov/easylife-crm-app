@@ -8,6 +8,7 @@ export type TourStep = {
   title: string;
   text: string;
   placement?: "top" | "bottom" | "left" | "right";
+  action?: () => void;       // выполняется при входе на шаг (напр. открыть карточку сценария)
 };
 
 const PAD = 8; // отступ подсветки вокруг элемента
@@ -21,18 +22,22 @@ export default function Tour({ steps, open, onClose }: { steps: TourStep[]; open
 
   useLayoutEffect(() => {
     if (!open || !step) return;
-    let raf = 0;
+    setRect(null);
+    step.action?.(); // напр. открыть/закрыть карточку сценария
     const find = () => step.target ? (document.querySelector(`[data-tour="${step.target}"]`) as HTMLElement) || (document.querySelector(step.target) as HTMLElement) : null;
-    const measure = () => {
+    const apply = (el: HTMLElement | null) => { if (el) el.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" }); setRect(el ? el.getBoundingClientRect() : null); };
+    // ждём появления элемента (модалка может открыться не сразу)
+    let tries = 0, poll = 0;
+    const seek = () => {
       const el = find();
-      if (el) { el.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" }); }
-      raf = requestAnimationFrame(() => setRect(el ? el.getBoundingClientRect() : null));
+      if (el || !step.target || tries > 16) { apply(el); if (el) { poll = window.setTimeout(() => apply(find()), 280); } return; }
+      tries++; poll = window.setTimeout(seek, 120);
     };
-    measure();
-    const t = setTimeout(measure, 260); // после плавного скролла — пересчёт
-    window.addEventListener("resize", measure);
-    window.addEventListener("scroll", measure, true);
-    return () => { clearTimeout(t); cancelAnimationFrame(raf); window.removeEventListener("resize", measure); window.removeEventListener("scroll", measure, true); };
+    seek();
+    const onMove = () => { const el = find(); if (el) setRect(el.getBoundingClientRect()); };
+    window.addEventListener("resize", onMove);
+    window.addEventListener("scroll", onMove, true);
+    return () => { clearTimeout(poll); window.removeEventListener("resize", onMove); window.removeEventListener("scroll", onMove, true); };
   }, [open, i, step]);
 
   useEffect(() => {
