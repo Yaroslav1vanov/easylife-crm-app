@@ -79,6 +79,18 @@ export default function MontagePage() {
     setLoading(false);
   }
   async function updateScript(id: number, patch: Partial<Script>) {
+    // Гейт сдачи: в «Готово к публикации» пускаем только с загруженным роликом
+    if (patch.video_status === "ready") {
+      const cur = allScripts.find(x => x.id === id);
+      const vurl = patch.video_url ?? cur?.video_url;
+      if (!vurl) {
+        setOpenId(id);
+        alert("Сначала загрузи готовый ролик в карточку — без файла нельзя перевести в «Готово к публикации».");
+        return;
+      }
+      // авто-дата сдачи монтажа (по ней считается ЗП), если ещё не проставлена
+      if (!patch.ready_at && cur && !cur.ready_at) patch = { ...patch, ready_at: todayIso };
+    }
     const res = await db.updateScript(supabase, id, patch);
     const final = res?.patch || patch;
     setAllScripts(arr => arr.map(s => s.id === id ? { ...s, ...final } : s));
@@ -187,13 +199,15 @@ export default function MontagePage() {
   const mgSampleId = (kanbanScripts[0] || allScripts.find(s => s.script_status === "approved"))?.id ?? null;
   const mgOpenSample = () => { if (mgSampleId != null) setOpenId(mgSampleId); };
   const MONTAGE_TOUR: TourStep[] = [
-    { title: "Раздел «Монтаж»", text: "Тут ты монтируешь видео и сдаёшь их партиями. Проведу по шагам — что смотреть и как сдавать.", action: mgCloseModal },
-    { target: "montage-filters", title: "Только свои задачи", text: "Нажми «Мои» — увидишь только своих клиентов. «Показать» — фильтр по срокам (сегодня / просрочено).", action: mgCloseModal },
-    { target: "montage-batches", title: "Партии на неделю — главное", text: "По каждому клиенту: сколько видео и к какому дню сдать одной пачкой. Партия должна быть готова за 3 дня до дня сдачи (запас на правки). Красный = горит.", action: mgCloseModal },
-    { target: "montage-board", title: "Доска монтажа", text: "Бери сценарии из колонки «Согласовано» и монтируй. Сейчас откроем карточку и посмотрим, что внутри для монтажёра.", action: mgCloseModal },
-    { target: "sm-ref", title: "① По чему монтировать", text: "Референс-ссылка на исходник + транскрибация: смотри, как сделан оригинал, и монтируй по готовому сценарию ниже. Тексты и даты ты не редактируешь — только читаешь.", action: mgOpenSample },
-    { target: "sm-ready", title: "② Дата сдачи монтажа", text: "«Смонтировано» — день сдачи, по нему считается ЗП. Обычно проставляется автоматически, когда ролик уходит в «Готово к публикации».", action: mgOpenSample },
-    { target: "montage-board", title: "③ Кнопка «✓ Сдать»", text: "Смонтировал — жми «✓ Сдать» прямо на карточке (перетаскивать не нужно). Ролик уйдёт в «Готово к публикации» и попадёт в раздел Metricool на выгрузку.", action: mgCloseModal },
+    { title: "Раздел «Монтаж»", text: "Тут ты монтируешь видео и сдаёшь их партиями. Проведу по шагам — что смотреть, где взять сценарий, как загрузить готовый ролик и сдать.", action: mgCloseModal },
+    { target: "montage-view", title: "Неделя или месяц", text: "Вот здесь переключаешь вид: «Неделя» — задачи и партии на текущую неделю, «Месяц» — весь месяц целиком. Стрелками рядом листаешь недели/месяцы вперёд-назад.", action: mgCloseModal },
+    { target: "montage-filters", title: "Только свои задачи", text: "Нажми «Мои» — увидишь только своих клиентов. Фильтры «Клиент» и «Показать» (сегодня / просрочено) сужают список.", action: mgCloseModal },
+    { target: "montage-batches", title: "Партии на неделю", text: "По каждому клиенту: сколько видео и к какому дню сдать одной пачкой. Партия должна быть готова за 3 дня до дня сдачи (запас на правки). Красный = горит.", action: mgCloseModal },
+    { target: "montage-board", title: "Доска монтажа — как двигать карточки", text: "Слева направо: «Согласовано» (сценарий готов, бери в работу) → «Взято в монтаж» → «Готово / на согласовании» (клиент смотрит ролик, могут быть правки) → «Готово к публикации» (правки утверждены, ролик загружен) → «Опубликовано». Тащишь карточки мышкой по колонкам. Откроем карточку.", action: mgCloseModal },
+    { target: "sm-ref", title: "① По чему монтировать", text: "Референс-ссылка на исходник + транскрибация: смотри, как сделан оригинал, и монтируй по готовому сценарию ниже. Тексты и даты сценария ты не редактируешь — только читаешь.", action: mgOpenSample },
+    { target: "sm-video", title: "② Загрузить готовый ролик в CRM", text: "Смонтировал — жми «⬆ Файл» и загрузи ролик прямо сюда (или вставь ссылку). ВАЖНО: сдача монтажа считается именно по загруженному файлу — пока ролика нет, карточку в «Готово к публикации» не пустит.", action: mgOpenSample },
+    { target: "sm-ready", title: "③ Дата сдачи монтажа", text: "«Смонтировано» — день сдачи, по нему считается ЗП. Проставляется автоматически в момент, когда ролик с файлом уходит в «Готово к публикации».", action: mgOpenSample },
+    { target: "montage-board", title: "④ Сдать = «Готово к публикации»", text: "Когда правки утверждены и ролик загружен — переведи карточку (или жми «✓ Сдать» на ней) в «Готово к публикации». Оттуда ролик автоматически появится в разделе «Metricool» на оформление и выгрузку в соцсети.", action: mgCloseModal },
   ];
 
   if (loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--t2)" }}>Загрузка…</div>;
@@ -233,7 +247,7 @@ export default function MontagePage() {
         </div>
         <div data-tour="montage-filters" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <TourButton onClick={() => setTourOpen(true)} />
-          <div style={{ display: "flex", border: "1px solid var(--brd)", borderRadius: 10, overflow: "hidden" }}>
+          <div data-tour="montage-view" style={{ display: "flex", border: "1px solid var(--brd)", borderRadius: 10, overflow: "hidden" }}>
             {([["week", "Неделя", TableIcon], ["month", "Месяц", CalendarDays]] as const).map(([v, l, Ic]) => (
               <button key={v} onClick={() => setView(v)} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 12px", background: view === v ? "rgba(157,107,255,0.15)" : "transparent", color: view === v ? "var(--pu)" : "var(--t2)", border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer" }}><Ic size={13} /> {l}</button>
             ))}

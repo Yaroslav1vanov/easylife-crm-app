@@ -54,6 +54,21 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
   const [refine, setRefine] = useState("");
   const [confirmDel, setConfirmDel] = useState(false);
   const [duelBusy, setDuelBusy] = useState(false);
+  const [upBusy, setUpBusy] = useState(false);
+
+  // Загрузка готового ролика в CRM (R2). Разрешена и монтажёру — по файлу считается сдача.
+  async function uploadVideo(file: File) {
+    setUpBusy(true);
+    try {
+      const r = await fetch("/api/r2/sign", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ filename: file.name, clientId: s.client_id, scriptId: s.id }) });
+      const j = await r.json();
+      if (!r.ok) { alert("R2: " + (j?.error || "ошибка подписи")); setUpBusy(false); return; }
+      const put = await fetch(j.uploadUrl, { method: "PUT", body: file, headers: file.type ? { "content-type": file.type } : {} });
+      if (!put.ok) { alert(`Загрузка не удалась (${put.status}). Проверь CORS бакета.`); setUpBusy(false); return; }
+      setVideoUrl(j.publicUrl); onUpdate(s.id, { video_url: j.publicUrl });
+    } catch (e: any) { alert("Ошибка загрузки: " + String(e)); }
+    setUpBusy(false);
+  }
 
   async function refreshDuel() {
     setDuelBusy(true);
@@ -236,21 +251,26 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
           )}
         </div>
 
-        {/* Опубликованное видео */}
-        {isPublished && (
-          <div>
-            {label("▶ Ссылка на опубликованное видео", "var(--gr)")}
+        {/* Готовый ролик — грузим прямо в CRM на фазе монтажа. По загруженному файлу считается сдача. */}
+        {s.script_status === "approved" && (
+          <div data-tour="sm-video" style={{ padding: 12, borderRadius: 12, background: s.video_url ? "rgba(168,224,99,0.06)" : "rgba(255,174,66,0.06)", border: `1px solid ${s.video_url ? "rgba(168,224,99,0.3)" : "rgba(255,174,66,0.35)"}` }}>
+            {label(isPublished ? "▶ Опубликованное видео" : "🎬 Готовый ролик — загрузить в CRM", s.video_url ? "var(--gr)" : "var(--or)")}
             <div style={{ display: "flex", gap: 6 }}>
               <input value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)}
                 onBlur={() => { if (videoUrl !== (s.video_url || "")) onUpdate(s.id, { video_url: videoUrl }); }}
-                placeholder="https://instagram.com/reel/…" style={{ ...ta, fontSize: 12 }} />
+                placeholder="Загрузи файл справа → или вставь ссылку" style={{ ...ta, fontSize: 12 }} />
               {s.video_url && (
                 <a href={s.video_url.startsWith("http") ? s.video_url : `https://${s.video_url}`} target="_blank" rel="noopener noreferrer"
                   style={{ flexShrink: 0, padding: "0 14px", borderRadius: 9, background: "rgba(168,224,99,0.14)", border: "1px solid rgba(168,224,99,0.3)", color: "var(--gr)", display: "inline-flex", alignItems: "center" }}>
                   <ExternalLink size={15} />
                 </a>
               )}
+              <label style={{ flexShrink: 0, padding: "0 14px", borderRadius: 9, background: "rgba(66,212,244,0.12)", border: "1px solid var(--brd)", color: "var(--cy)", display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 800, cursor: upBusy ? "default" : "pointer", whiteSpace: "nowrap" }}>
+                {upBusy ? "Загружаю…" : "⬆ Файл"}
+                <input type="file" accept="video/*" disabled={upBusy} onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadVideo(f); e.target.value = ""; }} style={{ display: "none" }} />
+              </label>
             </div>
+            {!s.video_url && <div style={{ fontSize: 10, color: "var(--or)", marginTop: 6, fontWeight: 600 }}>⚠ Пока ролик не загружен — карточку нельзя перевести в «Готово к публикации».</div>}
           </div>
         )}
 

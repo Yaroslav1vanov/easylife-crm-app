@@ -7,7 +7,7 @@ import Avatar from "@/components/Avatar";
 import Tour, { TourButton, type TourStep } from "@/components/Tour";
 import { DEFAULT_TZ, tzShort, nowInTz, utcToZonedInput, zonedInputToUtc, fmtInTz } from "@/lib/tz";
 import {
-  Camera, Play, Music2, AtSign, Wand2, CheckCircle2, X, ExternalLink,
+  Camera, Play, Music2, AtSign, Wand2, X, ExternalLink,
   RefreshCw, AlertTriangle, Database, CalendarDays, Rocket, Plus, Images, Film, Trash2, type LucideIcon,
 } from "lucide-react";
 
@@ -18,10 +18,11 @@ const CHANNELS: Channel[] = [
   { id: "yt", label: "YouTube Shorts", Icon: Play },
   { id: "threads", label: "Threads", Icon: AtSign },
 ];
+// Утверждение сценария/ролика происходит раньше — в Монтаже. Сюда попадает уже готовый ролик,
+// который нужно оформить (тексты под соцсети) и опубликовать. Поэтому: Готово к публикации → Запланировано → Опубликовано.
 const COLUMNS: { id: string; label: string; color: string; statuses: PubStatus[] }[] = [
-  { id: "adapting", label: "На адаптации", color: "#9d6bff", statuses: ["adapting"] },
-  { id: "review", label: "На утверждении", color: "#ffae42", statuses: ["review"] },
-  { id: "scheduled", label: "Запланировано", color: "#42d4f4", statuses: ["queued", "scheduled"] },
+  { id: "ready", label: "Готово к публикации", color: "#9d6bff", statuses: ["adapting", "review", "queued"] },
+  { id: "scheduled", label: "Запланировано", color: "#42d4f4", statuses: ["scheduled"] },
   { id: "published", label: "Опубликовано", color: "#a8e063", statuses: ["published"] },
   { id: "error", label: "Ошибка", color: "#ff5c7a", statuses: ["error"] },
 ];
@@ -163,14 +164,14 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
   const ppOpenSample = () => { if (tourSampleId != null) setOpenId(tourSampleId); };
   const PIPELINE_TOUR: TourStep[] = [
     { title: "Metricool · подготовка постов", text: "Тут готовое видео превращается в пост и уходит во все соцсети клиента через Metricool. Проведу по всей цепочке — от видео до публикации.", action: ppCloseModal },
-    { target: "pp-pull", title: "Шаг 0 · Подтянуть готовые видео", text: "Жми — CRM возьмёт все ролики со статусом «Готово» у активных клиентов и создаст под них карточки постов в первой колонке. Карусель добавляется отдельной кнопкой «+ Карусель».", action: ppCloseModal },
+    { target: "pp-pull", title: "Шаг 0 · Подтянуть готовые видео", text: "Жми — CRM возьмёт все ролики, которые монтажёр перевёл в «Готово к публикации», и создаст под них карточки постов в первой колонке (ролик уже загружен в Монтаже — тянется автоматически). Карусель добавляется отдельной кнопкой «+ Карусель».", action: ppCloseModal },
     { target: "pp-brands", title: "«Мои бренды» (настроить один раз)", text: "Показывает список аккаунтов, подключённых к Metricool, с их blogId. Этот blogId нужно один раз вписать в карточку клиента — иначе CRM не знает, в какой аккаунт публиковать.", action: ppCloseModal },
-    { target: "pp-board", title: "Доска статусов", text: "Пост едет по колонкам: На адаптации → На утверждении → Запланировано → Опубликовано. Можно тащить карточки мышкой. Сейчас откроем карточку и пройдём её насквозь.", action: ppCloseModal },
-    { target: "pm-media", title: "① Видео и время выхода", text: "Залей видео файлом (⬆ Файл) или вставь ссылку. Справа — дата и ВРЕМЯ публикации по часовому поясу КЛИЕНТА (не нашему): под подписью видно, сколько сейчас времени у клиента и когда выйдет пост.", action: ppOpenSample },
+    { target: "pp-board", title: "Доска — 3 статуса", text: "Утверждение уже прошло в Монтаже, поэтому тут коротко: Готово к публикации → Запланировано (дату поставили / ушло в Metricool) → Опубликовано. Клиентов, которых публикуем вручную (не через Metricool), можно просто перетащить в «Опубликовано». Откроем карточку.", action: ppCloseModal },
+    { target: "pm-media", title: "① Видео и время выхода", text: "Ролик обычно уже подтянут из Монтажа. При необходимости можно заменить файлом (⬆ Файл) или ссылкой. Справа — дата и ВРЕМЯ публикации по часовому поясу КЛИЕНТА (не нашему): под подписью видно, сколько сейчас времени у клиента и когда выйдет пост.", action: ppOpenSample },
     { target: "pm-basetext", title: "② Исходный текст", text: "Впиши сюда основной текст ролика — это «сырьё». AI на его основе сделает отдельные версии подписи под каждую соцсеть. Чем толковее исходник, тем лучше адаптации.", action: ppOpenSample },
     { target: "pm-ai", title: "③ Сгенерить тексты под соцсети", text: "Одна кнопка — AI пишет РАЗНЫЕ тексты под Instagram, TikTok, YouTube и Threads (у каждой свои лимиты и стиль). Не нравится — жми ещё раз «Сгенерить заново».", action: ppOpenSample },
     { target: "pm-tabs", title: "④ Вкладки соцсетей — куда и какой текст", text: "Вот здесь и решается, «что куда». Переключай вкладки IG / TikTok / YouTube / Threads. В каждой: галочка «Публиковать в …» (СНЯТА — туда НЕ уйдёт) и своё поле текста. У YouTube — заголовок + описание + теги, у остальных — подпись. Проверь/поправь текст в каждой отмеченной сети.", action: ppOpenSample },
-    { target: "pm-publish", title: "⑤ Утвердить и отправить в Metricool", text: "«Утвердить» — тимлид подтверждает пост (карточка уходит в «Запланировано»). «Опубликовать в Metricool» — CRM отправляет пост во ВСЕ отмеченные соцсети на заданное время. Ошибка вылезет в колонке «Ошибка» с причиной.", action: ppOpenSample },
+    { target: "pm-publish", title: "⑤ Опубликовать в Metricool", text: "«Опубликовать в Metricool» — CRM отправляет пост во ВСЕ отмеченные соцсети на заданное время, и карточка уходит в «Запланировано». Ошибка вылезет в колонке «Ошибка» с причиной. Для ручной публикации — просто перетащи карточку в «Опубликовано».", action: ppOpenSample },
   ];
 
   const Toggle = (
@@ -516,12 +517,6 @@ function PublicationModal({ pub, client, script, onClose, onUpdate, onApprove, o
             {f.pub_status === "scheduled" ? "✓ Запланировано в Metricool" : f.ai_model ? `модель: ${f.ai_model}` : ""}{f.error_message ? ` · ⚠ ${f.error_message}` : ""}
           </span>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            {f.pub_status !== "queued" && f.pub_status !== "scheduled" && (
-              <button onClick={() => onApprove(pub.id)}
-                style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 16px", borderRadius: 9, background: "rgba(66,212,244,0.12)", border: "1px solid var(--brd)", color: "var(--cy)", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>
-                <CheckCircle2 size={14} /> Утвердить
-              </button>
-            )}
             <button onClick={async () => { setPubBusy(true); const ok = await onPublish(pub.id); setPubBusy(false); if (ok) onClose(); }} disabled={pubBusy}
               style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 18px", borderRadius: 9, background: "linear-gradient(135deg, var(--cy), var(--pu))", border: "none", color: "#fff", fontSize: 12, fontWeight: 800, cursor: pubBusy ? "default" : "pointer", opacity: pubBusy ? 0.7 : 1 }}>
               <Rocket size={14} /> {pubBusy ? "Отправляю…" : "Опубликовать в Metricool"}
