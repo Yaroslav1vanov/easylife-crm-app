@@ -421,6 +421,7 @@ function PublicationModal({ pub, client, script, onClose, onUpdate, onApprove, o
                 <div>
                   <span style={{ fontSize: 9, fontWeight: 700, color: "var(--t3)", marginRight: 6 }}>📅 Публиковать · {tzShort(tz)}</span>
                   <input type="datetime-local" defaultValue={utcToZonedInput(f.publish_at, tz)} onBlur={e => save({ publish_at: e.target.value ? zonedInputToUtc(e.target.value, tz) : null })} style={{ ...ta, fontSize: 12, width: "auto", display: "inline-block" }} />
+                  <div style={{ fontSize: 9, color: "var(--t3)", marginTop: 4 }}>🕒 сейчас у клиента {nowInTz(tz)} · выйдет {fmtInTz(f.publish_at, tz)}</div>
                 </div>
                 <label style={{ flexShrink: 0, padding: "8px 12px", borderRadius: 9, background: "rgba(66,212,244,0.12)", border: "1px solid var(--brd)", color: "var(--cy)", display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, cursor: upBusy ? "default" : "pointer", whiteSpace: "nowrap" }}>
                   {upBusy ? "Загружаю…" : "⬆ Добавить слайды"}

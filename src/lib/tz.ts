@@ -52,17 +52,28 @@ export function utcToZonedInput(utcIso: string | null, tz: string): string {
   return `${g("year")}-${g("month")}-${g("day")}T${h}:${g("minute")}`;
 }
 
-// Текущее время в поясе (HH:mm) — для подсказки «сейчас там …».
+// США → 12-часовой формат (AM/PM), остальные пояса → 24 часа.
+export function is12h(tz: string | null | undefined) { return !!tz && tz.startsWith("America/"); }
+// «15:30» → «3:30 PM» (для американских клиентов).
+function to12h(h: number, min: string): string {
+  const suffix = h < 12 ? "AM" : "PM";
+  const h12 = ((h + 11) % 12) + 1;
+  return `${h12}:${min} ${suffix}`;
+}
+
+// Текущее время в поясе — для подсказки «сейчас там …». Для США — с AM/PM.
 export function nowInTz(tz: string): string {
+  if (is12h(tz)) return new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit", hour12: true }).format(new Date());
   return new Intl.DateTimeFormat("ru-RU", { timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date());
 }
 
-// Красивый вывод момента публикации в поясе клиента: «1 июл, 09:00».
+// Красивый вывод момента публикации в поясе клиента: «1 июл, 09:00» (или «1 июл, 9:00 AM» для США).
 const RU_MON = ["янв", "фев", "мар", "апр", "мая", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
 export function fmtInTz(utcIso: string | null, tz: string): string {
   if (!utcIso) return "—";
   const p = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(new Date(utcIso));
   const g = (t: string) => p.find(x => x.type === t)!.value;
   let h = g("hour"); if (h === "24") h = "00";
-  return `${Number(g("day"))} ${RU_MON[Number(g("month")) - 1]}, ${h}:${g("minute")}`;
+  const date = `${Number(g("day"))} ${RU_MON[Number(g("month")) - 1]}`;
+  return is12h(tz) ? `${date}, ${to12h(Number(h), g("minute"))}` : `${date}, ${h}:${g("minute")}`;
 }
