@@ -50,8 +50,6 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
   const [videoUrl, setVideoUrl] = useState(s.video_url || "");
   const [pubDate, setPubDate] = useState(s.pub_date || "");
   const [readyAt, setReadyAt] = useState(s.ready_at || "");
-  const [adaptBusy, setAdaptBusy] = useState(false);
-  const [refine, setRefine] = useState("");
   const [confirmDel, setConfirmDel] = useState(false);
   const [duelBusy, setDuelBusy] = useState(false);
   const [upBusy, setUpBusy] = useState(false);
@@ -83,17 +81,6 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
       }
     } catch (e: any) { alert(String(e)); }
     setDuelBusy(false);
-  }
-
-  async function adaptFromDonor(instruction?: string) {
-    setAdaptBusy(true);
-    try {
-      const r = await fetch(`/api/scripts/${s.id}/adapt`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ instruction: instruction || "" }) });
-      const j = await r.json();
-      if (!r.ok) alert("AI: " + (j?.error || "ошибка"));
-      else { setHook(j.hook || ""); setBodyText(j.body_text || ""); setCta(j.cta || ""); if (instruction) setRefine(""); }
-    } catch (e: any) { alert(String(e)); }
-    setAdaptBusy(false);
   }
 
   useEffect(() => {
@@ -205,16 +192,10 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
           </div>
         )}
 
-        {/* Наш сценарий — 3 части, каждую можно усиливать отдельно */}
+        {/* Наш сценарий — 3 части, пишем вручную */}
         <div data-tour="sm-parts" style={{ padding: 14, borderRadius: 12, background: "rgba(157,107,255,0.05)", border: "1px solid var(--brd)", display: "flex", flexDirection: "column", gap: 12 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
             <span style={{ fontSize: 11, fontWeight: 800, color: "var(--pu)", textTransform: "uppercase", letterSpacing: 0.5 }}>✨ Наш сценарий</span>
-            {!ro && (
-            <button data-tour="sm-adapt" onClick={() => adaptFromDonor()} disabled={adaptBusy || !(s.transcription || s.ref_text)}
-              style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 13px", borderRadius: 8, background: "linear-gradient(135deg, var(--cy), var(--pu))", border: "none", color: "#fff", fontSize: 11, fontWeight: 800, cursor: adaptBusy ? "default" : "pointer", opacity: adaptBusy ? 0.7 : 1 }}>
-              {adaptBusy ? "Адаптирую…" : "✨ Адаптировать под клиента"}
-            </button>
-            )}
           </div>
           <div>
             {label("1. Хук (первые секунды)", "var(--cy)")}
@@ -234,21 +215,6 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
               onBlur={() => { if (!ro && cta !== (s.cta || "")) onUpdate(s.id, { cta }); }}
               rows={2} placeholder="Призыв к действию в конце…" style={{ ...ta, background: "var(--inset2)" }} />
           </div>
-          {/* Доработка по правке — мини-чат с AI (только для тех, кто может редактировать) */}
-          {!ro && (
-          <div data-tour="sm-refine" style={{ marginTop: 4, paddingTop: 12, borderTop: "1px solid var(--brd)" }}>
-            {label("↻ Что переделать? (правка для AI)", "var(--cy)")}
-            <div style={{ display: "flex", gap: 6 }}>
-              <textarea value={refine} onChange={(e) => setRefine(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && refine.trim()) adaptFromDonor(refine.trim()); }}
-                rows={2} placeholder="Напр.: хук агрессивнее · убери про X · сократи тело · добавь конкретику…" style={{ ...ta, fontSize: 12 }} />
-              <button onClick={() => refine.trim() && adaptFromDonor(refine.trim())} disabled={adaptBusy || !refine.trim()}
-                style={{ flexShrink: 0, padding: "0 14px", borderRadius: 9, background: "rgba(66,212,244,0.14)", border: "1px solid var(--brd)", color: "var(--cy)", fontSize: 11, fontWeight: 800, cursor: adaptBusy || !refine.trim() ? "default" : "pointer", whiteSpace: "nowrap" }}>
-                {adaptBusy ? "…" : "↻ Переделать"}
-              </button>
-            </div>
-          </div>
-          )}
         </div>
 
         {/* Готовый ролик — грузим прямо в CRM на фазе монтажа. По загруженному файлу считается сдача. */}

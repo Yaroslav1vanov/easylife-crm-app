@@ -114,13 +114,12 @@ export default function ReferencesPage() {
   const refSampleId = (refs.find(r => r.client_id === clientId) || refs[0])?.id ?? null;
   const refOpenSample = () => { if (refSampleId != null) setOpenId(refSampleId); };
   const REF_TOUR: TourStep[] = [
-    { title: "Референсы · залётные ролики", text: "Тут собираем чужие «залетевшие» ролики как образцы, оцениваем их и превращаем в сценарии для клиента. Проведу по всей цепочке.", action: refCloseModal },
+    { title: "Референсы · залётные ролики", text: "Тут собираем чужие «залетевшие» ролики как образцы и превращаем их в сценарии для клиента. Проведу по всей цепочке.", action: refCloseModal },
     { target: "ref-add", title: "Добавить референс", text: "Сначала выбери клиента слева, потом вставь ссылку на TikTok / Instagram / YouTube-ролик и жми «Добавить». CRM сама подтянет просмотры, лайки, превью и (если есть) расшифровку. Ещё можно просто кидать ссылки в наш Telegram-канал — бот сам разложит их по клиентам.", action: refCloseModal },
-    { target: "ref-board", title: "Колонки отбора", text: "Референс едет: Все → Отобраны → На утверждении → Утверждены. Тащи карточки мышкой. Как только перетащишь в «Утверждены» — CRM автоматически создаёт сценарий у этого клиента (со ссылкой, статами и разбором). Откроем карточку.", action: refCloseModal },
+    { target: "ref-board", title: "Колонки отбора", text: "Референс едет: Все → Отобраны → На утверждении → Утверждены. Тащи карточки мышкой. Как только перетащишь в «Утверждены» — CRM автоматически создаёт сценарий у этого клиента (со ссылкой и статами). Откроем карточку.", action: refCloseModal },
     { target: "rm-stats", title: "① Статы исходника", text: "Просмотры / комментарии / лайки оригинала. По ним видно, насколько ролик реально «залетел» — берём в работу только сильные образцы.", action: refOpenSample },
-    { target: "rm-transcript", title: "② Транскрибация", text: "Текст ролика. Обычно подтягивается сам. Если озвучки нет (например, просто видеоряд) — впиши вручную, что говорится/показывается: без текста AI не сможет оценить и адаптировать.", action: refOpenSample },
-    { target: "rm-analysis", title: "③ Разбор донора (оценка вирусности)", text: "Жми «Оценить» — AI разберёт, ЗА СЧЁТ ЧЕГО ролик залетел (хук, структура, триггеры). Этот разбор потом переносится в сценарий как подсказка. Нужна транскрибация.", action: refOpenSample },
-    { target: "rm-stage", title: "④ В работу → сценарий", text: "Кнопками стадии переведи референс в «Утверждены» — и у клиента сразу появится готовая карточка-сценарий в разделе «Сценарии», куда уже перенесены ссылка, статы и разбор. Дальше — обычная работа над сценарием.", action: refOpenSample },
+    { target: "rm-transcript", title: "② Транскрибация", text: "Текст ролика. Обычно подтягивается сам. Если озвучки нет (например, просто видеоряд) — впиши вручную, что говорится/показывается. По этому тексту потом пишется сценарий.", action: refOpenSample },
+    { target: "rm-stage", title: "③ В работу → сценарий", text: "Кнопками стадии переведи референс в «Утверждены» — и у клиента сразу появится готовая карточка-сценарий в разделе «Сценарии», куда уже перенесены ссылка и статы. Дальше — обычная работа над сценарием.", action: refOpenSample },
   ];
 
   if (loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--t2)" }}>Загрузка…</div>;
@@ -209,7 +208,6 @@ export default function ReferencesPage() {
       )}
 
       {openRef && <RefModal ref0={openRef} client={clientById[openRef.client_id]} onClose={() => setOpenId(null)} onNote={saveNote} onTranscript={saveTranscript} onDelete={del} readOnly={isMontager}
-        onAnalyzed={(a) => patchRef(openRef.id, { analysis: a, analyzed_at: new Date().toISOString() })}
         onMove={(status) => { const id = openRef.id; setOpenId(null); moveTo(status, id); }} />}
       <Tour steps={REF_TOUR} open={tourOpen} onClose={() => { setTourOpen(false); setOpenId(null); }} />
       <style>{`.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}`}</style>
@@ -217,20 +215,10 @@ export default function ReferencesPage() {
   );
 }
 
-function RefModal({ ref0, client, onClose, onNote, onTranscript, onDelete, onAnalyzed, onMove, readOnly = false }: {
-  ref0: Reference; client?: Client; onClose: () => void; onNote: (id: number, n: string) => void; onTranscript: (id: number, t: string | null) => void; onDelete: (id: number) => void; onAnalyzed: (a: string) => void; onMove: (status: RefStatus) => void; readOnly?: boolean;
+function RefModal({ ref0, client, onClose, onNote, onTranscript, onDelete, onMove, readOnly = false }: {
+  ref0: Reference; client?: Client; onClose: () => void; onNote: (id: number, n: string) => void; onTranscript: (id: number, t: string | null) => void; onDelete: (id: number) => void; onMove: (status: RefStatus) => void; readOnly?: boolean;
 }) {
-  const [busy, setBusy] = useState(false);
   const p = PLAT[ref0.platform || ""] || { label: ref0.platform || "?", Icon: FileText, color: "var(--t3)" };
-  async function analyze() {
-    setBusy(true);
-    try {
-      const r = await fetch(`/api/references/${ref0.id}/analyze`, { method: "POST" });
-      const j = await r.json();
-      if (!r.ok) alert("AI: " + (j?.error || "ошибка")); else onAnalyzed(j.analysis);
-    } catch (e: any) { alert(String(e)); }
-    setBusy(false);
-  }
   const ta: React.CSSProperties = { width: "100%", padding: "10px 12px", borderRadius: 9, background: "var(--inset2)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 13, outline: "none", resize: "vertical", fontFamily: "inherit", lineHeight: 1.5 };
 
   return (
@@ -268,25 +256,18 @@ function RefModal({ ref0, client, onClose, onNote, onTranscript, onDelete, onAna
         </div>
         )}
 
-        {/* Разбор донора */}
+        {/* Разбор донора — показываем только если он уже сохранён (генерация отключена) */}
+        {ref0.analysis && (
         <div data-tour="rm-analysis" style={{ padding: 14, borderRadius: 12, background: "rgba(255,174,66,0.06)", border: "1px solid rgba(255,174,66,0.3)" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: ref0.analysis ? 10 : 0 }}>
-            <span style={{ fontSize: 12, fontWeight: 800, color: "var(--or)" }}>🔥 Разбор донора (оценка вирусности)</span>
-            {!readOnly && (
-            <button onClick={analyze} disabled={busy || !ref0.transcript}
-              style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 8, background: "rgba(255,174,66,0.15)", border: "1px solid rgba(255,174,66,0.4)", color: "var(--or)", fontSize: 11, fontWeight: 800, cursor: busy ? "default" : "pointer" }}>
-              {busy ? <Loader2 size={13} className="spin" /> : <Flame size={13} />} {busy ? "Анализ…" : ref0.analysis ? "Заново" : "Оценить"}
-            </button>
-            )}
-          </div>
-          {ref0.analysis && <div style={{ fontSize: 12.5, lineHeight: 1.6, color: "var(--t1)", whiteSpace: "pre-wrap" }}>{ref0.analysis}</div>}
-          {!ref0.transcript && <div style={{ fontSize: 11, color: "var(--t3)", marginTop: 6 }}>Нет транскрибации — анализ недоступен.</div>}
+          <div style={{ fontSize: 12, fontWeight: 800, color: "var(--or)", marginBottom: 10 }}>🔥 Разбор донора</div>
+          <div style={{ fontSize: 12.5, lineHeight: 1.6, color: "var(--t1)", whiteSpace: "pre-wrap" }}>{ref0.analysis}</div>
         </div>
+        )}
 
         <div data-tour="rm-transcript">
           <div style={{ fontSize: 10, fontWeight: 700, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 5, display: "flex", alignItems: "center", gap: 8 }}>
             📝 Транскрибация
-            {!ref0.transcript && <span style={{ fontSize: 9, fontWeight: 500, color: "var(--t3)", textTransform: "none", letterSpacing: 0 }}>— нет озвучки? впиши текст вручную, потом жми «Оценить»</span>}
+            {!ref0.transcript && <span style={{ fontSize: 9, fontWeight: 500, color: "var(--t3)", textTransform: "none", letterSpacing: 0 }}>— нет озвучки? впиши текст вручную</span>}
           </div>
           <textarea key={ref0.id} defaultValue={cleanTranscript(ref0.transcript)} readOnly={readOnly}
             onBlur={e => { const v = e.target.value; if (!readOnly && v !== (ref0.transcript || "")) onTranscript(ref0.id, v || null); }}
