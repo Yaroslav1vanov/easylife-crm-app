@@ -171,7 +171,7 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
     { target: "pp-pull", title: "Шаг 0 · Подтянуть готовые видео", text: "Жми — CRM возьмёт все ролики, которые монтажёр перевёл в «Готово к публикации», и создаст под них карточки постов в первой колонке (ролик уже загружен в Монтаже — тянется автоматически). Карусель добавляется отдельной кнопкой «+ Карусель».", action: ppCloseModal },
     { target: "pp-brands", title: "«Мои бренды» (настроить один раз)", text: "Показывает список аккаунтов, подключённых к Metricool, с их blogId. Этот blogId нужно один раз вписать в карточку клиента — иначе CRM не знает, в какой аккаунт публиковать.", action: ppCloseModal },
     { target: "pp-board", title: "Доска — 3 статуса", text: "Утверждение уже прошло в Монтаже, поэтому тут коротко: Готово к публикации → Запланировано (дату поставили / ушло в Metricool) → Опубликовано. Клиентов, которых публикуем вручную (не через Metricool), можно просто перетащить в «Опубликовано». Откроем карточку.", action: ppCloseModal },
-    { target: "pm-media", title: "① Видео и время выхода", text: "Ролик обычно уже подтянут из Монтажа. При необходимости можно заменить файлом (⬆ Файл) или ссылкой. Справа — дата и ВРЕМЯ публикации по часовому поясу КЛИЕНТА (не нашему): под подписью видно, сколько сейчас времени у клиента и когда выйдет пост.", action: ppOpenSample },
+    { target: "pm-media", title: "① Видео, обложка и время выхода", text: "Ролик обычно уже подтянут из Монтажа (виден в плеере). Ниже — «🖼 Обложка ролика»: если сделали статичный превью-креатив, загрузи его сюда — он уйдёт в соцсеть как кастомная обложка (иначе возьмётся первый кадр). Справа — дата и ВРЕМЯ по часовому поясу КЛИЕНТА: видно, сколько сейчас у клиента и когда выйдет пост.", action: ppOpenSample },
     { target: "pm-basetext", title: "② Исходный текст", text: "Впиши сюда основной текст ролика — это «сырьё». AI на его основе сделает отдельные версии подписи под каждую соцсеть. Чем толковее исходник, тем лучше адаптации.", action: ppOpenSample },
     { target: "pm-ai", title: "③ Сгенерить тексты под соцсети", text: "Одна кнопка — AI пишет РАЗНЫЕ тексты под Instagram, TikTok, YouTube и Threads (у каждой свои лимиты и стиль). Не нравится — жми ещё раз «Сгенерить заново».", action: ppOpenSample },
     { target: "pm-tabs", title: "④ Вкладки соцсетей — куда и какой текст", text: "Вот здесь и решается, «что куда». Переключай вкладки IG / TikTok / YouTube / Threads. В каждой: галочка «Публиковать в …» (СНЯТА — туда НЕ уйдёт) и своё поле текста. У YouTube — заголовок + описание + теги, у остальных — подпись. Проверь/поправь текст в каждой отмеченной сети.", action: ppOpenSample },
@@ -417,6 +417,23 @@ function PublicationModal({ pub, client, script, onClose, onUpdate, onApprove, o
     setUpBusy(false);
   }
 
+  // Обложка ролика (статичный превью-креатив) → video_thumbnail_url, уходит в Metricool как videoThumbnailUrl
+  async function uploadCover(file: File) {
+    setUpBusy(true);
+    try {
+      const r = await fetch("/api/r2/sign", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ kind: "image", filename: file.name, clientId: pub.client_id, scriptId: pub.id }) });
+      const j = await r.json();
+      if (!r.ok) { alert("R2: " + (j?.error || "ошибка подписи")); setUpBusy(false); return; }
+      const put = await fetch(j.uploadUrl, { method: "PUT", body: file, headers: file.type ? { "content-type": file.type } : {} });
+      if (!put.ok) { alert(`Загрузка обложки не удалась (${put.status}). Проверь CORS бакета.`); setUpBusy(false); return; }
+      setF(p => ({ ...p, video_thumbnail_url: j.publicUrl })); onUpdate(pub.id, { video_thumbnail_url: j.publicUrl });
+    } catch (e: any) { alert("Ошибка загрузки: " + String(e)); }
+    setUpBusy(false);
+  }
+  function removeCover() {
+    setF(p => ({ ...p, video_thumbnail_url: null })); onUpdate(pub.id, { video_thumbnail_url: null });
+  }
+
   const channels = (f.target_channels?.length ? f.target_channels : client?.platforms?.length ? client.platforms : allowedChannels).filter(x => allowedChannels.includes(x));
   const save = (patch: Partial<Publication>) => onUpdate(pub.id, patch);
   const toggleChan = (id: string) => {
@@ -494,6 +511,25 @@ function PublicationModal({ pub, client, script, onClose, onUpdate, onApprove, o
               {f.video_url
                 ? <video src={f.video_url} controls playsInline preload="metadata" style={{ width: "100%", maxHeight: 220, marginTop: 8, borderRadius: 10, background: "#000", display: "block" }} />
                 : <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 9, background: "rgba(255,174,66,0.08)", border: "1px dashed rgba(255,174,66,0.4)", fontSize: 11, color: "var(--or)", fontWeight: 600 }}>⚠ Ролик ещё не загружен</div>}
+
+              {/* Обложка ролика (статичный креатив-превью) — уходит в Metricool как кастомная обложка */}
+              <div style={{ marginTop: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                  {lbl("🖼 Обложка ролика (необязательно)")}
+                  <label style={{ padding: "6px 10px", borderRadius: 8, background: "rgba(66,212,244,0.12)", border: "1px solid var(--brd)", color: "var(--cy)", fontSize: 10, fontWeight: 800, cursor: upBusy ? "default" : "pointer", whiteSpace: "nowrap" }}>
+                    {f.video_thumbnail_url ? "Заменить" : "⬆ Загрузить"}
+                    <input type="file" accept="image/*" disabled={upBusy} onChange={e => { const file = e.target.files?.[0]; if (file) uploadCover(file); e.target.value = ""; }} style={{ display: "none" }} />
+                  </label>
+                </div>
+                {f.video_thumbnail_url ? (
+                  <div style={{ position: "relative", width: 92, marginTop: 4, borderRadius: 10, overflow: "hidden", border: "1px solid var(--track)", background: "var(--inset2)" }}>
+                    <a href={f.video_thumbnail_url} target="_blank" rel="noreferrer"><img src={f.video_thumbnail_url} alt="обложка" style={{ width: "100%", height: 120, objectFit: "cover", display: "block" }} /></a>
+                    <button onClick={removeCover} title="Убрать обложку" style={{ position: "absolute", top: 4, right: 4, width: 18, height: 18, borderRadius: 5, background: "rgba(255,92,122,0.85)", border: "none", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Trash2 size={10} /></button>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 9, color: "var(--t3)", marginTop: 2 }}>Если не задать — соцсеть возьмёт первый кадр видео. Формат вертикальный 1080×1920.</div>
+                )}
+              </div>
             </div>
             <div>
               {lbl(`📅 Публиковать · время клиента (${tzShort(tz)})`)}

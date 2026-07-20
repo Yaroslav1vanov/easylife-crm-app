@@ -72,6 +72,8 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
       autoPublish: true,
       media,
     };
+    // Кастомная обложка ролика (статичное превью креатива) — Metricool: ScheduledPost.videoThumbnailUrl
+    if (!isCarousel && pub.video_thumbnail_url) body.videoThumbnailUrl = pub.video_thumbnail_url;
     if (network === "instagram") body.instagramData = { type: isCarousel ? "POST" : "REEL" };
     if (network === "youtube") body.youtubeData = { title: pub.yt_title || "", type: "SHORT", tags: pub.yt_tags || [], madeForKids: false, privacy: "public" };
     if (network === "tiktok") body.tiktokData = {
