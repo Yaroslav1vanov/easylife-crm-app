@@ -236,7 +236,9 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
                 <input type="file" accept="video/*" disabled={upBusy} onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadVideo(f); e.target.value = ""; }} style={{ display: "none" }} />
               </label>
             </div>
-            {!s.video_url && <div style={{ fontSize: 10, color: "var(--or)", marginTop: 6, fontWeight: 600 }}>⚠ Пока ролик не загружен — карточку нельзя перевести в «Готово к публикации».</div>}
+            {s.video_url
+              ? <video src={s.video_url.startsWith("http") ? s.video_url : `https://${s.video_url}`} controls playsInline preload="metadata" style={{ width: "100%", maxHeight: 240, marginTop: 8, borderRadius: 10, background: "#000", display: "block" }} />
+              : <div style={{ fontSize: 10, color: "var(--or)", marginTop: 6, fontWeight: 600 }}>⚠ Пока ролик не загружен — карточку нельзя перевести в «Готово к публикации».</div>}
           </div>
         )}
 

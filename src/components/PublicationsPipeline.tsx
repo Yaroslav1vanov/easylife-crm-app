@@ -314,8 +314,16 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
                           </div>
                           {isCar
                             ? <span title="Карусель" style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 8, fontWeight: 800, color: "var(--or)", background: "rgba(255,174,66,0.14)", padding: "2px 5px", borderRadius: 5 }}><Images size={9} />{(p.media_urls?.length || 0)}</span>
-                            : <Film size={11} style={{ color: "var(--t3)", flexShrink: 0 }} />}
+                            : p.video_url
+                              ? <Film size={11} style={{ color: "var(--gr)", flexShrink: 0 }} />
+                              : <span title="Ролик не загружен" style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 8, fontWeight: 800, color: "var(--or)", background: "rgba(255,174,66,0.14)", padding: "2px 5px", borderRadius: 5, flexShrink: 0 }}><AlertTriangle size={9} />нет файла</span>}
                         </div>
+                        {/* Превью загруженного ролика — чтобы видно было, какое именно видео */}
+                        {!isCar && p.video_url && (
+                          <video src={`${p.video_url}#t=0.1`} muted playsInline preload="metadata"
+                            onClick={e => { e.stopPropagation(); const v = e.currentTarget; v.paused ? v.play() : v.pause(); }}
+                            style={{ width: "100%", height: 96, objectFit: "cover", borderRadius: 8, background: "#000", display: "block" }} />
+                        )}
                         <div style={{ fontSize: 11, color: "var(--t1)", lineHeight: 1.35 }}>{title.length > 64 ? title.slice(0, 61) + "…" : title}</div>
                         <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
                           {CHANNELS.filter(ch => chans.includes(ch.id)).map(ch => <ch.Icon key={ch.id} size={11} style={{ color: "var(--t3)" }} />)}
@@ -482,6 +490,10 @@ function PublicationModal({ pub, client, script, onClose, onUpdate, onApprove, o
                   <input type="file" accept="video/*" disabled={upBusy} onChange={e => { const file = e.target.files?.[0]; if (file) uploadVideo(file); e.target.value = ""; }} style={{ display: "none" }} />
                 </label>
               </div>
+              {/* Превью загруженного ролика — сразу видно, какое видео пойдёт в пост */}
+              {f.video_url
+                ? <video src={f.video_url} controls playsInline preload="metadata" style={{ width: "100%", maxHeight: 220, marginTop: 8, borderRadius: 10, background: "#000", display: "block" }} />
+                : <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 9, background: "rgba(255,174,66,0.08)", border: "1px dashed rgba(255,174,66,0.4)", fontSize: 11, color: "var(--or)", fontWeight: 600 }}>⚠ Ролик ещё не загружен</div>}
             </div>
             <div>
               {lbl(`📅 Публиковать · время клиента (${tzShort(tz)})`)}
