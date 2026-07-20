@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { Rocket, Check, X, ChevronDown, Link2, ExternalLink } from "lucide-react";
+import { Rocket, Check, X, ChevronDown, Link2, ExternalLink, RefreshCw } from "lucide-react";
 
 type Brand = { blogId: number; label: string };
 
@@ -20,16 +20,20 @@ export default function MetricoolBrandPicker({ blogId, onPick }: { blogId: numbe
     return () => document.removeEventListener("mousedown", h);
   }, []);
 
-  async function loadBrands() {
-    if (brands) { setOpen(o => !o); return; }
+  async function fetchBrands() {
     setBusy(true); setErr(null);
     try {
-      const r = await fetch("/api/metricool/brands");
+      const r = await fetch("/api/metricool/brands", { cache: "no-store" });
       const j = await r.json();
       if (!r.ok) { setErr(j?.error || "ошибка"); setBrands([]); }
-      else { setBrands(j.brands || []); setOpen(true); }
+      else { setBrands(j.brands || []); }
     } catch (e: any) { setErr(String(e)); setBrands([]); }
     setBusy(false);
+  }
+  async function loadBrands() {
+    if (brands) { setOpen(o => !o); return; }
+    await fetchBrands();
+    setOpen(true);
   }
 
   const current = brands?.find(b => b.blogId === blogId);
@@ -67,7 +71,13 @@ export default function MetricoolBrandPicker({ blogId, onPick }: { blogId: numbe
 
         {open && brands && (
           <div style={{ position: "absolute", bottom: "calc(100% + 6px)", left: 0, zIndex: 200, width: 280, maxHeight: 320, overflowY: "auto", background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 12, padding: 6, boxShadow: "0 -16px 40px rgba(0,0,0,0.5)" }}>
-            <div style={{ fontSize: 10, fontWeight: 800, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 0.5, padding: "6px 8px" }}>Бренды Metricool ({brands.length})</div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 8px" }}>
+              <span style={{ fontSize: 10, fontWeight: 800, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 0.5 }}>Бренды Metricool ({brands.length})</span>
+              <button onClick={fetchBrands} disabled={busy} title="Обновить список из Metricool"
+                style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "transparent", border: "none", color: "var(--cy)", fontSize: 10, fontWeight: 700, cursor: busy ? "default" : "pointer" }}>
+                <RefreshCw size={11} className={busy ? "spin" : ""} /> {busy ? "…" : "Обновить"}
+              </button>
+            </div>
             {brands.length === 0 ? (
               <div style={{ fontSize: 12, color: "var(--t3)", padding: "8px" }}>{err ? `Ошибка: ${err}` : "Пусто или нет доступа"}</div>
             ) : brands.map(b => {
@@ -97,6 +107,7 @@ export default function MetricoolBrandPicker({ blogId, onPick }: { blogId: numbe
       </div>
 
       {err && !open && <span style={{ fontSize: 10, color: "#ff5c7a" }}>Metricool: {err}</span>}
+      <style>{`.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
 }
