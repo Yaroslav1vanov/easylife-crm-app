@@ -7,7 +7,7 @@ import Avatar from "@/components/Avatar";
 import Tour, { TourButton, type TourStep } from "@/components/Tour";
 import { DEFAULT_TZ, tzShort, nowInTz, utcToZonedInput, zonedInputToUtc, fmtInTz } from "@/lib/tz";
 import {
-  Camera, Play, Music2, AtSign, Wand2, X, ExternalLink,
+  Camera, Play, Music2, AtSign, Wand2, X, ExternalLink, ChevronDown,
   RefreshCw, AlertTriangle, Database, CalendarDays, Rocket, Plus, Images, Film, Trash2, type LucideIcon,
 } from "lucide-react";
 
@@ -47,6 +47,8 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
   const [brandsBusy, setBrandsBusy] = useState(false);
   const [carouselPicker, setCarouselPicker] = useState(false);
   const [tourOpen, setTourOpen] = useState(false);
+  const [clientFilter, setClientFilter] = useState<number | "all">("all");
+  const [clientMenu, setClientMenu] = useState(false);
 
   useEffect(() => { load(); }, []);
 
@@ -148,13 +150,14 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
     for (const p of pubs) {
       const c = clientById[p.client_id];
       if (!c || c.stage !== "active") continue; // прячем клиентов на паузе / ушедших
+      if (clientFilter !== "all" && p.client_id !== clientFilter) continue; // фильтр по клиенту
       const col = COLUMNS.find(x => x.statuses.includes(p.pub_status));
       if (col) m[col.id].push(p);
     }
     // ближайшие по дате публикации — сверху (без даты — в конец)
     for (const col of COLUMNS) m[col.id].sort((a, b) => (a.publish_at || "9999").localeCompare(b.publish_at || "9999"));
     return m;
-  }, [pubs, clientById]);
+  }, [pubs, clientById, clientFilter]);
 
   const openPub = openId != null ? pubs.find(p => p.id === openId) || null : null;
 
@@ -164,6 +167,7 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
   const ppOpenSample = () => { if (tourSampleId != null) setOpenId(tourSampleId); };
   const PIPELINE_TOUR: TourStep[] = [
     { title: "Metricool · подготовка постов", text: "Тут готовое видео превращается в пост и уходит во все соцсети клиента через Metricool. Проведу по всей цепочке — от видео до публикации.", action: ppCloseModal },
+    { target: "pp-client", title: "Фильтр по клиенту", text: "Когда постов много — выбери здесь клиента, и на доске останутся только его карточки. «Все» — показать всех.", action: ppCloseModal },
     { target: "pp-pull", title: "Шаг 0 · Подтянуть готовые видео", text: "Жми — CRM возьмёт все ролики, которые монтажёр перевёл в «Готово к публикации», и создаст под них карточки постов в первой колонке (ролик уже загружен в Монтаже — тянется автоматически). Карусель добавляется отдельной кнопкой «+ Карусель».", action: ppCloseModal },
     { target: "pp-brands", title: "«Мои бренды» (настроить один раз)", text: "Показывает список аккаунтов, подключённых к Metricool, с их blogId. Этот blogId нужно один раз вписать в карточку клиента — иначе CRM не знает, в какой аккаунт публиковать.", action: ppCloseModal },
     { target: "pp-board", title: "Доска — 3 статуса", text: "Утверждение уже прошло в Монтаже, поэтому тут коротко: Готово к публикации → Запланировано (дату поставили / ушло в Metricool) → Опубликовано. Клиентов, которых публикуем вручную (не через Metricool), можно просто перетащить в «Опубликовано». Откроем карточку.", action: ppCloseModal },
@@ -190,6 +194,25 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
           {onShowPlan && Toggle}
+          <div data-tour="pp-client" style={{ position: "relative" }}>
+            <button onClick={() => setClientMenu(v => !v)}
+              style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: 10, background: "rgba(123,63,228,0.08)", border: `1px solid ${clientFilter !== "all" ? "var(--pu)" : "var(--brd)"}`, color: "var(--t1)", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+              {clientFilter !== "all" && clientById[clientFilter] && <Avatar name={`${clientById[clientFilter].name} ${clientById[clientFilter].surname || ""}`} src={clientById[clientFilter].avatar_url} size={18} />}
+              <span style={{ color: "var(--t3)", fontWeight: 500 }}>Клиент:</span>{clientFilter === "all" ? "Все" : `${clientById[clientFilter]?.name || ""} ${clientById[clientFilter]?.surname || ""}`}
+              <ChevronDown size={13} />
+            </button>
+            {clientMenu && (
+              <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 50, width: 240, maxHeight: 340, overflowY: "auto", background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 12, padding: 6, boxShadow: "0 16px 40px rgba(0,0,0,0.5)" }}>
+                <button onClick={() => { setClientFilter("all"); setClientMenu(false); }} className="nav-item" style={{ fontSize: 12, padding: "7px 8px", width: "100%", textAlign: "left" }}>Все клиенты</button>
+                {clients.filter(c => c.stage === "active").sort((a, b) => a.name.localeCompare(b.name)).map(c => (
+                  <button key={c.id} onClick={() => { setClientFilter(c.id); setClientMenu(false); }} className="nav-item"
+                    style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", fontSize: 12, padding: "7px 8px", textAlign: "left" }}>
+                    <Avatar name={`${c.name} ${c.surname || ""}`} src={c.avatar_url} size={20} /> {c.name} {c.surname || ""}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <TourButton onClick={() => setTourOpen(true)} />
           <button data-tour="pp-brands" onClick={loadBrands} disabled={brandsBusy}
             style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: 10, background: "rgba(66,212,244,0.1)", border: "1px solid var(--brd)", color: "var(--cy)", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
