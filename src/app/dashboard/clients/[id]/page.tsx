@@ -12,7 +12,8 @@ import ClientOverview from "@/components/ClientOverview";
 import ClientProduction from "@/components/ClientProduction";
 import ClientAttention from "@/components/ClientAttention";
 import KanbanBoard from "@/components/KanbanBoard";
-import { SCRIPT_COLUMNS, MONTAGE_COLUMNS, PUBLISHED_COLUMNS } from "@/components/kanbanConfigs";
+import { fmtDateShort } from "@/components/ScriptModal";
+import { SCRIPT_COLUMNS, MONTAGE_COLUMNS } from "@/components/kanbanConfigs";
 
 /** Реальный текущий рабочий месяц: тот, в чьи даты попадает сегодня; иначе active; иначе последний. */
 function computeCurrentMonth(months: ClientMonth[], todayIso: string): number {
@@ -446,17 +447,41 @@ export default function ClientDetailPage() {
         />
       )}
 
-      {tab === "published" && (
-        <KanbanBoard
-          scripts={monthScripts.filter(s => s.video_status === "published")}
-          clients={[c]}
-          columns={PUBLISHED_COLUMNS}
-          onUpdate={async (id, patch) => { await db.updateScript(supabase, id, patch); await load(); }}
-          onDelete={deleteCard}
-          emptyHint="Нет опубликованных в этом M"
-          minColWidth={420}
-        />
-      )}
+      {tab === "published" && (() => {
+        const pubList = monthScripts
+          .filter(s => s.video_status === "published")
+          .sort((a, b) => (a.pub_date || "9999-99-99").localeCompare(b.pub_date || "9999-99-99") || (a.order_num || 0) - (b.order_num || 0));
+        return (
+          <div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: "var(--t1)" }}>
+                Опубликовано за Месяц {viewMonth}: <span style={{ color: "var(--gr)", fontFamily: "'Unbounded', sans-serif" }}>{pubList.length}</span>
+                {viewMonthPkg ? <span style={{ color: "var(--t3)", fontWeight: 600 }}> из {viewMonthPkg}</span> : null} видео
+              </div>
+              <span style={{ fontSize: 10, color: "var(--t3)" }}>по дате публикации ↑</span>
+            </div>
+            {pubList.length === 0 ? (
+              <div className="card" style={{ padding: 30, borderRadius: 14, textAlign: "center", color: "var(--t3)", fontSize: 13 }}>Нет опубликованных в этом месяце</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {pubList.map((s, i) => {
+                  const vurl = s.video_url ? (s.video_url.startsWith("http") ? s.video_url : `https://${s.video_url}`) : null;
+                  return (
+                    <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 11, background: "var(--inset2)", border: "1px solid var(--track)" }}>
+                      <div style={{ flexShrink: 0, width: 34, height: 34, borderRadius: 9, background: "rgba(168,224,99,0.14)", border: "1px solid rgba(168,224,99,0.35)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Unbounded', sans-serif", fontSize: 13, fontWeight: 800, color: "var(--gr)" }}>{i + 1}</div>
+                      <div style={{ flexShrink: 0, width: 74, fontSize: 11, fontWeight: 700, color: "var(--t2)" }}>{s.pub_date ? fmtDateShort(s.pub_date) : "без даты"}</div>
+                      <div style={{ flex: 1, minWidth: 0, fontSize: 12, color: "var(--t1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.hook_text || s.hook || `Сценарий #${s.order_num || "—"}`}</div>
+                      {vurl
+                        ? <a href={vurl} target="_blank" rel="noopener noreferrer" style={{ flexShrink: 0, fontSize: 11, fontWeight: 700, color: "var(--gr)", textDecoration: "none", padding: "5px 10px", borderRadius: 8, background: "rgba(168,224,99,0.1)", border: "1px solid rgba(168,224,99,0.3)" }}>▶ видео</a>
+                        : <span style={{ flexShrink: 0, fontSize: 10, color: "var(--t3)", fontStyle: "italic" }}>нет ссылки</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* ===== Модалка редактирования клиента ===== */}
       {editing && (() => {
