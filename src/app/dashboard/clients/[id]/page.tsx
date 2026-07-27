@@ -433,6 +433,7 @@ export default function ClientDetailPage() {
           onAddCard={addCard}
           onDelete={deleteCard}
           emptyHint="Сюда — перетащи карточку"
+          monthOptionsFor={() => clientMonths.filter(m => m.status !== "cancelled").map(m => m.month_number).sort((a, b) => a - b)}
         />
       )}
 
@@ -444,6 +445,7 @@ export default function ClientDetailPage() {
           onUpdate={async (id, patch) => { await db.updateScript(supabase, id, patch); await load(); }}
           onDelete={deleteCard}
           emptyHint="Сюда — перетащи карточку"
+          monthOptionsFor={() => clientMonths.filter(m => m.status !== "cancelled").map(m => m.month_number).sort((a, b) => a - b)}
         />
       )}
 

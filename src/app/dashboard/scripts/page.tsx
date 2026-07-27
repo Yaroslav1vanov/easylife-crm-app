@@ -194,6 +194,8 @@ export default function ScriptsPage() {
   const tourSampleId = (kanbanScripts.find(s => s.hook || s.body_text || s.ref_text || s.transcription) || kanbanScripts[0] || allScripts[0])?.id ?? null;
   const closeModal = () => setOpenId(null);
   const openSample = () => { if (tourSampleId != null) setOpenId(tourSampleId); };
+  // Контрактные месяцы клиента (для переноса сценария в другой месяц)
+  const monthsOf = (cid: number) => clientMonths.filter(m => m.client_id === cid && m.status !== "cancelled").map(m => m.month_number).sort((a, b) => a - b);
   const scriptTour: TourStep[] = [
     { title: "Раздел «Сценарии»", text: "Тут пишем сценарии и ведём их по колонкам от идеи до согласования с клиентом. Проведу по шагам — где что и как.", action: closeModal },
     { target: "scripts-filters", title: "Фильтры сверху", text: "Выбери клиента, тимлида и «Показать» (сегодня / просрочено). Кнопка «Мои» — только твои клиенты.", action: closeModal },
@@ -396,10 +398,11 @@ export default function ScriptsPage() {
         deadlineShow={(s) => s.script_status === "inProgress" || s.script_status === "review"}
         canEditReadyAt={canEditReadyAt}
         onDelete={deleteScript}
+        monthOptionsFor={monthsOf}
         onBulkExport={exportForClient} />
 
       {openScript && (
-        <ScriptModal script={openScript} client={clientById[openScript.client_id]} onClose={() => setOpenId(null)} onUpdate={updateScript} canEditReadyAt={canEditReadyAt} />
+        <ScriptModal script={openScript} client={clientById[openScript.client_id]} onClose={() => setOpenId(null)} onUpdate={updateScript} canEditReadyAt={canEditReadyAt} monthOptions={monthsOf(openScript.client_id)} />
       )}
       <Tour steps={scriptTour} open={tourOpen} onClose={() => { setTourOpen(false); setOpenId(null); }} />
     </div>

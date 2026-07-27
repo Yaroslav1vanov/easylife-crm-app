@@ -36,9 +36,11 @@ type Props = {
   canEdit?: boolean;
   /** Дату сдачи монтажа (ready_at) правит только владелец/админ. Остальные её видят, но не меняют. */
   canEditReadyAt?: boolean;
+  /** Список контрактных месяцев клиента (напр. [1,2,3,4]). Если задан — в шапке появляется перенос сценария в другой месяц. */
+  monthOptions?: number[];
 };
 
-export default function ScriptModal({ script: s, client: c, onClose, onUpdate, onDelete, canEdit = true, canEditReadyAt = false }: Props) {
+export default function ScriptModal({ script: s, client: c, onClose, onUpdate, onDelete, canEdit = true, canEditReadyAt = false, monthOptions }: Props) {
   const ro = !canEdit; // read-only для монтажёра
   const roReady = !canEditReadyAt; // дату сдачи меняет только владелец/админ
   const [hookText, setHookText] = useState(s.hook_text || "");
@@ -118,8 +120,20 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
         {/* Header */}
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 10, color: "var(--t3)", fontFamily: "monospace", marginBottom: 4 }}>
-              {c ? `${c.name} ${c.surname || ""} · ` : ""}M{s.month_number} · сценарий #{s.order_num}
+            <div style={{ fontSize: 10, color: "var(--t3)", fontFamily: "monospace", marginBottom: 4, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+              <span>{c ? `${c.name} ${c.surname || ""} · ` : ""}сценарий #{s.order_num}</span>
+              {!ro && monthOptions && monthOptions.length > 1 ? (
+                <span title="Перенести сценарий в другой контрактный месяц" style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                  · месяц:
+                  <select value={s.month_number}
+                    onChange={(e) => { const n = Number(e.target.value); if (n !== s.month_number) onUpdate(s.id, { month_number: n }); }}
+                    style={{ background: "var(--inset2)", border: "1px solid var(--brd)", color: "var(--cy)", borderRadius: 6, padding: "2px 6px", fontSize: 10, fontWeight: 800, fontFamily: "monospace", cursor: "pointer", outline: "none" }}>
+                    {monthOptions.map(m => <option key={m} value={m}>M{m}</option>)}
+                  </select>
+                </span>
+              ) : (
+                <span>· M{s.month_number}</span>
+              )}
             </div>
             <input
               value={hookText} onChange={(e) => setHookText(e.target.value)} readOnly={ro}

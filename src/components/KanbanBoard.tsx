@@ -72,9 +72,11 @@ type Props = {
   };
   /** Если задано — в панели массового выбора появится кнопка «📄 Для клиента» (экспорт выбранных). */
   onBulkExport?: (ids: number[]) => void;
+  /** Список контрактных месяцев клиента — для переноса сценария в другой месяц из карточки. */
+  monthOptionsFor?: (clientId: number) => number[];
 };
 
-export default function KanbanBoard({ scripts, clients, columns, onUpdate, showClient = false, minColWidth = 220, emptyHint = "Пусто", onAddCard, addColumnId, onDelete, deadlineLeadDays, deadlineDone, deadlineShow, canEditScript = true, canEditReadyAt = false, cardAction, onBulkExport }: Props) {
+export default function KanbanBoard({ scripts, clients, columns, onUpdate, showClient = false, minColWidth = 220, emptyHint = "Пусто", onAddCard, addColumnId, onDelete, deadlineLeadDays, deadlineDone, deadlineShow, canEditScript = true, canEditReadyAt = false, cardAction, onBulkExport, monthOptionsFor }: Props) {
   const todayIso = todayIsoLocal();
   const hasDeadline = deadlineLeadDays != null;
   const [openId, setOpenId] = useState<number | null>(null);
@@ -238,6 +240,7 @@ export default function KanbanBoard({ scripts, clients, columns, onUpdate, showC
           onDelete={onDelete ? async (id) => { await onDelete(id); setOpenId(null); } : undefined}
           canEdit={canEditScript}
           canEditReadyAt={canEditReadyAt}
+          monthOptions={monthOptionsFor?.(openScript.client_id)}
         />
       )}
 

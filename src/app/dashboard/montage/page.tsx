@@ -458,7 +458,7 @@ export default function MontagePage() {
         }} />
 
       {openScript && (
-        <ScriptModal script={openScript} client={clientById[openScript.client_id]} onClose={() => setOpenId(null)} onUpdate={updateScript} canEdit={!isMontager} canEditReadyAt={canEditReadyAt} />
+        <ScriptModal script={openScript} client={clientById[openScript.client_id]} onClose={() => setOpenId(null)} onUpdate={updateScript} canEdit={!isMontager} canEditReadyAt={canEditReadyAt} monthOptions={clientMonths.filter(m => m.client_id === openScript.client_id && m.status !== "cancelled").map(m => m.month_number).sort((a, b) => a - b)} />
       )}
       <Tour steps={MONTAGE_TOUR} open={tourOpen} onClose={() => { setTourOpen(false); setOpenId(null); }} />
     </div>
