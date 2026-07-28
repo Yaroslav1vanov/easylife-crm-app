@@ -227,13 +227,23 @@ const db = {
   },
   async getScriptsForClients(sb: SupabaseClient, clientIds: number[]) {
     if (clientIds.length === 0) return [] as Script[];
-    const { data } = await sb
-      .from("scripts")
-      .select("*")
-      .in("client_id", clientIds)
-      .order("client_id")
-      .order("order_num");
-    return (data || []) as Script[];
+    // Supabase REST отдаёт максимум 1000 строк за запрос — тянем страницами, иначе
+    // сценарии клиентов с бо́льшими id обрезаются и пропадают из общих досок.
+    const PAGE = 1000;
+    const all: Script[] = [];
+    for (let from = 0; ; from += PAGE) {
+      const { data, error } = await sb
+        .from("scripts")
+        .select("*")
+        .in("client_id", clientIds)
+        .order("client_id")
+        .order("order_num")
+        .range(from, from + PAGE - 1);
+      if (error || !data) break;
+      all.push(...(data as Script[]));
+      if (data.length < PAGE) break;
+    }
+    return all;
   },
   async getAllScripts(sb: SupabaseClient) {
     const { data } = await sb.from("scripts").select("*, client:clients(name, surname)").order("client_id").order("order_num");
