@@ -126,16 +126,25 @@ export default function PublicationsPage() {
   const teamleads = useMemo(() => team.filter(t => t.member_type === "teamlead" || t.member_type === "admin"), [team]);
   const clientById = useMemo(() => Object.fromEntries(clients.map(c => [c.id, c])) as Record<number, Client>, [clients]);
 
-  // Активные месяцы (не закрытые/отменённые) — только их планируем в публикации.
-  const activeKeys = useMemo(() => {
-    const set = new Set<string>();
-    for (const cm of clientMonths) {
-      if (cm.status === "closed" || cm.status === "cancelled") continue;
-      set.add(`${cm.client_id}:${cm.month_number}`);
-    }
-    return set;
+  // Статус контрактного месяца по ключу client:month
+  const monthStatusOf = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const cm of clientMonths) m[`${cm.client_id}:${cm.month_number}`] = cm.status;
+    return m;
   }, [clientMonths]);
-  const isActive = (s: Script) => activeKeys.has(`${s.client_id}:${s.month_number}`);
+  // «Реальная работа» — сценарий взят в работу или ролик уже в производстве/опубликован (не сырая идея).
+  const inWork = (s: Script) =>
+    s.script_status === "approved" || s.script_status === "inProgress" || s.script_status === "review" ||
+    ["inProgress", "review", "ready", "published"].includes(s.video_status || "");
+  // Что планируем в публикациях: активные месяцы — всё; закрытый месяц — только реальную работу
+  // (чтобы неопубликованные ролики/сценарии не пропадали из плана после закрытия месяца);
+  // отменённый месяц — ничего.
+  const isPlannable = (s: Script) => {
+    const st = monthStatusOf[`${s.client_id}:${s.month_number}`];
+    if (st === "cancelled") return false;
+    if (st === "closed") return inWork(s);
+    return true;
+  };
 
   const visible = useMemo(() => allScripts.filter(s => {
     const c = clientById[s.client_id];
@@ -146,8 +155,8 @@ export default function PublicationsPage() {
     return true;
   }), [allScripts, clientFilter, tlFilter, clientById]);
 
-  // Для планирования (календарь/пул/плашки) — только текущие рабочие месяцы.
-  const activeVisible = useMemo(() => visible.filter(isActive), [visible, activeKeys]);
+  // Для планирования (календарь/пул/плашки): активные месяцы + реальная работа с закрытых.
+  const activeVisible = useMemo(() => visible.filter(isPlannable), [visible, monthStatusOf]);
 
   const scheduledByDay = useMemo(() => {
     const map: Record<string, Script[]> = {};
@@ -412,7 +421,7 @@ export default function PublicationsPage() {
       )}
 
       {autoOpen && (
-        <AutoDistributeModal clients={clients} allScripts={allScripts.filter(isActive)} defaultStart={`${ym}-01`} onClose={() => setAutoOpen(false)}
+        <AutoDistributeModal clients={clients} allScripts={allScripts.filter(isPlannable)} defaultStart={`${ym}-01`} onClose={() => setAutoOpen(false)}
           onApply={async (assignments) => {
             for (const a of assignments) { await db.updateScript(supabase, a.id, { pub_date: a.date }); }
             setAllScripts(arr => arr.map(s => { const a = assignments.find(x => x.id === s.id); return a ? { ...s, pub_date: a.date } : s; }));
