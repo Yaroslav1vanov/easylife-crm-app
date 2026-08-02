@@ -18,6 +18,22 @@ export default function PayrollPage() {
   const [openPerson, setOpenPerson] = useState<string | null>(null);
   const [issuesOpen, setIssuesOpen] = useState(false);
   const [tourOpen, setTourOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  // Сохранить ручную правку строки и перечитать расчёт
+  async function saveAdj(rowId: string, patch: Record<string, any>) {
+    setSaving(true);
+    try {
+      const r = await fetch("/api/payroll", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ym, row_id: rowId, ...patch }),
+      });
+      const j = await r.json();
+      if (!r.ok) alert("Не сохранилось: " + (j?.error || "ошибка"));
+      else await load(ym);
+    } catch (e: any) { alert(String(e)); }
+    setSaving(false);
+  }
 
   useEffect(() => { load(ym); }, [ym]);
 
@@ -94,6 +110,15 @@ export default function PayrollPage() {
             <KPI label="Тимлидам · публикации + бонусы" value={money(data.totalTeamleads)} color="#42d4f4" />
           </div>
 
+          {/* Миграция правок не прогнана — редактирование не сохранится */}
+          {(data as any).adjustmentsReady === false && (
+            <div style={{ padding: "12px 16px", borderRadius: 12, background: "rgba(255,174,66,0.08)", border: "1px solid rgba(255,174,66,0.4)", fontSize: 12, color: "var(--t1)", marginBottom: 16, lineHeight: 1.6 }}>
+              ⚠ Ручные правки пока <b>не сохраняются</b>: не создана таблица. Прогони{" "}
+              <code style={{ background: "var(--inset)", padding: "1px 6px", borderRadius: 5 }}>MIGRATION_2026-07-27_payroll_adjustments.sql</code>{" "}
+              в Supabase → SQL Editor → Run. Расчёт при этом работает.
+            </div>
+          )}
+
           {/* ПРОБЛЕМЫ ДАННЫХ */}
           <div data-tour="pr-issues" style={{ marginBottom: 16 }}>
             {data.issues.length === 0 ? (
@@ -132,8 +157,8 @@ export default function PayrollPage() {
 
           {/* ЛЮДИ */}
           <div data-tour="pr-people" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }} className="pr-cols">
-            <PersonColumn title="Монтажёры" Icon={Scissors} color="#ffae42" people={editors} openKey={openPerson} setOpenKey={setOpenPerson} />
-            <PersonColumn title="Тимлиды" Icon={UserCog} color="#42d4f4" people={leads} openKey={openPerson} setOpenKey={setOpenPerson} />
+            <PersonColumn title="Монтажёры" Icon={Scissors} color="#ffae42" people={editors} openKey={openPerson} setOpenKey={setOpenPerson} onSave={saveAdj} saving={saving} />
+            <PersonColumn title="Тимлиды" Icon={UserCog} color="#42d4f4" people={leads} openKey={openPerson} setOpenKey={setOpenPerson} onSave={saveAdj} saving={saving} />
           </div>
 
           {/* СТАВКИ */}
@@ -163,9 +188,10 @@ function KPI({ label, value, color, big }: { label: string; value: string; color
   );
 }
 
-function PersonColumn({ title, Icon, color, people, openKey, setOpenKey }: {
+function PersonColumn({ title, Icon, color, people, openKey, setOpenKey, onSave, saving }: {
   title: string; Icon: any; color: string; people: PayrollPerson[];
   openKey: string | null; setOpenKey: (k: string | null) => void;
+  onSave: (rowId: string, patch: Record<string, any>) => Promise<void>; saving: boolean;
 }) {
   const sum = people.reduce((s, p) => s + p.total, 0);
   return (
@@ -194,7 +220,8 @@ function PersonColumn({ title, Icon, color, people, openKey, setOpenKey }: {
               {open && (
                 <div style={{ padding: "0 14px 12px", display: "flex", flexDirection: "column", gap: 6 }}>
                   {p.rows.sort((a, b) => b.amount - a.amount).map(({ row, amount }) => (
-                    <RowLine key={row.id} row={row} amount={amount} type={p.type} color={color} />
+                    <RowLine key={row.id} row={row} amount={amount} type={p.type} color={color}
+                      saving={saving} onSave={(patch) => onSave(row.id, patch)} />
                   ))}
                 </div>
               )}
@@ -206,12 +233,22 @@ function PersonColumn({ title, Icon, color, people, openKey, setOpenKey }: {
   );
 }
 
-function RowLine({ row, amount, type, color }: { row: PayrollRow; amount: number; type: "editor" | "teamlead"; color: string }) {
+function RowLine({ row, amount, type, color, onSave, saving }: {
+  row: PayrollRow; amount: number; type: "editor" | "teamlead"; color: string;
+  onSave: (patch: Record<string, any>) => Promise<void>; saving: boolean;
+}) {
+  const [edit, setEdit] = useState(false);
+  const isEditor = type === "editor";
+  const fixed = isEditor ? row.fixedEditor : row.fixedTl;
+
   const parts: string[] = [];
-  if (type === "editor") {
-    parts.push(`${row.done} смонтировано × $${PAYROLL_RATES.editor_per_video}`);
+  if (isEditor) {
+    if (row.fixedEditor) parts.push("сумма задана вручную");
+    else parts.push(`${row.done} смонтировано × $${PAYROLL_RATES.editor_per_video}`);
     if (row.ahead > 0) parts.push(`↗ ${row.ahead} наперёд`);
     if (row.montNoDate > 0) parts.push(`⚠ ${row.montNoDate} без даты сдачи`);
+  } else if (row.fixedTl) {
+    parts.push("сумма задана вручную");
   } else {
     if (row.tlBase > 0) parts.push(`${row.published} опубл × $${row.pkg === 20 ? PAYROLL_RATES.tl_per_video_20 : PAYROLL_RATES.tl_per_video_other}`);
     if (row.tlScripts > 0) parts.push(`сценарии $${row.tlScripts}`);
@@ -219,15 +256,80 @@ function RowLine({ row, amount, type, color }: { row: PayrollRow; amount: number
     if (row.bonusOnboarding > 0) parts.push(`🚀 онбординг $${row.bonusOnboarding}`);
     if (row.bonusRenewal > 0) parts.push(`↻ продление M${row.renewalFrom}→M${row.renewalTo} $${row.bonusRenewal}`);
   }
+
+  const numBox: React.CSSProperties = { width: 62, padding: "5px 8px", borderRadius: 7, background: "var(--bg)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 12, fontWeight: 700, outline: "none" };
+  const chip = (on: boolean, label: string, onClick: () => void) => (
+    <button onClick={onClick} disabled={saving}
+      style={{ padding: "4px 9px", borderRadius: 7, fontSize: 10, fontWeight: 800, cursor: "pointer",
+        border: `1px solid ${on ? "var(--gr)" : "var(--brd)"}`, background: on ? "rgba(168,224,99,0.14)" : "transparent", color: on ? "var(--gr)" : "var(--t3)" }}>
+      {on ? "✓ " : ""}{label}
+    </button>
+  );
+
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 11px", borderRadius: 9, background: "var(--inset2)", border: "1px solid var(--track)" }}>
-      <div style={{ minWidth: 0, flex: 1 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: "var(--t1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {row.clientName} <span style={{ color: "var(--t3)", fontFamily: "monospace", fontWeight: 600 }}>· M{row.m}</span>
+    <div style={{ borderRadius: 9, background: "var(--inset2)", border: `1px solid ${row.edited ? "rgba(157,107,255,0.5)" : "var(--track)"}` }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 11px" }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--t1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {row.clientName} <span style={{ color: "var(--t3)", fontFamily: "monospace", fontWeight: 600 }}>· M{row.m}</span>
+            {row.edited && <span title={row.note || "Есть ручная правка"} style={{ marginLeft: 6, fontSize: 9, fontWeight: 800, padding: "1px 6px", borderRadius: 5, background: "rgba(157,107,255,0.16)", color: "var(--pu)" }}>правлено</span>}
+          </div>
+          <div style={{ fontSize: 10, color: "var(--t3)", marginTop: 2 }}>{parts.join(" · ") || "—"}</div>
         </div>
-        <div style={{ fontSize: 10, color: "var(--t3)", marginTop: 2 }}>{parts.join(" · ") || "—"}</div>
+        <span style={{ flexShrink: 0, fontSize: 12, fontWeight: 800, color }}>{money(amount)}</span>
+        <button onClick={() => setEdit(v => !v)} title="Поправить вручную"
+          style={{ flexShrink: 0, width: 24, height: 24, borderRadius: 7, background: edit ? "rgba(157,107,255,0.16)" : "transparent", border: "1px solid var(--brd)", color: edit ? "var(--pu)" : "var(--t3)", cursor: "pointer", fontSize: 11 }}>✎</button>
       </div>
-      <span style={{ flexShrink: 0, fontSize: 12, fontWeight: 800, color }}>{money(amount)}</span>
+
+      {edit && (
+        <div style={{ padding: "0 11px 10px", display: "flex", flexDirection: "column", gap: 8, borderTop: "1px dashed var(--brd)", marginTop: 2, paddingTop: 10 }}>
+          {/* счётчик */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 10, color: "var(--t3)", fontWeight: 700, minWidth: 92 }}>{isEditor ? "Смонтировано" : "Опубликовано"}</span>
+            <input type="number" min={0} defaultValue={isEditor ? row.done : row.published} disabled={saving || fixed}
+              key={`${row.id}-${isEditor ? row.done : row.published}`}
+              onBlur={e => {
+                const v = e.target.value === "" ? null : Number(e.target.value);
+                const auto = isEditor ? row.autoDone : row.autoPublished;
+                if (v === (isEditor ? row.done : row.published)) return;
+                onSave({ [isEditor ? "done" : "published"]: v === auto ? null : v });
+              }}
+              style={{ ...numBox, opacity: fixed ? 0.4 : 1 }} />
+            <span style={{ fontSize: 9, color: "var(--t3)" }}>автомат: {isEditor ? row.autoDone : row.autoPublished}</span>
+          </div>
+
+          {/* бонусы — только у тимлида */}
+          {!isEditor && !fixed && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 10, color: "var(--t3)", fontWeight: 700, minWidth: 92 }}>Бонусы</span>
+              {chip(row.onTime, `в срок $${PAYROLL_RATES.bonus_ontime}`, () => onSave({ on_time: row.onTime === row.autoOnTime ? !row.onTime : null }))}
+              {chip(row.onboarding, `онбординг $${PAYROLL_RATES.bonus_onboarding}`, () => onSave({ onboarding: row.onboarding === row.autoOnboarding ? !row.onboarding : null }))}
+              {chip(row.renewal, `продление $${PAYROLL_RATES.bonus_renewal}`, () => onSave({ renewal: row.renewal === row.autoRenewal ? !row.renewal : null }))}
+            </div>
+          )}
+
+          {/* фиксированная сумма */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 10, color: "var(--t3)", fontWeight: 700, minWidth: 92 }}>Или сумма, $</span>
+            <input type="number" min={0} step="0.01" placeholder="по ставке" disabled={saving}
+              key={`${row.id}-fixed-${fixed ? amount : "auto"}`}
+              defaultValue={fixed ? amount : ""}
+              onBlur={e => {
+                const v = e.target.value === "" ? null : Number(e.target.value);
+                onSave({ [isEditor ? "editor_amount" : "tl_amount"]: v });
+              }}
+              style={{ ...numBox, width: 88, borderColor: fixed ? "var(--pu)" : "var(--brd)" }} />
+            <span style={{ fontSize: 9, color: "var(--t3)" }}>задашь — расчёт по ставке для этой строки не применяется</span>
+          </div>
+
+          {row.edited && (
+            <button onClick={() => onSave({ done: null, published: null, on_time: null, onboarding: null, renewal: null, editor_amount: null, tl_amount: null })} disabled={saving}
+              style={{ alignSelf: "flex-start", padding: "5px 11px", borderRadius: 7, background: "transparent", border: "1px solid rgba(255,92,122,0.4)", color: "var(--rd)", fontSize: 10, fontWeight: 800, cursor: "pointer" }}>
+              ↺ Вернуть на автомат
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

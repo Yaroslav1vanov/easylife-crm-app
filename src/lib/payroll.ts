@@ -66,6 +66,16 @@ export type PayrollRow = {
   renewal: boolean;
   renewalFrom?: number;
   renewalTo?: number;
+  // что посчитал автомат (для показа «было → стало» и кнопки сброса)
+  autoDone: number;
+  autoPublished: number;
+  autoOnTime: boolean;
+  autoOnboarding: boolean;
+  autoRenewal: boolean;
+  edited: boolean;        // есть ручная правка
+  fixedEditor: boolean;   // сумма монтажёру задана вручную (не по ставке)
+  fixedTl: boolean;       // сумма тимлиду задана вручную
+  note?: string | null;
   // суммы
   editorPay: number;
   tlBase: number;
@@ -75,6 +85,21 @@ export type PayrollRow = {
   bonusRenewal: number;
   tlTotal: number;
   total: number;
+};
+
+/** Ручная правка поверх авторасчёта (таблица payroll_adjustments). NULL-поля = считать автоматически. */
+export type PayrollAdjustment = {
+  ym: string;
+  row_id: string;
+  done?: number | null;
+  published?: number | null;
+  on_time?: boolean | null;
+  onboarding?: boolean | null;
+  renewal?: boolean | null;
+  /** Фиксированная сумма вместо расчёта по ставке (нестандартная оплата по клиенту) */
+  editor_amount?: number | null;
+  tl_amount?: number | null;
+  note?: string | null;
 };
 
 /** Проблема в данных, которая искажает расчёт */
@@ -110,11 +135,14 @@ type Input = {
   clientMonths: ClientMonth[];
   scripts: Script[];
   team: TeamMember[];
+  adjustments?: PayrollAdjustment[];
 };
 
 const d10 = (s?: string | null) => (s || "").slice(0, 10);
 
-export function computePayroll(ym: string, { clients, clientMonths, scripts, team }: Input): PayrollResult {
+export function computePayroll(ym: string, { clients, clientMonths, scripts, team, adjustments = [] }: Input): PayrollResult {
+  const adjBy: Record<string, PayrollAdjustment> = {};
+  for (const a of adjustments) if (a.ym === ym) adjBy[a.row_id] = a;
   const { start: ms, end: me } = ymRange(ym);
   const inMonth = (s?: string | null) => { const d = d10(s); return !!d && d >= ms && d <= me; };
 
@@ -191,28 +219,47 @@ export function computePayroll(ym: string, { clients, clientMonths, scripts, tea
     const clientName = `${c.name} ${c.surname || ""}`.trim();
 
     // Бонусы. Дедуп естественный: событие привязано к дате, значит попадает ровно в один календарный месяц.
-    const onboarding = m === 1 && inMonth(cm.start_date);
-    const onTime = pkg > 0 && st.pubBefore < pkg && (st.pubBefore + st.pubM) >= pkg;   // пакет закрыт ИМЕННО тут
+    const autoOnboarding = m === 1 && inMonth(cm.start_date);
+    const autoOnTime = pkg > 0 && st.pubBefore < pkg && (st.pubBefore + st.pubM) >= pkg;  // пакет закрыт ИМЕННО тут
     const nextCm = cmMap[`${cid}_${m + 1}`];
     const hasNext = !!nextCm && !["planned", "cancelled"].includes(nextCm.status);
-    const renewal = onTime && hasNext;
+    const autoRenewal = autoOnTime && hasNext;
+    const autoDone = st.montM, autoPublished = st.pubM;
 
-    const editorPay = st.montM * PAYROLL_RATES.editor_per_video;
-    const tlBase = st.pubM * tlRateFor(pkg);
-    const tlScripts = m >= 2 ? st.pubM * PAYROLL_RATES.scripts_per_video : 0;   // в M1 сценарии не платятся
+    // Ручные правки поверх автомата (null/undefined = оставить как посчитал автомат)
+    const adj = adjBy[`crm-${cid}-${m}`];
+    const done = adj?.done ?? autoDone;
+    const published = adj?.published ?? autoPublished;
+    const onTime = adj?.on_time ?? autoOnTime;
+    const onboarding = adj?.onboarding ?? autoOnboarding;
+    const renewal = adj?.renewal ?? autoRenewal;
+    const fixedEditor = adj?.editor_amount != null;
+    const fixedTl = adj?.tl_amount != null;
+    const edited = !!adj && (
+      adj.done != null || adj.published != null ||
+      adj.on_time != null || adj.onboarding != null || adj.renewal != null ||
+      fixedEditor || fixedTl
+    );
+
+    // Монтаж: либо фиксированная сумма (нестандартная оплата), либо по ставке
+    const editorPay = fixedEditor ? Number(adj!.editor_amount) : done * PAYROLL_RATES.editor_per_video;
+    const tlBase = published * tlRateFor(pkg);
+    const tlScripts = m >= 2 ? published * PAYROLL_RATES.scripts_per_video : 0;   // в M1 сценарии не платятся
     const bonusOnTime = onTime ? PAYROLL_RATES.bonus_ontime : 0;
     const bonusOnboarding = onboarding ? PAYROLL_RATES.bonus_onboarding : 0;
     const bonusRenewal = renewal ? PAYROLL_RATES.bonus_renewal : 0;
-    const tlTotal = tlBase + tlScripts + bonusOnTime + bonusOnboarding + bonusRenewal;
+    const tlTotal = fixedTl ? Number(adj!.tl_amount) : tlBase + tlScripts + bonusOnTime + bonusOnboarding + bonusRenewal;
 
     rows.push({
       id: `crm-${cid}-${m}`, clientId: cid, clientName, m, pkg,
       tl: teamById[c.teamlead_id as number]?.name || "—", tlId: c.teamlead_id ?? null,
       editor: teamById[c.montager_id as number]?.name || "—", editorId: c.montager_id ?? null,
-      done: st.montM, published: st.pubM, cumMont: st.montCum, cumPub: st.pubCum,
+      done, published, cumMont: st.montCum, cumPub: st.pubCum,
       pubBefore: st.pubBefore, ahead: st.ahead, montNoDate: st.montNoDate,
       onTime, onboarding, renewal,
       renewalFrom: renewal ? m : undefined, renewalTo: renewal ? m + 1 : undefined,
+      autoDone, autoPublished, autoOnTime, autoOnboarding, autoRenewal,
+      edited, fixedEditor, fixedTl, note: adj?.note ?? null,
       editorPay, tlBase, tlScripts, bonusOnTime, bonusOnboarding, bonusRenewal,
       tlTotal, total: editorPay + tlTotal,
     });

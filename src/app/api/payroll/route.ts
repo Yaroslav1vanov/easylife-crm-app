@@ -49,6 +49,50 @@ export async function GET(req: Request) {
     fetchAll(sb, "team_members", "id,name,member_type"),
   ]);
 
-  const result = computePayroll(ym, { clients, clientMonths, scripts, team } as any);
-  return NextResponse.json(result, { headers: { "Cache-Control": "no-store" } });
+  // Ручные правки. Если таблицы ещё нет (миграция не прогнана) — считаем без них.
+  let adjustments: any[] = [];
+  const { data: adjData, error: adjErr } = await sb.from("payroll_adjustments").select("*").eq("ym", ym);
+  if (!adjErr && adjData) adjustments = adjData;
+
+  const result = computePayroll(ym, { clients, clientMonths, scripts, team, adjustments } as any);
+  return NextResponse.json(
+    { ...result, adjustmentsReady: !adjErr },
+    { headers: { "Cache-Control": "no-store" } },
+  );
+}
+
+// Сохранить/сбросить ручную правку строки расчёта.
+// body: { ym, row_id, done?, published?, on_time?, onboarding?, renewal?, note? }
+// Значение null у поля = вернуть на автомат. Если все поля null — строка правки удаляется.
+export async function POST(req: Request) {
+  const sb = createClient();
+  const { data: { user } } = await sb.auth.getUser();
+  if (!user) return NextResponse.json({ error: "не авторизован" }, { status: 401 });
+  const { data: profile } = await sb.from("profiles").select("role").eq("id", user.id).maybeSingle();
+  if (!profile || !["owner", "admin"].includes(profile.role)) {
+    return NextResponse.json({ error: "доступ только для владельца" }, { status: 403 });
+  }
+
+  let body: any;
+  try { body = await req.json(); } catch { return NextResponse.json({ error: "bad json" }, { status: 400 }); }
+  const { ym, row_id } = body || {};
+  if (!/^\d{4}-\d{2}$/.test(ym || "") || !row_id) return NextResponse.json({ error: "нужны ym и row_id" }, { status: 400 });
+
+  const fields = ["done", "published", "on_time", "onboarding", "renewal", "editor_amount", "tl_amount", "note"] as const;
+  const patch: Record<string, any> = {};
+  for (const f of fields) if (f in body) patch[f] = body[f];
+
+  const allNull = fields.every(f => (f in patch ? patch[f] == null : true)) &&
+    fields.some(f => f in patch);
+
+  if (allNull) {
+    const { error } = await sb.from("payroll_adjustments").delete().eq("ym", ym).eq("row_id", row_id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true, reset: true });
+  }
+
+  const { error } = await sb.from("payroll_adjustments")
+    .upsert({ ym, row_id, ...patch, updated_at: new Date().toISOString() }, { onConflict: "ym,row_id" });
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ ok: true });
 }
