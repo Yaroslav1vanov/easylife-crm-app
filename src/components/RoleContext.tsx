@@ -26,7 +26,16 @@ export function useCanEditReadyAt(): boolean {
 export const ALLOWED_SECTIONS: Record<string, string[] | "all"> = {
   montager: ["dashboard", "montage", "references", "guide"],
 };
+/** Разделы только для владельца — деньги команды. Остальные роли их не видят вообще. */
+export const OWNER_ONLY_SECTIONS = ["payroll"];
+export function isOwner(role: Role): boolean {
+  return role === "owner" || role === "admin";
+}
+export function useIsOwner(): boolean {
+  return isOwner(useRole());
+}
 export function sectionAllowed(role: Role, sectionId: string): boolean {
+  if (OWNER_ONLY_SECTIONS.includes(sectionId)) return isOwner(role);
   const allow = ALLOWED_SECTIONS[role];
   if (!allow || allow === "all") return true;
   return allow.includes(sectionId);
