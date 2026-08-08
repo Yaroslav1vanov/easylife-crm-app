@@ -141,7 +141,13 @@ export default function ClientDetailPage() {
   const viewMonthPkg = clientMonths.find(m => m.month_number === viewMonth)?.package || 0;
   const doneTasks = checklist.filter(t => t.status === "done").length;
   const pct = checklist.length > 0 ? Math.round(doneTasks / checklist.length * 100) : 0;
-  const months = Array.from(new Set(scripts.map(s => s.month_number))).sort();
+  // Вкладки месяцев = контрактные месяцы + те, где уже есть сценарии.
+  // Только по сценариям нельзя: у только что открытого месяца их ещё нет,
+  // и получался тупик — вкладки нет, значит некуда добавить первый сценарий.
+  const months = Array.from(new Set([
+    ...scripts.map(s => s.month_number),
+    ...clientMonths.filter(m => m.status !== "cancelled").map(m => m.month_number),
+  ])).sort((a, b) => a - b);
   const monthScripts = scripts.filter(s => s.month_number === viewMonth);
   const monthPub = monthScripts.filter(s => s.video_status === "published").length;
   const monthReady = monthScripts.filter(s => s.video_status === "ready").length;
