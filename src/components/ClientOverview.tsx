@@ -28,7 +28,7 @@ type Props = {
   todayIso: string;
   onEdit: () => void;
   onAvatarChange: (url: string | null) => Promise<void>;
-  onUpdateTeam: (patch: { teamlead_id?: number | null; montager_id?: number | null }) => Promise<void>;
+  onUpdateTeam: (patch: { teamlead_id?: number | null; montager_id?: number | null; extra_montager_ids?: number[] }) => Promise<void>;
   onTogglePause: () => void;
 };
 
@@ -126,11 +126,41 @@ export default function ClientOverview({ client: c, clientMonths, scripts, team,
               <TeamSelect label="Монтажёр" value={c.montager_id}
                 options={team.filter(t => t.member_type === "montager")} fallback={team}
                 onChange={async (v) => { await onUpdateTeam({ montager_id: v }); }} />
+              {/* Доп. доступ — видимость клиента в Монтаже. На ЗП не влияет. */}
+              <div style={{ marginTop: 2 }}>
+                <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 700, marginBottom: 4 }}>
+                  Доступ ещё у <span style={{ fontWeight: 500, textTransform: "none" }}>(видят клиента, но ЗП не идёт)</span>
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                  {team.filter(t => t.member_type === "montager" && t.id !== c.montager_id).map(t => {
+                    const on = (c.extra_montager_ids || []).includes(t.id);
+                    return (
+                      <button key={t.id}
+                        onClick={async () => {
+                          const cur = c.extra_montager_ids || [];
+                          const next = on ? cur.filter(x => x !== t.id) : [...cur, t.id];
+                          await onUpdateTeam({ extra_montager_ids: next });
+                        }}
+                        style={{ padding: "3px 8px", borderRadius: 7, fontSize: 10, fontWeight: 700, cursor: "pointer",
+                          border: `1px solid ${on ? "#ffae42" : "var(--brd)"}`,
+                          background: on ? "rgba(255,174,66,0.14)" : "transparent",
+                          color: on ? "#ffae42" : "var(--t3)" }}>
+                        {on ? "✓ " : ""}{t.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
               <TeamRow tm={teamlead} role="Тим Лид" color="#9d6bff" />
               <TeamRow tm={montager} role="Монтажёр" color="#ffae42" />
+              {(c.extra_montager_ids || []).length > 0 && (
+                <div style={{ fontSize: 10, color: "var(--t3)", paddingLeft: 2 }}>
+                  + доступ: {(c.extra_montager_ids || []).map(id => team.find(t => t.id === id)?.name || `#${id}`).join(", ")}
+                </div>
+              )}
             </div>
           )}
         </div>

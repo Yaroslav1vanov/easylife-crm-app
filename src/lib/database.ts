@@ -12,6 +12,8 @@ export type Client = {
   weekly_quota?: number | null;  // роликов в неделю (null = авто из пакета)
   review_day?: number | null;    // день сдачи рефов/сценариев на проверку
   package: number; montager_id: number | null; teamlead_id: number | null; priority: string;
+  /** Доп. монтажёры — только доступ к клиенту в Монтаже. На ЗП не влияет (она по montager_id). */
+  extra_montager_ids?: number[] | null;
   stage: string; start_date: string; pub_date: string | null; scripts_deadline: string | null;
   videos_deadline: string | null; first_pub_date: string | null; onboarding_deadline?: string | null; target_audience: string;
   problem: string; system_idea: string; global_result: string; top5_pains: string[];

@@ -117,7 +117,9 @@ export default function MontagePage() {
     const c = clientById[cid]; if (!c) return false;
     if (clientFilter !== "all" && cid !== clientFilter) return false;
     if (tlFilter !== "all" && c.teamlead_id !== tlFilter) return false;
-    if (mgFilter !== "all" && c.montager_id !== mgFilter) return false;
+    // Монтажёр видит клиента, если он основной ИЛИ ему открыт доступ (extra_montager_ids).
+    // На ЗП доступ не влияет — она считается только по montager_id.
+    if (mgFilter !== "all" && c.montager_id !== mgFilter && !(c.extra_montager_ids || []).includes(mgFilter as number)) return false;
     // неактивных (пауза / ушёл) скрываем — пока их явно не выбрали в фильтре «Клиент»
     if (c.stage !== "active" && clientFilter !== cid) return false;
     return true;

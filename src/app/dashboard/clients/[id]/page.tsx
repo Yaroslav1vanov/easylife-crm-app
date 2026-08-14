@@ -106,7 +106,7 @@ export default function ClientDetailPage() {
     await load();
   }
 
-  async function updateTeam(patch: { teamlead_id?: number | null; montager_id?: number | null }) {
+  async function updateTeam(patch: { teamlead_id?: number | null; montager_id?: number | null; extra_montager_ids?: number[] }) {
     await db.updateClient(supabase, clientId, patch as any);
     await load();
   }
