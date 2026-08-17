@@ -40,8 +40,6 @@ export default function ClientDetailPage() {
   const [editData, setEditData] = useState<any>({});
   const [editSocial, setEditSocial] = useState<string | null>(null);
   const [socialUrl, setSocialUrl] = useState("");
-  const [editingSheet, setEditingSheet] = useState(false);
-  const [sheetUrlInput, setSheetUrlInput] = useState("");
   const [expandedScript, setExpandedScript] = useState<number | null>(null);
   const [viewMonth, setViewMonth] = useState(1);
   const [monthInit, setMonthInit] = useState(false);
@@ -126,6 +124,11 @@ export default function ClientDetailPage() {
   const obDone = !!onbProgress && onbProgress.pending_tasks === 0;
   const obColor = obDone ? "var(--gr)" : obDaysLeft == null ? "var(--t3)" : obDaysLeft < 0 ? "var(--rd)" : obDaysLeft <= 2 ? "var(--or)" : "var(--t2)";
   const obWhen = obDaysLeft == null ? "" : obDaysLeft < 0 ? `просрочен ${-obDaysLeft} дн` : obDaysLeft === 0 ? "сегодня" : obDaysLeft === 1 ? "завтра" : `осталось ${obDaysLeft} дн`;
+  // Какой сейчас день онбординга (считаем от старта клиента, как на странице онбординга)
+  const obStart = c.start_date || null;
+  const obDay = obStart
+    ? Math.max(1, Math.floor((new Date(`${todayIso}T00:00:00`).getTime() - new Date(`${obStart}T00:00:00`).getTime()) / 86400000) + 1)
+    : null;
   const currentMonthNum = computeCurrentMonth(clientMonths, todayIso);
   const currentM = clientMonths.find(m => m.month_number === currentMonthNum) || null;
   const currentMonthScripts = scripts.filter(s => s.month_number === currentMonthNum);
@@ -236,6 +239,11 @@ export default function ClientDetailPage() {
             <button onClick={() => router.push(`/dashboard/clients/${clientId}/onboarding`)}
               style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 12px", borderRadius: 9, background: "transparent", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
               <span style={{ width: 8, height: 8, borderRadius: "50%", background: onbProgress.pending_tasks > 0 ? "var(--yl)" : "var(--gr)" }} />
+              {onbProgress.pending_tasks > 0 && obDay != null && (
+                <span style={{ color: obDay > 10 ? "var(--rd)" : "var(--yl)", fontWeight: 800 }}>
+                  День {obDay} из 10 ·
+                </span>
+              )}
               Онбординг: {onbProgress.pending_tasks > 0 ? `${onbProgress.done_tasks}/${onbProgress.total_tasks - onbProgress.skipped_tasks} · ${onbProgress.progress_pct}%` : "завершён"}
               <span style={{ color: "var(--t3)" }}>→</span>
             </button>
@@ -249,31 +257,6 @@ export default function ClientDetailPage() {
               : obWhen && <span style={{ fontSize: 10, fontWeight: 800, color: obColor }}>{obWhen}</span>}
           </div>
           <div style={{ flex: 1, minWidth: 10 }} />
-          <span style={{ fontSize: 10, color: "var(--t3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>📊 Google Sheet</span>
-          {editingSheet ? (
-            <div style={{ display: "flex", gap: 6, flex: 1, minWidth: 240 }}>
-              <input autoFocus type="text" value={sheetUrlInput} onChange={(e) => setSheetUrlInput(e.target.value)}
-                placeholder="https://docs.google.com/spreadsheets/d/..."
-                style={{ flex: 1, padding: "6px 10px", borderRadius: 8, fontSize: 12, background: "var(--bg)", border: "1px solid var(--brd)", color: "var(--t1)" }}
-                onKeyDown={async (e) => { if (e.key === "Enter") { await updateClientField("sheet_url", sheetUrlInput.trim() || null); setEditingSheet(false); } if (e.key === "Escape") setEditingSheet(false); }} />
-              <button onClick={async () => { await updateClientField("sheet_url", sheetUrlInput.trim() || null); setEditingSheet(false); }}
-                style={{ padding: "6px 12px", borderRadius: 8, background: "var(--gr)", color: "#0a0118", border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Сохранить</button>
-              <button onClick={() => setEditingSheet(false)} style={{ padding: "6px 10px", borderRadius: 8, background: "transparent", color: "var(--t3)", border: "1px solid var(--brd)", fontSize: 11, cursor: "pointer" }}>✕</button>
-            </div>
-          ) : (
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              {c.sheet_url ? (
-                <a href={c.sheet_url} target="_blank" rel="noopener noreferrer"
-                  style={{ padding: "6px 12px", borderRadius: 8, background: "linear-gradient(135deg, #34a853, #1e8e3e)", color: "#fff", fontSize: 11, fontWeight: 800, textDecoration: "none" }}>Открыть ↗</a>
-              ) : (
-                <span style={{ fontSize: 11, color: "var(--t3)", fontStyle: "italic" }}>не добавлена</span>
-              )}
-              <button onClick={() => { setSheetUrlInput(c.sheet_url || ""); setEditingSheet(true); }}
-                style={{ padding: "6px 10px", borderRadius: 8, background: "transparent", color: "var(--t2)", border: "1px solid var(--brd)", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
-                {c.sheet_url ? "✎" : "+ добавить"}
-              </button>
-            </div>
-          )}
         </div>
       </div>
 
