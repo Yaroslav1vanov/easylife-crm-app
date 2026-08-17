@@ -15,7 +15,9 @@ export type Client = {
   /** Доп. монтажёры — только доступ к клиенту в Монтаже. На ЗП не влияет (она по montager_id). */
   extra_montager_ids?: number[] | null;
   stage: string; start_date: string; pub_date: string | null; scripts_deadline: string | null;
-  videos_deadline: string | null; first_pub_date: string | null; onboarding_deadline?: string | null; target_audience: string;
+  videos_deadline: string | null; first_pub_date: string | null;
+  /** Период онбординга: с onboarding_start по onboarding_deadline. Начало пустое → считаем от start_date. */
+  onboarding_start?: string | null; onboarding_deadline?: string | null; target_audience: string;
   problem: string; system_idea: string; global_result: string; top5_pains: string[];
   sheet_url?: string | null;
   montager?: TeamMember; teamlead?: TeamMember;

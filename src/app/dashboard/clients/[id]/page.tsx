@@ -124,8 +124,8 @@ export default function ClientDetailPage() {
   const obDone = !!onbProgress && onbProgress.pending_tasks === 0;
   const obColor = obDone ? "var(--gr)" : obDaysLeft == null ? "var(--t3)" : obDaysLeft < 0 ? "var(--rd)" : obDaysLeft <= 2 ? "var(--or)" : "var(--t2)";
   const obWhen = obDaysLeft == null ? "" : obDaysLeft < 0 ? `просрочен ${-obDaysLeft} дн` : obDaysLeft === 0 ? "сегодня" : obDaysLeft === 1 ? "завтра" : `осталось ${obDaysLeft} дн`;
-  // Какой сейчас день онбординга (считаем от старта клиента, как на странице онбординга)
-  const obStart = c.start_date || null;
+  // Какой сейчас день онбординга. Начало — заданное явно, иначе старт работы с клиентом.
+  const obStart = c.onboarding_start || c.start_date || null;
   const obDay = obStart
     ? Math.max(1, Math.floor((new Date(`${todayIso}T00:00:00`).getTime() - new Date(`${obStart}T00:00:00`).getTime()) / 86400000) + 1)
     : null;
@@ -248,10 +248,18 @@ export default function ClientDetailPage() {
               <span style={{ color: "var(--t3)" }}>→</span>
             </button>
           )}
-          {/* Дедлайн онбординга — редактируемая дата + отсчёт */}
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "6px 12px", borderRadius: 9, background: "rgba(255,174,66,0.07)", border: "1px solid var(--brd)" }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--t2)" }}>🚀 Онбординг до</span>
-            <input type="date" defaultValue={obDeadline || ""} onBlur={(e) => { const v = e.target.value || null; if (v !== obDeadline) updateClientField("onboarding_deadline", v); }}
+          {/* Период онбординга: с какой по какую дату + отсчёт */}
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "6px 12px", borderRadius: 9, background: "rgba(255,174,66,0.07)", border: "1px solid var(--brd)", flexWrap: "wrap" }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--t2)" }}>🚀 Онбординг</span>
+            <span style={{ fontSize: 10, color: "var(--t3)" }}>с</span>
+            <input type="date" defaultValue={c.onboarding_start || c.start_date || ""}
+              title="Дата начала онбординга — от неё считается «День N»"
+              onBlur={(e) => { const v = e.target.value || null; if (v !== (c.onboarding_start || null)) updateClientField("onboarding_start", v); }}
+              style={{ padding: "3px 6px", borderRadius: 7, background: "var(--bg)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 11, outline: "none", colorScheme: "dark" }} />
+            <span style={{ fontSize: 10, color: "var(--t3)" }}>по</span>
+            <input type="date" defaultValue={obDeadline || ""}
+              title="Дата, к которой онбординг должен быть завершён"
+              onBlur={(e) => { const v = e.target.value || null; if (v !== obDeadline) updateClientField("onboarding_deadline", v); }}
               style={{ padding: "3px 6px", borderRadius: 7, background: "var(--bg)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 11, outline: "none", colorScheme: "dark" }} />
             {obDone ? <span style={{ fontSize: 10, fontWeight: 700, color: "var(--gr)" }}>✓ завершён</span>
               : obWhen && <span style={{ fontSize: 10, fontWeight: 800, color: obColor }}>{obWhen}</span>}
