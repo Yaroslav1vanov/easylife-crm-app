@@ -6,6 +6,7 @@ import db, { TeamMember, Client } from "@/lib/database";
 import AvatarUploader from "@/components/AvatarUploader";
 import Avatar from "@/components/Avatar";
 import Tour, { TourButton, type TourStep } from "@/components/Tour";
+import { useIsOwner } from "@/components/RoleContext";
 import { Crown, Users2, Scissors, Plus, X, UserPlus, AlertTriangle, type LucideIcon } from "lucide-react";
 
 type RoleDef = { type: string; title: string; color: string; Icon: LucideIcon; roleNoun: string };
@@ -26,6 +27,47 @@ export default function TeamPage() {
   const [newRole, setNewRole] = useState("Монтажёр");
   const [newType, setNewType] = useState("montager");
   const [tourOpen, setTourOpen] = useState(false);
+  const isOwner = useIsOwner();
+  const [accessFor, setAccessFor] = useState<TeamMember | null>(null);   // кому выдаём доступ
+  const [accessBusy, setAccessBusy] = useState<number | null>(null);
+  const [accEmail, setAccEmail] = useState("");
+  const [accPass, setAccPass] = useState("");
+  const [accRole, setAccRole] = useState("montager");
+  const [accHint, setAccHint] = useState<string | null>(null);
+
+  // Открыть окно выдачи доступа: роль подставляем по типу сотрудника
+  function openAccess(m: TeamMember) {
+    setAccessFor(m);
+    setAccEmail(""); setAccPass(""); setAccHint(null);
+    setAccRole(m.member_type === "montager" ? "montager" : "teamlead");
+  }
+
+  async function grantAccess() {
+    if (!accessFor) return;
+    setAccessBusy(accessFor.id); setAccHint(null);
+    try {
+      const r = await fetch(`/api/team/${accessFor.id}/access`, {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: accEmail.trim(), password: accPass, role: accRole }),
+      });
+      const j = await r.json();
+      if (!r.ok) setAccHint(j?.error || "не получилось");
+      else { setAccessFor(null); await load(); }
+    } catch (e: any) { setAccHint(String(e)); }
+    setAccessBusy(null);
+  }
+
+  async function revokeAccess(id: number, name: string) {
+    if (!confirm(`Отозвать доступ у ${name}? Аккаунт останется, но входить в CRM он не сможет.`)) return;
+    setAccessBusy(id);
+    try {
+      const r = await fetch(`/api/team/${id}/access`, { method: "DELETE" });
+      const j = await r.json();
+      if (!r.ok) alert(j?.error || "не получилось");
+      else await load();
+    } catch (e: any) { alert(String(e)); }
+    setAccessBusy(null);
+  }
 
   useEffect(() => { load(); }, []);
   async function load() {
@@ -157,6 +199,28 @@ export default function TeamPage() {
                         <button onClick={() => removeMember(m.id)} title="Удалить" style={{ flexShrink: 0, width: 26, height: 26, borderRadius: 7, background: "transparent", border: "1px solid var(--brd)", color: "var(--t3)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><X size={13} /></button>
                       )}
                     </div>
+                    {/* Доступ в CRM — виден только владельцу */}
+                    {isOwner && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--track)" }}>
+                        {m.profile_id ? (
+                          <>
+                            <span style={{ fontSize: 10, fontWeight: 700, color: "var(--gr)" }}>🔑 доступ есть</span>
+                            <button onClick={() => revokeAccess(m.id, m.name)} disabled={accessBusy === m.id}
+                              style={{ marginLeft: "auto", padding: "4px 9px", borderRadius: 7, background: "transparent", border: "1px solid var(--brd)", color: "var(--t3)", fontSize: 10, fontWeight: 700, cursor: "pointer" }}>
+                              отозвать
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <span style={{ fontSize: 10, color: "var(--t3)" }}>нет доступа в CRM</span>
+                            <button onClick={() => openAccess(m)} disabled={accessBusy === m.id}
+                              style={{ marginLeft: "auto", padding: "4px 10px", borderRadius: 7, background: "rgba(66,212,244,0.12)", border: "1px solid var(--brd)", color: "var(--cy)", fontSize: 10, fontWeight: 800, cursor: "pointer" }}>
+                              🔑 Выдать доступ
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    )}
                     {list.length > 0 ? (
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, paddingTop: 12, borderTop: "1px solid var(--track)" }}>
                         {list.map(c => <ClientChip key={c.id} c={c} role={m.member_type} />)}
@@ -185,6 +249,61 @@ export default function TeamPage() {
           ))}
         </div>
       )}
+      {/* Выдать доступ в CRM */}
+      {accessFor && (
+        <div onClick={() => setAccessFor(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.72)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 18, width: "100%", maxWidth: 440, padding: 24, display: "flex", flexDirection: "column", gap: 14 }}>
+            <div>
+              <h3 style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 17, fontWeight: 800, color: "var(--t1)" }}>🔑 Доступ в CRM</h3>
+              <div style={{ fontSize: 12, color: "var(--t3)", marginTop: 4 }}>для <b style={{ color: "var(--t1)" }}>{accessFor.name}</b> · {accessFor.role_title}</div>
+            </div>
+
+            <div>
+              <label style={{ fontSize: 9, fontWeight: 800, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 0.5, display: "block", marginBottom: 5 }}>Почта сотрудника</label>
+              <input value={accEmail} onChange={e => setAccEmail(e.target.value)} placeholder="name@gmail.com" autoFocus style={fld} />
+            </div>
+
+            <div>
+              <label style={{ fontSize: 9, fontWeight: 800, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 0.5, display: "block", marginBottom: 5 }}>Пароль <span style={{ fontWeight: 500, textTransform: "none" }}>(если аккаунта ещё нет)</span></label>
+              <input value={accPass} onChange={e => setAccPass(e.target.value)} placeholder="минимум 6 символов" style={fld} />
+            </div>
+
+            <div>
+              <label style={{ fontSize: 9, fontWeight: 800, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 0.5, display: "block", marginBottom: 5 }}>Что видит</label>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {[
+                  { v: "montager", l: "Монтажёр", d: "Дашборд, Монтаж, Референсы, Гайд" },
+                  { v: "teamlead", l: "Менеджер / ассистент", d: "всё, кроме ЗП" },
+                ].map(o => (
+                  <button key={o.v} onClick={() => setAccRole(o.v)} title={o.d}
+                    style={{ padding: "7px 12px", borderRadius: 8, fontSize: 11, fontWeight: 800, cursor: "pointer",
+                      border: `1px solid ${accRole === o.v ? "var(--cy)" : "var(--brd)"}`,
+                      background: accRole === o.v ? "rgba(66,212,244,0.12)" : "transparent",
+                      color: accRole === o.v ? "var(--cy)" : "var(--t2)" }}>
+                    {o.l}
+                  </button>
+                ))}
+              </div>
+              <div style={{ fontSize: 10, color: "var(--t3)", marginTop: 6 }}>
+                {accRole === "montager" ? "Дашборд, Монтаж, Референсы, Гайд" : "Все разделы, кроме «ЗП команды» — зарплаты видит только владелец"}
+              </div>
+            </div>
+
+            {accHint && (
+              <div style={{ fontSize: 11, color: "var(--or)", background: "rgba(255,174,66,0.08)", border: "1px solid rgba(255,174,66,0.35)", borderRadius: 9, padding: "9px 11px", lineHeight: 1.5 }}>{accHint}</div>
+            )}
+
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button onClick={() => setAccessFor(null)} style={{ padding: "9px 14px", borderRadius: 9, background: "transparent", border: "1px solid var(--brd)", color: "var(--t2)", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Отмена</button>
+              <button onClick={grantAccess} disabled={!accEmail.trim() || accessBusy != null}
+                style={{ padding: "9px 18px", borderRadius: 9, background: "linear-gradient(135deg, var(--cy), var(--pu))", border: "none", color: "#fff", fontSize: 12, fontWeight: 800, cursor: "pointer", opacity: !accEmail.trim() || accessBusy != null ? 0.6 : 1 }}>
+                {accessBusy != null ? "Выдаю…" : "Выдать доступ"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <Tour steps={TEAM_TOUR} open={tourOpen} onClose={() => setTourOpen(false)} />
     </div>
   );
