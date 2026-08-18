@@ -193,6 +193,7 @@ export default function ClientsPage() {
   const [statusTab, setStatusTab] = useState<"active" | "paused" | "churned">("active");
   const [showAdd, setShowAdd] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [tourOpen, setTourOpen] = useState(false);
   const [form, setForm] = useState({ name: "", surname: "", niche: "", package: 30, montager_id: 0, teamlead_id: 0, start_date: new Date().toISOString().split("T")[0], pub_date: "" });
   const router = useRouter();
@@ -201,21 +202,44 @@ export default function ClientsPage() {
   useEffect(() => { load(); }, []);
 
   async function load() {
-    const [cls, tm] = await Promise.all([db.getClients(supabase), db.getTeam(supabase)]);
-    const ids = cls.map((c) => c.id);
-    const [allScripts, monthsResult, social, onb] = await Promise.all([
-      db.getScriptsForClients(supabase, ids),
-      db.getClientMonths(supabase),
-      db.getSocialSnapshots(supabase, ids),
-      db.getAllOnboardingProgress(supabase),
-    ]);
-    setClients(cls);
-    setTeam(tm);
-    setScripts(allScripts);
-    setClientMonths(monthsResult.data || []);
-    setSnapshots(social);
-    setOnbProgress(onb);
+    setLoadError(null);
+    // 1) Сначала — сам список клиентов. Показываем его сразу, не дожидаясь тяжёлых
+    //    запросов (сценарии/снапшоты): на мобильной сети они могут отвалиться,
+    //    и раньше из-за этого экран оставался пустым без объяснения.
+    let cls: Client[] = [];
+    try {
+      const [c, tm] = await Promise.all([db.getClients(supabase), db.getTeam(supabase)]);
+      cls = c;
+      setClients(c);
+      setTeam(tm);
+      if (c.length === 0) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) setLoadError("Сессия истекла — войди заново.");
+      }
+    } catch (e: any) {
+      setLoadError("Не удалось загрузить клиентов: " + (e?.message || String(e)));
+      setLoading(false);
+      return;
+    }
     setLoading(false);
+
+    // 2) Остальное — фоном. Упадёт — список клиентов всё равно на месте.
+    try {
+      const ids = cls.map((c) => c.id);
+      const [allScripts, monthsResult, social, onb] = await Promise.all([
+        db.getScriptsForClients(supabase, ids),
+        db.getClientMonths(supabase),
+        db.getSocialSnapshots(supabase, ids),
+        db.getAllOnboardingProgress(supabase),
+      ]);
+      setScripts(allScripts);
+      setClientMonths(monthsResult.data || []);
+      setSnapshots(social);
+      setOnbProgress(onb);
+    } catch (e: any) {
+      console.error("clients: доп. данные не загрузились", e);
+      setLoadError("Список загружен, но статистика не подтянулась — обнови страницу.");
+    }
   }
 
   async function setStage(clientId: number, stage: "active" | "paused" | "churned") {
@@ -322,6 +346,17 @@ export default function ClientsPage() {
           {syncing ? "Обновляю…" : "↻ Обновить статистику"}
         </button>
       </div>
+
+      {loadError && (
+        <div style={{ padding: "11px 14px", borderRadius: 11, marginBottom: 14, fontSize: 12, lineHeight: 1.55,
+          background: "rgba(255,174,66,0.08)", border: "1px solid rgba(255,174,66,0.4)", color: "var(--t1)" }}>
+          ⚠ {loadError}{" "}
+          <button onClick={() => { setLoading(true); load(); }}
+            style={{ marginLeft: 6, background: "transparent", border: "1px solid var(--brd)", borderRadius: 7, color: "var(--cy)", fontSize: 11, fontWeight: 800, padding: "3px 9px", cursor: "pointer" }}>
+            ↻ Повторить
+          </button>
+        </div>
+      )}
 
       {/* Вкладки по статусу */}
       <div data-tour="cl-tabs" style={{ display: "flex", gap: 8, marginBottom: 18, flexWrap: "wrap" }}>
