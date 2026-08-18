@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
-import db, { TeamMember, Client } from "@/lib/database";
+import db, { TeamMember, Client, ClientMonth } from "@/lib/database";
 import AvatarUploader from "@/components/AvatarUploader";
 import Avatar from "@/components/Avatar";
 import Tour, { TourButton, type TourStep } from "@/components/Tour";
@@ -21,6 +21,7 @@ export default function TeamPage() {
   const supabase = createClient();
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
+  const [clientMonths, setClientMonths] = useState<ClientMonth[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState("");
@@ -71,8 +72,8 @@ export default function TeamPage() {
 
   useEffect(() => { load(); }, []);
   async function load() {
-    const [tm, cls] = await Promise.all([db.getTeam(supabase), db.getClients(supabase)]);
-    setTeam(tm); setClients(cls); setLoading(false);
+    const [tm, cls, cmRes] = await Promise.all([db.getTeam(supabase), db.getClients(supabase), db.getClientMonths(supabase)]);
+    setTeam(tm); setClients(cls); setClientMonths(cmRes?.data || []); setLoading(false);
   }
   async function addMember() {
     if (!newName) return;
@@ -95,6 +96,17 @@ export default function TeamPage() {
     m.member_type === "montager" ? c.montager_id === m.id :
     m.member_type === "teamlead" ? c.teamlead_id === m.id :
     (c.teamlead_id === m.id || c.montager_id === m.id));
+  // Сколько роликов в месяц на сотруднике = сумма пакетов ТЕКУЩИХ контрактных месяцев его клиентов.
+  // Берём активный месяц клиента (или онбординг), иначе — последний открытый; фолбэк на c.package.
+  const pkgOfClient = (cid: number, fallback: number) => {
+    const ms = clientMonths.filter(m => m.client_id === cid && m.status !== "cancelled" && m.status !== "closed");
+    const cur = ms.find(m => m.status === "active") || ms.find(m => m.status === "onboarding")
+      || [...ms].sort((a, b) => b.month_number - a.month_number)[0];
+    return (cur?.package ?? fallback) || 0;
+  };
+  const monthlyLoad = (m: TeamMember) =>
+    clientsOf(m).reduce((sum, c) => sum + pkgOfClient(c.id, c.package || 0), 0);
+
   const noMontager = useMemo(() => activeClients.filter(c => c.stage === "active" && !c.montager_id), [activeClients]);
   const counts = (t: string) => team.filter(m => m.member_type === t).length;
 
@@ -115,6 +127,7 @@ export default function TeamPage() {
           <span style={{ fontSize: 11, fontWeight: 700, color: "var(--t1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 130 }}>{c.name} {c.surname || ""}</span>
           <span style={{ fontSize: 8, color: counter ? "var(--t3)" : "#ff5c7a", display: "inline-flex", alignItems: "center", gap: 3 }}>
             {counter ? `${counterLabel}: ${counter.name}` : role === "teamlead" ? "нет монтажёра" : `${counterLabel}: —`}
+            <span style={{ color: "var(--t3)" }}>· {pkgOfClient(c.id, c.package || 0)} рол.</span>
           </span>
         </span>
       </button>
@@ -194,6 +207,11 @@ export default function TeamPage() {
                       <div style={{ textAlign: "right", flexShrink: 0 }}>
                         <div style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 20, fontWeight: 800, color: role.color, lineHeight: 1 }}>{list.length}</div>
                         <div style={{ fontSize: 8, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 0.4 }}>{role.roleNoun}</div>
+                        {m.member_type !== "admin" && list.length > 0 && (
+                          <div title="Сумма пакетов текущих месяцев его клиентов" style={{ marginTop: 4, fontSize: 10, fontWeight: 800, color: "var(--t2)", whiteSpace: "nowrap" }}>
+                            {monthlyLoad(m)} <span style={{ color: "var(--t3)", fontWeight: 600 }}>рол./мес</span>
+                          </div>
+                        )}
                       </div>
                       {m.member_type !== "admin" && (
                         <button onClick={() => removeMember(m.id)} title="Удалить" style={{ flexShrink: 0, width: 26, height: 26, borderRadius: 7, background: "transparent", border: "1px solid var(--brd)", color: "var(--t3)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><X size={13} /></button>
