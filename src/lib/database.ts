@@ -191,11 +191,16 @@ const db = {
       await sb.from("client_months").update({ status: "onboarding" }).eq("id", m1.id);
     } else {
       const monthEnd = new Date(start.getTime() + 30 * 86400000).toISOString().slice(0, 10);
-      await sb.from("client_months").insert({
+      const { error: mErr } = await sb.from("client_months").insert({
         client_id: data, month_number: 1, status: "onboarding",
         package: params.package || 30, start_date: startDate, end_date: monthEnd,
       });
+      // Молчать нельзя: без месяца клиент «пустой» — нет плана, нет ЗП, не виден в Команде.
+      if (mErr) console.error("client_months M1 не создан:", mErr.message);
     }
+    // RPC ставит нестандартный stage «Онбординг» — CRM везде ждёт 'active',
+    // иначе клиент выпадает из активных, Команды и планирования.
+    await sb.from("clients").update({ stage: "active" }).eq("id", data);
     // RPC по старой логике сидирует пустые карточки под пакет — удаляем их:
     // сценарии теперь рождаются из референсов, пакет = цель.
     await sb.from("scripts").delete().eq("client_id", data)

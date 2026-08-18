@@ -367,6 +367,28 @@ export default function ClientDetailPage() {
       {/* Контрактные месяцы + Что требует внимания */}
       {clientMonths.length > 0 && (
         <div style={{ display: "grid", gridTemplateColumns: "1.7fr 1fr", gap: 14, marginBottom: 14 }} className="months-attention-grid">
+          {clientMonths.length === 0 && (
+            <div className="card mb-3" style={{ padding: "16px 18px", borderRadius: 14, border: "1px solid rgba(255,174,66,0.45)", background: "rgba(255,174,66,0.07)" }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: "var(--or)", marginBottom: 6 }}>⚠ У клиента нет контрактного месяца</div>
+              <div style={{ fontSize: 12, color: "var(--t2)", lineHeight: 1.6, marginBottom: 12 }}>
+                Без него не считается план, ЗП и клиент не виден в «Команде». Создам M1 на 30 дней от даты старта.
+              </div>
+              <button onClick={async () => {
+                const start = c.start_date || todayIso;
+                const [y, mo, d] = start.split("-").map(Number);
+                const end = new Date(y, mo - 1, d + 30).toISOString().slice(0, 10);
+                const { error } = await supabase.from("client_months").insert({
+                  client_id: clientId, month_number: 1, status: "onboarding",
+                  package: c.package || 30, start_date: start, end_date: end,
+                });
+                if (error) alert("Не получилось: " + error.message);
+                else { if (c.stage !== "active") await db.updateClient(supabase, clientId, { stage: "active" } as any); await load(); }
+              }}
+                style={{ padding: "9px 16px", borderRadius: 10, background: "linear-gradient(135deg, var(--cy), var(--pu))", border: "none", color: "#fff", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>
+                + Создать первый месяц (M1, пакет {c.package || 30})
+              </button>
+            </div>
+          )}
           <ClientMonthsTimeline
             clientId={clientId}
             clientName={`${c.name} ${c.surname || ""}`.trim()}
