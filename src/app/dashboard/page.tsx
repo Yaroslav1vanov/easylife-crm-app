@@ -1079,6 +1079,30 @@ function DashboardInner() {
         )}
         <EmployeeDashboard member={asMemberView} clients={clients} clientMonths={clientMonths}
           scripts={scripts} todayIso={todayIso} onbProgresses={onbProgresses} viewedByOwner={iAmOwner} />
+
+        {/* Та же таблица, что на общем дашборде, но только его клиенты */}
+        <ClientsBlock
+          clients={clients.filter(c => c.stage === "active" && (asMemberView.member_type === "montager"
+            ? (c.montager_id === asMemberView.id || (c.extra_montager_ids || []).includes(asMemberView.id))
+            : c.teamlead_id === asMemberView.id))}
+          clientMonths={clientMonths}
+          scripts={scripts}
+          team={team}
+          todayIso={todayIso}
+          overdueClientIds={new Set(overdueTasks.map((t: any) => t.client_id))}
+          view={clientsView} setView={setClientsView}
+          searchQuery={searchQuery} setSearchQuery={setSearchQuery}
+          filterStatus={filterStatus} setFilterStatus={setFilterStatus}
+          filterPkg={filterPkg} setFilterPkg={setFilterPkg}
+          filterMontager={filterMontager} setFilterMontager={setFilterMontager}
+          filterTeamlead={filterTeamlead} setFilterTeamlead={setFilterTeamlead}
+          sortBy={sortBy} setSortBy={setSortBy}
+          filterMenuOpen={filterMenuOpen} setFilterMenuOpen={setFilterMenuOpen}
+          collapsedTotals={collapsedTotals} setCollapsedTotals={setCollapsedTotals}
+          selectedMonth={selectedMonth} setSelectedMonth={setSelectedMonth}
+          currentYM={currentYM}
+          onOpen={(id) => router.push(`/dashboard/clients/${id}`)}
+        />
       </div>
     );
   }

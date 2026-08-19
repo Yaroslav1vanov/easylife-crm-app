@@ -242,61 +242,6 @@ export default function EmployeeDashboard({ member, clients, clientMonths, scrip
         )}
       </div>
 
-      {/* Мои клиенты — таблица как в общем дашборде, но только свои */}
-      <div className="card" style={{ padding: 0, borderRadius: 15, overflow: "hidden" }}>
-        <div style={{ padding: "14px 16px", display: "flex", alignItems: "center", gap: 9, borderBottom: "1px solid var(--brd)" }}>
-          <span style={{ fontSize: 14, fontWeight: 800 }}>Мои клиенты в работе</span>
-          <span style={{ fontSize: 11, fontWeight: 800, padding: "2px 8px", borderRadius: 7, background: "rgba(66,212,244,.15)", color: "var(--cy)" }}>{v.mine.length}</span>
-        </div>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 720 }}>
-            <thead>
-              <tr style={{ fontSize: 9, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 0.5 }}>
-                {["Клиент", "Пакет", isMg ? "В монтаже" : "Пишутся", "Готово", "Опубл. в мес.", "Сделано / пакет", "Дедлайн M"].map(h => (
-                  <th key={h} style={{ textAlign: "left", padding: "9px 14px", fontWeight: 700, borderBottom: "1px solid var(--brd)" }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {v.rows.map(r => (
-                <tr key={r.c.id} onClick={() => router.push(`/dashboard/clients/${r.c.id}`)}
-                  style={{ cursor: "pointer", borderBottom: "1px solid var(--brd)" }}>
-                  <td style={{ padding: "10px 14px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}>
-                      <Avatar name={`${r.c.name} ${r.c.surname || ""}`} src={r.c.avatar_url} size={26} />
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--t1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 170 }}>{r.c.name} {r.c.surname || ""}</div>
-                        <div style={{ fontSize: 9, color: "var(--t3)" }}>{r.cm ? `M${r.cm.month_number}` : "нет месяца"}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--t2)", whiteSpace: "nowrap" }}>{r.plan} рол./мес</td>
-                  <td style={{ padding: "10px 14px", fontSize: 13, fontWeight: 800, color: r.inWork ? "var(--cy)" : "var(--t3)" }}>{r.inWork}</td>
-                  <td style={{ padding: "10px 14px", fontSize: 13, fontWeight: 800, color: r.ready ? "var(--gr)" : "var(--t3)" }}>{r.ready}</td>
-                  <td style={{ padding: "10px 14px", fontSize: 13, fontWeight: 800, color: "var(--t1)" }}>{r.pubMonth}</td>
-                  <td style={{ padding: "10px 14px", minWidth: 130 }}>
-                    <div style={{ fontSize: 11, color: "var(--t2)", marginBottom: 4 }}>{r.pub}/{r.plan} <span style={{ color: "var(--t3)" }}>· {r.pct}%</span></div>
-                    <div style={{ height: 5, borderRadius: 3, background: "var(--track)", overflow: "hidden" }}>
-                      <div style={{ width: `${r.pct}%`, height: "100%", background: r.pct >= 100 ? "var(--gr)" : "linear-gradient(90deg, var(--cy), var(--pu))" }} />
-                    </div>
-                  </td>
-                  <td style={{ padding: "10px 14px", whiteSpace: "nowrap" }}>
-                    {r.cm ? (
-                      <>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: r.daysLeft < 0 ? "var(--rd)" : r.daysLeft <= 5 ? "var(--or)" : "var(--t1)" }}>{fmtDateShort(r.cm.end_date)}</div>
-                        <div style={{ fontSize: 9, color: r.daysLeft < 0 ? "var(--rd)" : "var(--t3)" }}>
-                          {r.daysLeft < 0 ? `просрочка ${-r.daysLeft} дн` : `${r.daysLeft} дн`}
-                        </div>
-                      </>
-                    ) : <span style={{ fontSize: 11, color: "var(--t3)" }}>—</span>}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
       <style jsx>{`@media (max-width: 900px) { :global(.emp-kpi) { grid-template-columns: repeat(2, 1fr) !important; } }`}</style>
     </div>
   );
