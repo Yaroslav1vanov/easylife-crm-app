@@ -3,7 +3,7 @@ import { createContext, useContext } from "react";
 
 // Роль текущего пользователя (из profiles.role), проброшенная из серверного layout.
 // Используется для ограничения UI (что видит/может монтажёр и т.п.).
-export type Role = "admin" | "owner" | "teamlead" | "montager" | string;
+export type Role = "admin" | "owner" | "assistant" | "teamlead" | "montager" | string;
 
 const RoleCtx = createContext<Role>("montager");
 
@@ -33,6 +33,15 @@ export function isOwner(role: Role): boolean {
 }
 export function useIsOwner(): boolean {
   return isOwner(useRole());
+}
+/** Кто видит общую картину по ВСЕМ клиентам (а не только свои задачи):
+ *  владелец/админ и ассистент — он следит за пропусками и работает с тимлидами.
+ *  Деньги (ЗП) ассистенту всё равно закрыты — они в OWNER_ONLY_SECTIONS. */
+export function seesOverview(role: Role): boolean {
+  return isOwner(role) || role === "assistant";
+}
+export function useSeesOverview(): boolean {
+  return seesOverview(useRole());
 }
 export function sectionAllowed(role: Role, sectionId: string): boolean {
   if (OWNER_ONLY_SECTIONS.includes(sectionId)) return isOwner(role);

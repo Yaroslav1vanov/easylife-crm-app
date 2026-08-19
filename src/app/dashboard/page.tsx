@@ -1048,13 +1048,15 @@ function DashboardInner() {
   ];
 
   const iAmOwner = profile?.role === "owner" || profile?.role === "admin";
+  // Ассистент тоже видит общую картину по всем клиентам (деньги ему всё равно закрыты)
+  const seesAll = iAmOwner || profile?.role === "assistant";
   // Сотруднику — его собственный дашборд (только его клиенты и задачи).
   // Владельцу тот же экран показывается при «Смотреть как», чтобы видеть их картину.
-  const asMemberView = viewAs != null ? team.find(t => t.id === viewAs) || null : (!iAmOwner ? meMember : null);
+  const asMemberView = viewAs != null ? team.find(t => t.id === viewAs) || null : (!seesAll ? meMember : null);
   if (asMemberView) {
     return (
       <div className="dashboard-v3" style={{ fontFamily: "'Manrope', sans-serif" }}>
-        {iAmOwner && (
+        {seesAll && (
           <div className="card" style={{ padding: "10px 13px", borderRadius: 13, marginBottom: 14, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <Eye size={14} style={{ color: "var(--pu)", flexShrink: 0 }} />
             <span style={{ fontSize: 11, fontWeight: 800, color: "var(--t2)" }}>Смотреть как:</span>
@@ -1078,7 +1080,7 @@ function DashboardInner() {
           </div>
         )}
         <EmployeeDashboard member={asMemberView} clients={clients} clientMonths={clientMonths}
-          scripts={scripts} todayIso={todayIso} onbProgresses={onbProgresses} viewedByOwner={iAmOwner} />
+          scripts={scripts} todayIso={todayIso} onbProgresses={onbProgresses} viewedByOwner={seesAll} />
 
         {/* Та же таблица, что на общем дашборде, но только его клиенты */}
         <ClientsBlock
@@ -1150,7 +1152,7 @@ function DashboardInner() {
       </div>
 
       {/* ===== СМОТРЕТЬ ГЛАЗАМИ СОТРУДНИКА (только владелец) ===== */}
-      {(profile?.role === "owner" || profile?.role === "admin") && team.length > 0 && (
+      {seesAll && team.length > 0 && (
         <div className="card" style={{ padding: "10px 13px", borderRadius: 13, marginBottom: 14, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <Eye size={14} style={{ color: "var(--pu)", flexShrink: 0 }} />
           <span style={{ fontSize: 11, fontWeight: 800, color: "var(--t2)" }}>Смотреть как:</span>
