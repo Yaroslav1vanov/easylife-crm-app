@@ -1078,7 +1078,7 @@ function DashboardInner() {
           </div>
         )}
         <EmployeeDashboard member={asMemberView} clients={clients} clientMonths={clientMonths}
-          scripts={scripts} todayIso={todayIso} viewedByOwner={iAmOwner} />
+          scripts={scripts} todayIso={todayIso} onbProgresses={onbProgresses} viewedByOwner={iAmOwner} />
       </div>
     );
   }

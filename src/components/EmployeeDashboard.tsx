@@ -1,7 +1,7 @@
 "use client";
 import { useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Client, ClientMonth, Script, TeamMember } from "@/lib/database";
+import { Client, ClientMonth, Script, TeamMember, OnboardingProgress } from "@/lib/database";
 import Avatar from "@/components/Avatar";
 import { VIDEO_LEAD, SCRIPT_LEAD, addDaysIso, fmtDateShort } from "@/components/ScriptModal";
 import { batchFor, BATCH_BUFFER_DAYS, wdName } from "@/lib/batches";
@@ -16,10 +16,11 @@ type Props = {
   clientMonths: ClientMonth[];
   scripts: Script[];
   todayIso: string;
+  onbProgresses?: OnboardingProgress[];
   viewedByOwner?: boolean;
 };
 
-export default function EmployeeDashboard({ member, clients, clientMonths, scripts, todayIso, viewedByOwner }: Props) {
+export default function EmployeeDashboard({ member, clients, clientMonths, scripts, todayIso, onbProgresses = [], viewedByOwner }: Props) {
   const router = useRouter();
   const isMg = member.member_type === "montager";
 
@@ -75,8 +76,20 @@ export default function EmployeeDashboard({ member, clients, clientMonths, scrip
       return { c, cm, plan, pub, inWork, ready, pubMonth, daysLeft, pct: plan ? Math.min(100, Math.round(pub / plan * 100)) : 0 };
     }).sort((a, b) => a.daysLeft - b.daysLeft);
 
-    return { mine, tasks, overdue, todayTasks, doneMonth, planMonth, batches, rows };
-  }, [member, clients, clientMonths, scripts, todayIso, isMg]);
+    // Клиенты в фазе онбординга — их надо довести до первой публикации
+    const onboarding = mine.map(c => {
+      const pr = onbProgresses.find(o => o.client_id === c.id);
+      if (!pr || pr.pending_tasks === 0) return null;
+      const start = (c as any).onboarding_start || c.start_date || null;
+      const day = start ? Math.max(1, Math.floor((Date.parse(todayIso) - Date.parse(start)) / 86400000) + 1) : null;
+      const dl = (c as any).onboarding_deadline || null;
+      const left = dl ? Math.round((Date.parse(dl) - Date.parse(todayIso)) / 86400000) : null;
+      return { c, pr, day, dl, left };
+    }).filter(Boolean) as { c: Client; pr: OnboardingProgress; day: number | null; dl: string | null; left: number | null }[];
+    onboarding.sort((a, b) => (a.left ?? 999) - (b.left ?? 999));
+
+    return { mine, tasks, overdue, todayTasks, doneMonth, planMonth, batches, rows, onboarding };
+  }, [member, clients, clientMonths, scripts, todayIso, isMg, onbProgresses]);
 
   const KPI = ({ icon: I, label, value, sub, color, attention }: any) => (
     <div className="card" style={{ padding: 16, borderRadius: 14, border: attention ? `1px solid ${color}66` : undefined, background: attention ? `${color}0f` : undefined }}>
@@ -145,6 +158,44 @@ export default function EmployeeDashboard({ member, clients, clientMonths, scrip
                   </div>
                   <div style={{ fontSize: 11, color: "var(--t3)", marginTop: 3 }}>
                     готово {b!.done} из {b!.quota}{left > 0 ? ` · осталось ${left}` : " ✓"}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Онбординг — если у сотрудника есть новые клиенты */}
+      {v.onboarding.length > 0 && (
+        <div className="card" style={{ padding: 16, borderRadius: 15, marginBottom: 14,
+          borderColor: "rgba(255,174,66,0.3)", background: "linear-gradient(135deg, rgba(255,174,66,0.06), rgba(123,63,228,0.03))" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 12, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 14, fontWeight: 800 }}>🚀 Онбординг</span>
+            <span style={{ fontSize: 11, fontWeight: 800, padding: "2px 8px", borderRadius: 7, background: "rgba(255,174,66,.18)", color: "var(--or)" }}>{v.onboarding.length}</span>
+            <span style={{ marginLeft: "auto", fontSize: 10, color: "var(--t3)" }}>довести до первой публикации — 10 дней</span>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))", gap: 9 }}>
+            {v.onboarding.map(({ c, pr, day, dl, left }) => {
+              const col = left == null ? "var(--t3)" : left < 0 ? "#ff5c7a" : left <= 2 ? "#ffae42" : "#a8e063";
+              return (
+                <button key={c.id} onClick={() => router.push(`/dashboard/clients/${c.id}/onboarding`)}
+                  style={{ textAlign: "left", padding: 12, borderRadius: 12, background: "var(--inset)", border: `1px solid ${left != null && left < 0 ? col : "var(--brd)"}`, cursor: "pointer" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 9 }}>
+                    <Avatar name={`${c.name} ${c.surname || ""}`} src={c.avatar_url} size={30} />
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--t1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name} {c.surname || ""}</div>
+                      <div style={{ fontSize: 10, fontWeight: 800, color: col, marginTop: 2 }}>
+                        {day ? `День ${day} из 10` : "старт не задан"}{left != null ? ` · ${left < 0 ? `просрочен ${-left} дн` : left === 0 ? "дедлайн сегодня" : `осталось ${left} дн`}` : ""}
+                      </div>
+                    </div>
+                    <div style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 17, fontWeight: 800, color: "var(--or)" }}>{pr.progress_pct}%</div>
+                  </div>
+                  <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 600, marginBottom: 4 }}>
+                    задач: {pr.done_tasks}/{pr.total_tasks - pr.skipped_tasks}{pr.overdue_tasks > 0 ? ` · ⚠ ${pr.overdue_tasks} просрочено` : ""}
+                  </div>
+                  <div style={{ height: 5, borderRadius: 3, background: "var(--track)", overflow: "hidden" }}>
+                    <div style={{ width: `${pr.progress_pct}%`, height: "100%", background: "linear-gradient(90deg, #ffae42, #ff5c7a)" }} />
                   </div>
                 </button>
               );
