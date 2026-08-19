@@ -1052,7 +1052,16 @@ function DashboardInner() {
   const seesAll = iAmOwner || profile?.role === "assistant";
   // Сотруднику — его собственный дашборд (только его клиенты и задачи).
   // Владельцу тот же экран показывается при «Смотреть как», чтобы видеть их картину.
-  const asMemberView = viewAs != null ? team.find(t => t.id === viewAs) || null : (!seesAll ? meMember : null);
+  // Сотруднику показываем его личный дашборд. Но если за ним не закреплено ни одного
+  // клиента (напр. ассистент) — личный экран будет пустым, поэтому даём общий обзор.
+  const myClientCount = meMember
+    ? clients.filter(c => c.stage === "active" && (meMember.member_type === "montager"
+        ? (c.montager_id === meMember.id || (c.extra_montager_ids || []).includes(meMember.id))
+        : c.teamlead_id === meMember.id)).length
+    : 0;
+  const asMemberView = viewAs != null
+    ? team.find(t => t.id === viewAs) || null
+    : (!seesAll && myClientCount > 0 ? meMember : null);
   if (asMemberView) {
     return (
       <div className="dashboard-v3" style={{ fontFamily: "'Manrope', sans-serif" }}>
