@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
 import db, { Client, Script, ClientMonth, TeamMember } from "@/lib/database";
 import { getStore, setStore, patchScriptInStore } from "@/lib/store";
@@ -57,6 +58,13 @@ export default function ScriptsPage() {
   const [focus, setFocus] = useState<"all" | "today" | "tomorrow" | "overdue">("all");
   const [menu, setMenu] = useState<null | "client" | "tl" | "month" | "focus">(null);
   const [openId, setOpenId] = useState<number | null>(null);
+  // Переход с дашборда на конкретный сценарий: /dashboard/scripts?open=<id>
+  const search = useSearchParams();
+  useEffect(() => {
+    const id = Number(search.get("open"));
+    if (id && allScripts.some(s => s.id === id)) setOpenId(id);
+  }, [search, allScripts]);
+
   const [me, setMe] = useState<TeamMember | null>(null);
   const [tourOpen, setTourOpen] = useState(false);
 
