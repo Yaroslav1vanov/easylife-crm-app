@@ -7,6 +7,7 @@ import { getStore, setStore } from "@/lib/store";
 import { VIDEO_LEAD, SCRIPT_LEAD } from "@/components/ScriptModal";
 import Avatar from "@/components/Avatar";
 import Tour, { TourButton, type TourStep } from "@/components/Tour";
+import { Eye } from "lucide-react";
 import {
   Users, Film, AlertCircle, CalendarCheck, Rocket,
   Plus, Calendar as CalendarIcon, ChevronLeft, ChevronRight, ChevronDown,
@@ -689,6 +690,7 @@ function DashboardInner() {
   const [taskFilterOpen, setTaskFilterOpen] = useState(false);
   const [expandedTask, setExpandedTask] = useState<"onboarding" | "scripts" | "montage" | "publish" | null>(null);
   const [tourOpen, setTourOpen] = useState(false);
+  const [viewAs, setViewAs] = useState<number | null>(null); // владелец может смотреть глазами сотрудника
   // Clients table
   const [clientsView, setClientsView] = useState<"table" | "cards">("table");
   const [searchQuery, setSearchQuery] = useState("");
@@ -762,7 +764,14 @@ function DashboardInner() {
     // считаться в плане/pipeline. Появится когда закроется предыдущий M.
     // Клиенты НЕ в работе (пауза/ушли) полностью исключаются из дашборда:
     // их просрочки, планы и незакрытые ролики не должны шуметь в цифрах.
-    const workingIds = new Set(clients.filter(c => c.stage === "active").map(c => c.id));
+    // Если владелец смотрит глазами сотрудника — оставляем только его клиентов.
+    const asMember = viewAs != null ? team.find(t => t.id === viewAs) || null : null;
+    const asMg = asMember?.member_type === "montager";
+    const workingIds = new Set(clients
+      .filter(c => c.stage === "active" && (!asMember ? true
+        : asMg ? (c.montager_id === asMember.id || (c.extra_montager_ids || []).includes(asMember.id))
+               : c.teamlead_id === asMember.id))
+      .map(c => c.id));
     const activeMonths = clientMonths.filter(cm =>
       (cm.status === "active" || cm.status === "closed" || cm.status === "onboarding") &&
       cm.start_date <= me && cm.end_date >= ms &&
@@ -1000,7 +1009,9 @@ function DashboardInner() {
   // «Мои дедлайны»: видео-задачи залогиненного монтажёра/тимлида (= pub_date − VIDEO_LEAD)
   const todayIsoD = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
   const minusDays = (iso: string, n: number) => { const d = new Date(`${iso}T00:00:00`); d.setDate(d.getDate() - n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
-  const meMember = team.find(t => t.profile_id === (profile as any)?.id) || null;
+  const meMember = viewAs != null
+    ? (team.find(t => t.id === viewAs) || null)          // смотрим глазами сотрудника
+    : (team.find(t => t.profile_id === (profile as any)?.id) || null);
   const myDeadlines = (() => {
     if (!meMember) return null;
     const isMontager = meMember.member_type === "montager";
@@ -1076,6 +1087,41 @@ function DashboardInner() {
           </div>
         </div>
       </div>
+
+      {/* ===== СМОТРЕТЬ ГЛАЗАМИ СОТРУДНИКА (только владелец) ===== */}
+      {(profile?.role === "owner" || profile?.role === "admin") && team.length > 0 && (
+        <div className="card" style={{ padding: "10px 13px", borderRadius: 13, marginBottom: 14, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <Eye size={14} style={{ color: "var(--pu)", flexShrink: 0 }} />
+          <span style={{ fontSize: 11, fontWeight: 800, color: "var(--t2)" }}>Смотреть как:</span>
+          <button onClick={() => setViewAs(null)}
+            style={{ padding: "5px 11px", borderRadius: 8, fontSize: 11, fontWeight: 800, cursor: "pointer",
+              border: `1px solid ${viewAs === null ? "var(--pu)" : "var(--brd)"}`,
+              background: viewAs === null ? "rgba(157,107,255,.15)" : "transparent",
+              color: viewAs === null ? "var(--pu)" : "var(--t3)" }}>
+            Я
+          </button>
+          {team.filter(t => t.member_type === "teamlead" || t.member_type === "montager")
+            .sort((a, b) => a.member_type.localeCompare(b.member_type) || a.name.localeCompare(b.name))
+            .map(t => {
+              const on = viewAs === t.id;
+              const col = t.member_type === "montager" ? "#ffae42" : "#9d6bff";
+              return (
+                <button key={t.id} onClick={() => setViewAs(on ? null : t.id)}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px 4px 4px", borderRadius: 999,
+                    border: `1px solid ${on ? col : "var(--brd)"}`, background: on ? `${col}22` : "transparent",
+                    color: on ? col : "var(--t2)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                  <Avatar name={t.name} src={t.avatar_url} size={18} />
+                  {t.name}
+                </button>
+              );
+            })}
+          {viewAs != null && (
+            <span style={{ marginLeft: "auto", fontSize: 10, color: "var(--t3)" }}>
+              видно только его клиентов · ты просто смотришь
+            </span>
+          )}
+        </div>
+      )}
 
       {/* ===== МОИ ДЕДЛАЙНЫ (для монтажёра/тимлида) ===== */}
       {myDeadlines && myDeadlines.items.length > 0 && (() => {
