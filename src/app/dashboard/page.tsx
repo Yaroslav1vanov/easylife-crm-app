@@ -8,6 +8,7 @@ import { VIDEO_LEAD, SCRIPT_LEAD } from "@/components/ScriptModal";
 import Avatar from "@/components/Avatar";
 import Tour, { TourButton, type TourStep } from "@/components/Tour";
 import { Eye } from "lucide-react";
+import EmployeeDashboard from "@/components/EmployeeDashboard";
 import {
   Users, Film, AlertCircle, CalendarCheck, Rocket,
   Plus, Calendar as CalendarIcon, ChevronLeft, ChevronRight, ChevronDown,
@@ -1045,6 +1046,42 @@ function DashboardInner() {
     { target: "dash-row2", title: "Внимание и производство", text: "Слева — клиенты, которые «требуют внимания» (отстают/просрочены). Справа — производство контента: сколько сделано и в каком темпе идём к плану месяца." },
     { target: "dash-row3", title: "Загрузка команды и «Что нужно сделать»", text: "Слева — загрузка по сотрудникам. Справа — все задачи по этапам (онбординг / сценарии / монтаж / публикация) с фильтром по сотруднику: удобно раздавать и проверять работу." },
   ];
+
+  const iAmOwner = profile?.role === "owner" || profile?.role === "admin";
+  // Сотруднику — его собственный дашборд (только его клиенты и задачи).
+  // Владельцу тот же экран показывается при «Смотреть как», чтобы видеть их картину.
+  const asMemberView = viewAs != null ? team.find(t => t.id === viewAs) || null : (!iAmOwner ? meMember : null);
+  if (asMemberView) {
+    return (
+      <div className="dashboard-v3" style={{ fontFamily: "'Manrope', sans-serif" }}>
+        {iAmOwner && (
+          <div className="card" style={{ padding: "10px 13px", borderRadius: 13, marginBottom: 14, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <Eye size={14} style={{ color: "var(--pu)", flexShrink: 0 }} />
+            <span style={{ fontSize: 11, fontWeight: 800, color: "var(--t2)" }}>Смотреть как:</span>
+            <button onClick={() => setViewAs(null)}
+              style={{ padding: "5px 11px", borderRadius: 8, fontSize: 11, fontWeight: 800, cursor: "pointer",
+                border: "1px solid var(--brd)", background: "transparent", color: "var(--t3)" }}>Я</button>
+            {team.filter(t => t.member_type === "teamlead" || t.member_type === "montager")
+              .sort((a, b) => a.member_type.localeCompare(b.member_type) || a.name.localeCompare(b.name))
+              .map(t => {
+                const on = viewAs === t.id;
+                const col = t.member_type === "montager" ? "#ffae42" : "#9d6bff";
+                return (
+                  <button key={t.id} onClick={() => setViewAs(on ? null : t.id)}
+                    style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px 4px 4px", borderRadius: 999,
+                      border: `1px solid ${on ? col : "var(--brd)"}`, background: on ? `${col}22` : "transparent",
+                      color: on ? col : "var(--t2)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                    <Avatar name={t.name} src={t.avatar_url} size={18} />{t.name}
+                  </button>
+                );
+              })}
+          </div>
+        )}
+        <EmployeeDashboard member={asMemberView} clients={clients} clientMonths={clientMonths}
+          scripts={scripts} todayIso={todayIso} viewedByOwner={iAmOwner} />
+      </div>
+    );
+  }
 
   return (
     <div className="dashboard-v3" style={{ fontFamily: "'Manrope', sans-serif" }}>
