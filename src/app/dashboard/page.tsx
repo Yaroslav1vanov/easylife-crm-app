@@ -760,15 +760,19 @@ function DashboardInner() {
     // Активные = active + closed + onboarding в выбранном периоде.
     // planned НЕ включаем — это будущий контракт, пока активный M не закрыт он не должен
     // считаться в плане/pipeline. Появится когда закроется предыдущий M.
+    // Клиенты НЕ в работе (пауза/ушли) полностью исключаются из дашборда:
+    // их просрочки, планы и незакрытые ролики не должны шуметь в цифрах.
+    const workingIds = new Set(clients.filter(c => c.stage === "active").map(c => c.id));
     const activeMonths = clientMonths.filter(cm =>
       (cm.status === "active" || cm.status === "closed" || cm.status === "onboarding") &&
-      cm.start_date <= me && cm.end_date >= ms
+      cm.start_date <= me && cm.end_date >= ms &&
+      workingIds.has(cm.client_id)
     );
     const activeClientIds = new Set(activeMonths.map(m => m.client_id));
     const activeClients = clients.filter(c => activeClientIds.has(c.id));
 
-    // onboarding в фазе (pending > 0)
-    const onboardingActive = onbProgresses.filter(o => o.pending_tasks > 0);
+    // onboarding в фазе (pending > 0) — тоже только те, кто реально в работе
+    const onboardingActive = onbProgresses.filter(o => o.pending_tasks > 0 && workingIds.has(o.client_id));
     const obDeadlineOf = (c: Client) => (c as any).onboarding_deadline || (c.start_date ? new Date(new Date(c.start_date).getTime() + 10 * 86400000).toISOString().slice(0, 10) : "9999-12-31");
     const onboardingClients = (onboardingActive
       .map(o => ({ progress: o, client: clients.find(c => c.id === o.client_id) }))
@@ -1407,7 +1411,7 @@ function DashboardInner() {
       {(() => {
         const cands = clientMonths
           .filter(cm => (cm.status === "active" || cm.status === "onboarding")
-            && clients.find(c => c.id === cm.client_id)?.stage !== "paused"
+            && clients.find(c => c.id === cm.client_id)?.stage === "active"
             && daysBetween(todayIso, cm.end_date) <= 7
             && !clientMonths.some(x => x.client_id === cm.client_id && x.month_number === cm.month_number + 1))
           .sort((a, b) => daysBetween(todayIso, a.end_date) - daysBetween(todayIso, b.end_date));
