@@ -2,9 +2,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
-import db, { Client, ClientMonth, Script } from "@/lib/database";
+import db, { Client, ClientMonth, Script, TeamMember } from "@/lib/database";
 import Avatar from "@/components/Avatar";
-import { AlertTriangle, Flame, CalendarClock, TrendingUp, ArrowRight } from "lucide-react";
+import { VIDEO_LEAD, SCRIPT_LEAD, addDaysIso } from "@/components/ScriptModal";
+import { Flame, TrendingUp, ArrowRight, Eye } from "lucide-react";
 
 // ЧЕРНОВИК нового дашборда. Живёт отдельной страницей, чтобы посмотреть и решить —
 // переносить на главную или нет. Главную не трогает.
@@ -21,16 +22,19 @@ export default function DashboardPreview() {
   const [clients, setClients] = useState<Client[]>([]);
   const [months, setMonths] = useState<ClientMonth[]>([]);
   const [scripts, setScripts] = useState<Script[]>([]);
+  const [team, setTeam] = useState<TeamMember[]>([]);
+  const [viewAs, setViewAs] = useState<number | null>(null);   // null = смотрю как владелец
   const [loading, setLoading] = useState(true);
 
   useEffect(() => { (async () => {
     const cls = await db.getClients(supabase);
     setClients(cls);
-    const [cm, scr] = await Promise.all([
+    const [cm, scr, tm] = await Promise.all([
       db.getClientMonths(supabase),
       db.getScriptsForClients(supabase, cls.map(c => c.id)),
+      db.getTeam(supabase),
     ]);
-    setMonths(cm?.data || []); setScripts(scr); setLoading(false);
+    setMonths(cm?.data || []); setScripts(scr); setTeam(tm); setLoading(false);
   })(); }, []);
 
   const today = iso(new Date());
@@ -38,8 +42,12 @@ export default function DashboardPreview() {
   const ym = today.slice(0, 7);
 
   const v = useMemo(() => {
-    // только клиенты в работе
-    const work = clients.filter(c => c.stage === "active");
+    // только клиенты в работе; если смотрим глазами сотрудника — ещё и его клиенты
+    const me = viewAs != null ? team.find(t => t.id === viewAs) || null : null;
+    const isMg = me?.member_type === "montager";
+    const work = clients.filter(c => c.stage === "active" && (!me ? true
+      : isMg ? (c.montager_id === me.id || (c.extra_montager_ids || []).includes(me.id))
+             : c.teamlead_id === me.id));
     const wid = new Set(work.map(c => c.id));
     const mine = scripts.filter(s => wid.has(s.client_id));
 
@@ -81,8 +89,21 @@ export default function DashboardPreview() {
       }
     }
     issues.sort((a, b) => (a.sev === "red" ? 0 : 1) - (b.sev === "red" ? 0 : 1));
-    return { work, planned, doneByYest, dueByYest, lag, left, daysLeft, perDay, issues };
-  }, [clients, months, scripts, today, yest, ym]);
+
+    // «Мои дедлайны» глазами выбранного сотрудника: у монтажёра — сдать видео,
+    // у тимлида — написать/согласовать сценарий. Дата = публикация − запас.
+    const myTasks = !me ? [] : mine
+      .filter(s => {
+        if (!s.pub_date) return false;
+        const c = work.find(x => x.id === s.client_id); if (!c) return false;
+        if (isMg) return s.script_status === "approved" && !["ready", "published"].includes(s.video_status);
+        return s.script_status !== "approved";
+      })
+      .map(s => ({ s, c: work.find(x => x.id === s.client_id)!, due: addDaysIso(s.pub_date!, -(isMg ? VIDEO_LEAD : SCRIPT_LEAD)) }))
+      .sort((a, b) => a.due.localeCompare(b.due));
+
+    return { work, planned, doneByYest, dueByYest, lag, left, daysLeft, perDay, issues, me, isMg, myTasks };
+  }, [clients, months, scripts, today, yest, ym, viewAs, team]);
 
   if (loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--t2)" }}>Загрузка…</div>;
 
@@ -95,6 +116,43 @@ export default function DashboardPreview() {
         <h1 style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 22, fontWeight: 800, letterSpacing: -0.5 }}>Черновик дашборда</h1>
         <p style={{ fontSize: 12, color: "var(--t3)", marginTop: 4 }}>Так это может выглядеть на главной. Главная пока не тронута — смотри и решай.</p>
       </div>
+
+      {/* Смотреть глазами сотрудника — чтобы понять, что видят тимлиды и монтажёры */}
+      <div className="card" style={{ padding: "12px 14px", borderRadius: 13, marginBottom: 14, display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap" }}>
+        <Eye size={15} style={{ color: "var(--pu)" }} />
+        <span style={{ fontSize: 12, fontWeight: 800, color: "var(--t2)" }}>Смотреть как:</span>
+        <button onClick={() => setViewAs(null)}
+          style={{ padding: "6px 12px", borderRadius: 9, fontSize: 11, fontWeight: 800, cursor: "pointer",
+            border: `1px solid ${viewAs === null ? "var(--pu)" : "var(--brd)"}`,
+            background: viewAs === null ? "rgba(157,107,255,.15)" : "transparent",
+            color: viewAs === null ? "var(--pu)" : "var(--t3)" }}>
+          Я (владелец)
+        </button>
+        {team.filter(t => t.member_type === "teamlead" || t.member_type === "montager")
+          .sort((a, b) => a.member_type.localeCompare(b.member_type) || a.name.localeCompare(b.name))
+          .map(t => {
+            const on = viewAs === t.id;
+            const col = t.member_type === "montager" ? "#ffae42" : "#9d6bff";
+            return (
+              <button key={t.id} onClick={() => setViewAs(t.id)}
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 11px 5px 5px", borderRadius: 999,
+                  border: `1px solid ${on ? col : "var(--brd)"}`, background: on ? `${col}22` : "transparent",
+                  color: on ? col : "var(--t2)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                <Avatar name={t.name} src={t.avatar_url} size={20} />
+                {t.name}
+                <span style={{ fontSize: 9, opacity: .7 }}>{t.member_type === "montager" ? "монтаж" : "ТЛ"}</span>
+              </button>
+            );
+          })}
+      </div>
+
+      {v.me && (
+        <div style={{ padding: "10px 14px", borderRadius: 11, marginBottom: 14, fontSize: 12, lineHeight: 1.55,
+          background: "rgba(157,107,255,.08)", border: "1px solid rgba(157,107,255,.35)", color: "var(--t2)" }}>
+          👁 Показано так, как это видит <b style={{ color: "var(--t1)" }}>{v.me.name}</b> ({v.isMg ? "монтажёр" : "тимлид"}):
+          только {v.work.length} {v.work.length === 1 ? "его клиент" : "его клиентов"}. Ты просто смотришь — ничего не меняется.
+        </div>
+      )}
 
       {/* 1. КЛИЕНТЫ В РАБОТЕ + ПЛАН/ФАКТ */}
       <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: 12, marginBottom: 14 }} className="prev-top">
@@ -133,6 +191,47 @@ export default function DashboardPreview() {
           </div>
         </div>
       </div>
+
+      {/* Задачи выбранного сотрудника — то, что он видит у себя */}
+      {v.me && (
+        <div className="card" style={{ padding: 18, borderRadius: 16, marginBottom: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 12, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 15, fontWeight: 800 }}>{v.isMg ? "🎬 Его дедлайны · монтаж" : "✍️ Его дедлайны · сценарии"}</span>
+            <span style={{ fontSize: 11, fontWeight: 800, padding: "2px 8px", borderRadius: 7, background: "rgba(157,107,255,.15)", color: "var(--pu)" }}>{v.myTasks.length}</span>
+            <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--t3)" }}>
+              срок = публикация − {v.isMg ? VIDEO_LEAD : SCRIPT_LEAD} дн.
+            </span>
+          </div>
+          {v.myTasks.length === 0 ? (
+            <div style={{ padding: 18, textAlign: "center", color: "var(--gr)", fontSize: 13, fontWeight: 700 }}>✓ Нет горящих задач</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {v.myTasks.slice(0, 12).map(({ s, c, due }) => {
+                const diff = Math.round((Date.parse(due) - Date.parse(today)) / 86400000);
+                const col = diff < 0 ? "#ff5c7a" : diff <= 1 ? "#ffae42" : "#9d6bff";
+                const txt = diff < 0 ? `просрочено ${-diff} дн` : diff === 0 ? "сегодня" : diff === 1 ? "завтра" : `через ${diff} дн`;
+                return (
+                  <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 11px", borderRadius: 10,
+                    background: diff < 0 ? "rgba(255,92,122,.07)" : "var(--inset2)", border: `1px solid ${diff < 0 ? col : "var(--track)"}` }}>
+                    <Avatar name={`${c.name} ${c.surname || ""}`} src={c.avatar_url} size={26} />
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "var(--t1)" }}>{c.name} {c.surname || ""}</div>
+                      <div style={{ fontSize: 10, color: "var(--t3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        M{s.month_number} · {s.hook_text || s.hook || "без темы"}
+                      </div>
+                    </div>
+                    <div style={{ flexShrink: 0, textAlign: "right" }}>
+                      <div style={{ display: "inline-flex", padding: "3px 8px", borderRadius: 7, fontSize: 10, fontWeight: 800, background: `${col}1f`, color: col }}>сдать {fmt(due)}</div>
+                      <div style={{ fontSize: 9, color: col, marginTop: 2 }}>{txt}</div>
+                    </div>
+                  </div>
+                );
+              })}
+              {v.myTasks.length > 12 && <div style={{ fontSize: 11, color: "var(--t3)", textAlign: "center", paddingTop: 4 }}>…и ещё {v.myTasks.length - 12}</div>}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 2. ЧТО ГОРИТ — вместо трёх блоков */}
       <div className="card" style={{ padding: 18, borderRadius: 16 }}>
