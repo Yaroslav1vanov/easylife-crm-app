@@ -58,8 +58,18 @@ export async function GET(req: Request) {
         let dbg: any = {};
         if (p === "ig") {
           // подписчики — текущее число; охват/ER — суммарно по постам и рилсам за 30 дней
-          const v = await mcGet(`/stats/values/INSTAGRAM?start=${compact(from30)}&end=${compact(today)}&blogId=${blogId}`);
-          followers = int(ci(v, "Followers", "followers"));
+          // Подписчики: сперва временной ряд (он отдаёт реальные значения по дням),
+          // и только если пусто — одиночное значение. Раньше брали сразу второе,
+          // из-за чего followers почти всегда приходил пустым.
+          const tl = listOf(await mcGet(`/stats/timeline/Followers?start=${compact(from30)}&end=${compact(today)}&blogId=${blogId}`));
+          if (tl.length) {
+            const val = (row: any) => Array.isArray(row) ? Number(row[1]) : Number(ci(row, "value", "followers", "Followers", "y"));
+            followers = int(val(tl[tl.length - 1]));
+          }
+          if (followers == null) {
+            const v = await mcGet(`/stats/values/INSTAGRAM?start=${compact(from30)}&end=${compact(today)}&blogId=${blogId}`);
+            followers = int(ci(v, "Followers", "followers"));
+          }
           const posts = listOf(await mcGet(`/v2/analytics/posts/instagram?${range}&blogId=${blogId}`));
           const reels = listOf(await mcGet(`/v2/analytics/reels/instagram?${range}&blogId=${blogId}`));
           const all = [...posts, ...reels];
