@@ -43,9 +43,10 @@ export default function ViewAsSwitch({ team, viewAs, setViewAs }: {
           <ChevronDown size={12} />
         </button>
         {open === kind && (
-          <div style={{ position: "absolute", top: "calc(100% + 5px)", left: 0, zIndex: 60, minWidth: 210,
+          <div style={{ position: "absolute", top: "calc(100% + 5px)", left: 0, zIndex: 320, minWidth: 210,
             background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 11, padding: 5,
-            boxShadow: "0 14px 40px rgba(0,0,0,.5)", maxHeight: 320, overflowY: "auto" }}>
+            boxShadow: "0 18px 46px rgba(0,0,0,.6)", maxHeight: 320, overflowY: "auto",
+            backdropFilter: "none" }}>
             {list.length === 0 && <div style={{ padding: "8px 10px", fontSize: 11, color: "var(--t3)" }}>пусто</div>}
             {list.map(t => {
               const on = viewAs === t.id;
@@ -70,7 +71,8 @@ export default function ViewAsSwitch({ team, viewAs, setViewAs }: {
 
   return (
     <div ref={ref} className="card" style={{ padding: "10px 13px", borderRadius: 13, marginBottom: 14,
-      display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap" }}>
+      display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap",
+      position: "relative", zIndex: open ? 300 : 40 }}>
       <Eye size={14} style={{ color: "var(--pu)", flexShrink: 0 }} />
       <span style={{ fontSize: 11, fontWeight: 800, color: "var(--t2)" }}>Смотреть как:</span>
       <button onClick={() => { setViewAs(null); setOpen(null); }}
