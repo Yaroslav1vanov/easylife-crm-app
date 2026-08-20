@@ -167,10 +167,18 @@ type ClientRow = {
 function ClientsBlock(p: ClientsBlockProps) {
   const rows = useMemo<ClientRow[]>(() => {
     const out: ClientRow[] = [];
+    // Границы выбранного месяца — по ним отсекаем старые закрытые контракты
+    const [selY, selM] = p.selectedMonth.split("-").map(Number);
+    const periodStart = `${p.selectedMonth}-01`;
+    const periodEnd = `${p.selectedMonth}-${String(new Date(selY, selM, 0).getDate()).padStart(2, "0")}`;
     // Один ряд = один клиент-месяц (если у клиента 2 пересекающихся месяца — 2 ряда)
     for (const cm of p.clientMonths) {
       const c = p.clients.find(x => x.id === cm.client_id);
       if (!c) continue;
+      // Закрытые/отменённые месяцы показываем только если они попадают в выбранный
+      // период. Иначе в августе висят закрытые M1–M3 с марта — лишний шум.
+      if ((cm.status === "closed" || cm.status === "cancelled")
+        && !(cm.start_date <= periodEnd && cm.end_date >= periodStart)) continue;
       const list = p.scripts.filter(s => s.client_id === c.id && s.month_number === cm.month_number);
       const plan = cm.package || list.length || 1;
       const scrApproved = list.filter(s => s.script_status === "approved").length;
