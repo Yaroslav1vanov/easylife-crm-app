@@ -124,6 +124,19 @@ export default function ClientDetailPage() {
   const obDone = !!onbProgress && onbProgress.pending_tasks === 0;
   const obColor = obDone ? "var(--gr)" : obDaysLeft == null ? "var(--t3)" : obDaysLeft < 0 ? "var(--rd)" : obDaysLeft <= 2 ? "var(--or)" : "var(--t2)";
   const obWhen = obDaysLeft == null ? "" : obDaysLeft < 0 ? `просрочен ${-obDaysLeft} дн` : obDaysLeft === 0 ? "сегодня" : obDaysLeft === 1 ? "завтра" : `осталось ${obDaysLeft} дн`;
+  // Повторяющиеся сценарии: один и тот же текст заведён дважды (часто — в разных месяцах,
+  // поэтому глазами не заметить: вкладка показывает только один месяц).
+  const dupGroups = (() => {
+    const norm = (t?: string | null) => (t || "").toLowerCase().replace(/[^a-zа-яё0-9]+/gi, "").slice(0, 60);
+    const by: Record<string, Script[]> = {};
+    for (const sc of scripts) {
+      const k = norm(sc.hook_text || sc.hook || sc.body_text);
+      if (k.length < 12) continue;
+      (by[k] ||= []).push(sc);
+    }
+    return Object.values(by).filter(g => g.length > 1);
+  })();
+
   // Какой сейчас день онбординга. Начало — заданное явно, иначе старт работы с клиентом.
   const obStart = c.onboarding_start || c.start_date || null;
   const obDay = obStart
@@ -367,6 +380,44 @@ export default function ClientDetailPage() {
       {/* Контрактные месяцы + Что требует внимания */}
       {clientMonths.length > 0 && (
         <div style={{ display: "grid", gridTemplateColumns: "1.7fr 1fr", gap: 14, marginBottom: 14 }} className="months-attention-grid">
+          {dupGroups.length > 0 && (
+            <div className="card mb-3" style={{ padding: "14px 16px", borderRadius: 14, border: "1px solid rgba(255,174,66,0.45)", background: "rgba(255,174,66,0.07)" }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: "var(--or)", marginBottom: 6 }}>
+                ⚠ Повторяющиеся сценарии: {dupGroups.length}
+              </div>
+              <div style={{ fontSize: 11, color: "var(--t2)", lineHeight: 1.55, marginBottom: 10 }}>
+                Один и тот же текст заведён несколько раз — обычно в разных месяцах, поэтому не видно на вкладке.
+                Лишнюю копию удали, а если сценарий просто переехал — открой его и смени <b>месяц</b> в шапке карточки,
+                вместо того чтобы создавать заново.
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                {dupGroups.slice(0, 6).map((g, i) => (
+                  <div key={i} style={{ padding: "8px 10px", borderRadius: 9, background: "var(--inset2)", border: "1px solid var(--track)" }}>
+                    <div style={{ fontSize: 11.5, color: "var(--t1)", marginBottom: 5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {(g[0].hook_text || g[0].hook || "").slice(0, 70) || "без темы"}…
+                    </div>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {g.map(sc => {
+                        const pubd = sc.video_status === "published";
+                        return (
+                          <button key={sc.id} onClick={() => { setViewMonth(sc.month_number); setExpandedScript(sc.id); }}
+                            title={pubd ? "опубликован — это оригинал" : "не опубликован — вероятно лишняя копия"}
+                            style={{ padding: "3px 9px", borderRadius: 7, fontSize: 10, fontWeight: 800, cursor: "pointer",
+                              border: `1px solid ${pubd ? "rgba(168,224,99,.45)" : "rgba(255,174,66,.45)"}`,
+                              background: pubd ? "rgba(168,224,99,.12)" : "rgba(255,174,66,.12)",
+                              color: pubd ? "var(--gr)" : "var(--or)" }}>
+                            M{sc.month_number} · #{sc.order_num || "—"} · {pubd ? "опубликован" : sc.video_status === "ready" ? "готов" : "не смонтирован"}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+                {dupGroups.length > 6 && <div style={{ fontSize: 11, color: "var(--t3)" }}>…и ещё {dupGroups.length - 6}</div>}
+              </div>
+            </div>
+          )}
+
           {clientMonths.length === 0 && (
             <div className="card mb-3" style={{ padding: "16px 18px", borderRadius: 14, border: "1px solid rgba(255,174,66,0.45)", background: "rgba(255,174,66,0.07)" }}>
               <div style={{ fontSize: 13, fontWeight: 800, color: "var(--or)", marginBottom: 6 }}>⚠ У клиента нет контрактного месяца</div>

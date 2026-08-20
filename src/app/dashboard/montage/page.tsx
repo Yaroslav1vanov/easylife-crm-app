@@ -86,6 +86,11 @@ export default function MontagePage() {
     setStore({ clients: cls, team: tm, scripts: all, clientMonths: cmRes?.data || [] });
     setLoading(false);
   }
+  async function deleteScript(id: number) {
+    await db.deleteScript(supabase, id);
+    setAllScripts(arr => arr.filter(s => s.id !== id));
+  }
+
   async function updateScript(id: number, patch: Partial<Script>) {
     // Гейт сдачи: в «Готово к публикации» пускаем только с загруженным роликом
     if (patch.video_status === "ready") {
@@ -190,7 +195,19 @@ export default function MontagePage() {
     return { today, overdue, week };
   }, [allScripts, clientFilter, tlFilter, mgFilter, todayIso, planSlots, weekDays]);
 
-  const kanbanScripts = useMemo(() => allScripts.filter(s => s.script_status === "approved" && inScope(s.client_id) && matchMonth(s)), [allScripts, clientFilter, tlFilter, mgFilter, monthFilter, clientById]);
+  // Доска тоже слушает фильтр «Показать»: выбрал «просрочено» — видишь только просроченные.
+  const kanbanScripts = useMemo(() => allScripts.filter(s => {
+    if (s.script_status !== "approved" || !inScope(s.client_id) || !matchMonth(s)) return false;
+    if (focus === "all") return true;
+    if (!s.pub_date) return false;
+    const done = s.video_status === "ready" || s.video_status === "published";
+    if (done) return false;                       // сдано — уже не горит
+    const due = addDaysIso(s.pub_date, -VIDEO_LEAD);
+    if (focus === "today") return due === todayIso;
+    if (focus === "tomorrow") return due === tomorrowIso;
+    if (focus === "overdue") return due < todayIso;
+    return true;
+  }), [allScripts, clientFilter, tlFilter, mgFilter, monthFilter, focus, todayIso, tomorrowIso, clientById]);
   const scopeCount = clients.filter(c => inScope(c.id)).length;
   const openScript = openId != null ? allScripts.find(s => s.id === openId) || null : null;
 
@@ -460,6 +477,7 @@ export default function MontagePage() {
         deadlineLeadDays={VIDEO_LEAD}
         deadlineDone={(s) => s.video_status === "ready" || s.video_status === "published"}
         canEditScript={!isMontager} canEditReadyAt={canEditReadyAt}
+        onDelete={isMontager ? undefined : deleteScript}
         cardAction={{
           show: (s) => s.script_status === "approved" && s.video_status !== "ready" && s.video_status !== "published",
           label: "✓ Сдать",
