@@ -31,14 +31,27 @@ export default function EmployeeDashboard({ member, clients, clientMonths, scrip
     const ids = new Set(mine.map(c => c.id));
     const scr = scripts.filter(s => ids.has(s.client_id));
 
-    // Мои задачи: у монтажёра — смонтировать, у тимлида — написать/согласовать сценарий
+    // Задачи разделены по этапам — чтобы было видно, ГДЕ именно затык,
+    // а не просто «12 просрочено».
+    const kindOf = (s: Script): string => {
+      if (isMg) {
+        if (s.video_status === "inProgress" && !s.video_url) return "mg_upload";  // монтирует, файла ещё нет
+        return "mg_montage";                                                       // взять/доделать монтаж
+      }
+      if (s.video_status === "ready") return "tl_publish";        // монтажёр сдал — принять и опубликовать
+      if (s.script_status === "review") return "tl_wait";         // у клиента на согласовании
+      if (s.script_status === "inProgress") return "tl_send";     // написан — отправить клиенту
+      return "tl_write";                                          // ещё не написан
+    };
     const tasks = scr
       .filter(s => {
         if (!s.pub_date) return false;
         if (isMg) return s.script_status === "approved" && !["ready", "published"].includes(s.video_status);
-        return s.script_status !== "approved";
+        // тимлиду: несогласованные сценарии + готовые ролики, которые надо выложить
+        return s.script_status !== "approved" || s.video_status === "ready";
       })
-      .map(s => ({ s, c: mine.find(x => x.id === s.client_id)!, due: addDaysIso(s.pub_date!, -(isMg ? VIDEO_LEAD : SCRIPT_LEAD)) }))
+      .map(s => ({ s, c: mine.find(x => x.id === s.client_id)!, kind: kindOf(s),
+        due: addDaysIso(s.pub_date!, -(isMg ? VIDEO_LEAD : SCRIPT_LEAD)) }))
       .sort((a, b) => a.due.localeCompare(b.due));
 
     const overdue = tasks.filter(t => t.due < todayIso);
@@ -204,43 +217,69 @@ export default function EmployeeDashboard({ member, clients, clientMonths, scrip
         </div>
       )}
 
-      {/* Мои задачи */}
-      <div className="card" style={{ padding: 16, borderRadius: 15, marginBottom: 14 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 12, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 14, fontWeight: 800 }}>{isMg ? "Что смонтировать" : "Что написать"}</span>
-          <span style={{ fontSize: 11, fontWeight: 800, padding: "2px 8px", borderRadius: 7, background: "rgba(157,107,255,.15)", color: "var(--pu)" }}>{v.tasks.length}</span>
-          <span style={{ marginLeft: "auto", fontSize: 10, color: "var(--t3)" }}>срок = публикация − {isMg ? VIDEO_LEAD : SCRIPT_LEAD} дн.</span>
-        </div>
-        {v.tasks.length === 0 ? (
-          <div style={{ padding: 22, textAlign: "center", color: "var(--gr)", fontSize: 13, fontWeight: 700 }}>✓ Всё сделано</div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {v.tasks.slice(0, 15).map(({ s, c, due }) => {
-              const diff = Math.round((Date.parse(due) - Date.parse(todayIso)) / 86400000);
-              const col = diff < 0 ? "#ff5c7a" : diff <= 1 ? "#ffae42" : "#9d6bff";
-              const txt = diff < 0 ? `просрочено ${-diff} дн` : diff === 0 ? "сегодня" : diff === 1 ? "завтра" : `через ${diff} дн`;
+      {/* Мои задачи — по этапам, чтобы было понятно, где затык */}
+      {(() => {
+        const META: Record<string, { t: string; c: string; hint: string }> = {
+          tl_write:   { t: "✍️ Написать сценарий",        c: "#9d6bff", hint: "ещё не начат" },
+          tl_send:    { t: "📤 Отправить клиенту",         c: "#42d4f4", hint: "написан, ждёт отправки на согласование" },
+          tl_wait:    { t: "⏳ У клиента на согласовании",  c: "#ffae42", hint: "ждём ответ — если тянет, напомнить" },
+          tl_publish: { t: "🚀 Принять и опубликовать",    c: "#a8e063", hint: "монтажёр сдал ролик" },
+          mg_montage: { t: "✂️ Смонтировать",              c: "#9d6bff", hint: "сценарий согласован, можно брать" },
+          mg_upload:  { t: "⬆️ Загрузить готовый ролик",   c: "#42d4f4", hint: "в монтаже, файла ещё нет" },
+        };
+        const order = isMg ? ["mg_upload", "mg_montage"] : ["tl_publish", "tl_wait", "tl_send", "tl_write"];
+        const byKind: Record<string, typeof v.tasks> = {};
+        for (const t of v.tasks) (byKind[t.kind] ||= []).push(t);
+        const groups = order.filter(k => byKind[k]?.length);
+        if (groups.length === 0) {
+          return (
+            <div className="card" style={{ padding: 22, borderRadius: 15, marginBottom: 14, textAlign: "center", color: "var(--gr)", fontSize: 13, fontWeight: 700 }}>✓ Всё сделано</div>
+          );
+        }
+        return (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 14 }}>
+            {groups.map(k => {
+              const m = META[k]; const list = byKind[k];
+              const late = list.filter(t => t.due < todayIso).length;
               return (
-                <button key={s.id} onClick={() => router.push(`${isMg ? "/dashboard/montage" : "/dashboard/scripts"}?open=${s.id}`)}
-                  style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 11px", borderRadius: 10, textAlign: "left", cursor: "pointer",
-                    background: diff < 0 ? "rgba(255,92,122,.07)" : "var(--inset2)", border: `1px solid ${diff < 0 ? col : "var(--track)"}` }}>
-                  <Avatar name={`${c.name} ${c.surname || ""}`} src={c.avatar_url} size={26} />
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: "var(--t1)" }}>{c.name} {c.surname || ""}</div>
-                    <div style={{ fontSize: 10, color: "var(--t3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      M{s.month_number} · {s.hook_text || s.hook || "без темы"}
-                    </div>
+                <div key={k} className="card" style={{ padding: 16, borderRadius: 15, borderLeft: `3px solid ${m.c}` }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 11, flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 13.5, fontWeight: 800, color: "var(--t1)" }}>{m.t}</span>
+                    <span style={{ fontSize: 11, fontWeight: 800, padding: "2px 8px", borderRadius: 7, background: `${m.c}22`, color: m.c }}>{list.length}</span>
+                    {late > 0 && <span style={{ fontSize: 11, fontWeight: 800, color: "var(--rd)" }}>⚠ {late} просрочено</span>}
+                    <span style={{ marginLeft: "auto", fontSize: 10, color: "var(--t3)" }}>{m.hint}</span>
                   </div>
-                  <div style={{ flexShrink: 0, textAlign: "right" }}>
-                    <div style={{ display: "inline-flex", padding: "3px 8px", borderRadius: 7, fontSize: 10, fontWeight: 800, background: `${col}1f`, color: col }}>к {fmtDateShort(due)}</div>
-                    <div style={{ fontSize: 9, color: col, marginTop: 2 }}>{txt}</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {list.slice(0, 8).map(({ s, c, due }) => {
+                      const diff = Math.round((Date.parse(due) - Date.parse(todayIso)) / 86400000);
+                      const col = diff < 0 ? "#ff5c7a" : diff <= 1 ? "#ffae42" : "var(--t3)";
+                      const txt = diff < 0 ? `просрочено ${-diff} дн` : diff === 0 ? "сегодня" : diff === 1 ? "завтра" : `через ${diff} дн`;
+                      return (
+                        <button key={s.id} onClick={() => router.push(`${isMg ? "/dashboard/montage" : "/dashboard/scripts"}?open=${s.id}`)}
+                          style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 11px", borderRadius: 10, textAlign: "left", cursor: "pointer",
+                            background: diff < 0 ? "rgba(255,92,122,.06)" : "var(--inset2)", border: `1px solid ${diff < 0 ? "rgba(255,92,122,.3)" : "var(--track)"}` }}>
+                          <Avatar name={`${c.name} ${c.surname || ""}`} src={c.avatar_url} size={26} />
+                          <div style={{ minWidth: 0, flex: 1 }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--t1)" }}>{c.name} {c.surname || ""}</div>
+                            <div style={{ fontSize: 10, color: "var(--t3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              M{s.month_number} · {s.hook_text || s.hook || "без темы"}
+                            </div>
+                          </div>
+                          <div style={{ flexShrink: 0, textAlign: "right" }}>
+                            <div style={{ fontSize: 10, fontWeight: 800, color: col }}>{txt}</div>
+                            <div style={{ fontSize: 9, color: "var(--t3)" }}>к {fmtDateShort(due)}</div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                    {list.length > 8 && <div style={{ fontSize: 11, color: "var(--t3)", textAlign: "center", paddingTop: 3 }}>…и ещё {list.length - 8}</div>}
                   </div>
-                </button>
+                </div>
               );
             })}
-            {v.tasks.length > 15 && <div style={{ fontSize: 11, color: "var(--t3)", textAlign: "center", paddingTop: 4 }}>…и ещё {v.tasks.length - 15}</div>}
           </div>
-        )}
-      </div>
+        );
+      })()}
 
       <style jsx>{`@media (max-width: 900px) { :global(.emp-kpi) { grid-template-columns: repeat(2, 1fr) !important; } }`}</style>
     </div>
