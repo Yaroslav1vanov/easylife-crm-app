@@ -41,6 +41,37 @@ function activePlatforms(client: Client, snapshots: SocialSnapshot[]): Platform[
   return Array.from(new Set([...configured, ...inferred]));
 }
 
+// Суммарно по ВСЕМ соцсетям клиента: охват за месяц, подписчики и их рост за 30 дней.
+// Это главные цифры — их показываем клиенту на созвоне.
+function totalMetrics(snapshots: SocialSnapshot[]) {
+  const byPlat: Record<string, SocialSnapshot[]> = {};
+  for (const s of snapshots) (byPlat[s.platform] ||= []).push(s);
+  let reach = 0, followers = 0, prevFollowers = 0, hasReach = false, hasFollowers = false, hasPrev = false;
+  const perPlatform: { p: Platform; reach: number | null; followers: number | null }[] = [];
+  for (const p of platforms) {
+    const rows = (byPlat[p] || []).sort((a, b) => b.snapshot_date.localeCompare(a.snapshot_date));
+    const latest = rows[0];
+    if (!latest) continue;
+    if (latest.reach_30d != null) { reach += latest.reach_30d; hasReach = true; }
+    if (latest.followers != null) { followers += latest.followers; hasFollowers = true; }
+    // значение месяц назад — для роста
+    const target = new Date(`${latest.snapshot_date}T00:00:00`);
+    target.setDate(target.getDate() - 30);
+    const prev = rows.find(r => r.snapshot_date <= target.toISOString().slice(0, 10));
+    if (prev?.followers != null) { prevFollowers += prev.followers; hasPrev = true; }
+    perPlatform.push({ p, reach: latest.reach_30d, followers: latest.followers });
+  }
+  const growth = hasFollowers && hasPrev && prevFollowers > 0
+    ? Math.round((followers - prevFollowers) / prevFollowers * 1000) / 10 : null;
+  const growthAbs = hasFollowers && hasPrev ? followers - prevFollowers : null;
+  return {
+    reach: hasReach ? reach : null,
+    followers: hasFollowers ? followers : null,
+    growth, growthAbs, perPlatform,
+    date: snapshots.map(s => s.snapshot_date).sort().at(-1),
+  };
+}
+
 function socialMetric(snapshots: SocialSnapshot[], platform: Platform) {
   const rows = snapshots
     .filter((s) => s.platform === platform)
@@ -74,13 +105,7 @@ function ClientCard({
   onOpen: () => void;
   onSetStage: (stage: "active" | "paused" | "churned") => void;
 }) {
-  const available = useMemo(() => activePlatforms(client, snapshots), [client, snapshots]);
-  const [selected, setSelected] = useState<Platform>(available[0] || "ig");
-  useEffect(() => {
-    if (!available.includes(selected)) setSelected(available[0] || "ig");
-  }, [available, selected]);
-
-  const { latest, growth } = socialMetric(snapshots, selected);
+  const tot = useMemo(() => totalMetrics(snapshots), [snapshots]);
   const plan = production.month?.package || client.package || production.total || 0;
   const progress = plan > 0 ? Math.min(100, Math.round((production.ready / plan) * 100)) : 0;
   const fullName = `${client.name} ${client.surname || ""}`.trim();
@@ -116,31 +141,46 @@ function ClientCard({
         </div>
       )}
 
-      <div className="client-v2-platform-tabs">
-        {platforms.map((platform) => {
-          const meta = platformMeta[platform];
-          const enabled = available.includes(platform);
-          return (
-            <button
-              key={platform}
-              type="button"
-              disabled={!enabled}
-              onClick={() => setSelected(platform)}
-              className={`client-v2-platform ${selected === platform && enabled ? "active" : ""}`}
-              style={{ "--platform-color": meta.color } as React.CSSProperties}
-            >
-              <i /> {meta.short} <span>{meta.label}</span>
-            </button>
-          );
-        })}
-      </div>
+      {/* ГЛАВНОЕ: суммарный охват по всем соцсетям + рост подписчиков */}
+      <div style={{ padding: "14px 15px", borderRadius: 13, background: "var(--inset)", border: "1px solid var(--brd)", marginBottom: 12 }}>
+        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.6 }}>Охват за месяц · все соцсети</div>
+            <div style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 30, fontWeight: 800, color: "var(--t1)", lineHeight: 1.15, marginTop: 3 }}>
+              {compactNumber(tot.reach)}
+            </div>
+          </div>
+          <div style={{ textAlign: "right" }}>
+            <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.6 }}>Подписчики</div>
+            <div style={{ fontSize: 19, fontWeight: 800, color: "var(--t1)", lineHeight: 1.2, marginTop: 3 }}>{compactNumber(tot.followers)}</div>
+            {tot.growth != null ? (
+              <div style={{ fontSize: 11, fontWeight: 800, color: tot.growth >= 0 ? "var(--gr)" : "var(--rd)" }}>
+                {tot.growth >= 0 ? "▲" : "▼"} {Math.abs(tot.growth)}%{tot.growthAbs != null ? ` (${tot.growthAbs >= 0 ? "+" : ""}${compactNumber(tot.growthAbs)})` : ""}
+              </div>
+            ) : <div style={{ fontSize: 10, color: "var(--t3)" }}>рост — копим данные</div>}
+          </div>
+        </div>
 
-      <div className="client-v2-social">
-        <div><b>{compactNumber(latest?.followers)}</b><span>подписчики</span></div>
-        <div><b>{compactNumber(latest?.reach_30d)}</b><span>охват / мес</span></div>
-        <div><b>{latest?.engagement_rate !== null && latest?.engagement_rate !== undefined ? `${latest.engagement_rate}%` : "—"}</b><span>ER</span></div>
-        <div><b className={growth === null ? "" : growth >= 0 ? "positive" : "negative"}>{growth === null ? "—" : `${growth >= 0 ? "+" : ""}${growth.toFixed(1)}%`}</b><span>рост 30д</span></div>
-        <small>Metricool · обновлено {formatSnapshotDate(latest?.snapshot_date)}</small>
+        {/* разбивка охвата по соцсетям */}
+        <div style={{ display: "flex", gap: 7, marginTop: 12, flexWrap: "wrap" }}>
+          {platforms.map(p => {
+            const meta = platformMeta[p];
+            const row = tot.perPlatform.find(x => x.p === p);
+            const on = !!row && (row.reach != null || row.followers != null);
+            return (
+              <span key={p} title={meta.label}
+                style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 9px", borderRadius: 8, flex: "1 1 auto", justifyContent: "center",
+                  background: on ? `${meta.color}14` : "var(--inset2)", border: `1px solid ${on ? meta.color + "44" : "var(--track)"}` }}>
+                <i style={{ width: 6, height: 6, borderRadius: "50%", background: on ? meta.color : "var(--t3)", display: "block" }} />
+                <b style={{ fontSize: 10, color: on ? meta.color : "var(--t3)", fontWeight: 800 }}>{meta.short}</b>
+                <span style={{ fontSize: 11, fontWeight: 700, color: on ? "var(--t1)" : "var(--t3)" }}>{row?.reach != null ? compactNumber(row.reach) : "—"}</span>
+              </span>
+            );
+          })}
+        </div>
+        <div style={{ fontSize: 9, color: "var(--t3)", marginTop: 8 }}>
+          Metricool · обновлено {formatSnapshotDate(tot.date)}
+        </div>
       </div>
 
       <div className="client-v2-production">
@@ -336,6 +376,49 @@ export default function ClientsPage() {
           <button type="button" data-tour="cl-add" onClick={() => setShowAdd(true)}>+ Клиент</button>
         </div>
       </div>
+
+      {/* СВОДКА ПО ВСЕМ КЛИЕНТАМ — можно показать на созвоне */}
+      {(() => {
+        const ids = new Set(visibleClients.map(c => c.id));
+        const mine = snapshots.filter(s => ids.has(s.client_id));
+        let reach = 0, followers = 0, hasR = false, hasF = false;
+        const perPlat: Record<string, number> = {};
+        for (const c of visibleClients) {
+          const t = totalMetrics(mine.filter(s => s.client_id === c.id));
+          if (t.reach != null) { reach += t.reach; hasR = true; }
+          if (t.followers != null) { followers += t.followers; hasF = true; }
+          for (const x of t.perPlatform) if (x.reach != null) perPlat[x.p] = (perPlat[x.p] || 0) + x.reach;
+        }
+        const publishedTotal = visibleClients.reduce((sum, c) => sum + productionFor(c.id).pub, 0);
+        if (!hasR && !hasF) return null;
+        return (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 12, marginBottom: 16,
+            padding: 18, borderRadius: 16, background: "linear-gradient(135deg, rgba(123,63,228,.12), rgba(66,212,244,.05))", border: "1px solid rgba(157,107,255,.3)" }}>
+            <div>
+              <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.6 }}>Суммарный охват / мес</div>
+              <div style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 32, fontWeight: 800, color: "var(--cy)", lineHeight: 1.1, marginTop: 4 }}>{compactNumber(hasR ? reach : null)}</div>
+              <div style={{ fontSize: 10, color: "var(--t3)", marginTop: 4 }}>
+                {platforms.map(p => perPlat[p] ? `${platformMeta[p].short} ${compactNumber(perPlat[p])}` : null).filter(Boolean).join(" · ") || "—"}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.6 }}>Аудитория</div>
+              <div style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 32, fontWeight: 800, color: "var(--pu)", lineHeight: 1.1, marginTop: 4 }}>{compactNumber(hasF ? followers : null)}</div>
+              <div style={{ fontSize: 10, color: "var(--t3)", marginTop: 4 }}>подписчиков суммарно</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.6 }}>Выпущено роликов</div>
+              <div style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 32, fontWeight: 800, color: "var(--gr)", lineHeight: 1.1, marginTop: 4 }}>{publishedTotal}</div>
+              <div style={{ fontSize: 10, color: "var(--t3)", marginTop: 4 }}>за всё время работы</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.6 }}>Клиентов</div>
+              <div style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 32, fontWeight: 800, color: "var(--t1)", lineHeight: 1.1, marginTop: 4 }}>{visibleClients.length}</div>
+              <div style={{ fontSize: 10, color: "var(--t3)", marginTop: 4 }}>{statusTab === "active" ? "в работе" : statusTab === "paused" ? "на паузе" : "в архиве"}</div>
+            </div>
+          </div>
+        );
+      })()}
 
       <div data-tour="cl-sync" className="clients-v2-sync" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
