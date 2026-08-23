@@ -7,7 +7,7 @@ import { sectionAllowed } from "@/components/RoleContext";
 import Avatar from "@/components/Avatar";
 import {
   LayoutDashboard, Users, Layers, FileText, Scissors, Send, Calendar, Rocket, Flame,
-  HandshakeIcon, BarChart3, ClipboardList, BookOpen, Settings, LogOut, Moon, Sun, ChevronUp, Wallet, type LucideIcon,
+  HandshakeIcon, BarChart3, Mic, ClipboardList, BookOpen, Settings, LogOut, Moon, Sun, ChevronUp, Wallet, type LucideIcon,
 } from "lucide-react";
 
 function BrandMark({ size = 26 }: { size?: number }) {
@@ -27,6 +27,7 @@ const navItems: NavItem[] = [
   { id: "dashboard", path: "/dashboard", icon: LayoutDashboard, label: "Дашборд" },
   { id: "clients", path: "/dashboard/clients", icon: Users, label: "Клиенты" },
   { id: "references", path: "/dashboard/references", icon: Flame, label: "Референсы" },
+  { id: "transcribe", path: "/dashboard/transcribe", icon: Mic, label: "Транскрибация" },
   { id: "scripts", path: "/dashboard/scripts", icon: FileText, label: "Сценарии" },
   { id: "montage", path: "/dashboard/montage", icon: Scissors, label: "Монтаж" },
   { id: "metricool", path: "/dashboard/metricool", icon: Rocket, label: "Metricool" },

@@ -12,14 +12,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "R2_* переменные не заданы в окружении" }, { status: 400 });
 
   const body = await req.json().catch(() => ({}));
-  const kind: string = body.kind === "image" ? "image" : "video";   // карусель грузит картинки
-  const filename: string = body.filename || (kind === "image" ? "slide.jpg" : "video.mp4");
+  const kind: string = ["image","audio"].includes(body.kind) ? body.kind : "video";   // image — карусель, audio — файл на транскрибацию
+  const filename: string = body.filename || (kind === "image" ? "slide.jpg" : kind === "audio" ? "audio.mp3" : "video.mp4");
   const clientId = body.clientId ?? "x";
   const scriptId = body.scriptId ?? Date.now();
-  const defExt = kind === "image" ? "jpg" : "mp4";
+  const defExt = kind === "image" ? "jpg" : kind === "audio" ? "mp3" : "mp4";
   const ext = (filename.split(".").pop() || defExt).toLowerCase().replace(/[^a-z0-9]/g, "") || defExt;
   const rand = Math.random().toString(36).slice(2, 8);
-  const folder = kind === "image" ? "images" : "videos";
+  const folder = kind === "image" ? "images" : kind === "audio" ? "transcribe" : "videos";
   const key = `${folder}/${clientId}/${scriptId}-${rand}.${ext}`;
 
   const r2 = new AwsClient({ accessKeyId, secretAccessKey, region: "auto", service: "s3" });
