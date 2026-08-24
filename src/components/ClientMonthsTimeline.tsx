@@ -15,6 +15,30 @@ function fmtDateShort(s: string | null | undefined) {
 function daysBetween(a: string, b: string) {
   return Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000);
 }
+const RU_MONTHS = ["январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"];
+function ymLabel(ym: string) { const [y, m] = ym.split("-").map(Number); return `${RU_MONTHS[m - 1]} ${y}`; }
+
+/** Контрактный месяц (11 июля → 10 августа) режем по календарным месяцам и делим
+ *  пакет пропорционально числу дней. Это ПРЕДЛОЖЕНИЕ — тимлид правит руками. */
+export function splitByCalendarMonth(start: string, end: string, pkg: number): { ym: string; days: number; suggested: number }[] {
+  if (!start || !end || end < start) return [];
+  const out: { ym: string; days: number; suggested: number }[] = [];
+  const d = new Date(start + "T00:00:00");
+  const last = new Date(end + "T00:00:00");
+  while (d <= last) {
+    const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const row = out.find(x => x.ym === ym);
+    if (row) row.days++; else out.push({ ym, days: 1, suggested: 0 });
+    d.setDate(d.getDate() + 1);
+  }
+  const total = out.reduce((s, x) => s + x.days, 0) || 1;
+  let acc = 0;
+  out.forEach((x, i) => {
+    x.suggested = i === out.length - 1 ? Math.max(0, pkg - acc) : Math.round((pkg * x.days) / total);
+    acc += x.suggested;
+  });
+  return out;
+}
 
 type Props = {
   clientId: number;
@@ -35,6 +59,12 @@ export default function ClientMonthsTimeline({ clientId, clientName, clientMonth
   const [editingPkg, setEditingPkg] = useState<number | null>(null);
   const [editPkgValue, setEditPkgValue] = useState("");
   const [renewModal, setRenewModal] = useState<{ nextN: number; start_date: string; end_date: string; pkg: string; prevStatus: string } | null>(null);
+  // план по календарным месяцам: { '2026-08': '14' } — пусто = взять предложенное
+  const [calPlan, setCalPlan] = useState<Record<string, string>>({});
+  const calSplit = useMemo(
+    () => renewModal ? splitByCalendarMonth(renewModal.start_date, renewModal.end_date, parseInt(renewModal.pkg, 10) || 0) : [],
+    [renewModal]
+  );
 
   const sortedMonths = useMemo(() => [...clientMonths].sort((a, b) => a.month_number - b.month_number), [clientMonths]);
   const totalPlan = sortedMonths.reduce((s, m) => s + (m.package || 0), 0);
@@ -108,6 +138,7 @@ export default function ClientMonthsTimeline({ clientId, clientName, clientMonth
       pkg: String(lastM.package || 20),
       prevStatus: lastM.status,
     });
+    setCalPlan({});
   }
 
   async function confirmRenew() {
@@ -129,6 +160,11 @@ export default function ClientMonthsTimeline({ clientId, clientName, clientMonth
       status,
     });
     if (error) { alert("Ошибка: " + (error.message || error)); setBusy(null); return; }
+    // План по календарным месяцам — та самая цифра «сколько выйдет в августе»
+    for (const part of splitByCalendarMonth(renewModal.start_date, renewModal.end_date, pkg)) {
+      const n = parseInt(calPlan[part.ym] ?? String(part.suggested), 10);
+      if (!isNaN(n) && n >= 0) await db.setCalendarTarget(supabase, clientId, part.ym, n);
+    }
     // Пустые сценарии больше НЕ создаём: пакет — это цель, а карточки рождаются из референсов.
     setRenewModal(null);
     onActivateMonth(renewModal.nextN);
@@ -325,6 +361,27 @@ export default function ClientMonthsTimeline({ clientId, clientName, clientMonth
               <input type="number" min={1} max={999} value={renewModal.pkg} onChange={(e) => setRenewModal({ ...renewModal, pkg: e.target.value })}
                 style={{ width: "100%", padding: "8px 10px", borderRadius: 8, background: "var(--bg)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 14, fontWeight: 700 }} />
             </div>
+            {calSplit.length > 0 && (
+              <div style={{ marginBottom: 18, padding: 12, borderRadius: 10, background: "rgba(66,212,244,0.06)", border: "1px solid var(--brd)" }}>
+                <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>
+                  Сколько выйдет в каждом календарном месяце
+                </div>
+                {calSplit.map(part => (
+                  <div key={part.ym} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+                    <span style={{ flex: 1, fontSize: 12, color: "var(--t1)", fontWeight: 600 }}>
+                      {ymLabel(part.ym)} <span style={{ color: "var(--t3)", fontWeight: 500 }}>· {part.days} дн.</span>
+                    </span>
+                    <input type="number" min={0} max={999}
+                      value={calPlan[part.ym] ?? String(part.suggested)}
+                      onChange={(e) => setCalPlan({ ...calPlan, [part.ym]: e.target.value })}
+                      style={{ width: 70, padding: "6px 8px", borderRadius: 8, background: "var(--bg)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 13, fontWeight: 700, textAlign: "center" }} />
+                  </div>
+                ))}
+                <div style={{ fontSize: 10, color: "var(--t3)", marginTop: 6, lineHeight: 1.5 }}>
+                  Цифры подставлены по числу дней — поправь, если по факту график другой. Именно они попадут в столбец «Опубл. в {ymLabel(calSplit[0].ym).split(" ")[0]}» на дашборде.
+                </div>
+              </div>
+            )}
             <div style={{ fontSize: 10, color: "var(--t3)", marginBottom: 16, padding: 10, borderRadius: 8, background: "rgba(157,107,255,0.06)", border: "1px solid var(--brd)" }}>
               {renewModal.prevStatus === "closed"
                 ? "Прошлый месяц закрыт → новый станет сразу active"

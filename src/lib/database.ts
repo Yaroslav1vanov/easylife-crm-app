@@ -50,6 +50,14 @@ export type OnboardingProgress = {
   total_tasks: number; done_tasks: number; skipped_tasks: number;
   pending_tasks: number; overdue_tasks: number; progress_pct: number;
 };
+export type CalendarTarget = {
+  id: number;
+  client_id: number;
+  ym: string;           // '2026-08'
+  target: number;
+  note?: string | null;
+};
+
 export type ClientMonth = {
   id: number;
   client_id: number;
@@ -461,6 +469,20 @@ const db = {
       .from("client_months")
       .update({ status: "active", closed_at: null })
       .eq("id", id);
+    return { error };
+  },
+
+  // ===== План по календарному месяцу =====
+  // Контрактный месяц может идти с 11 июля по 10 августа — поэтому «сколько выйдет
+  // в августе» хранится отдельно от client_months.package.
+  async getCalendarTargets(sb: SupabaseClient) {
+    const { data, error } = await sb.from("calendar_targets").select("*");
+    if (error) return { data: [] as CalendarTarget[], missing: true, error };
+    return { data: (data || []) as CalendarTarget[], missing: false, error: null as any };
+  },
+  async setCalendarTarget(sb: SupabaseClient, clientId: number, ym: string, target: number) {
+    const { error } = await sb.from("calendar_targets")
+      .upsert({ client_id: clientId, ym, target, updated_at: new Date().toISOString() }, { onConflict: "client_id,ym" });
     return { error };
   },
 

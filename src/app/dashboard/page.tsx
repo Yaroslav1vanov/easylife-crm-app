@@ -151,6 +151,9 @@ type ClientsBlockProps = {
   selectedMonth: string;
   setSelectedMonth: (v: string) => void;
   currentYM: string;
+  calTargets: Record<string, number>;                    // ключ '<clientId>:<ym>'
+  onSetTarget: (clientId: number, ym: string, n: number) => void;
+  canEditPlan: boolean;
   onOpen: (clientId: number) => void;
 };
 
@@ -166,6 +169,7 @@ type ClientRow = {
 };
 
 function ClientsBlock(p: ClientsBlockProps) {
+  const [editPlan, setEditPlan] = useState<{ clientId: number; val: string } | null>(null);
   const rows = useMemo<ClientRow[]>(() => {
     const out: ClientRow[] = [];
     // Границы выбранного месяца — по ним отсекаем старые закрытые контракты
@@ -191,8 +195,19 @@ function ClientsBlock(p: ClientsBlockProps) {
       // календарно-месячные числа: по pub_date в выбранном месяце; «к сегодня» = строго ДО сегодня (вечерний ролik не штрафует)
       const inMonth = (s: Script) => !!s.pub_date && s.pub_date.slice(0, 7) === p.selectedMonth;
       const publishedInMonth = list.filter(s => s.video_status === "published" && inMonth(s)).length;
-      const plannedInMonth = list.filter(inMonth).length;
-      const dueByToday = list.filter(s => inMonth(s) && (s.pub_date as string) < p.todayIso).length;
+      // План на календарный месяц: цифра тимлида (проставлена при открытии месяца) важнее
+      // автосчёта по датам карточек — карточки часто ещё без pub_date.
+      const target = p.calTargets[`${c.id}:${p.selectedMonth}`];
+      const byDates = list.filter(inMonth).length;
+      const plannedInMonth = target != null ? target : byDates;
+      const dueByDates = list.filter(s => inMonth(s) && (s.pub_date as string) < p.todayIso).length;
+      // Если план задан цифрой, а даты не расставлены — «должно быть к сегодня» считаем
+      // ровным темпом: сколько дней месяца прошло, столько и роликов должно выйти.
+      const daysInMonth = new Date(selY, selM, 0).getDate();
+      const dayNow = p.selectedMonth === p.currentYM ? Math.max(0, Number(p.todayIso.slice(8, 10)) - 1) : (p.selectedMonth < p.currentYM ? daysInMonth : 0);
+      const dueByToday = target != null && byDates === 0
+        ? Math.round((target * dayNow) / daysInMonth)
+        : dueByDates;
       const factByToday = list.filter(s => s.video_status === "published" && inMonth(s) && (s.pub_date as string) < p.todayIso).length;
       const remaining = Math.max(0, plan - published);
       const progressPct = Math.round((published / plan) * 100);
@@ -208,7 +223,13 @@ function ClientsBlock(p: ClientsBlockProps) {
     // Сортируем: клиент.id, потом по month_number — соседние месяцы одного клиента рядом
     out.sort((a, b) => a.c.id - b.c.id || a.cm.month_number - b.cm.month_number);
     return out;
-  }, [p.clients, p.clientMonths, p.scripts, p.todayIso, p.overdueClientIds, p.selectedMonth]);
+  }, [p.clients, p.clientMonths, p.scripts, p.todayIso, p.overdueClientIds, p.selectedMonth, p.calTargets, p.currentYM]);
+
+  // Сколько клиентов в этом месяце остались без проставленного плана — чтобы не терялось
+  const noPlanCount = useMemo(
+    () => new Set(rows.filter(r => !r.isPaused && !r.plannedInMonth).map(r => r.c.id)).size,
+    [rows]
+  );
 
   // фильтры
   const filtered = useMemo(() => {
@@ -342,14 +363,28 @@ function ClientsBlock(p: ClientsBlockProps) {
     </div>
   );
 
-  // Опубликовано в этом месяце: факт за месяц / запланировано на месяц
-  const MonthCell = ({ pubInMonth, planned }: { pubInMonth: number; planned: number }) => {
+  // Опубликовано в этом месяце: факт за месяц / план на месяц (план правится по клику)
+  const MonthCell = ({ pubInMonth, planned, clientId }: { pubInMonth: number; planned: number; clientId: number }) => {
     const pct = planned > 0 ? Math.round((pubInMonth / planned) * 100) : 0;
+    const canEdit = p.canEditPlan && clientId > 0;
+    const editing = editPlan?.clientId === clientId && clientId > 0;
     return (
       <div>
         <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginBottom: 3 }}>
           <span style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 18, fontWeight: 800, color: pubInMonth > 0 ? "#34a853" : "var(--t3)", lineHeight: 1 }}>{pubInMonth}</span>
-          <span style={{ fontSize: 11, color: "var(--t3)", fontWeight: 600 }}>/ {planned || "—"}</span>
+          {editing ? (
+            <input autoFocus type="number" min={0} max={999} value={editPlan!.val}
+              onChange={e => setEditPlan({ clientId, val: e.target.value })}
+              onBlur={() => { const n = parseInt(editPlan!.val, 10); if (!isNaN(n) && n >= 0) p.onSetTarget(clientId, p.selectedMonth, n); setEditPlan(null); }}
+              onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setEditPlan(null); }}
+              style={{ width: 46, padding: "2px 5px", borderRadius: 6, background: "var(--inp)", border: "1px solid var(--cy)", color: "var(--t1)", fontSize: 12, fontWeight: 700, textAlign: "center" }} />
+          ) : (
+            <span onClick={canEdit ? () => setEditPlan({ clientId, val: String(planned || "") }) : undefined}
+              title={canEdit ? "Нажми, чтобы поставить план на месяц" : undefined}
+              style={{ fontSize: 11, color: planned ? "var(--t3)" : "var(--or)", fontWeight: planned ? 600 : 800, cursor: canEdit ? "pointer" : "default", borderBottom: canEdit ? "1px dashed var(--brd)" : "none" }}>
+              / {planned || (canEdit ? "поставить план" : "—")}
+            </span>
+          )}
         </div>
         {planned > 0 && (
           <div style={{ height: 4, borderRadius: 2, background: "var(--track)", overflow: "hidden" }}>
@@ -400,6 +435,12 @@ function ClientsBlock(p: ClientsBlockProps) {
           <h3 style={{ fontSize: 14, fontWeight: 800, color: "var(--t1)", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             Клиенты в работе
             <span style={{ padding: "2px 7px", borderRadius: 6, background: "rgba(157,107,255,0.15)", color: "var(--pu)", fontSize: 10, fontWeight: 700 }}>{new Set(filtered.map(r => r.c.id)).size} клиентов</span>
+            {noPlanCount > 0 && (
+              <span title="Тимлид не проставил, сколько роликов должно выйти в этом месяце"
+                style={{ padding: "2px 8px", borderRadius: 6, background: "rgba(255,174,66,0.14)", color: "var(--or)", fontSize: 10, fontWeight: 800 }}>
+                ⚠ без плана на месяц: {noPlanCount}
+              </span>
+            )}
             {/* Локальный period picker — синхронизован с глобальным */}
             <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 8px", borderRadius: 9, background: "rgba(123,63,228,0.08)", border: "1px solid var(--brd)", marginLeft: 4 }}>
               <button onClick={() => p.setSelectedMonth(ymShift(p.selectedMonth, -1))}
@@ -557,7 +598,7 @@ function ClientsBlock(p: ClientsBlockProps) {
                     {/* В монтаже */}
                     <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 90 }}><WipCell n={r.montageInProgress} color="#ffae42" caption="монтируются" /></td>
                     {/* Опубл. в этом месяце */}
-                    <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 110 }}><MonthCell pubInMonth={r.publishedInMonth} planned={r.plannedInMonth} /></td>
+                    <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 110 }}><MonthCell pubInMonth={r.publishedInMonth} planned={r.plannedInMonth} clientId={r.c.id} /></td>
                     {/* Сделано за этот месяц (текущий M-период): опубликовано / пакет */}
                     <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 110 }}><StageCell done={r.published} plan={r.plan} color="#9d6bff" /></td>
                     {/* Темп к сегодня */}
@@ -595,7 +636,7 @@ function ClientsBlock(p: ClientsBlockProps) {
                   <td style={{ padding: "14px 8px", fontSize: 10, color: "var(--t2)", fontWeight: 600 }}>{new Set(sorted.map(r => r.c.id)).size} клиентов · пакет {totals.plan}</td>
                   <td style={{ padding: "14px 8px" }}><WipCell n={totals.scrInProgress} color="#42d4f4" /></td>
                   <td style={{ padding: "14px 8px" }}><WipCell n={totals.montageInProgress} color="#ffae42" /></td>
-                  <td style={{ padding: "14px 8px" }}><MonthCell pubInMonth={totals.publishedInMonth} planned={totals.plannedInMonth} /></td>
+                  <td style={{ padding: "14px 8px" }}><MonthCell pubInMonth={totals.publishedInMonth} planned={totals.plannedInMonth} clientId={0} /></td>
                   <td style={{ padding: "14px 8px" }}><StageCell done={totals.published} plan={totals.plan} color="#9d6bff" /></td>
                   <td style={{ padding: "14px 8px" }}>
                     <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
@@ -689,6 +730,13 @@ function DashboardInner() {
   const [clients, setClients] = useState<Client[]>(cached.clients || []);
   const [scripts, setScripts] = useState<Script[]>(cached.scripts || []);
   const [clientMonths, setClientMonths] = useState<ClientMonth[]>(cached.clientMonths || []);
+  // План публикаций по календарным месяцам: '<clientId>:<ym>' → число
+  const [calTargets, setCalTargets] = useState<Record<string, number>>({});
+  async function saveCalTarget(clientId: number, ym: string, n: number) {
+    setCalTargets(t => ({ ...t, [`${clientId}:${ym}`]: n }));   // сразу в UI, не ждём сервер
+    const { error } = await db.setCalendarTarget(supabase, clientId, ym, n);
+    if (error) alert("План не сохранился: " + (error.message || error));
+  }
   const [team, setTeam] = useState<TeamMember[]>(cached.team || []);
   const [overdueTasks, setOverdueTasks] = useState<any[]>([]);
   const [onbProgresses, setOnbProgresses] = useState<OnboardingProgress[]>([]);
@@ -724,6 +772,8 @@ function DashboardInner() {
             db.getClientMonths(supabase),
             db.getAllOnboardingProgress(supabase),
           ]);
+          const ct = await db.getCalendarTargets(supabase);
+          setCalTargets(Object.fromEntries((ct.data || []).map(x => [`${x.client_id}:${x.ym}`, x.target])));
           setProfile(p);
           setClients(cls || []);
           setTeam(t || []);
@@ -1059,6 +1109,8 @@ function DashboardInner() {
   const iAmOwner = profile?.role === "owner" || profile?.role === "admin";
   // Ассистент тоже видит общую картину по всем клиентам (деньги ему всё равно закрыты)
   const seesAll = iAmOwner || profile?.role === "assistant";
+  // План на месяц ставит тот, кто ведёт клиента: тимлид и владелец. Монтажёру — только чтение.
+  const canEditPlan = profile?.role !== "montager";
   // Сотруднику — его собственный дашборд (только его клиенты и задачи).
   // Владельцу тот же экран показывается при «Смотреть как», чтобы видеть их картину.
   // Сотруднику показываем его личный дашборд. Но если за ним не закреплено ни одного
@@ -1101,6 +1153,7 @@ function DashboardInner() {
           collapsedTotals={collapsedTotals} setCollapsedTotals={setCollapsedTotals}
           selectedMonth={selectedMonth} setSelectedMonth={setSelectedMonth}
           currentYM={currentYM}
+          calTargets={calTargets} onSetTarget={saveCalTarget} canEditPlan={canEditPlan}
           onOpen={(id) => router.push(`/dashboard/clients/${id}`)}
         />
       </div>
@@ -1542,6 +1595,7 @@ function DashboardInner() {
         collapsedTotals={collapsedTotals} setCollapsedTotals={setCollapsedTotals}
         selectedMonth={selectedMonth} setSelectedMonth={setSelectedMonth}
         currentYM={currentYM}
+        calTargets={calTargets} onSetTarget={saveCalTarget} canEditPlan={canEditPlan}
         onOpen={(id) => router.push(`/dashboard/clients/${id}`)}
       />
 
