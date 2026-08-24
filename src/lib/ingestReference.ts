@@ -74,6 +74,14 @@ export async function ingestReference(rawUrl: string, clientId: number): Promise
       transcript = tj?.transcript || tj?.text || tj?.data?.transcript || tj?.transcripts || null;
     } catch {}
   }
+  if (platform === "youtube") {
+    // Текст у YouTube отдаёт отдельный эндпоинт — в /v1/youtube/video его нет
+    try {
+      const tr = await fetch(`${BASE}/v1/youtube/video/transcript?url=${encodeURIComponent(url)}`, { headers: { "x-api-key": key } });
+      const tj = await tr.json().catch(() => null);
+      transcript = tj?.transcript_only_text || tj?.transcript || transcript;
+    } catch {}
+  }
 
   // Любой формат транскрибации → чистая строка (без «[object Object]»)
   const toText = (v: any): string | null => {

@@ -78,10 +78,17 @@ export async function transcribeLink(rawUrl: string) {
       const t = toText(j?.transcript || j?.text || j?.data?.transcript || j?.transcripts);
       return t ? { ok: true as const, text: t, platform } : { ok: false as const, error: "в ролике не нашлось речи" };
     }
-    const ep = platform === "tiktok"
-      ? `${SC}/v2/tiktok/video?url=${encodeURIComponent(url)}&get_transcript=true`
-      : `${SC}/v1/youtube/video?url=${encodeURIComponent(url)}`;
-    const r = await fetch(ep, { headers: { "x-api-key": key } });
+    if (platform === "youtube") {
+      // У YouTube (в т.ч. Shorts) транскрипт отдаёт ОТДЕЛЬНЫЙ эндпоинт —
+      // в /v1/youtube/video лежат только ссылки на дорожки субтитров, не текст.
+      const r = await fetch(`${SC}/v1/youtube/video/transcript?url=${encodeURIComponent(url)}`, { headers: { "x-api-key": key } });
+      const j = await r.json().catch(() => null);
+      if (!r.ok) return { ok: false as const, error: j?.message || j?.error || `ScrapeCreators ${r.status}` };
+      const t = toText(j?.transcript_only_text) || toText(j?.transcript);
+      return t ? { ok: true as const, text: t, platform }
+        : { ok: false as const, error: "у ролика нет субтитров на YouTube — залей файл через «Свой файл»" };
+    }
+    const r = await fetch(`${SC}/v2/tiktok/video?url=${encodeURIComponent(url)}&get_transcript=true`, { headers: { "x-api-key": key } });
     const j = await r.json().catch(() => null);
     if (!r.ok) return { ok: false as const, error: j?.message || `ScrapeCreators ${r.status}` };
     const d = j?.data || j?.video || j || {};
