@@ -44,6 +44,7 @@ export type OnboardingTemplateRow = {
   day_start: number; day_end: number;
   task_num: string; task_title: string; task_order: number;
   instruction: string | null;
+  client_message: string | null;   // готовый текст клиенту — копируется кнопкой
 };
 export type OnboardingProgress = {
   client_id: number;

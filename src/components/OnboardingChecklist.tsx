@@ -8,6 +8,7 @@ interface Props {
   clientName: string;
   clientCreatedAt: string;
   clientStartDate?: string | null;
+  clientNiche?: string | null;
   onComplete?: () => void;
 }
 
@@ -18,12 +19,14 @@ type StageGroup = {
   tasks: ChecklistTask[];
 };
 
-export default function OnboardingChecklist({ clientId, clientName, clientCreatedAt, clientStartDate, onComplete }: Props) {
+export default function OnboardingChecklist({ clientId, clientName, clientCreatedAt, clientStartDate, clientNiche, onComplete }: Props) {
   const [tasks, setTasks] = useState<ChecklistTask[]>([]);
   const [template, setTemplate] = useState<OnboardingTemplateRow[]>([]);
   const [progress, setProgress] = useState<OnboardingProgress | null>(null);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<Set<number>>(new Set([1])); // stage 1 раскрыт по умолчанию
+  const [openGuide, setOpenGuide] = useState<number | null>(null);   // id задачи с раскрытой инструкцией
+  const [copied, setCopied] = useState<number | null>(null);
   const supabase = createClient();
 
   useEffect(() => { load(); }, [clientId]);
@@ -38,6 +41,17 @@ export default function OnboardingChecklist({ clientId, clientName, clientCreate
     setTemplate(tpl);
     setProgress(p);
     setLoading(false);
+  }
+
+  /** Подставляет в шаблон то, что CRM уже знает о клиенте. Остальные {{…}} остаются — их заполняет тимлид. */
+  function fillTemplate(text: string): string {
+    return text
+      .replace(/\{\{\s*(Имя клиента|Имя|Клиент)\s*\}\}/gi, clientName)
+      .replace(/\{\{\s*Ниша клиента\s*\}\}/gi, clientNiche || "{{Ниша клиента}}");
+  }
+  function copyMessage(taskId: number, text: string) {
+    navigator.clipboard.writeText(fillTemplate(text));
+    setCopied(taskId); setTimeout(() => setCopied(null), 1800);
   }
 
   async function setStatus(task: ChecklistTask, status: "pending" | "done" | "skipped") {
@@ -208,10 +222,13 @@ export default function OnboardingChecklist({ clientId, clientName, clientCreate
                   {stage.tasks.map(t => {
                     const num = t.template_task_num || "";
                     const isOverdue = t.status === "pending" && t.deadline && new Date(t.deadline) < new Date();
+                    const tpl = template.find(x => x.task_num === num);
+                    const hasGuide = !!((tpl?.instruction || "").trim() || (tpl?.client_message || "").trim());
+                    const guideOpen = openGuide === t.id;
                     return (
-                      <div key={t.id} style={{
+                      <div key={t.id} style={{ borderBottom: "1px solid var(--brd)" }}>
+                      <div style={{
                         padding: "12px 20px",
-                        borderBottom: "1px solid var(--brd)",
                         display: "flex", alignItems: "center", gap: 14,
                         opacity: t.status === "skipped" ? 0.45 : 1,
                       }}>
@@ -236,6 +253,16 @@ export default function OnboardingChecklist({ clientId, clientName, clientCreate
                           {t.task_name}
                         </div>
 
+                        {hasGuide && (
+                          <button onClick={() => setOpenGuide(guideOpen ? null : t.id)}
+                            title="Как делать + готовый текст клиенту"
+                            style={{ padding: "4px 9px", borderRadius: 6, border: `1px solid ${guideOpen ? "var(--yl)" : "var(--brd)"}`,
+                              background: guideOpen ? "rgba(245,196,81,0.14)" : "transparent", color: guideOpen ? "var(--yl)" : "var(--t2)",
+                              fontSize: 10, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
+                            📖 Как делать
+                          </button>
+                        )}
+
                         {/* Статус-чипы */}
                         <div style={{ display: "flex", gap: 4 }}>
                           <button onClick={() => setStatus(t, "pending")} title="Не сделано"
@@ -253,6 +280,38 @@ export default function OnboardingChecklist({ clientId, clientName, clientCreate
                             {isOverdue && " ⚠"}
                           </span>
                         )}
+                      </div>
+
+                      {guideOpen && tpl && (
+                        <div style={{ padding: "0 20px 16px 72px", display: "flex", flexDirection: "column", gap: 10 }}>
+                          {(tpl.instruction || "").trim() && (
+                            <div style={{ padding: "12px 14px", borderRadius: 10, background: "var(--inset)", border: "1px solid var(--brd)" }}>
+                              <div style={{ fontSize: 9.5, fontWeight: 800, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 6 }}>Как делать</div>
+                              <div style={{ fontSize: 12.5, lineHeight: 1.6, color: "var(--t2)", whiteSpace: "pre-wrap" }}>{tpl.instruction}</div>
+                            </div>
+                          )}
+                          {(tpl.client_message || "").trim() && (
+                            <div style={{ padding: "12px 14px", borderRadius: 10, background: "rgba(66,212,244,0.06)", border: "1px solid rgba(66,212,244,0.28)" }}>
+                              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 7 }}>
+                                <span style={{ fontSize: 9.5, fontWeight: 800, color: "var(--cy)", textTransform: "uppercase", letterSpacing: 0.6 }}>Сообщение клиенту</span>
+                                <button onClick={() => copyMessage(t.id, tpl.client_message || "")}
+                                  style={{ padding: "4px 10px", borderRadius: 7, border: "1px solid var(--cy)", background: copied === t.id ? "rgba(168,224,99,0.16)" : "rgba(66,212,244,0.12)",
+                                    color: copied === t.id ? "var(--gr)" : "var(--cy)", fontSize: 10.5, fontWeight: 800, cursor: "pointer" }}>
+                                  {copied === t.id ? "✓ Скопировано" : "⧉ Копировать"}
+                                </button>
+                              </div>
+                              <div style={{ fontSize: 12.5, lineHeight: 1.65, color: "var(--t1)", whiteSpace: "pre-wrap" }}>
+                                {fillTemplate(tpl.client_message || "").split(/(\{\{[^}]+\}\})/g).map((part, i) =>
+                                  part.startsWith("{{")
+                                    ? <mark key={i} style={{ background: "rgba(245,196,81,0.22)", color: "var(--yl)", padding: "0 3px", borderRadius: 3, fontWeight: 700 }}>{part}</mark>
+                                    : <span key={i}>{part}</span>
+                                )}
+                              </div>
+                              <div style={{ fontSize: 10, color: "var(--t3)", marginTop: 7 }}>Жёлтым подсвечено то, что нужно заполнить руками перед отправкой</div>
+                            </div>
+                          )}
+                        </div>
+                      )}
                       </div>
                     );
                   })}

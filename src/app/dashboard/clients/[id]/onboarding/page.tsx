@@ -43,6 +43,7 @@ export default function ClientOnboardingPage() {
         clientName={fullName}
         clientCreatedAt={(client as any).created_at || new Date().toISOString()}
         clientStartDate={(client as any).onboarding_start || client.start_date}
+        clientNiche={client.niche}
         onComplete={() => {
           // После завершения возвращаемся к карточке
           router.push(`/dashboard/clients/${clientId}`);
