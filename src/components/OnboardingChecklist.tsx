@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase-browser";
 import db, { ChecklistTask, OnboardingTemplateRow, OnboardingProgress } from "@/lib/database";
+import { useIsOwner } from "@/components/RoleContext";
 
 interface Props {
   clientId: number;
@@ -27,6 +28,11 @@ export default function OnboardingChecklist({ clientId, clientName, clientCreate
   const [expanded, setExpanded] = useState<Set<number>>(new Set([1])); // stage 1 раскрыт по умолчанию
   const [openGuide, setOpenGuide] = useState<number | null>(null);   // id задачи с раскрытой инструкцией
   const [copied, setCopied] = useState<number | null>(null);
+  const isOwner = useIsOwner();                              // править регламент может только владелец
+  const [editTpl, setEditTpl] = useState<number | null>(null);  // id строки шаблона в режиме правки
+  const [draftInstr, setDraftInstr] = useState("");
+  const [draftMsg, setDraftMsg] = useState("");
+  const [saving, setSaving] = useState(false);
   const supabase = createClient();
 
   useEffect(() => { load(); }, [clientId]);
@@ -52,6 +58,19 @@ export default function OnboardingChecklist({ clientId, clientName, clientCreate
   function copyMessage(taskId: number, text: string) {
     navigator.clipboard.writeText(fillTemplate(text));
     setCopied(taskId); setTimeout(() => setCopied(null), 1800);
+  }
+
+  async function saveTemplate(tplId: number) {
+    setSaving(true);
+    const r = await fetch("/api/onboarding/template", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id: tplId, instruction: draftInstr, client_message: draftMsg }),
+    });
+    const j = await r.json();
+    setSaving(false);
+    if (!r.ok) { alert(j?.error || "не сохранилось"); return; }
+    setTemplate(arr => arr.map(x => x.id === tplId ? { ...x, instruction: j.row.instruction, client_message: j.row.client_message } : x));
+    setEditTpl(null);
   }
 
   async function setStatus(task: ChecklistTask, status: "pending" | "done" | "skipped") {
@@ -223,7 +242,7 @@ export default function OnboardingChecklist({ clientId, clientName, clientCreate
                     const num = t.template_task_num || "";
                     const isOverdue = t.status === "pending" && t.deadline && new Date(t.deadline) < new Date();
                     const tpl = template.find(x => x.task_num === num);
-                    const hasGuide = !!((tpl?.instruction || "").trim() || (tpl?.client_message || "").trim());
+                    const hasGuide = !!((tpl?.instruction || "").trim() || (tpl?.client_message || "").trim()) || (isOwner && !!tpl);
                     const guideOpen = openGuide === t.id;
                     return (
                       <div key={t.id} style={{ borderBottom: "1px solid var(--brd)" }}>
@@ -259,7 +278,7 @@ export default function OnboardingChecklist({ clientId, clientName, clientCreate
                             style={{ padding: "4px 9px", borderRadius: 6, border: `1px solid ${guideOpen ? "var(--yl)" : "var(--brd)"}`,
                               background: guideOpen ? "rgba(245,196,81,0.14)" : "transparent", color: guideOpen ? "var(--yl)" : "var(--t2)",
                               fontSize: 10, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
-                            📖 Как делать
+                            {((tpl?.instruction || "").trim() || (tpl?.client_message || "").trim()) ? "📖 Как делать" : "✏️ Добавить инструкцию"}
                           </button>
                         )}
 
@@ -282,8 +301,51 @@ export default function OnboardingChecklist({ clientId, clientName, clientCreate
                         )}
                       </div>
 
-                      {guideOpen && tpl && (
+                      {guideOpen && tpl && editTpl === tpl.id && (
                         <div style={{ padding: "0 20px 16px 72px", display: "flex", flexDirection: "column", gap: 10 }}>
+                          <div>
+                            <div style={{ fontSize: 9.5, fontWeight: 800, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 5 }}>Как делать</div>
+                            <textarea value={draftInstr} onChange={e => setDraftInstr(e.target.value)} rows={7}
+                              placeholder="Пошагово: что сделать, где, на что обратить внимание"
+                              style={{ width: "100%", padding: "10px 12px", borderRadius: 10, background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 12.5, lineHeight: 1.6, fontFamily: "inherit", resize: "vertical", outline: "none" }} />
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 9.5, fontWeight: 800, color: "var(--cy)", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 5 }}>Сообщение клиенту</div>
+                            <textarea value={draftMsg} onChange={e => setDraftMsg(e.target.value)} rows={9}
+                              placeholder="Готовый текст, который тимлид скопирует и отправит. Подставляются {{Имя клиента}} и {{Ниша клиента}}, остальные {{…}} тимлид заполнит руками"
+                              style={{ width: "100%", padding: "10px 12px", borderRadius: 10, background: "var(--inp)", border: "1px solid rgba(66,212,244,0.3)", color: "var(--t1)", fontSize: 12.5, lineHeight: 1.6, fontFamily: "inherit", resize: "vertical", outline: "none" }} />
+                            <div style={{ fontSize: 10, color: "var(--t3)", marginTop: 5 }}>
+                              Плейсхолдеры: <code>{"{{Имя клиента}}"}</code> и <code>{"{{Ниша клиента}}"}</code> подставятся сами. Любые другие в фигурных скобках — например <code>{"{{Дата}}"}</code> — подсветятся жёлтым как «заполнить руками».
+                            </div>
+                          </div>
+                          <div style={{ display: "flex", gap: 8 }}>
+                            <button onClick={() => saveTemplate(tpl.id)} disabled={saving}
+                              style={{ padding: "8px 16px", borderRadius: 9, background: "linear-gradient(135deg, var(--gr), #6db541)", border: "none", color: "#0a0118", fontSize: 12, fontWeight: 800, cursor: saving ? "default" : "pointer", opacity: saving ? 0.6 : 1 }}>
+                              {saving ? "Сохраняю…" : "✓ Сохранить"}
+                            </button>
+                            <button onClick={() => setEditTpl(null)}
+                              style={{ padding: "8px 14px", borderRadius: 9, background: "transparent", border: "1px solid var(--brd)", color: "var(--t2)", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                              Отмена
+                            </button>
+                            <div style={{ flex: 1 }} />
+                            <span style={{ fontSize: 10, color: "var(--t3)", alignSelf: "center" }}>Регламент общий — изменится у всех клиентов</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {guideOpen && tpl && editTpl !== tpl.id && (
+                        <div style={{ padding: "0 20px 16px 72px", display: "flex", flexDirection: "column", gap: 10 }}>
+                          {isOwner && (
+                            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                              <button onClick={() => { setDraftInstr(tpl.instruction || ""); setDraftMsg(tpl.client_message || ""); setEditTpl(tpl.id); }}
+                                style={{ padding: "4px 10px", borderRadius: 7, border: "1px solid var(--brd)", background: "transparent", color: "var(--t2)", fontSize: 10.5, fontWeight: 700, cursor: "pointer" }}>
+                                ✏️ Редактировать регламент
+                              </button>
+                            </div>
+                          )}
+                          {!((tpl.instruction || "").trim() || (tpl.client_message || "").trim()) && (
+                            <div style={{ fontSize: 12, color: "var(--t3)", fontStyle: "italic" }}>Инструкции пока нет — нажми «Редактировать регламент» и опиши, как делать этот шаг.</div>
+                          )}
                           {(tpl.instruction || "").trim() && (
                             <div style={{ padding: "12px 14px", borderRadius: 10, background: "var(--inset)", border: "1px solid var(--brd)" }}>
                               <div style={{ fontSize: 9.5, fontWeight: 800, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 6 }}>Как делать</div>
