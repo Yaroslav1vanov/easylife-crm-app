@@ -374,12 +374,13 @@ function ClientsBlock(p: ClientsBlockProps) {
           <span style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 18, fontWeight: 800, color: pubInMonth > 0 ? "#34a853" : "var(--t3)", lineHeight: 1 }}>{pubInMonth}</span>
           {editing ? (
             <input autoFocus type="number" min={0} max={999} value={editPlan!.val}
+              onClick={e => e.stopPropagation()}
               onChange={e => setEditPlan({ clientId, val: e.target.value })}
               onBlur={() => { const n = parseInt(editPlan!.val, 10); if (!isNaN(n) && n >= 0) p.onSetTarget(clientId, p.selectedMonth, n); setEditPlan(null); }}
-              onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setEditPlan(null); }}
+              onKeyDown={e => { e.stopPropagation(); if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setEditPlan(null); }}
               style={{ width: 46, padding: "2px 5px", borderRadius: 6, background: "var(--inp)", border: "1px solid var(--cy)", color: "var(--t1)", fontSize: 12, fontWeight: 700, textAlign: "center" }} />
           ) : (
-            <span onClick={canEdit ? () => setEditPlan({ clientId, val: String(planned || "") }) : undefined}
+            <span onClick={canEdit ? (e) => { e.stopPropagation(); setEditPlan({ clientId, val: String(planned || "") }); } : undefined}
               title={canEdit ? "Нажми, чтобы поставить план на месяц" : undefined}
               style={{ fontSize: 11, color: planned ? "var(--t3)" : "var(--or)", fontWeight: planned ? 600 : 800, cursor: canEdit ? "pointer" : "default", borderBottom: canEdit ? "1px dashed var(--brd)" : "none" }}>
               / {planned || (canEdit ? "поставить план" : "—")}

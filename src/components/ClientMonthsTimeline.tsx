@@ -1,5 +1,5 @@
 "use client";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { createClient } from "@/lib/supabase-browser";
 import db, { ClientMonth, Script } from "@/lib/database";
 import { Check, RotateCcw, PlusCircle, CalendarCheck, Edit2 } from "lucide-react";
@@ -53,6 +53,21 @@ type Props = {
 
 export default function ClientMonthsTimeline({ clientId, clientName, clientMonths, scripts, activeMonth, onActivateMonth, onChange, todayIso }: Props) {
   const supabase = createClient();
+  // План публикаций по календарным месяцам: '2026-08' → 14
+  const [targets, setTargets] = useState<Record<string, number>>({});
+  const [editingTarget, setEditingTarget] = useState<string | null>(null);
+  const [editTargetValue, setEditTargetValue] = useState("");
+  useEffect(() => {
+    (async () => {
+      const r = await db.getCalendarTargets(supabase);
+      setTargets(Object.fromEntries((r.data || []).filter(x => x.client_id === clientId).map(x => [x.ym, x.target])));
+    })();
+  }, [clientId]);
+  async function saveTarget(ym: string, n: number) {
+    setTargets(t => ({ ...t, [ym]: n }));
+    const { error } = await db.setCalendarTarget(supabase, clientId, ym, n);
+    if (error) alert("План не сохранился: " + (error.message || error));
+  }
   const [busy, setBusy] = useState<number | null>(null);
   const [editingDate, setEditingDate] = useState<{ cmId: number; field: "start_date" | "end_date" } | null>(null);
   const [editDateValue, setEditDateValue] = useState("");
@@ -291,6 +306,40 @@ export default function ClientMonthsTimeline({ clientId, clientName, clientMonth
                   </span>
                   <span style={{ fontSize: 12, color: barColor, fontWeight: 800 }}>{pct}%</span>
                 </div>
+              </div>
+
+              {/* План публикаций по календарным месяцам — та цифра, что видна на дашборде */}
+              <div onClick={(e) => e.stopPropagation()}>
+                <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 5 }}>
+                  Должно выйти в месяце
+                </div>
+                {splitByCalendarMonth(m.start_date, m.end_date, plan).map(part => {
+                  const cur = targets[part.ym];
+                  const pubHere = list.filter(s => s.video_status === "published" && s.pub_date && s.pub_date.slice(0, 7) === part.ym).length;
+                  return (
+                    <div key={part.ym} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                      <span style={{ flex: 1, fontSize: 11, color: "var(--t2)", fontWeight: 600 }}>{ymLabel(part.ym)}</span>
+                      <span style={{ fontSize: 11, color: "var(--gr)", fontWeight: 700, fontFamily: "monospace" }}>{pubHere}</span>
+                      <span style={{ fontSize: 11, color: "var(--t3)" }}>/</span>
+                      {editingTarget === part.ym ? (
+                        <input autoFocus type="number" min={0} max={999} value={editTargetValue}
+                          onChange={(e) => setEditTargetValue(e.target.value)}
+                          onBlur={() => { const n = parseInt(editTargetValue, 10); if (!Number.isNaN(n) && n >= 0) saveTarget(part.ym, n); setEditingTarget(null); }}
+                          onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setEditingTarget(null); }}
+                          style={{ width: 44, padding: "1px 4px", borderRadius: 4, background: "var(--bg)", border: "1px solid var(--cy)", color: "var(--t1)", fontSize: 12, fontFamily: "monospace", textAlign: "center" }} />
+                      ) : (
+                        <span onClick={() => { setEditTargetValue(String(cur ?? part.suggested)); setEditingTarget(part.ym); }}
+                          title="Клик — сколько роликов должно выйти в этом календарном месяце"
+                          style={{ cursor: "pointer", borderBottom: "1px dashed var(--t3)", fontSize: 12, fontFamily: "monospace", fontWeight: 800, color: cur == null ? "var(--or)" : "var(--t1)", minWidth: 22, textAlign: "center" }}>
+                          {cur ?? "—"}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+                {splitByCalendarMonth(m.start_date, m.end_date, plan).some(part => targets[part.ym] == null) && (
+                  <div style={{ fontSize: 9, color: "var(--or)", fontWeight: 600, marginTop: 2 }}>план не проставлен — нажми на «—»</div>
+                )}
               </div>
 
               {/* Footer: actions + focus marker */}
