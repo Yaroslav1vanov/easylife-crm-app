@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useIsOwner } from "@/components/RoleContext";
-import { ymLabelRu, ymShift, PAYROLL_RATES, type PayrollResult, type PayrollPerson, type PayrollRow } from "@/lib/payroll";
+import { ymLabelRu, ymShift, ratesFor, NEW_MOTIVATION_FROM, type PayrollResult, type PayrollPerson, type PayrollRow } from "@/lib/payroll";
 import Tour, { TourButton, type TourStep } from "@/components/Tour";
 import { ChevronLeft, ChevronRight, AlertTriangle, Scissors, UserCog, Wallet, RefreshCw, ChevronDown } from "lucide-react";
 
@@ -163,8 +163,13 @@ export default function PayrollPage() {
 
           {/* СТАВКИ */}
           <div style={{ marginTop: 18, padding: 14, borderRadius: 12, background: "var(--inset)", border: "1px solid var(--brd)", fontSize: 11, color: "var(--t3)", lineHeight: 1.7 }}>
-            <b style={{ color: "var(--t2)" }}>Ставки:</b> монтаж ${PAYROLL_RATES.editor_per_video}/ролик (по дате сдачи) · публикация ${PAYROLL_RATES.tl_per_video_20} (пакет 20) / ${PAYROLL_RATES.tl_per_video_other} (пакет 30+) · сценарии ${PAYROLL_RATES.scripts_per_video}/ролик с M2 ·
-            бонусы: в срок ${PAYROLL_RATES.bonus_ontime}, онбординг ${PAYROLL_RATES.bonus_onboarding}, продление ${PAYROLL_RATES.bonus_renewal}.
+            <b style={{ color: "var(--t2)" }}>Ставки {ym >= NEW_MOTIVATION_FROM ? "(новая мотивация, с августа 2026)" : "(старая схема, до августа 2026)"}:</b>{" "}
+            монтаж ${ratesFor(ym).editor_per_video}/ролик (по дате сдачи)
+            {ratesFor(ym).editor_per_avatar > 0 && ` + $${ratesFor(ym).editor_per_avatar}/аватар`}
+            {ratesFor(ym).editor_bonus_ontime > 0 && ` + бонусы монтажёру: в срок $${ratesFor(ym).editor_bonus_ontime}, продление $${ratesFor(ym).editor_bonus_renewal}`} ·
+            публикация ${ratesFor(ym).tl_per_video_20}{ratesFor(ym).tl_per_video_20 !== ratesFor(ym).tl_per_video_other ? ` (пакет 20) / $${ratesFor(ym).tl_per_video_other} (пакет 30+)` : " за ролик (сценарий + контроль + публикация)"}
+            {ratesFor(ym).scripts_per_video > 0 && ` · сценарии $${ratesFor(ym).scripts_per_video}/ролик с M2`} ·
+            бонусы тимлиду: в срок ${ratesFor(ym).bonus_ontime}, онбординг ${ratesFor(ym).bonus_onboarding}, продление ${ratesFor(ym).bonus_renewal}.
             <br />Доп. работы (аватары, обложки, интервью) и заморозка выплаченных месяцев — по-прежнему в финмониторе.
           </div>
         </>
@@ -244,13 +249,18 @@ function RowLine({ row, amount, type, color, onSave, saving }: {
   const parts: string[] = [];
   if (isEditor) {
     if (row.fixedEditor) parts.push("сумма задана вручную");
-    else parts.push(`${row.done} смонтировано × $${PAYROLL_RATES.editor_per_video}`);
+    else {
+      parts.push(`${row.done} смонтировано = $${row.editorBase}`);
+      if (row.editorAvatars > 0) parts.push(`🧑‍🎨 ${row.done} аватаров $${row.editorAvatars}`);
+      if (row.editorBonusOnTime > 0) parts.push(`✓ в срок $${row.editorBonusOnTime}`);
+      if (row.editorBonusRenewal > 0) parts.push(`↻ продление $${row.editorBonusRenewal}`);
+    }
     if (row.ahead > 0) parts.push(`↗ ${row.ahead} наперёд`);
     if (row.montNoDate > 0) parts.push(`⚠ ${row.montNoDate} без даты сдачи`);
   } else if (row.fixedTl) {
     parts.push("сумма задана вручную");
   } else {
-    if (row.tlBase > 0) parts.push(`${row.published} опубл × $${row.pkg === 20 ? PAYROLL_RATES.tl_per_video_20 : PAYROLL_RATES.tl_per_video_other}`);
+    if (row.tlBase > 0) parts.push(`${row.published} опубл = $${row.tlBase}`);
     if (row.tlScripts > 0) parts.push(`сценарии $${row.tlScripts}`);
     if (row.bonusOnTime > 0) parts.push(`✓ в срок $${row.bonusOnTime}`);
     if (row.bonusOnboarding > 0) parts.push(`🚀 онбординг $${row.bonusOnboarding}`);
@@ -302,9 +312,9 @@ function RowLine({ row, amount, type, color, onSave, saving }: {
           {!isEditor && !fixed && (
             <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
               <span style={{ fontSize: 10, color: "var(--t3)", fontWeight: 700, minWidth: 92 }}>Бонусы</span>
-              {chip(row.onTime, `в срок $${PAYROLL_RATES.bonus_ontime}`, () => onSave({ on_time: row.onTime === row.autoOnTime ? !row.onTime : null }))}
-              {chip(row.onboarding, `онбординг $${PAYROLL_RATES.bonus_onboarding}`, () => onSave({ onboarding: row.onboarding === row.autoOnboarding ? !row.onboarding : null }))}
-              {chip(row.renewal, `продление $${PAYROLL_RATES.bonus_renewal}`, () => onSave({ renewal: row.renewal === row.autoRenewal ? !row.renewal : null }))}
+              {chip(row.onTime, "в срок", () => onSave({ on_time: row.onTime === row.autoOnTime ? !row.onTime : null }))}
+              {chip(row.onboarding, "онбординг", () => onSave({ onboarding: row.onboarding === row.autoOnboarding ? !row.onboarding : null }))}
+              {chip(row.renewal, "продление", () => onSave({ renewal: row.renewal === row.autoRenewal ? !row.renewal : null }))}
             </div>
           )}
 

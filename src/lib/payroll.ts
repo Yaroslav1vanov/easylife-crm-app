@@ -9,18 +9,49 @@ import { Client, ClientMonth, Script, TeamMember } from "@/lib/database";
 // Один ролик легально попадает монтажёру в один месяц, тимлиду — в другой.
 // ============================================================
 
-export const PAYROLL_RATES = {
-  editor_per_video: 10,   // монтажёр за смонтированный ролик
-  tl_per_video_20: 7.5,   // тимлид за публикацию, если пакет 20
-  tl_per_video_other: 5,  // тимлид за публикацию, остальные пакеты
-  scripts_per_video: 2,   // сценарии — только с M2
-  bonus_ontime: 50,       // пакет закрыт полностью в этом месяце
-  bonus_onboarding: 100,  // старт M1
-  bonus_renewal: 100,     // пакет закрыт + клиент оплатил следующий месяц
+/** Месяц, с которого действует новая мотивация. Прошлые месяцы пересчёту не подлежат. */
+export const NEW_MOTIVATION_FROM = "2026-08";
+
+/** Старая схема — по июль 2026 включительно. Не трогаем: история должна сходиться с уже выплаченным. */
+export const RATES_OLD = {
+  editor_per_video: 10,      // монтажёр за смонтированный ролик
+  editor_per_avatar: 0,      // аватары не оплачивались
+  editor_bonus_ontime: 0,    // бонусов у монтажёра не было
+  editor_bonus_renewal: 0,
+  tl_per_video_20: 7.5,      // тимлид за публикацию, если пакет 20
+  tl_per_video_other: 5,     // тимлид за публикацию, остальные пакеты
+  scripts_per_video: 2,      // сценарии — только с M2
+  bonus_ontime: 50,          // пакет закрыт полностью в этом месяце
+  bonus_onboarding: 100,     // старт M1
+  bonus_renewal: 100,        // пакет закрыт + клиент оплатил следующий месяц
 };
 
-export function tlRateFor(pkg: number) {
-  return pkg === 20 ? PAYROLL_RATES.tl_per_video_20 : PAYROLL_RATES.tl_per_video_other;
+/** Новая схема — с августа 2026. Тимлиду единая ставка $9, монтажёру аватары и свои бонусы. */
+export const RATES_NEW = {
+  editor_per_video: 10,
+  editor_per_avatar: 1,      // аватар к каждому смонтированному ролику
+  editor_bonus_ontime: 50,   // весь объём сдан и опубликован в клиентский месяц
+  editor_bonus_renewal: 50,  // пакет закрыт + клиент продлился
+  tl_per_video_20: 9,        // одна ставка за сценарий + контроль + публикацию
+  tl_per_video_other: 9,
+  scripts_per_video: 0,      // входит в ставку $9
+  bonus_ontime: 50,
+  bonus_onboarding: 100,
+  bonus_renewal: 100,
+};
+
+export type Rates = typeof RATES_OLD;
+
+/** Какие ставки действуют в этом месяце. */
+export function ratesFor(ym: string): Rates {
+  return ym >= NEW_MOTIVATION_FROM ? RATES_NEW : RATES_OLD;
+}
+
+/** @deprecated оставлено для совместимости — используй ratesFor(ym) */
+export const PAYROLL_RATES = RATES_NEW;
+
+export function tlRateFor(pkg: number, rates: Rates = RATES_NEW) {
+  return pkg === 20 ? rates.tl_per_video_20 : rates.tl_per_video_other;
 }
 
 /** Границы календарного месяца «YYYY-MM» → ['YYYY-MM-01', 'YYYY-MM-31'] */
@@ -78,6 +109,10 @@ export type PayrollRow = {
   note?: string | null;
   // суммы
   editorPay: number;
+  editorBase: number;         // ролики × ставку
+  editorAvatars: number;      // аватары (новая мотивация)
+  editorBonusOnTime: number;
+  editorBonusRenewal: number;
   tlBase: number;
   tlScripts: number;
   bonusOnTime: number;
@@ -122,6 +157,8 @@ export type PayrollPerson = {
 
 export type PayrollResult = {
   ym: string;
+  rates: Rates;
+  ratesVersion: "old" | "new";
   rows: PayrollRow[];
   people: PayrollPerson[];
   totalEditors: number;
@@ -141,6 +178,7 @@ type Input = {
 const d10 = (s?: string | null) => (s || "").slice(0, 10);
 
 export function computePayroll(ym: string, { clients, clientMonths, scripts, team, adjustments = [] }: Input): PayrollResult {
+  const R = ratesFor(ym);                       // ставки того месяца, который считаем
   const adjBy: Record<string, PayrollAdjustment> = {};
   for (const a of adjustments) if (a.ym === ym) adjBy[a.row_id] = a;
   const { start: ms, end: me } = ymRange(ym);
@@ -241,13 +279,18 @@ export function computePayroll(ym: string, { clients, clientMonths, scripts, tea
       fixedEditor || fixedTl
     );
 
-    // Монтаж: либо фиксированная сумма (нестандартная оплата), либо по ставке
-    const editorPay = fixedEditor ? Number(adj!.editor_amount) : done * PAYROLL_RATES.editor_per_video;
-    const tlBase = published * tlRateFor(pkg);
-    const tlScripts = m >= 2 ? published * PAYROLL_RATES.scripts_per_video : 0;   // в M1 сценарии не платятся
-    const bonusOnTime = onTime ? PAYROLL_RATES.bonus_ontime : 0;
-    const bonusOnboarding = onboarding ? PAYROLL_RATES.bonus_onboarding : 0;
-    const bonusRenewal = renewal ? PAYROLL_RATES.bonus_renewal : 0;
+    // Монтаж: либо фиксированная сумма (нестандартная оплата), либо по ставке месяца
+    const editorBase = done * R.editor_per_video;
+    const editorAvatars = done * R.editor_per_avatar;
+    const editorBonusOnTime = onTime ? R.editor_bonus_ontime : 0;
+    const editorBonusRenewal = renewal ? R.editor_bonus_renewal : 0;
+    const editorPay = fixedEditor ? Number(adj!.editor_amount)
+      : editorBase + editorAvatars + editorBonusOnTime + editorBonusRenewal;
+    const tlBase = published * tlRateFor(pkg, R);
+    const tlScripts = m >= 2 ? published * R.scripts_per_video : 0;   // в M1 сценарии не платятся
+    const bonusOnTime = onTime ? R.bonus_ontime : 0;
+    const bonusOnboarding = onboarding ? R.bonus_onboarding : 0;
+    const bonusRenewal = renewal ? R.bonus_renewal : 0;
     const tlTotal = fixedTl ? Number(adj!.tl_amount) : tlBase + tlScripts + bonusOnTime + bonusOnboarding + bonusRenewal;
 
     rows.push({
@@ -260,7 +303,8 @@ export function computePayroll(ym: string, { clients, clientMonths, scripts, tea
       renewalFrom: renewal ? m : undefined, renewalTo: renewal ? m + 1 : undefined,
       autoDone, autoPublished, autoOnTime, autoOnboarding, autoRenewal,
       edited, fixedEditor, fixedTl, note: adj?.note ?? null,
-      editorPay, tlBase, tlScripts, bonusOnTime, bonusOnboarding, bonusRenewal,
+      editorPay, editorBase, editorAvatars, editorBonusOnTime, editorBonusRenewal,
+      tlBase, tlScripts, bonusOnTime, bonusOnboarding, bonusRenewal,
       tlTotal, total: editorPay + tlTotal,
     });
   }
@@ -284,5 +328,6 @@ export function computePayroll(ym: string, { clients, clientMonths, scripts, tea
   const totalEditors = people.filter(p => p.type === "editor").reduce((s, p) => s + p.total, 0);
   const totalTeamleads = people.filter(p => p.type === "teamlead").reduce((s, p) => s + p.total, 0);
 
-  return { ym, rows, people, totalEditors, totalTeamleads, total: totalEditors + totalTeamleads, issues };
+  return { ym, rates: R, ratesVersion: ym >= NEW_MOTIVATION_FROM ? "new" : "old",
+    rows, people, totalEditors, totalTeamleads, total: totalEditors + totalTeamleads, issues };
 }
