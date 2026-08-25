@@ -95,7 +95,7 @@ export default function ClientDetailPage() {
   }
 
   async function addCard() {
-    await db.createScript(supabase, clientId, viewMonth);
+    await db.createScript(supabase, clientId, viewMonth || currentMonthNum || 1);
     await load();
   }
 
@@ -164,7 +164,7 @@ export default function ClientDetailPage() {
     ...scripts.map(s => s.month_number),
     ...clientMonths.filter(m => m.status !== "cancelled").map(m => m.month_number),
   ])).sort((a, b) => a - b);
-  const monthScripts = scripts.filter(s => s.month_number === viewMonth);
+  const monthScripts = viewMonth === 0 ? scripts : scripts.filter(s => s.month_number === viewMonth);
   const monthPub = monthScripts.filter(s => s.video_status === "published").length;
   const monthReady = monthScripts.filter(s => s.video_status === "ready").length;
   const monthInMontage = monthScripts.filter(s => s.video_status === "inProgress" && s.script_status === "approved").length;
@@ -480,6 +480,26 @@ export default function ClientDetailPage() {
               Месяц {m}{m === currentMonthNum ? " · текущий" : ""}
             </button>
           ))}
+          <button onClick={() => setViewMonth(0)} className="px-3 py-1 rounded-lg text-[10px] font-semibold"
+            title="Показать карточки всех месяцев — как в общем разделе «Монтаж»"
+            style={{ border: `1px solid ${viewMonth === 0 ? "var(--pu)" : "var(--brd)"}`, background: viewMonth === 0 ? "rgba(157,107,255,0.14)" : "transparent", color: viewMonth === 0 ? "var(--pu)" : "var(--t2)", cursor: "pointer" }}>
+            Все месяцы
+          </button>
+          {(() => {
+            // Незакрытая работа в других месяцах — её видно в разделе «Монтаж», но не на этой вкладке
+            if (viewMonth === 0) return null;
+            const elsewhere = scripts.filter(s => s.month_number !== viewMonth
+              && s.script_status === "approved" && ["notStarted", "inProgress", "ready"].includes(s.video_status));
+            if (!elsewhere.length) return null;
+            const byM: Record<number, number> = {};
+            for (const s of elsewhere) byM[s.month_number] = (byM[s.month_number] || 0) + 1;
+            return (
+              <button onClick={() => setViewMonth(0)} className="px-3 py-1 rounded-lg text-[10px] font-semibold"
+                style={{ border: "1px solid rgba(255,174,66,0.45)", background: "rgba(255,174,66,0.09)", color: "var(--or)", cursor: "pointer" }}>
+                ⚠ ещё {elsewhere.length} в работе: {Object.entries(byM).map(([m, n]) => `M${m} — ${n}`).join(", ")}
+              </button>
+            );
+          })()}
         </div>
       )}
 
