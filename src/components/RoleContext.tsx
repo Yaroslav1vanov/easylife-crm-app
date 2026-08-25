@@ -24,7 +24,7 @@ export function useCanEditReadyAt(): boolean {
 }
 // Разделы, доступные роли (для сайдбара и гварда маршрутов).
 export const ALLOWED_SECTIONS: Record<string, string[] | "all"> = {
-  montager: ["dashboard", "montage", "references", "transcribe", "guide"],
+  montager: ["dashboard", "montage", "references", "transcribe", "motivation", "guide"],
 };
 /** Разделы только для владельца — деньги команды. Остальные роли их не видят вообще. */
 export const OWNER_ONLY_SECTIONS = ["payroll"];
