@@ -299,6 +299,17 @@ const db = {
     const { error } = await sb.rpc("add_month_scripts", { p_client_id: clientId });
     return { error };
   },
+  /** Переносит карточку в другой контрактный месяц: номер выдаётся следующий свободный,
+   *  дата публикации из старого месяца сбрасывается — её ставят заново в графике. */
+  async moveScriptToMonth(sb: SupabaseClient, id: number, clientId: number, monthNumber: number) {
+    const { data: rows } = await sb.from("scripts").select("order_num")
+      .eq("client_id", clientId).eq("month_number", monthNumber).order("order_num", { ascending: false }).limit(1);
+    const next = ((rows?.[0]?.order_num as number) || 0) + 1;
+    return await sb.from("scripts").update({
+      month_number: monthNumber, order_num: next, pub_date: null, updated_at: new Date().toISOString(),
+    }).eq("id", id);
+  },
+
   async deleteScript(sb: SupabaseClient, id: number) {
     const { error } = await sb.from("scripts").delete().eq("id", id);
     return { error };

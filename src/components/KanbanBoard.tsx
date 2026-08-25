@@ -4,7 +4,7 @@ import { Client, Script } from "@/lib/database";
 import Avatar from "@/components/Avatar";
 import ScriptModal, { fmtDateShort, addDaysIso } from "@/components/ScriptModal";
 import ConfirmDialog from "@/components/ConfirmDialog";
-import { ExternalLink, Calendar as CalendarIcon, Plus, CheckSquare, Trash2, Undo2, X, type LucideIcon } from "lucide-react";
+import { ExternalLink, Calendar as CalendarIcon, Plus, CheckSquare, Trash2, Undo2, X, type LucideIcon, CalendarDays } from "lucide-react";
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
 function todayIsoLocal() { const d = new Date(); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; }
@@ -72,11 +72,12 @@ type Props = {
   };
   /** Если задано — в панели массового выбора появится кнопка «📄 Для клиента» (экспорт выбранных). */
   onBulkExport?: (ids: number[]) => void;
+  onBulkMoveMonth?: (ids: number[], month: number) => Promise<void>;
   /** Список контрактных месяцев клиента — для переноса сценария в другой месяц из карточки. */
   monthOptionsFor?: (clientId: number) => number[];
 };
 
-export default function KanbanBoard({ scripts, clients, columns, onUpdate, showClient = false, minColWidth = 220, emptyHint = "Пусто", onAddCard, addColumnId, onDelete, deadlineLeadDays, deadlineDone, deadlineShow, canEditScript = true, canEditReadyAt = false, cardAction, onBulkExport, monthOptionsFor }: Props) {
+export default function KanbanBoard({ scripts, clients, columns, onUpdate, showClient = false, minColWidth = 220, emptyHint = "Пусто", onAddCard, addColumnId, onDelete, deadlineLeadDays, deadlineDone, deadlineShow, canEditScript = true, canEditReadyAt = false, cardAction, onBulkExport, onBulkMoveMonth, monthOptionsFor }: Props) {
   const todayIso = todayIsoLocal();
   const hasDeadline = deadlineLeadDays != null;
   const [openId, setOpenId] = useState<number | null>(null);
@@ -85,11 +86,12 @@ export default function KanbanBoard({ scripts, clients, columns, onUpdate, showC
   const [movingScript, setMovingScript] = useState<number | null>(null);
   const [adding, setAdding] = useState(false);
   // Массовый выбор (галочками): удалить пачкой / вернуть в идею
-  const selectable = (!!onDelete || !!onBulkExport) && canEditScript;
+  const selectable = (!!onDelete || !!onBulkExport || !!onBulkMoveMonth) && canEditScript;
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [bulkConfirm, setBulkConfirm] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [moveMenu, setMoveMenu] = useState(false);
 
   const addColId = addColumnId || columns[0]?.id;
 
@@ -104,6 +106,12 @@ export default function KanbanBoard({ scripts, clients, columns, onUpdate, showC
     setBulkBusy(true);
     for (const id of Array.from(selected)) await onDelete(id);
     setBulkBusy(false); setBulkConfirm(false); exitSelect();
+  }
+  async function bulkMove(month: number) {
+    if (!onBulkMoveMonth) return;
+    setBulkBusy(true);
+    await onBulkMoveMonth(Array.from(selected), month);
+    setBulkBusy(false); setMoveMenu(false); exitSelect();
   }
   async function bulkToIdea() {
     setBulkBusy(true);
@@ -256,6 +264,36 @@ export default function KanbanBoard({ scripts, clients, columns, onUpdate, showC
               📄 Для клиента
             </button>
           )}
+          {onBulkMoveMonth && (() => {
+            const ids = Array.from(selected);
+            const chosen = scripts.filter(x => ids.includes(x.id));
+            const clientIds = Array.from(new Set(chosen.map(x => x.client_id)));
+            const months = clientIds.length === 1 ? (monthOptionsFor?.(clientIds[0]) || []) : [];
+            return (
+              <div style={{ position: "relative" }}>
+                <button onClick={() => setMoveMenu(m => !m)} disabled={bulkBusy || selected.size === 0}
+                  title={clientIds.length > 1 ? "Выбраны карточки разных клиентов — переносить можно только по одному клиенту" : "Перенести в другой месяц"}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 13px", borderRadius: 9, background: "rgba(66,212,244,0.12)", border: "1px solid rgba(66,212,244,0.4)", color: "var(--cy)", fontSize: 11, fontWeight: 700, cursor: bulkBusy || selected.size === 0 ? "default" : "pointer", opacity: selected.size === 0 ? 0.5 : 1 }}>
+                  <CalendarDays size={13} /> {bulkBusy ? "…" : "В другой месяц"}
+                </button>
+                {moveMenu && (
+                  <div style={{ position: "absolute", bottom: "calc(100% + 6px)", left: 0, zIndex: 60, minWidth: 190, background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 10, padding: 5, boxShadow: "0 12px 40px rgba(0,0,0,0.5)" }}>
+                    {clientIds.length > 1 ? (
+                      <div style={{ padding: "8px 10px", fontSize: 11, color: "var(--or)", lineHeight: 1.5 }}>
+                        Выбраны карточки разных клиентов. Перенос делается по одному клиенту.
+                      </div>
+                    ) : months.length ? months.map(m => (
+                      <button key={m} onClick={() => bulkMove(m)} className="nav-item" style={{ fontSize: 12, padding: "7px 10px", width: "100%" }}>
+                        Месяц {m}
+                      </button>
+                    )) : (
+                      <div style={{ padding: "8px 10px", fontSize: 11, color: "var(--t3)" }}>Нет доступных месяцев</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
           <button onClick={bulkToIdea} disabled={bulkBusy || selected.size === 0}
             style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 13px", borderRadius: 9, background: "rgba(157,107,255,0.12)", border: "1px solid var(--brd)", color: "var(--pu)", fontSize: 11, fontWeight: 700, cursor: bulkBusy || selected.size === 0 ? "default" : "pointer", opacity: selected.size === 0 ? 0.5 : 1 }}>
             <Undo2 size={13} /> {bulkBusy ? "…" : "В идею"}

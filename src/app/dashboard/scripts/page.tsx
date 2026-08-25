@@ -92,6 +92,13 @@ export default function ScriptsPage() {
     await updateScript(id, { script_status: "notStarted", pub_date: null });
   }
   // Удалить сценарий (пустой / дубль / уже сделанный)
+  // Излишек сценариев переносим в следующий месяц: номер выдаётся заново, дата публикации сбрасывается
+  async function bulkMoveMonth(ids: number[], month: number) {
+    const cur = allScripts.filter(s => ids.includes(s.id));
+    for (const s of cur) await db.moveScriptToMonth(supabase, s.id, s.client_id, month);
+    await load();
+  }
+
   async function deleteScript(id: number) {
     await db.deleteScript(supabase, id);
     setAllScripts(arr => arr.filter(s => s.id !== id));
@@ -407,6 +414,7 @@ export default function ScriptsPage() {
         canEditReadyAt={canEditReadyAt}
         onDelete={deleteScript}
         monthOptionsFor={monthsOf}
+        onBulkMoveMonth={bulkMoveMonth}
         onBulkExport={exportForClient} />
 
       {openScript && (

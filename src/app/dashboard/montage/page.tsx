@@ -86,6 +86,14 @@ export default function MontagePage() {
     setStore({ clients: cls, team: tm, scripts: all, clientMonths: cmRes?.data || [] });
     setLoading(false);
   }
+  const monthsOf = (cid: number) => clientMonths.filter(m => m.client_id === cid && m.status !== "cancelled").map(m => m.month_number).sort((a, b) => a - b);
+  // Излишек, оставшийся от закрытого месяца, переносим в текущий
+  async function bulkMoveMonth(ids: number[], month: number) {
+    const cur = allScripts.filter(s => ids.includes(s.id));
+    for (const s of cur) await db.moveScriptToMonth(supabase, s.id, s.client_id, month);
+    await load();
+  }
+
   async function deleteScript(id: number) {
     await db.deleteScript(supabase, id);
     setAllScripts(arr => arr.filter(s => s.id !== id));
@@ -478,6 +486,8 @@ export default function MontagePage() {
         deadlineDone={(s) => s.video_status === "ready" || s.video_status === "published"}
         canEditScript={!isMontager} canEditReadyAt={canEditReadyAt}
         onDelete={isMontager ? undefined : deleteScript}
+        monthOptionsFor={monthsOf}
+        onBulkMoveMonth={isMontager ? undefined : bulkMoveMonth}
         cardAction={{
           show: (s) => s.script_status === "approved" && s.video_status !== "ready" && s.video_status !== "published",
           label: "✓ Сдать",
