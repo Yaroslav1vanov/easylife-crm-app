@@ -57,6 +57,14 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     });
     if (cErr || !created?.user) return NextResponse.json({ error: cErr?.message || "не удалось создать аккаунт" }, { status: 500 });
     profile = { id: created.user.id, email };
+  } else if (password && password.length >= 6) {
+    // Аккаунт уже есть — задаём новый пароль (сотрудник забыл / не подошёл старый)
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (serviceKey) {
+      const admin = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceKey, { auth: { persistSession: false } });
+      const { error: uErr } = await admin.auth.admin.updateUserById(profile.id, { password, email_confirm: true });
+      if (uErr) return NextResponse.json({ error: `пароль не обновился: ${uErr.message}` }, { status: 500 });
+    }
   }
 
   // Роль + имя в профиле
