@@ -58,8 +58,21 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     ch === "ig" ? pub.caption_ig : ch === "tt" ? pub.caption_tt :
     ch === "yt" ? (pub.yt_description || pub.yt_title) : ch === "threads" ? pub.threads_post : "";
 
+  // YouTube без названия отдаёт 400. Если тимлид его не заполнил — берём первую фразу из текста поста.
+  const ytTitle = (() => {
+    if ((pub.yt_title || "").trim()) return pub.yt_title.trim().slice(0, 95);
+    const src = (pub.base_text || pub.caption_ig || pub.caption_tt || pub.threads_post || "").trim();
+    if (!src) return "";
+    const firstLine = src.split(/\n/).map((x: string) => x.trim()).find(Boolean) || src;
+    const sentence = (firstLine.split(/(?<=[.!?])\s/)[0] || firstLine).trim();
+    return sentence.replace(/[<>]/g, "").slice(0, 95).trim();   // < и > YouTube не принимает
+  })();
+
   const targets = channels.filter(ch => NET[ch]);
   if (!targets.length) return NextResponse.json({ error: "Не выбрана ни одна соцсеть" }, { status: 400 });
+  if (targets.includes("yt") && !ytTitle) {
+    return NextResponse.json({ error: "Для YouTube нужен заголовок ролика — заполни «Название YouTube» или текст поста" }, { status: 400 });
+  }
 
   const results = await Promise.all(targets.map(async ch => {
     const network = NET[ch];
@@ -75,7 +88,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     // Кастомная обложка ролика (статичное превью креатива) — Metricool: ScheduledPost.videoThumbnailUrl
     if (!isCarousel && pub.video_thumbnail_url) body.videoThumbnailUrl = pub.video_thumbnail_url;
     if (network === "instagram") body.instagramData = { type: isCarousel ? "POST" : "REEL" };
-    if (network === "youtube") body.youtubeData = { title: pub.yt_title || "", type: "SHORT", tags: pub.yt_tags || [], madeForKids: false, privacy: "public" };
+    if (network === "youtube") body.youtubeData = { title: ytTitle, type: "SHORT", tags: pub.yt_tags || [], madeForKids: false, privacy: "public" };
     if (network === "tiktok") body.tiktokData = {
       privacyOption: "PUBLIC_TO_EVERYONE",
       disableComment: false, disableDuet: false, disableStitch: false,
