@@ -50,6 +50,7 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
   const [bodyText, setBodyText] = useState(s.body_text || "");
   const [cta, setCta] = useState(s.cta || "");
   const [videoUrl, setVideoUrl] = useState(s.video_url || "");
+  const [pubUrl, setPubUrl] = useState(s.published_url || "");
   const [pubDate, setPubDate] = useState(s.pub_date || "");
   const [readyAt, setReadyAt] = useState(s.ready_at || "");
   const [confirmDel, setConfirmDel] = useState(false);
@@ -234,7 +235,7 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
         {/* Готовый ролик — грузим прямо в CRM на фазе монтажа. По загруженному файлу считается сдача. */}
         {s.script_status === "approved" && (
           <div data-tour="sm-video" style={{ padding: 12, borderRadius: 12, background: s.video_url ? "rgba(168,224,99,0.06)" : "rgba(255,174,66,0.06)", border: `1px solid ${s.video_url ? "rgba(168,224,99,0.3)" : "rgba(255,174,66,0.35)"}` }}>
-            {label(isPublished ? "▶ Опубликованное видео" : "🎬 Готовый ролик — загрузить в CRM", s.video_url ? "var(--gr)" : "var(--or)")}
+            {label("🎬 Смонтированный ролик — файл от монтажёра", s.video_url ? "var(--gr)" : "var(--or)")}
             <div style={{ display: "flex", gap: 6 }}>
               <input value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)}
                 onBlur={() => { if (videoUrl !== (s.video_url || "")) onUpdate(s.id, { video_url: videoUrl }); }}
@@ -253,6 +254,27 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
             {s.video_url
               ? <video src={s.video_url.startsWith("http") ? s.video_url : `https://${s.video_url}`} controls playsInline preload="metadata" style={{ width: "100%", maxHeight: 240, marginTop: 8, borderRadius: 10, background: "#000", display: "block" }} />
               : <div style={{ fontSize: 10, color: "var(--or)", marginTop: 6, fontWeight: 600 }}>⚠ Пока ролик не загружен — карточку нельзя перевести в «Готово к публикации».</div>}
+          </div>
+        )}
+
+        {/* Ссылка на вышедший пост — её вставляют уже после публикации, по ней тянется статистика */}
+        {isPublished && (
+          <div style={{ padding: 12, borderRadius: 12, background: s.published_url ? "rgba(66,212,244,0.06)" : "rgba(157,107,255,0.05)", border: `1px solid ${s.published_url ? "rgba(66,212,244,0.3)" : "var(--brd)"}` }}>
+            {label("🔗 Ссылка на публикацию в соцсети", s.published_url ? "var(--cy)" : "var(--t3)")}
+            <div style={{ display: "flex", gap: 6 }}>
+              <input value={pubUrl} onChange={(e) => setPubUrl(e.target.value)}
+                onBlur={() => { if (pubUrl !== (s.published_url || "")) onUpdate(s.id, { published_url: pubUrl }); }}
+                placeholder="https://www.instagram.com/reel/… — берётся из соцсети после выхода" style={{ ...ta, fontSize: 12 }} />
+              {s.published_url && (
+                <a href={s.published_url.startsWith("http") ? s.published_url : `https://${s.published_url}`} target="_blank" rel="noopener noreferrer"
+                  style={{ flexShrink: 0, padding: "0 14px", borderRadius: 9, background: "rgba(66,212,244,0.14)", border: "1px solid rgba(66,212,244,0.3)", color: "var(--cy)", display: "inline-flex", alignItems: "center" }}>
+                  <ExternalLink size={15} />
+                </a>
+              )}
+            </div>
+            <div style={{ fontSize: 10, color: "var(--t3)", marginTop: 6 }}>
+              По этой ссылке считается статистика ролика. Файл выше — это исходник от монтажёра, статистику по нему не собрать.
+            </div>
           </div>
         )}
 

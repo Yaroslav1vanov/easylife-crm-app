@@ -496,8 +496,8 @@ function PublicationModal({ script: s, client: c, todayIso, onClose, onUpdate, o
   onClose: () => void; onUpdate: (id: number, patch: Partial<Script>) => Promise<void> | void; onOpenClient: () => void;
 }) {
   const [pubDate, setPubDate] = useState(s.pub_date || "");
-  const [videoUrl, setVideoUrl] = useState(s.video_url || "");
-  useEffect(() => { setPubDate(s.pub_date || ""); setVideoUrl(s.video_url || ""); }, [s.id]);
+  const [videoUrl, setVideoUrl] = useState(s.published_url || "");
+  useEffect(() => { setPubDate(s.pub_date || ""); setVideoUrl(s.published_url || ""); }, [s.id]);
   useEffect(() => { const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); }; window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h); }, [onClose]);
 
   const isPublished = s.video_status === "published";
@@ -535,9 +535,9 @@ function PublicationModal({ script: s, client: c, todayIso, onClose, onUpdate, o
           <label style={{ fontSize: 10, fontWeight: 700, color: "var(--gr)", textTransform: "uppercase", letterSpacing: 0.4, display: "block", marginBottom: 5 }}>▶ Ссылка на опубликованное видео</label>
           <div style={{ display: "flex", gap: 6 }}>
             <input value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)}
-              onBlur={() => { if (videoUrl !== (s.video_url || "")) onUpdate(s.id, { video_url: videoUrl }); }} placeholder="https://instagram.com/reel/…" style={ta} />
-            {s.video_url && (
-              <a href={s.video_url.startsWith("http") ? s.video_url : `https://${s.video_url}`} target="_blank" rel="noopener noreferrer"
+              onBlur={() => { if (videoUrl !== (s.published_url || "")) onUpdate(s.id, { published_url: videoUrl }); }} placeholder="https://instagram.com/reel/…" style={ta} />
+            {s.published_url && (
+              <a href={s.published_url.startsWith("http") ? s.published_url : `https://${s.published_url}`} target="_blank" rel="noopener noreferrer"
                 style={{ flexShrink: 0, padding: "0 13px", borderRadius: 9, background: "rgba(168,224,99,0.14)", border: "1px solid rgba(168,224,99,0.3)", color: "var(--gr)", display: "inline-flex", alignItems: "center" }}><ExternalLink size={14} /></a>
             )}
           </div>

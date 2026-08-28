@@ -557,7 +557,9 @@ export default function ClientDetailPage() {
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 {pubList.map((s, i) => {
-                  const vurl = s.video_url ? (s.video_url.startsWith("http") ? s.video_url : `https://${s.video_url}`) : null;
+                  // в списке опубликованного ведём на сам пост; если ссылки ещё нет — на файл ролика
+                  const src = s.published_url || s.video_url;
+                  const vurl = src ? (src.startsWith("http") ? src : `https://${src}`) : null;
                   return (
                     <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 11, background: "var(--inset2)", border: "1px solid var(--track)" }}>
                       <div style={{ flexShrink: 0, width: 34, height: 34, borderRadius: 9, background: "rgba(168,224,99,0.14)", border: "1px solid rgba(168,224,99,0.35)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Unbounded', sans-serif", fontSize: 13, fontWeight: 800, color: "var(--gr)" }}>{i + 1}</div>

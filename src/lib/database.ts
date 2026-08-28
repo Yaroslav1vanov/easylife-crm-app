@@ -26,7 +26,7 @@ export type Script = {
   id: number; client_id: number; month_number: number; order_num: number; hook: string;
   ref_url: string; ref_text?: string | null; transcription: string; hook_text: string; body_text: string; cta: string;
   description: string; script_status: string; video_status: string; pub_date: string | null;
-  ready_at: string | null; video_url?: string | null; content_type?: string | null;
+  ready_at: string | null; video_url?: string | null; published_url?: string | null; content_type?: string | null;
   // «Дуэль» статистики: исходник (реф) vs наше опубликованное видео
   ref_views?: number | null; ref_likes?: number | null; ref_comments?: number | null;
   our_views?: number | null; our_likes?: number | null; our_comments?: number | null; our_stats_at?: string | null;
@@ -97,7 +97,8 @@ export type Publication = {
   client_id: number;
   content_type: ContentType;
   media_urls: string[] | null;
-  video_url: string | null;
+  video_url: string | null;        // файл смонтированного ролика (R2)
+  published_url?: string | null;   // ссылка на вышедший пост в соцсети
   video_thumbnail_url: string | null;
   publish_at: string | null;
   target_channels: string[] | null;
