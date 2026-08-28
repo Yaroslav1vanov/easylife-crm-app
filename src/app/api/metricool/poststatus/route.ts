@@ -10,7 +10,23 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const id = url.searchParams.get("id");
   const blogId = url.searchParams.get("blogId");
-  if (!id || !blogId) return NextResponse.json({ error: "нужны ?id= и ?blogId=" }, { status: 400 });
+  if (!blogId) return NextResponse.json({ error: "нужен ?blogId=" }, { status: 400 });
+
+  // Без id — список запланированного за период: ?blogId=&from=YYYY-MM-DD&to=YYYY-MM-DD
+  if (!id) {
+    const from = url.searchParams.get("from") || new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+    const to = url.searchParams.get("to") || new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+    const lep = `${BASE}/v2/scheduler/posts?start=${from}T00:00:00&end=${to}T23:59:59&userToken=${encodeURIComponent(token)}&userId=${encodeURIComponent(userId)}&blogId=${blogId}`;
+    const lr = await fetch(lep, { headers: { "X-Mc-Auth": token } });
+    const lj = await lr.json().catch(() => null);
+    if (!lr.ok) return NextResponse.json({ error: lj?.message || `Metricool ${lr.status}`, raw: lj }, { status: 502 });
+    const list = (lj?.data || lj || []).map((p: any) => ({
+      id: p.id, when: p.publicationDate?.dateTime, text: (p.text || "").slice(0, 70),
+      networks: (p.providers || []).map((x: any) => x.network),
+      status: p.status,
+    }));
+    return NextResponse.json({ blogId, from, to, count: list.length, list });
+  }
 
   const ep = `${BASE}/v2/scheduler/posts/${id}?userToken=${encodeURIComponent(token)}&userId=${encodeURIComponent(userId)}&blogId=${blogId}`;
   const r = await fetch(ep, { headers: { "X-Mc-Auth": token } });
