@@ -239,7 +239,7 @@ export default function ClientDetailPage() {
         team={team}
         activeMonth={currentMonthNum}
         todayIso={todayIso}
-        onEdit={() => { setEditData({ name: c.name, surname: c.surname, niche: c.niche, phone: c.phone, product: c.product, avg_check: c.avg_check, package: c.package, montager_id: c.montager_id, teamlead_id: c.teamlead_id, priority: c.priority, stage: c.stage, instagram: c.instagram || "", tiktok: c.tiktok || "", youtube: c.youtube || "" }); setEditing(true); }}
+        onEdit={() => { setEditData({ name: c.name, surname: c.surname, niche: c.niche, phone: c.phone, product: c.product, avg_check: c.avg_check, package: c.package, montager_id: c.montager_id, teamlead_id: c.teamlead_id, priority: c.priority, stage: c.stage, instagram: c.instagram || "", tiktok: c.tiktok || "", youtube: c.youtube || "", birthday: c.birthday || "" }); setEditing(true); }}
         onAvatarChange={async (url) => { await updateClientField("avatar_url", url); }}
         onUpdateTeam={updateTeam}
         onTogglePause={async () => { await updateClientField("stage", c.stage === "paused" ? "active" : "paused"); }}
@@ -620,6 +620,7 @@ export default function ClientDetailPage() {
                   </select>
                 </div>
                 <div><label style={lbl}>Телефон</label><input style={inp} value={editData.phone || ""} onChange={(e) => set("phone", e.target.value)} placeholder="+1 …" /></div>
+                <div><label style={lbl}>🎂 День рождения</label><input type="date" style={inp} value={editData.birthday || ""} onChange={(e) => set("birthday", e.target.value)} /></div>
               </div>
 
               <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", paddingTop: 4 }}>

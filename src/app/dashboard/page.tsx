@@ -6,6 +6,7 @@ import db, { Client, Script, ClientMonth, TeamMember, Profile, OnboardingProgres
 import { getStore, setStore } from "@/lib/store";
 import { VIDEO_LEAD, SCRIPT_LEAD } from "@/components/ScriptModal";
 import Avatar from "@/components/Avatar";
+import { upcomingBirthdays, daysLabel } from "@/lib/birthdays";
 import Tour, { TourButton, type TourStep } from "@/components/Tour";
 import { Eye } from "lucide-react";
 import EmployeeDashboard from "@/components/EmployeeDashboard";
@@ -1536,6 +1537,56 @@ function DashboardInner() {
           )}
         </div>
       </div>
+
+      {/* ===== ДНИ РОЖДЕНИЯ — только владелец и ассистент: они поздравляют ===== */}
+      {seesAll && (() => {
+        const people = [
+          ...clients.filter(c => c.stage === "active").map(c => ({
+            kind: "client" as const, id: c.id, name: `${c.name} ${c.surname || ""}`.trim(),
+            role: c.niche || null, avatarUrl: c.avatar_url, birthday: c.birthday,
+          })),
+          ...team.map(m => ({
+            kind: "team" as const, id: m.id, name: m.name,
+            role: m.role_title || null, avatarUrl: m.avatar_url, birthday: m.birthday,
+          })),
+        ];
+        const list = upcomingBirthdays(people, todayIso, 30);
+        if (!list.length) return null;
+        return (
+          <div className="card" style={{ padding: 16, borderRadius: 18, marginBottom: 18, borderColor: "rgba(255,107,139,0.3)", background: "linear-gradient(135deg, rgba(255,107,139,0.07), rgba(123,63,228,0.03))" }}>
+            <h3 style={{ fontSize: 14, fontWeight: 800, color: "var(--t1)", display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+              <span style={{ fontSize: 15 }}>🎂</span>
+              Дни рождения
+              <span style={{ padding: "2px 7px", borderRadius: 6, background: "rgba(255,107,139,0.18)", color: "#ff6b8b", fontSize: 10, fontWeight: 700 }}>{list.length}</span>
+              <span style={{ fontSize: 10, color: "var(--t3)", fontWeight: 600 }}>ближайший месяц</span>
+            </h3>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 10 }}>
+              {list.map(b => {
+                const soon = b.inDays <= 7;
+                return (
+                  <div key={`${b.kind}-${b.id}`}
+                    onClick={() => router.push(b.kind === "client" ? `/dashboard/clients/${b.id}` : "/dashboard/team")}
+                    style={{ display: "flex", alignItems: "center", gap: 10, padding: 11, borderRadius: 12, cursor: "pointer",
+                      background: b.inDays === 0 ? "rgba(255,107,139,0.14)" : "var(--inset)",
+                      border: `1px solid ${b.inDays === 0 ? "#ff6b8b" : soon ? "rgba(255,107,139,0.35)" : "var(--brd)"}` }}>
+                    <Avatar name={b.name} src={b.avatarUrl} size={34} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--t1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{b.name}</div>
+                      <div style={{ fontSize: 10, color: "var(--t3)" }}>
+                        {b.kind === "client" ? "клиент" : "команда"}{b.role ? ` · ${b.role}` : ""}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: "right", flexShrink: 0 }}>
+                      <div style={{ fontSize: 11, fontWeight: 800, color: soon ? "#ff6b8b" : "var(--t2)" }}>{daysLabel(b.inDays)}</div>
+                      <div style={{ fontSize: 10, color: "var(--t3)" }}>{b.when}{b.turns ? ` · ${b.turns}` : ""}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ===== ПРОДЛЕНИЯ (компактный алерт вместо большой таблицы) ===== */}
       {(() => {

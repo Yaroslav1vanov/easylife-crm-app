@@ -1,9 +1,10 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 
 export type Profile = { id: string; email: string; name: string; role: string; avatar_url: string | null };
-export type TeamMember = { id: number; profile_id: string | null; name: string; role_title: string; member_type: string; avatar_url?: string | null };
+export type TeamMember = { id: number; profile_id: string | null; name: string; role_title: string; member_type: string; avatar_url?: string | null; birthday?: string | null };
 export type Client = {
   id: number; name: string; surname: string; niche: string; product: string; phone: string;
+  birthday?: string | null;      // ДР — для поздравлений (видят владелец и ассистент)
   avg_check: string; instagram: string; tiktok: string; youtube: string; avatar_url: string;
   metricool_blog_id?: number | null; platforms?: string[] | null;
   brand_voice?: string | null; timezone?: string | null; default_post_time?: string | null;

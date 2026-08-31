@@ -6,7 +6,7 @@ import db, { TeamMember, Client, ClientMonth } from "@/lib/database";
 import AvatarUploader from "@/components/AvatarUploader";
 import Avatar from "@/components/Avatar";
 import Tour, { TourButton, type TourStep } from "@/components/Tour";
-import { useIsOwner } from "@/components/RoleContext";
+import { useIsOwner, useSeesOverview } from "@/components/RoleContext";
 import { Crown, Users2, Scissors, Plus, X, UserPlus, AlertTriangle, type LucideIcon } from "lucide-react";
 
 type RoleDef = { type: string; title: string; color: string; Icon: LucideIcon; roleNoun: string };
@@ -29,6 +29,7 @@ export default function TeamPage() {
   const [newType, setNewType] = useState("montager");
   const [tourOpen, setTourOpen] = useState(false);
   const isOwner = useIsOwner();
+  const seesAll = useSeesOverview();   // владелец и ассистент — они и поздравляют
   const [accessFor, setAccessFor] = useState<TeamMember | null>(null);   // кому выдаём доступ
   const [accessBusy, setAccessBusy] = useState<number | null>(null);
   const [accEmail, setAccEmail] = useState("");
@@ -80,6 +81,11 @@ export default function TeamPage() {
     await db.addTeamMember(supabase, { name: newName, role_title: newRole, member_type: newType });
     setNewName(""); setShowAdd(false); load();
   }
+  async function updateBirthday(id: number, birthday: string) {
+    setTeam(arr => arr.map(x => x.id === id ? { ...x, birthday: birthday || null } : x));
+    await supabase.from("team_members").update({ birthday: birthday || null }).eq("id", id);
+  }
+
   async function removeMember(id: number) {
     if (!confirm("Удалить сотрудника? Его клиенты останутся, но без привязки.")) return;
     await db.deleteTeamMember(supabase, id); load();
@@ -203,6 +209,15 @@ export default function TeamPage() {
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 15, fontWeight: 800, color: "var(--t1)" }}>{m.name}</div>
                         <div style={{ fontSize: 11, color: "var(--t3)" }}>{m.role_title}</div>
+                        {seesAll && (
+                          <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 3 }}>
+                            <span style={{ fontSize: 10 }}>🎂</span>
+                            <input type="date" value={(m.birthday || "").slice(0, 10)}
+                              onChange={(e) => updateBirthday(m.id, e.target.value)}
+                              title="День рождения"
+                              style={{ background: "transparent", border: "none", borderBottom: "1px dashed var(--brd)", color: m.birthday ? "var(--t2)" : "var(--t3)", fontSize: 10.5, fontFamily: "inherit", padding: "1px 2px", cursor: "pointer", colorScheme: "dark" }} />
+                          </div>
+                        )}
                       </div>
                       <div style={{ textAlign: "right", flexShrink: 0 }}>
                         <div style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 20, fontWeight: 800, color: role.color, lineHeight: 1 }}>{list.length}</div>
