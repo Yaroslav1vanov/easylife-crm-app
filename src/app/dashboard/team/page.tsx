@@ -209,15 +209,7 @@ export default function TeamPage() {
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 15, fontWeight: 800, color: "var(--t1)" }}>{m.name}</div>
                         <div style={{ fontSize: 11, color: "var(--t3)" }}>{m.role_title}</div>
-                        {seesAll && (
-                          <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 3 }}>
-                            <span style={{ fontSize: 10 }}>🎂</span>
-                            <input type="date" value={(m.birthday || "").slice(0, 10)}
-                              onChange={(e) => updateBirthday(m.id, e.target.value)}
-                              title="День рождения"
-                              style={{ background: "transparent", border: "none", borderBottom: "1px dashed var(--brd)", color: m.birthday ? "var(--t2)" : "var(--t3)", fontSize: 10.5, fontFamily: "inherit", padding: "1px 2px", cursor: "pointer", colorScheme: "dark" }} />
-                          </div>
-                        )}
+
                       </div>
                       <div style={{ textAlign: "right", flexShrink: 0 }}>
                         <div style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 20, fontWeight: 800, color: role.color, lineHeight: 1 }}>{list.length}</div>
@@ -232,6 +224,17 @@ export default function TeamPage() {
                         <button onClick={() => removeMember(m.id)} title="Удалить" style={{ flexShrink: 0, width: 26, height: 26, borderRadius: 7, background: "transparent", border: "1px solid var(--brd)", color: "var(--t3)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><X size={13} /></button>
                       )}
                     </div>
+                    {/* День рождения — отдельной строкой, чтобы не наезжать на нагрузку */}
+                    {seesAll && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--track)" }}>
+                        <span style={{ fontSize: 11 }}>🎂</span>
+                        <span style={{ fontSize: 10.5, color: "var(--t3)", fontWeight: 600 }}>День рождения</span>
+                        <input type="date" value={(m.birthday || "").slice(0, 10)}
+                          onChange={(e) => updateBirthday(m.id, e.target.value)}
+                          style={{ marginLeft: "auto", maxWidth: 140, background: "var(--inp)", border: "1px solid var(--brd)", borderRadius: 7, color: m.birthday ? "var(--t1)" : "var(--t3)", fontSize: 11, fontFamily: "inherit", padding: "4px 7px", cursor: "pointer", colorScheme: "dark" }} />
+                      </div>
+                    )}
+
                     {/* Доступ в CRM — виден только владельцу */}
                     {isOwner && (
                       <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--track)" }}>
