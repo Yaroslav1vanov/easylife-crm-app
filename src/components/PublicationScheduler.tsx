@@ -1,5 +1,6 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { createClient } from "@/lib/supabase-browser";
 import db, { ClientMonth, Script } from "@/lib/database";
 import { X, Wand2, Trash2, CalendarDays, Eraser, Plus } from "lucide-react";
@@ -142,9 +143,12 @@ export default function PublicationScheduler({ clientId, month, scripts, onClose
     : isEmptySlot(s) ? { bg: "var(--track)", fg: "var(--t3)", br: "var(--brd)" }
     : { bg: "rgba(157,107,255,0.14)", fg: "var(--pu)", br: "rgba(157,107,255,0.4)" };
 
-  return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 120, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 18, width: "100%", maxWidth: 980, maxHeight: "92vh", overflowY: "auto", padding: 22, fontFamily: "'Manrope', sans-serif" }}>
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
+  const modal = (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 1000, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "24px 16px", overflowY: "auto" }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 18, width: "100%", maxWidth: 980, maxHeight: "calc(100vh - 48px)", overflowY: "auto", padding: 22, margin: "auto", fontFamily: "'Manrope', sans-serif" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16, gap: 12 }}>
           <div>
             <h3 style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 18, fontWeight: 800, color: "var(--t1)", display: "flex", alignItems: "center", gap: 8 }}>
@@ -259,7 +263,17 @@ export default function PublicationScheduler({ clientId, month, scripts, onClose
             </div>
           </div>
         )}
+        <div style={{ position: "sticky", bottom: -22, marginTop: 16, paddingTop: 12, paddingBottom: 4, background: "var(--side)", borderTop: "1px solid var(--brd)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 10.5, color: "var(--t3)" }}>Изменения сохраняются сразу — отдельной кнопки не нужно</span>
+          <button onClick={onClose}
+            style={{ padding: "9px 22px", borderRadius: 10, background: "linear-gradient(135deg, var(--cy), var(--pu))", border: "none", color: "#fff", fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}>
+            Готово
+          </button>
+        </div>
       </div>
     </div>
   );
+
+  if (!mounted) return null;
+  return createPortal(modal, document.body);
 }
