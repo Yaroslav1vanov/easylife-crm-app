@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
 import { handleOf, type Plat } from "@/lib/socialHandles";
+import { vmxMcp, vmxMyAccounts, vmxAvatarUrl } from "@/lib/viralmaxing";
 
 /* ============================================================
    Соц-статистика клиентов → social_snapshots.
@@ -37,7 +38,7 @@ export async function GET(req: Request) {
 
   const sb = createClient();
   const { data: clients } = await sb.from("clients")
-    .select("id, name, surname, stage, platforms, instagram, tiktok, youtube, metricool_blog_id")
+    .select("id, name, surname, stage, platforms, instagram, tiktok, youtube, metricool_blog_id, avatar_url")
     .neq("stage", "churned");
   if (!clients?.length) return NextResponse.json({ ok: true, written: 0, note: "нет клиентов" });
 
@@ -49,34 +50,11 @@ export async function GET(req: Request) {
   const unmatched: any[] = [];     // есть хэндл, но в Viralmaxing не отслеживается
   const noHandle: any[] = [];      // ссылки нет — нечего искать
   const errors: any[] = [];
+  const avatarFor = new Map<number, string>(); // clientId → url аватарки из Viralmaxing
 
   /* ---------- Viralmaxing (через MCP-эндпоинт с API-ключом: REST не отдаёт «свои» аккаунты) ---------- */
   if (vmxKey) {
-    let rpcId = 1;
-    const mcpCall = async (name: string, args: Record<string, any>): Promise<string> => {
-      const r = await fetch(`${VMX}/mcp`, {
-        method: "POST", cache: "no-store",
-        headers: { "X-API-Key": vmxKey, "content-type": "application/json", accept: "application/json, text/event-stream" },
-        body: JSON.stringify({ jsonrpc: "2.0", id: rpcId++, method: "tools/call", params: { name, arguments: args } }),
-      });
-      const text = await r.text();
-      if (!r.ok) throw new Error(`Viralmaxing MCP ${r.status} ${name}: ${text.slice(0, 200)}`);
-      let j: any = null;
-      try { j = JSON.parse(text); } catch {
-        // streamable-http может отдать SSE: берём последнюю data-строку
-        const lines = text.split("\n").filter(l => l.startsWith("data:"));
-        try { j = JSON.parse(lines[lines.length - 1].slice(5)); } catch { throw new Error(`Viralmaxing MCP: нечитаемый ответ ${name}`); }
-      }
-      if (j?.error) throw new Error(`Viralmaxing MCP ${name}: ${j.error.message || JSON.stringify(j.error)}`);
-      return (j?.result?.content || []).filter((c: any) => c?.type === "text").map((c: any) => c.text).join("\n");
-    };
-    // «12.5K» / «2.2M» → число (для аккаунтов без роликов за период)
-    const parseNum = (v: string): number | null => {
-      const t = String(v || "").trim().replace(/,/g, "");
-      if (!t || t === "—" || t === "-") return null;
-      const m = t.match(/^([\d.]+)\s*([KkMm])?$/); if (!m) return null;
-      const n = parseFloat(m[1]); return Math.round(m[2] ? n * (m[2].toLowerCase() === "k" ? 1e3 : 1e6) : n);
-    };
+    const mcpCall = (name: string, args: Record<string, any>) => vmxMcp(vmxKey, name, args);
     const parseCsv = (txt: string): string[][] => {
       const rows: string[][] = []; let row: string[] = [], cell = "", q = false;
       for (let i = 0; i < txt.length; i++) {
@@ -91,20 +69,8 @@ export async function GET(req: Request) {
       return rows.filter(r => r.length > 1);
     };
     try {
-      // 1) свои аккаунты: markdown-таблица | # | Platform | Username | Followers | Posts | Avg views | Last post | account_id |
-      const accounts: { id: number; plat: Plat; handle: string; followersApprox: number | null }[] = [];
-      for (let off = 0; off < 500; off += 50) {
-        const md = await mcpCall("list_my_accounts", { limit: 50, offset: off });
-        let n = 0;
-        for (const line of md.split("\n")) {
-          const cells = line.split("|").map(x => x.trim());
-          if (cells.length < 9 || !/^\d+$/.test(cells[1])) continue;
-          const plat = VM_PLAT[cells[2].toLowerCase()]; const id = parseInt(cells[8], 10);
-          if (!plat || !id) continue;
-          accounts.push({ id, plat, handle: cells[3].replace(/^@/, "").toLowerCase(), followersApprox: parseNum(cells[4]) }); n++;
-        }
-        if (n < 50) break;
-      }
+      // 1) свои аккаунты
+      const accounts = await vmxMyAccounts(vmxKey);
       if (debug) return NextResponse.json({ debug: true, accounts });
       const byKey = new Map(accounts.map(a => [`${a.plat}:${a.handle}`, a]));
 
@@ -135,6 +101,8 @@ export async function GET(req: Request) {
             const er = hasViews && views > 0 ? Math.round((inter / views) * 10000) / 100 : null;
             rowsOut.push({ client_id: c.id, client: c.name, platform: p, snapshot_date: snapDate, followers, reach_30d: hasViews ? views : null, engagement_rate: er, source: "viralmaxing", posts, vm_account_id: acc.id });
             covered.add(`${c.id}:${p}`);
+            // аватарка клиента пустая → берём с CDN Viralmaxing (IG приоритетнее)
+            if (!c.avatar_url && (p === "ig" || !avatarFor.has(c.id))) avatarFor.set(c.id, vmxAvatarUrl(acc.id));
           } catch (e: any) { errors.push({ client_id: c.id, platform: p, error: String(e?.message || e) }); }
         }
       }
@@ -187,8 +155,10 @@ export async function GET(req: Request) {
     }
   }
 
-  if (dry) return NextResponse.json({ ok: true, dry: true, rows: rowsOut, unmatched, noHandle, errors });
+  if (dry) return NextResponse.json({ ok: true, dry: true, rows: rowsOut, avatars: Array.from(avatarFor.entries()), unmatched, noHandle, errors });
 
+  let avatarsSet = 0;
+  for (const [cid, url2] of Array.from(avatarFor.entries())) { const { error } = await sb.from("clients").update({ avatar_url: url2 }).eq("id", cid); if (!error) avatarsSet++; }
   let written = 0;
   for (const row of rowsOut) {
     const { error } = await sb.from("social_snapshots").upsert(
@@ -198,7 +168,7 @@ export async function GET(req: Request) {
     if (error) errors.push({ client_id: row.client_id, platform: row.platform, error: error.message }); else written++;
   }
   return NextResponse.json({
-    ok: true, written, snapDate,
+    ok: true, written, avatarsSet, snapDate,
     viralmaxing: rowsOut.filter(r => r.source === "viralmaxing").map(r => ({ client: r.client, platform: r.platform, followers: r.followers, views30: r.reach_30d, er: r.engagement_rate, posts: r.posts })),
     metricool: rowsOut.filter(r => r.source === "metricool").map(r => ({ client: r.client, platform: r.platform, followers: r.followers, reach30: r.reach_30d })),
     unmatched, noHandle, errors,

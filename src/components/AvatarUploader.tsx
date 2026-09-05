@@ -79,11 +79,12 @@ export default function AvatarUploader({ currentUrl, name, pathPrefix, entityId,
         const j = await resp.json().catch(() => ({} as any));
         const map: Record<string, string> = {
           bad_url: "Не похоже на ссылку — Instagram по ссылке не тянется, загрузи файлом",
-          fetch_failed: "Не удалось получить фото (Instagram блокирует) — загрузи файлом",
+          fetch_failed: "Не удалось получить фото — загрузи файлом",
+          no_source: "Источник фото не найден — загрузи файлом",
           not_image: "По ссылке не картинка",
           timeout: "Соцсеть не ответила вовремя",
         };
-        throw new Error(map[j?.error] || "Не удалось подтянуть фото — загрузи файлом");
+        throw new Error(j?.hint || map[j?.error] || "Не удалось подтянуть фото — загрузи файлом");
       }
       const blob = await resp.blob();
       const ext = (blob.type.split("/")[1] || "jpg").replace("jpeg", "jpg");
