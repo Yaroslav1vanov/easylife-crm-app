@@ -213,7 +213,7 @@ export default function PublicationScheduler({ clientId, month, scripts, onClose
                 onDragOver={e => { if (active) { e.preventDefault(); setDragOver(d); } }}
                 onDragLeave={() => setDragOver(null)}
                 onDrop={e => { e.preventDefault(); setDragOver(null); if (active && dragId) moveTo(dragId, d); setDragId(null); }}
-                style={{ minHeight: 78, borderRadius: 10, padding: 6, background: active ? (isOver ? "rgba(66,212,244,0.12)" : "var(--inset)") : "transparent",
+                style={{ minWidth: 0, minHeight: 78, borderRadius: 10, padding: 6, background: active ? (isOver ? "rgba(66,212,244,0.12)" : "var(--inset)") : "transparent",
                   border: `1px solid ${isOver ? "var(--cy)" : active ? "var(--brd)" : "transparent"}`, opacity: active ? 1 : 0.28, display: "flex", flexDirection: "column", gap: 3 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span style={{ fontSize: 10.5, fontWeight: 800, color: dd === 1 ? "var(--pu)" : "var(--t3)" }}>

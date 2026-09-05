@@ -167,7 +167,7 @@ export default function TeamPage() {
 
       {showAdd && (
         <div style={{ background: "rgba(123,63,228,0.05)", border: "1px solid var(--brd)", borderRadius: 14, padding: 16, marginBottom: 18 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr auto", gap: 10, alignItems: "end" }}>
+          <div className="v2-form-row" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr auto", gap: 10, alignItems: "end" }}>
             <div><label style={{ fontSize: 9, fontWeight: 800, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 0.5, display: "block", marginBottom: 5 }}>Имя</label>
               <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Имя" style={fld} /></div>
             <div><label style={{ fontSize: 9, fontWeight: 800, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 0.5, display: "block", marginBottom: 5 }}>Должность</label>

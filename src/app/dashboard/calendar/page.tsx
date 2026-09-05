@@ -6,6 +6,7 @@ import db, { Client, Script, ClientMonth } from "@/lib/database";
 import {
   ChevronLeft, ChevronRight, X, Filter, ChevronDown, CalendarDays, List as ListIcon,
 } from "lucide-react";
+import { useIsMobile } from "@/lib/useMedia";
 
 const RU_MONTHS = ["январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"];
 const RU_MONTHS_GEN = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
@@ -54,6 +55,8 @@ export default function CalendarPage() {
   const [loading, setLoading] = useState(true);
   const [ym, setYm] = useState(currentYM);
   const [view, setView] = useState<"month" | "list">("month");
+  const isMobile = useIsMobile();
+  useEffect(() => { if (isMobile) setView("list"); }, [isMobile]);
   const [clientFilter, setClientFilter] = useState<"all" | number>("all");
   const [typeFilter, setTypeFilter] = useState<"all" | Kind | "scr" | "vid">("all");
   const [menu, setMenu] = useState<null | "client" | "type">(null);

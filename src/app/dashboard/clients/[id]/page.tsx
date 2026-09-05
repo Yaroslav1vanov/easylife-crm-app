@@ -8,10 +8,11 @@ import MetricoolBrandPicker from "@/components/MetricoolBrandPicker";
 import { CLIENT_TIMEZONES, DEFAULT_TZ, nowInTz } from "@/lib/tz";
 import { WEEKDAYS_RU, weeklyQuotaOf, BATCH_BUFFER_DAYS } from "@/lib/batches";
 import ClientMonthsTimeline from "@/components/ClientMonthsTimeline";
-import ClientOverview from "@/components/ClientOverview";
-import ClientProduction from "@/components/ClientProduction";
 import ClientAttention from "@/components/ClientAttention";
 import KanbanBoard from "@/components/KanbanBoard";
+import Avatar from "@/components/Avatar";
+import Sheet, { SheetOption } from "@/components/Sheet";
+import { useIsMobile } from "@/lib/useMedia";
 import { fmtDateShort } from "@/components/ScriptModal";
 import { SCRIPT_COLUMNS, MONTAGE_COLUMNS } from "@/components/kanbanConfigs";
 
@@ -36,6 +37,9 @@ export default function ClientDetailPage() {
   const [clientMonths, setClientMonths] = useState<ClientMonth[]>([]);
   const [onbProgress, setOnbProgress] = useState<OnboardingProgress | null>(null);
   const [tab, setTab] = useState("scripts");
+  const [ctab, setCtab] = useState<"work" | "set">("work");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const isMobile = useIsMobile();
   const [editing, setEditing] = useState(false);
   const [editData, setEditData] = useState<any>({});
   const [editSocial, setEditSocial] = useState<string | null>(null);
@@ -220,248 +224,189 @@ export default function ClientDetailPage() {
     { id: "published", label: `Опубликовано (${pub}/${contractPlan})` },
   ];
 
+  const teamlead = team.find(t => t.id === c.teamlead_id);
+  const montager = team.find(t => t.id === c.montager_id);
+  const stageChip = c.stage === "paused" ? { cls: "or", l: "⏸ На паузе" } : c.stage === "churned" ? { cls: "rd", l: "✕ Ушёл" } : { cls: "gr", l: "● В работе" };
+  const socials = (["instagram", "tiktok", "youtube"] as const).filter(k => !!c[k]);
+  const curScr = currentMonthScripts;
+  const pipe = {
+    writing: curScr.filter(s => s.script_status === "inProgress" || s.script_status === "review").length,
+    montage: curScr.filter(s => s.script_status === "approved" && ["inProgress", "review"].includes(s.video_status)).length,
+    ready: curScr.filter(s => s.video_status === "ready").length,
+    published: curScr.filter(s => s.video_status === "published").length,
+  };
+  const monthDaysLeft = currentM ? Math.round((new Date(`${currentM.end_date}T00:00:00`).getTime() - new Date(`${todayIso}T00:00:00`).getTime()) / 86400000) : null;
+  const selStyle: React.CSSProperties = { padding: "7px 10px", borderRadius: 8, background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 13, outline: "none", cursor: "pointer", maxWidth: "100%" };
+  const inpStyle: React.CSSProperties = { padding: "7px 10px", borderRadius: 8, background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 13, outline: "none", maxWidth: "100%" };
+
   return (
-    <div className="client-detail-v2">
-      <div className="flex justify-between items-center mb-2">
-        <button onClick={() => router.back()} className="flex items-center gap-1 text-xs" style={{ color: "var(--cy)", background: "none", border: "none", cursor: "pointer" }}>← Назад</button>
-        {userRole === "admin" && <button onClick={async () => { if (confirm("Удалить клиента? Все данные будут потеряны.")) { await db.deleteClient(supabase, clientId); router.push("/dashboard/clients"); } }}
-          className="px-3 py-1 rounded-lg text-[10px] font-semibold"
-          style={{ color: "var(--rd)", border: "1px solid var(--rd)", background: "transparent", cursor: "pointer" }}>
-          🗑 Удалить
-        </button>}
+    <div className="client-detail-v2 v2">
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+        <button onClick={() => router.back()} style={{ color: "var(--cy)", background: "none", border: "none", cursor: "pointer", fontSize: 12, fontWeight: 700 }}>← Назад</button>
       </div>
 
-      {/* Client Overview — Hero + KPI + Pipeline + 3-column */}
-      <ClientOverview
-        client={c}
-        clientMonths={clientMonths}
-        scripts={scripts}
-        team={team}
-        activeMonth={currentMonthNum}
-        todayIso={todayIso}
-        onEdit={() => { setEditData({ name: c.name, surname: c.surname, niche: c.niche, phone: c.phone, product: c.product, avg_check: c.avg_check, package: c.package, montager_id: c.montager_id, teamlead_id: c.teamlead_id, priority: c.priority, stage: c.stage, instagram: c.instagram || "", tiktok: c.tiktok || "", youtube: c.youtube || "", birthday: c.birthday || "" }); setEditing(true); }}
-        onAvatarChange={async (url) => { await updateClientField("avatar_url", url); }}
-        onUpdateTeam={updateTeam}
-        onTogglePause={async () => { await updateClientField("stage", c.stage === "paused" ? "active" : "paused"); }}
-      />
-
-      {/* Compact strip: онбординг + Google Sheet */}
-      <div className="card mb-3" style={{ padding: "10px 14px", borderRadius: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          {onbProgress && (
-            <button onClick={() => router.push(`/dashboard/clients/${clientId}/onboarding`)}
-              style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 12px", borderRadius: 9, background: "transparent", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
-              <span style={{ width: 8, height: 8, borderRadius: "50%", background: onbProgress.pending_tasks > 0 ? "var(--yl)" : "var(--gr)" }} />
-              {onbProgress.pending_tasks > 0 && obDay != null && (
-                <span style={{ color: obDay > 10 ? "var(--rd)" : "var(--yl)", fontWeight: 800 }}>
-                  День {obDay} из 10 ·
-                </span>
-              )}
-              Онбординг: {onbProgress.pending_tasks > 0 ? `${onbProgress.done_tasks}/${onbProgress.total_tasks - onbProgress.skipped_tasks} · ${onbProgress.progress_pct}%` : "завершён"}
-              <span style={{ color: "var(--t3)" }}>→</span>
-            </button>
-          )}
-          {/* Период онбординга: с какой по какую дату + отсчёт */}
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "6px 12px", borderRadius: 9, background: "rgba(255,174,66,0.07)", border: "1px solid var(--brd)", flexWrap: "wrap" }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--t2)" }}>🚀 Онбординг</span>
-            <span style={{ fontSize: 10, color: "var(--t3)" }}>с</span>
-            <input type="date" defaultValue={c.onboarding_start || c.start_date || ""}
-              title="Дата начала онбординга — от неё считается «День N»"
-              onBlur={(e) => { const v = e.target.value || null; if (v !== (c.onboarding_start || null)) updateClientField("onboarding_start", v); }}
-              style={{ padding: "3px 6px", borderRadius: 7, background: "var(--bg)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 11, outline: "none", colorScheme: "dark" }} />
-            <span style={{ fontSize: 10, color: "var(--t3)" }}>по</span>
-            <input type="date" defaultValue={obDeadline || ""}
-              title="Дата, к которой онбординг должен быть завершён"
-              onBlur={(e) => { const v = e.target.value || null; if (v !== obDeadline) updateClientField("onboarding_deadline", v); }}
-              style={{ padding: "3px 6px", borderRadius: 7, background: "var(--bg)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 11, outline: "none", colorScheme: "dark" }} />
-            {obDone ? <span style={{ fontSize: 10, fontWeight: 700, color: "var(--gr)" }}>✓ завершён</span>
-              : obWhen && <span style={{ fontSize: 10, fontWeight: 800, color: obColor }}>{obWhen}</span>}
+      {/* ===== Шапка клиента ===== */}
+      <div className="v2-hero">
+        <AvatarUploader currentUrl={c.avatar_url} name={`${c.name} ${c.surname || ""}`} pathPrefix="clients" entityId={c.id} size={isMobile ? 56 : 72} onUploaded={async (url) => { await updateClientField("avatar_url", url); }} />
+        <div style={{ minWidth: 0 }}>
+          <h1>{c.name} {c.surname || ""}</h1>
+          <p>{c.niche || c.product || "—"}{socials.length ? " · " : ""}{socials.map((k, i) => { const u = c[k]; return <a key={k} href={u.startsWith("http") ? u : `https://${u}`} target="_blank" rel="noopener noreferrer" style={{ color: k === "instagram" ? "#ec4899" : k === "tiktok" ? "#34d399" : "#ef4444", fontWeight: 700, textDecoration: "none" }}>{i ? " · " : ""}{k === "instagram" ? "Instagram" : k === "tiktok" ? "TikTok" : "YouTube"}</a>; })}</p>
+          <div className="team">
+            <span className={`v2-chip ${stageChip.cls}`}>{stageChip.l}</span>
+            {teamlead && <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Avatar name={teamlead.name} src={teamlead.avatar_url} size={20} />{teamlead.name}</span>}
+            {montager && <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Avatar name={montager.name} src={montager.avatar_url} size={20} />{montager.name}</span>}
+            {currentM && <span className="v2-chip mut">M{currentM.month_number} · до {fmtDateShort(currentM.end_date)}{monthDaysLeft != null && monthDaysLeft < 0 ? ` · просрочка ${-monthDaysLeft} дн` : ""}</span>}
           </div>
-          <div style={{ flex: 1, minWidth: 10 }} />
         </div>
+        <button className="v2-iconbtn" onClick={() => setMenuOpen(true)} aria-label="Действия" style={{ fontSize: 18, lineHeight: 1 }}>⋯</button>
       </div>
 
-      {/* Тон голоса — основа AI-адаптации текстов под соцсети (раздел Metricool) */}
-      <div className="card mb-3" style={{ padding: "12px 14px", borderRadius: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-          <span style={{ fontSize: 11, fontWeight: 800, color: "var(--t1)", textTransform: "uppercase", letterSpacing: 0.5 }}>🗣 Тон голоса</span>
-          <span style={{ fontSize: 10, color: "var(--t3)" }}>— в этом стиле AI пишет описания под соцсети</span>
+      <Sheet open={menuOpen} onClose={() => setMenuOpen(false)} title={`${c.name} ${c.surname || ""}`} sub="действия по клиенту">
+        <div className="v2-opts">
+          <SheetOption color="#42d4f4" label="Контент-план" hint={currentM ? `M${currentM.month_number}` : ""} onClick={() => router.push(`/dashboard/plan?client=${clientId}${currentM ? `&m=${currentM.month_number}` : ""}`)} />
+          <SheetOption color="#ffae42" label="Онбординг" hint={onbProgress ? (onbProgress.pending_tasks > 0 ? `${onbProgress.progress_pct}%` : "завершён") : ""} onClick={() => router.push(`/dashboard/clients/${clientId}/onboarding`)} />
+          <SheetOption color="#9d6bff" label="Редактировать профиль" hint="имя, ниша, соцсети" onClick={() => { setMenuOpen(false); setEditData({ name: c.name, surname: c.surname, niche: c.niche, phone: c.phone, product: c.product, avg_check: c.avg_check, package: c.package, montager_id: c.montager_id, teamlead_id: c.teamlead_id, stage: c.stage, instagram: c.instagram, tiktok: c.tiktok, youtube: c.youtube, birthday: c.birthday || "" }); setEditing(true); }} />
+          {c.metricool_blog_id ? <SheetOption color="#a8e063" label="Отчёт клиенту" hint={reportMonth} onClick={() => window.open(`/api/clients/${clientId}/report?month=${reportMonth}`, "_blank")} /> : null}
+          <SheetOption color={c.stage === "paused" ? "#a8e063" : "#f5c451"} label={c.stage === "paused" ? "Снять с паузы" : "Поставить на паузу"} onClick={async () => { setMenuOpen(false); await updateClientField("stage", c.stage === "paused" ? "active" : "paused"); }} />
+          {userRole === "admin" && <SheetOption danger label="Удалить клиента" hint="безвозвратно" onClick={async () => { if (confirm("Удалить клиента? Все данные будут потеряны.")) { await db.deleteClient(supabase, clientId); router.push("/dashboard/clients"); } }} />}
         </div>
-        <textarea
-          defaultValue={c.brand_voice || ""}
-          onBlur={(e) => { if (e.target.value !== (c.brand_voice || "")) updateClientField("brand_voice", e.target.value || null); }}
-          rows={4}
-          placeholder="Напр.: Экспертно, без воды. 1–2 эмодзи max. Только русский. Любит цифры и конкретику. Без clickbait."
-          style={{ width: "100%", padding: "10px 12px", borderRadius: 9, background: "var(--bg)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 13, outline: "none", resize: "vertical", fontFamily: "inherit", lineHeight: 1.5 }}
-        />
-        <div style={{ marginTop: 10 }}>
-          <MetricoolBrandPicker
-            blogId={c.metricool_blog_id ?? null}
-            onPick={(v) => { if (v !== (c.metricool_blog_id ?? null)) updateClientField("metricool_blog_id", v); }}
-          />
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: "var(--t2)" }}>🕒 Часовой пояс клиента:</span>
-          <select
-            value={c.timezone || DEFAULT_TZ}
-            onChange={(e) => updateClientField("timezone", e.target.value)}
-            style={{ padding: "6px 10px", borderRadius: 8, background: "var(--bg)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 12, outline: "none", cursor: "pointer" }}
-          >
-            {CLIENT_TIMEZONES.map(t => <option key={t.tz} value={t.tz}>{t.label}</option>)}
-          </select>
-          <span style={{ fontSize: 10, color: "var(--t3)" }}>в этом поясе задаётся время публикаций · сейчас там {nowInTz(c.timezone || DEFAULT_TZ)}</span>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: "var(--t2)" }}>📨 Telegram topic ID:</span>
-          <input
-            type="number"
-            defaultValue={c.telegram_topic_id ?? ""}
-            onBlur={(e) => { const v = e.target.value ? Number(e.target.value) : null; if (v !== (c.telegram_topic_id ?? null)) updateClientField("telegram_topic_id", v); }}
-            placeholder="напр. 12"
-            style={{ width: 160, padding: "6px 10px", borderRadius: 8, background: "var(--bg)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 12, outline: "none" }}
-          />
-          <span style={{ fontSize: 10, color: "var(--t3)" }}>id топика (папки) клиента в ТГ — по нему бот понимает, чьё это видео</span>
-        </div>
-        {/* Недельные партии: день сдачи видео + квота + день проверки контента */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8, flexWrap: "wrap", paddingTop: 10, borderTop: "1px dashed var(--brd)" }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: "var(--t2)" }}>📦 День сдачи видео:</span>
-          <select
-            value={c.delivery_day ?? ""}
-            onChange={(e) => updateClientField("delivery_day", e.target.value ? Number(e.target.value) : null)}
-            style={{ padding: "6px 10px", borderRadius: 8, background: "var(--bg)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 12, outline: "none", cursor: "pointer" }}
-          >
-            <option value="">не задан</option>
-            {WEEKDAYS_RU.map((w, i) => <option key={i} value={i + 1}>{w}</option>)}
-          </select>
-          <span style={{ fontSize: 11, fontWeight: 700, color: "var(--t2)", marginLeft: 6 }}>Роликов/нед:</span>
-          <input
-            type="number"
-            defaultValue={c.weekly_quota ?? ""}
-            placeholder={`авто: ${weeklyQuotaOf(c)}`}
-            onBlur={(e) => { const v = e.target.value ? Number(e.target.value) : null; if (v !== (c.weekly_quota ?? null)) updateClientField("weekly_quota", v); }}
-            style={{ width: 90, padding: "6px 10px", borderRadius: 8, background: "var(--bg)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 12, outline: "none" }}
-          />
-          <span style={{ fontSize: 10, color: "var(--t3)" }}>партия на неделю вперёд · готовность за {BATCH_BUFFER_DAYS} дня до сдачи</span>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: "var(--t2)" }}>📋 День проверки контента:</span>
-          <select
-            value={c.review_day ?? ""}
-            onChange={(e) => updateClientField("review_day", e.target.value ? Number(e.target.value) : null)}
-            style={{ padding: "6px 10px", borderRadius: 8, background: "var(--bg)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 12, outline: "none", cursor: "pointer" }}
-          >
-            <option value="">не задан</option>
-            {WEEKDAYS_RU.map((w, i) => <option key={i} value={i + 1}>{w}</option>)}
-          </select>
-          <span style={{ fontSize: 10, color: "var(--t3)" }}>в этот день тимлид сдаёт референсы и сценарии по клиенту на проверку</span>
-        </div>
+      </Sheet>
+
+      <div className="v2-segc">
+        <button className={ctab === "work" ? "on" : ""} onClick={() => setCtab("work")}>Работа</button>
+        <button className={ctab === "set" ? "on" : ""} onClick={() => setCtab("set")}>Настройки</button>
       </div>
 
-      {/* 📄 Отчёт клиенту за месяц (из Metricool) */}
-      <div className="card mb-3" style={{ padding: "12px 14px", borderRadius: 12, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 12, fontWeight: 800, color: "var(--t1)" }}>📄 Отчёт клиенту</span>
-        {c.metricool_blog_id ? (
-          <>
-            <select value={reportMonth} onChange={(e) => setReportMonth(e.target.value)}
-              style={{ padding: "6px 10px", borderRadius: 8, background: "var(--bg)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 12, cursor: "pointer" }}>
-              {Array.from({ length: 12 }, (_, i) => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - i); const v = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; const RU = ["январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"]; return <option key={v} value={v}>{RU[d.getMonth()]} {d.getFullYear()}</option>; })}
-            </select>
-            <a href={`/api/clients/${clientId}/report?month=${reportMonth}`} target="_blank" rel="noreferrer"
-              style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 9, background: "linear-gradient(135deg, #2ee6c8, #b6f500)", color: "#070526", fontSize: 12, fontWeight: 800, textDecoration: "none" }}>
-              Сгенерировать →
-            </a>
-            <span style={{ fontSize: 10, color: "var(--t3)" }}>откроется в новой вкладке · данные из Metricool · Cmd+P → PDF</span>
-          </>
-        ) : (
-          <span style={{ fontSize: 11, color: "var(--t3)" }}>сначала привяжи бренд Metricool (кнопка «Привязать бренд» выше)</span>
-        )}
-      </div>
-
-      {/* Контрактные месяцы + Что требует внимания */}
-      {clientMonths.length > 0 && (
-        <div style={{ display: "grid", gridTemplateColumns: "1.7fr 1fr", gap: 14, marginBottom: 14 }} className="months-attention-grid">
-          {dupGroups.length > 0 && (
-            <div className="card mb-3" style={{ padding: "14px 16px", borderRadius: 14, border: "1px solid rgba(255,174,66,0.45)", background: "rgba(255,174,66,0.07)" }}>
-              <div style={{ fontSize: 13, fontWeight: 800, color: "var(--or)", marginBottom: 6 }}>
-                ⚠ Повторяющиеся сценарии: {dupGroups.length}
-              </div>
-              <div style={{ fontSize: 11, color: "var(--t2)", lineHeight: 1.55, marginBottom: 10 }}>
-                Один и тот же текст заведён несколько раз — обычно в разных месяцах, поэтому не видно на вкладке.
-                Лишнюю копию удали, а если сценарий просто переехал — открой его и смени <b>месяц</b> в шапке карточки,
-                вместо того чтобы создавать заново.
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-                {dupGroups.slice(0, 6).map((g, i) => (
-                  <div key={i} style={{ padding: "8px 10px", borderRadius: 9, background: "var(--inset2)", border: "1px solid var(--track)" }}>
-                    <div style={{ fontSize: 11.5, color: "var(--t1)", marginBottom: 5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {(g[0].hook_text || g[0].hook || "").slice(0, 70) || "без темы"}…
-                    </div>
-                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                      {g.map(sc => {
-                        const pubd = sc.video_status === "published";
-                        return (
-                          <button key={sc.id} onClick={() => { setViewMonth(sc.month_number); setExpandedScript(sc.id); }}
-                            title={pubd ? "опубликован — это оригинал" : "не опубликован — вероятно лишняя копия"}
-                            style={{ padding: "3px 9px", borderRadius: 7, fontSize: 10, fontWeight: 800, cursor: "pointer",
-                              border: `1px solid ${pubd ? "rgba(168,224,99,.45)" : "rgba(255,174,66,.45)"}`,
-                              background: pubd ? "rgba(168,224,99,.12)" : "rgba(255,174,66,.12)",
-                              color: pubd ? "var(--gr)" : "var(--or)" }}>
-                            M{sc.month_number} · #{sc.order_num || "—"} · {pubd ? "опубликован" : sc.video_status === "ready" ? "готов" : "не смонтирован"}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-                {dupGroups.length > 6 && <div style={{ fontSize: 11, color: "var(--t3)" }}>…и ещё {dupGroups.length - 6}</div>}
-              </div>
-            </div>
-          )}
-
-          {clientMonths.length === 0 && (
-            <div className="card mb-3" style={{ padding: "16px 18px", borderRadius: 14, border: "1px solid rgba(255,174,66,0.45)", background: "rgba(255,174,66,0.07)" }}>
-              <div style={{ fontSize: 13, fontWeight: 800, color: "var(--or)", marginBottom: 6 }}>⚠ У клиента нет контрактного месяца</div>
-              <div style={{ fontSize: 12, color: "var(--t2)", lineHeight: 1.6, marginBottom: 12 }}>
-                Без него не считается план, ЗП и клиент не виден в «Команде». Создам M1 на 30 дней от даты старта.
-              </div>
-              <button onClick={async () => {
-                const start = c.start_date || todayIso;
-                const [y, mo, d] = start.split("-").map(Number);
-                const end = new Date(y, mo - 1, d + 30).toISOString().slice(0, 10);
-                const { error } = await supabase.from("client_months").insert({
-                  client_id: clientId, month_number: 1, status: "onboarding",
-                  package: c.package || 30, start_date: start, end_date: end,
-                });
-                if (error) alert("Не получилось: " + error.message);
-                else { if (c.stage !== "active") await db.updateClient(supabase, clientId, { stage: "active" } as any); await load(); }
-              }}
-                style={{ padding: "9px 16px", borderRadius: 10, background: "linear-gradient(135deg, var(--cy), var(--pu))", border: "none", color: "#fff", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>
-                + Создать первый месяц (M1, пакет {c.package || 30})
-              </button>
-            </div>
-          )}
-          <ClientMonthsTimeline
-            clientId={clientId}
-            clientName={`${c.name} ${c.surname || ""}`.trim()}
-            clientMonths={clientMonths}
-            scripts={scripts}
-            activeMonth={viewMonth}
-            onActivateMonth={(m) => setViewMonth(m)}
-            onChange={async () => { await load(); }}
-            todayIso={todayIso}
-          />
-          <ClientAttention currentM={currentM} scripts={currentMonthScripts} todayIso={todayIso} />
+      {ctab === "set" && (
+        <div className="v2-form">
+          <div className="v2-fg">
+            <h4>Контракт</h4>
+            <div className="v2-fr"><span>Пакет</span><b>{c.package} роликов / мес</b></div>
+            <div className="v2-fr"><span>Текущий месяц</span><b>{currentM ? `M${currentM.month_number} · ${fmtDateShort(currentM.start_date)} → ${fmtDateShort(currentM.end_date)}` : "—"}</b></div>
+            <div className="v2-fr"><span>Контрактные месяцы</span><b>{clientMonths.length}</b></div>
+            <div className="v2-hint">Даты и пакет каждого месяца правятся в блоке «Контрактные месяцы» на вкладке «Работа».</div>
+          </div>
+          <div className="v2-fg">
+            <h4>Команда</h4>
+            <div className="v2-fr"><span>Тимлид</span>
+              <select style={selStyle} value={c.teamlead_id ?? ""} onChange={(e) => updateTeam({ teamlead_id: e.target.value ? Number(e.target.value) : null })}>
+                <option value="">— не назначен —</option>
+                {team.filter(t => t.member_type === "teamlead" || t.member_type === "admin").map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select></div>
+            <div className="v2-fr"><span>Монтажёр</span>
+              <select style={selStyle} value={c.montager_id ?? ""} onChange={(e) => updateTeam({ montager_id: e.target.value ? Number(e.target.value) : null })}>
+                <option value="">— не назначен —</option>
+                {team.filter(t => t.member_type === "montager").map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select></div>
+            <div className="v2-fr"><span>Доп. доступ в Монтаж</span>
+              <div style={{ display: "flex", gap: 5, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                {team.filter(t => t.member_type === "montager" && t.id !== c.montager_id).map(t => { const on = (c.extra_montager_ids || []).includes(t.id); return (
+                  <button key={t.id} className={`v2-chip ${on ? "pu" : "mut"}`} style={{ cursor: "pointer" }} onClick={() => updateTeam({ extra_montager_ids: on ? (c.extra_montager_ids || []).filter(x => x !== t.id) : [...(c.extra_montager_ids || []), t.id] })}>{t.name}</button>
+                ); })}
+              </div></div>
+            <div className="v2-hint">Доп. доступ не влияет на ЗП — она считается по основному монтажёру.</div>
+          </div>
+          <div className="v2-fg">
+            <h4>Онбординг</h4>
+            <div className="v2-fr"><span>Чек-лист</span><button className="v2-act" style={{ height: 32 }} onClick={() => router.push(`/dashboard/clients/${clientId}/onboarding`)}>{onbProgress ? (onbProgress.pending_tasks > 0 ? `${onbProgress.done_tasks}/${onbProgress.total_tasks - onbProgress.skipped_tasks} · ${onbProgress.progress_pct}%` : "✓ завершён") : "открыть"} →</button></div>
+            <div className="v2-fr"><span>Начало</span><input type="date" style={{ ...inpStyle, colorScheme: "dark" }} defaultValue={c.onboarding_start || c.start_date || ""} onBlur={(e) => { const v = e.target.value || null; if (v !== (c.onboarding_start || null)) updateClientField("onboarding_start", v); }} /></div>
+            <div className="v2-fr"><span>Дедлайн</span><input type="date" style={{ ...inpStyle, colorScheme: "dark" }} defaultValue={obDeadline || ""} onBlur={(e) => { const v = e.target.value || null; if (v !== obDeadline) updateClientField("onboarding_deadline", v); }} /></div>
+            {!obDone && obWhen && <div className="v2-hint" style={{ color: obColor }}>{obDay ? `День ${obDay} из 10 · ` : ""}{obWhen}</div>}
+          </div>
+          <div className="v2-fg">
+            <h4>Публикации</h4>
+            <div className="v2-fr" style={{ display: "block" }}><span style={{ display: "block", marginBottom: 6 }}>Бренд в Metricool</span>
+              <MetricoolBrandPicker blogId={c.metricool_blog_id ?? null} onPick={(v) => { if (v !== (c.metricool_blog_id ?? null)) updateClientField("metricool_blog_id", v); }} /></div>
+            <div className="v2-fr"><span>Часовой пояс</span>
+              <select style={selStyle} value={c.timezone || DEFAULT_TZ} onChange={(e) => updateClientField("timezone", e.target.value)}>{CLIENT_TIMEZONES.map(t => <option key={t.tz} value={t.tz}>{t.label}</option>)}</select></div>
+            <div className="v2-hint">в этом поясе задаётся время публикаций · сейчас там {nowInTz(c.timezone || DEFAULT_TZ)}</div>
+            <div className="v2-fr"><span>Telegram topic ID</span>
+              <input type="number" style={{ ...inpStyle, width: 120 }} defaultValue={c.telegram_topic_id ?? ""} placeholder="напр. 12" onBlur={(e) => { const v = e.target.value ? Number(e.target.value) : null; if (v !== (c.telegram_topic_id ?? null)) updateClientField("telegram_topic_id", v); }} /></div>
+            <div className="v2-hint">id топика клиента в ТГ — по нему бот понимает, чьё это видео</div>
+            {c.metricool_blog_id ? (
+              <div className="v2-fr"><span>Отчёт клиенту</span>
+                <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+                  <select style={selStyle} value={reportMonth} onChange={(e) => setReportMonth(e.target.value)}>
+                    {Array.from({ length: 12 }, (_, i) => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - i); const v = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; const RU = ["январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"]; return <option key={v} value={v}>{RU[d.getMonth()]} {d.getFullYear()}</option>; })}
+                  </select>
+                  <a href={`/api/clients/${clientId}/report?month=${reportMonth}`} target="_blank" rel="noreferrer" className="v2-act gr" style={{ height: 32 }}>Сгенерировать →</a>
+                </span></div>
+            ) : <div className="v2-hint">Отчёт клиенту появится после привязки бренда Metricool.</div>}
+          </div>
+          <div className="v2-fg">
+            <h4>Ритм сдачи</h4>
+            <div className="v2-fr"><span>День сдачи видео</span>
+              <select style={selStyle} value={c.delivery_day ?? ""} onChange={(e) => updateClientField("delivery_day", e.target.value ? Number(e.target.value) : null)}><option value="">не задан</option>{WEEKDAYS_RU.map((w, i) => <option key={i} value={i + 1}>{w}</option>)}</select></div>
+            <div className="v2-fr"><span>Роликов в неделю</span>
+              <input type="number" style={{ ...inpStyle, width: 110 }} defaultValue={c.weekly_quota ?? ""} placeholder={`авто: ${weeklyQuotaOf(c)}`} onBlur={(e) => { const v = e.target.value ? Number(e.target.value) : null; if (v !== (c.weekly_quota ?? null)) updateClientField("weekly_quota", v); }} /></div>
+            <div className="v2-hint">партия на неделю вперёд · готовность за {BATCH_BUFFER_DAYS} дня до сдачи</div>
+            <div className="v2-fr"><span>День проверки контента</span>
+              <select style={selStyle} value={c.review_day ?? ""} onChange={(e) => updateClientField("review_day", e.target.value ? Number(e.target.value) : null)}><option value="">не задан</option>{WEEKDAYS_RU.map((w, i) => <option key={i} value={i + 1}>{w}</option>)}</select></div>
+            <div className="v2-hint">в этот день тимлид сдаёт референсы и сценарии по клиенту на проверку</div>
+          </div>
+          <div className="v2-fg span2">
+            <h4>Тон голоса <span style={{ fontWeight: 600, textTransform: "none", letterSpacing: 0 }}>· в этом стиле AI пишет описания под соцсети</span></h4>
+            <textarea defaultValue={c.brand_voice || ""} rows={4}
+              onBlur={(e) => { if (e.target.value !== (c.brand_voice || "")) updateClientField("brand_voice", e.target.value || null); }}
+              placeholder="Напр.: Экспертно, без воды. 1–2 эмодзи max. Только русский. Любит цифры и конкретику. Без clickbait."
+              style={{ width: "100%", padding: "10px 12px", borderRadius: 9, background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 13, outline: "none", resize: "vertical", fontFamily: "inherit", lineHeight: 1.5 }} />
+          </div>
+          {c.sheet_url && <div className="v2-fg"><h4>Файлы</h4><div className="v2-fr"><span>Google Sheet</span><a href={c.sheet_url} target="_blank" rel="noreferrer" className="v2-act" style={{ height: 32 }}>Открыть →</a></div></div>}
         </div>
       )}
 
-      {/* Производство — всегда текущий рабочий месяц */}
-      <ClientProduction currentM={currentM} scripts={currentMonthScripts} />
+      {ctab === "work" && (<>
+      <div className="v2-pipe">
+        <div><b style={{ color: "var(--pu)" }}>{pipe.writing}</b><span>пишутся</span></div>
+        <div><b style={{ color: "var(--or)" }}>{pipe.montage}</b><span>монтаж</span></div>
+        <div><b style={{ color: "var(--cy)" }}>{pipe.ready}</b><span>готов</span></div>
+        <div><b style={{ color: "var(--gr)" }}>{pipe.published}</b><span>вышло</span></div>
+      </div>
+      {currentM && (
+        <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+          <button className="v2-act pri" onClick={() => router.push(`/dashboard/plan?client=${clientId}&m=${currentM.month_number}`)}>📅 Контент-план M{currentM.month_number} →</button>
+          <span className="v2-chip mut" style={{ height: 36 }}>{pipe.published} / {currentM.package} за месяц · {monthDaysLeft != null && monthDaysLeft >= 0 ? `осталось ${monthDaysLeft} дн.` : `просрочка ${-(monthDaysLeft || 0)} дн.`}</span>
+        </div>
+      )}
 
-      <style jsx>{`
-        @media (max-width: 1024px) {
-          :global(.months-attention-grid) { grid-template-columns: 1fr !important; }
-        }
-      `}</style>
+      {dupGroups.length > 0 && (
+        <div className="card mb-3" style={{ padding: "14px 16px", borderRadius: 14, border: "1px solid rgba(255,174,66,0.45)", background: "rgba(255,174,66,0.07)" }}>
+          <div style={{ fontSize: 13, fontWeight: 800, color: "var(--or)", marginBottom: 6 }}>⚠ Повторяющиеся сценарии: {dupGroups.length}</div>
+          <div style={{ fontSize: 12, color: "var(--t2)", lineHeight: 1.55, marginBottom: 10 }}>Один и тот же текст заведён несколько раз. Лишнюю копию удали, а если сценарий переехал — открой его и смени месяц в шапке карточки.</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+            {dupGroups.slice(0, 6).map((g, i) => (
+              <div key={i} style={{ padding: "8px 10px", borderRadius: 9, background: "var(--inset2)", border: "1px solid var(--track)" }}>
+                <div style={{ fontSize: 12, color: "var(--t1)", marginBottom: 5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{(g[0].hook_text || g[0].hook || "").slice(0, 70) || "без темы"}…</div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {g.map(sc => { const pubd = sc.video_status === "published"; return (
+                    <button key={sc.id} onClick={() => { setViewMonth(sc.month_number); setExpandedScript(sc.id); }} className={`v2-chip ${pubd ? "gr" : "or"}`} style={{ cursor: "pointer" }}>M{sc.month_number} · #{sc.order_num || "—"} · {pubd ? "опубликован" : sc.video_status === "ready" ? "готов" : "не смонтирован"}</button>
+                  ); })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {clientMonths.length === 0 && (
+        <div className="card mb-3" style={{ padding: "16px 18px", borderRadius: 14, border: "1px solid rgba(255,174,66,0.45)", background: "rgba(255,174,66,0.07)" }}>
+          <div style={{ fontSize: 13, fontWeight: 800, color: "var(--or)", marginBottom: 6 }}>⚠ У клиента нет контрактного месяца</div>
+          <div style={{ fontSize: 12, color: "var(--t2)", lineHeight: 1.6, marginBottom: 12 }}>Без него не считается план, ЗП и клиент не виден в «Команде». Создам M1 на 30 дней от даты старта.</div>
+          <button className="v2-act pri" onClick={async () => {
+            const start = c.start_date || todayIso;
+            const [y, mo, d] = start.split("-").map(Number);
+            const end = new Date(y, mo - 1, d + 30).toISOString().slice(0, 10);
+            const { error } = await supabase.from("client_months").insert({ client_id: clientId, month_number: 1, status: "onboarding", package: c.package || 30, start_date: start, end_date: end });
+            if (error) alert("Не получилось: " + error.message);
+            else { if (c.stage !== "active") await db.updateClient(supabase, clientId, { stage: "active" } as any); await load(); }
+          }}>+ Создать первый месяц (M1, пакет {c.package || 30})</button>
+        </div>
+      )}
+      {clientMonths.length > 0 && (
+        <ClientMonthsTimeline clientId={clientId} clientName={`${c.name} ${c.surname || ""}`.trim()} clientMonths={clientMonths} scripts={scripts}
+          activeMonth={viewMonth} onActivateMonth={(m) => setViewMonth(m)} onChange={async () => { await load(); }} todayIso={todayIso} />
+      )}
+      <ClientAttention currentM={currentM} scripts={currentMonthScripts} todayIso={todayIso} />
 
       {/* Tabs */}
       <div className="flex gap-0 border-b mb-3 overflow-x-auto" style={{ borderColor: "var(--brd)" }}>
@@ -576,6 +521,9 @@ export default function ClientDetailPage() {
           </div>
         );
       })()}
+
+      </>)}
+
 
       {/* ===== Модалка редактирования клиента ===== */}
       {editing && (() => {

@@ -3,7 +3,7 @@ import { useState, useMemo, useEffect } from "react";
 import { createClient } from "@/lib/supabase-browser";
 import db, { ClientMonth, Script } from "@/lib/database";
 import { Check, RotateCcw, PlusCircle, CalendarCheck, Edit2, CalendarDays } from "lucide-react";
-import PublicationScheduler from "@/components/PublicationScheduler";
+import { useRouter } from "next/navigation";
 
 const RU_MONTHS_GEN = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
 function fmtDateShort(s: string | null | undefined) {
@@ -54,10 +54,10 @@ type Props = {
 
 export default function ClientMonthsTimeline({ clientId, clientName, clientMonths, scripts, activeMonth, onActivateMonth, onChange, todayIso }: Props) {
   const supabase = createClient();
+  const router = useRouter();
   // План публикаций по календарным месяцам: '2026-08' → 14
   const [targets, setTargets] = useState<Record<string, number>>({});
   const [editingTarget, setEditingTarget] = useState<string | null>(null);
-  const [schedFor, setSchedFor] = useState<ClientMonth | null>(null);
   const [editTargetValue, setEditTargetValue] = useState("");
   useEffect(() => {
     (async () => {
@@ -314,9 +314,9 @@ export default function ClientMonthsTimeline({ clientId, clientName, clientMonth
               <div onClick={(e) => e.stopPropagation()}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 5, gap: 6 }}>
                   <span style={{ fontSize: 9, color: "var(--t3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>Должно выйти в месяце</span>
-                  <button onClick={() => setSchedFor(m)} title="Календарь публикаций: расставить даты"
+                  <button onClick={() => router.push(`/dashboard/plan?client=${clientId}&m=${m.month_number}`)} title="Контент-план: расставить даты"
                     style={{ padding: "3px 7px", borderRadius: 6, background: "rgba(157,107,255,0.12)", border: "1px solid var(--brd)", color: "var(--pu)", fontSize: 9.5, fontWeight: 800, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}>
-                    <CalendarDays size={10} /> График
+                    <CalendarDays size={10} /> Контент-план
                   </button>
                 </div>
                 {splitByCalendarMonth(m.start_date, m.end_date, plan).map(part => {
@@ -343,7 +343,7 @@ export default function ClientMonthsTimeline({ clientId, clientName, clientMonth
                     </div>
                   );
                 })}
-                {splitByCalendarMonth(m.start_date, m.end_date, plan).some(part => targets[part.ym] == null) && (
+                {(m.status === "active" || m.status === "onboarding") && splitByCalendarMonth(m.start_date, m.end_date, plan).some(part => targets[part.ym] == null) && (
                   <div style={{ fontSize: 9, color: "var(--or)", fontWeight: 600, marginTop: 2 }}>план не проставлен — нажми на «—»</div>
                 )}
               </div>
@@ -394,15 +394,6 @@ export default function ClientMonthsTimeline({ clientId, clientName, clientMonth
       </div>
 
       {/* Renew Modal */}
-      {schedFor && (
-        <PublicationScheduler
-          clientId={clientId}
-          month={schedFor}
-          scripts={scripts.filter(x => x.month_number === schedFor.month_number)}
-          onClose={() => setSchedFor(null)}
-          onChange={onChange}
-        />
-      )}
 
       {renewModal && (
         <div onClick={() => setRenewModal(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>

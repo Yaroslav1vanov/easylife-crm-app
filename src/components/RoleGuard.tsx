@@ -16,7 +16,7 @@ export default function RoleGuard({ role }: { role: Role }) {
   useEffect(() => {
     const section = sectionOf(pathname);
     if (!sectionAllowed(role, section)) {
-      router.replace("/dashboard/montage");
+      router.replace("/dashboard/today");
     }
   }, [pathname, role, router]);
   return null;

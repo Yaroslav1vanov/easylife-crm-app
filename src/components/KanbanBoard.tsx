@@ -4,6 +4,8 @@ import { Client, Script } from "@/lib/database";
 import Avatar from "@/components/Avatar";
 import ScriptModal, { fmtDateShort, addDaysIso } from "@/components/ScriptModal";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import Sheet, { SheetOption } from "@/components/Sheet";
+import { useIsMobile } from "@/lib/useMedia";
 import { ExternalLink, Calendar as CalendarIcon, Plus, CheckSquare, Trash2, Undo2, X, type LucideIcon, CalendarDays } from "lucide-react";
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
@@ -92,6 +94,10 @@ export default function KanbanBoard({ scripts, clients, columns, onUpdate, showC
   const [bulkConfirm, setBulkConfirm] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [moveMenu, setMoveMenu] = useState(false);
+  // v2: на телефоне — вкладки-статусы и лист «Перевести в…» вместо перетаскивания
+  const isMobile = useIsMobile();
+  const [mobCol, setMobCol] = useState<string>(columns[0]?.id);
+  const [moveFor, setMoveFor] = useState<Script | null>(null);
 
   const addColId = addColumnId || columns[0]?.id;
 
@@ -164,6 +170,47 @@ export default function KanbanBoard({ scripts, clients, columns, onUpdate, showC
           </button>
         </div>
       )}
+      {isMobile ? (() => {
+        const col = columns.find(c => c.id === mobCol) || columns[0];
+        const items = byColumn[col.id] || [];
+        const showAdd = !!onAddCard && col.id === addColId;
+        return (
+          <div className="v2">
+            <div className="v2-stabs">
+              {columns.map(c => <button key={c.id} className={mobCol === c.id ? "on" : ""} onClick={() => setMobCol(c.id)} style={mobCol === c.id ? { borderColor: c.color } : undefined}>{c.label}<span className="cnt">{(byColumn[c.id] || []).length}</span></button>)}
+            </div>
+            {showAdd && (
+              <button onClick={handleAdd} disabled={adding} className="v2-act ghost" style={{ width: "100%", marginBottom: 8, borderStyle: "dashed", color: col.color }}>
+                <Plus size={13} strokeWidth={2.4} /> {adding ? "Создаю..." : "Добавить сценарий"}
+              </button>
+            )}
+            {items.length === 0 && <div className="v2-empty">Пусто</div>}
+            <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+              {items.map(s => {
+                const c = clients.find(x => x.id === s.client_id);
+                return (
+                  <KanbanCardPreview key={s.id} script={s} client={c} color={col.color} dragging={false} moving={movingScript === s.id} showClient={showClient}
+                    deadline={hasDeadline && (deadlineShow ? deadlineShow(s) : true) ? deadlineInfo(s, deadlineLeadDays!, deadlineDone?.(s) ?? false, todayIso) : null}
+                    selectMode={selectMode} selected={selected.has(s.id)}
+                    action={cardAction && !selectMode && cardAction.show(s) ? { label: cardAction.label, color: cardAction.color || col.color, onClick: () => cardAction.run(s) } : null}
+                    moveLabel={selectMode ? undefined : "Перевести →"} onMove={() => setMoveFor(s)}
+                    onDragStart={(e) => e.preventDefault()} onDragEnd={() => {}}
+                    onClick={() => selectMode ? toggleSelect(s.id) : setOpenId(s.id)} />
+                );
+              })}
+            </div>
+            <Sheet open={!!moveFor} onClose={() => setMoveFor(null)} title="Перевести в…" sub={moveFor ? (moveFor.hook_text || moveFor.hook || `Сценарий #${moveFor.order_num}`) : ""}>
+              <div className="v2-opts">
+                {columns.map(c => {
+                  const cur = moveFor ? c.matches(moveFor) : false;
+                  return <SheetOption key={c.id} color={c.color} label={c.label} hint={cur ? "сейчас здесь" : undefined} active={cur} disabled={cur}
+                    onClick={async () => { if (!moveFor) return; const id = moveFor.id; setMoveFor(null); await handleDrop(c.id, id); setMobCol(c.id); }} />;
+                })}
+              </div>
+            </Sheet>
+          </div>
+        );
+      })() : (
       <div style={{ display: "grid", gridTemplateColumns: `repeat(${columns.length}, minmax(${minColWidth}px, 1fr))`, gap: 10, overflowX: "auto", paddingBottom: 8 }}>
         {columns.map(col => {
           const Icon = col.Icon;
@@ -238,6 +285,7 @@ export default function KanbanBoard({ scripts, clients, columns, onUpdate, showC
           );
         })}
       </div>
+      )}
 
       {openScript && (
         <ScriptModal
@@ -335,9 +383,11 @@ type PreviewProps = {
   onDragStart: (e: React.DragEvent) => void;
   onDragEnd: () => void;
   onClick: () => void;
+  moveLabel?: string;
+  onMove?: () => void;
 };
 
-function KanbanCardPreview({ script: s, client: c, color, dragging, moving, showClient, deadline, selectMode = false, selected = false, action, onDragStart, onDragEnd, onClick }: PreviewProps) {
+function KanbanCardPreview({ script: s, client: c, color, dragging, moving, showClient, deadline, selectMode = false, selected = false, action, onDragStart, onDragEnd, onClick, moveLabel, onMove }: PreviewProps) {
   const numLabel = s.order_num && s.order_num > 0 ? `#${s.order_num}` : "идея";
   const title = s.hook_text || s.hook || (s.order_num && s.order_num > 0 ? `Сценарий #${s.order_num}` : "Идея из референса");
   const titleShort = title.length > 70 ? title.slice(0, 67) + "..." : title;
@@ -374,13 +424,13 @@ function KanbanCardPreview({ script: s, client: c, color, dragging, moving, show
       ) : (
         <div style={{ fontSize: 9, color: "var(--t3)", fontFamily: "monospace" }}>{numLabel} · M{s.month_number}</div>
       )}
-      <div style={{ fontSize: 11, color: "var(--t1)", lineHeight: 1.35, fontWeight: 500 }}>{titleShort}</div>
+      <div style={{ fontSize: 12.5, color: "var(--t1)", lineHeight: 1.35, fontWeight: 600 }}>{titleShort}</div>
       {deadline && (
         <div style={{ display: "inline-flex", alignSelf: "flex-start", alignItems: "center", gap: 5, padding: "3px 8px", borderRadius: 7, fontSize: 10, fontWeight: 800, background: `${deadline.color}1f`, color: deadline.color }}>
           🎬 сдать {fmtDateShort(deadline.due)} · {deadline.text}
         </div>
       )}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 9, color: "var(--t3)", flexWrap: "wrap" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 10.5, color: "var(--t3)", flexWrap: "wrap" }}>
         {s.ref_url && <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}><ExternalLink size={9} /> реф</span>}
         {s.ref_text && <span>📝 транскр.</span>}
         {s.body_text && <span style={{ color: color }}>✨ сценарий</span>}
@@ -397,6 +447,12 @@ function KanbanCardPreview({ script: s, client: c, color, dragging, moving, show
           onClick={(e) => { e.stopPropagation(); action.onClick(); }}
           style={{ marginTop: 2, padding: "6px 10px", borderRadius: 8, background: `${action.color}1c`, border: `1px solid ${action.color}55`, color: action.color, fontSize: 10, fontWeight: 800, cursor: "pointer" }}>
           {action.label}
+        </button>
+      )}
+      {moveLabel && onMove && (
+        <button onClick={(e) => { e.stopPropagation(); onMove(); }}
+          style={{ marginTop: 2, padding: "8px 10px", borderRadius: 8, background: "var(--pud)", border: "1px solid var(--v2-brd2)", color: "var(--pu)", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>
+          {moveLabel}
         </button>
       )}
     </div>

@@ -1,7 +1,7 @@
 {
   "crons": [
     {
-      "path": "/api/metricool/refresh-snapshots",
+      "path": "/api/social/refresh",
       "schedule": "0 5 * * *"
     }
   ]

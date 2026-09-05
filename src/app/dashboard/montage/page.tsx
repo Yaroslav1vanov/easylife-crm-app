@@ -11,6 +11,7 @@ import { MONTAGE_COLUMNS } from "@/components/kanbanConfigs";
 import { useIsMontager, useCanEditReadyAt } from "@/components/RoleContext";
 import { batchFor, wdShort, type Batch } from "@/lib/batches";
 import Tour, { TourButton, type TourStep } from "@/components/Tour";
+import { useIsMobile } from "@/lib/useMedia";
 
 import {
   Filter, ChevronDown, ChevronLeft, ChevronRight, CalendarDays, Table as TableIcon,
@@ -50,6 +51,7 @@ export default function MontagePage() {
   const [team, setTeam] = useState<TeamMember[]>(cached.team || []);
   const [loading, setLoading] = useState(!cached.scripts);
   const [view, setView] = useState<"week" | "month">("week");
+  const isMobile = useIsMobile();
   const [weekStart, setWeekStart] = useState(mondayOf(new Date()));
   const [ym, setYm] = useState(ymOfDate(new Date()));
   const [clientFilter, setClientFilter] = useState<"all" | number>("all");
@@ -409,6 +411,28 @@ export default function MontagePage() {
               );
             })
           )}
+        </div>
+      ) : view === "week" && isMobile ? (
+        <div className="v2" style={{ marginBottom: 18 }}>
+          {weekDays.map(d => {
+            const slots = (byDay[d] || []);
+            const isT = d === todayIso;
+            return (
+              <div key={d} className={`v2-day ${slots.length ? "" : "empty"} ${isT ? "today" : ""}`}>
+                <div className="dn">{WD[(new Date(d + "T00:00:00").getDay() + 6) % 7]}<b>{Number(d.slice(8, 10))}</b></div>
+                <div style={{ minWidth: 0 }}>
+                  {slots.length === 0 && <div className="v2-slot" style={{ border: "1px dashed var(--brd)", background: "transparent", color: "var(--t3)", justifyContent: "center", cursor: "default" }}>—</div>}
+                  {slots.map(sl => { const c = clientById[sl.s.client_id]; const col = statusCol(sl.status); return (
+                    <button key={sl.s.id} className={`v2-slot ${sl.status === "overdue" ? "late" : ""}`} onClick={() => setOpenId(sl.s.id)}>
+                      <Avatar name={`${c.name} ${c.surname || ""}`} src={c.avatar_url} size={22} />
+                      <span className="tx"><b style={{ color: "var(--t1)" }}>{c.name}</b> · {sl.s.hook_text || sl.s.hook || `#${sl.s.order_num}`}</span>
+                      <i className="v2-dot" style={{ background: col }} />
+                    </button>
+                  ); })}
+                </div>
+              </div>
+            );
+          })}
         </div>
       ) : view === "week" ? (
         <div className="card" style={{ padding: 14, borderRadius: 16, marginBottom: 18, overflowX: "auto" }}>

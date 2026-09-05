@@ -107,7 +107,7 @@ function ClientCard({
 }) {
   const tot = useMemo(() => totalMetrics(snapshots), [snapshots]);
   const plan = production.month?.package || client.package || production.total || 0;
-  const progress = plan > 0 ? Math.min(100, Math.round((production.ready / plan) * 100)) : 0;
+  const progress = plan > 0 ? Math.min(100, Math.round((production.pub / plan) * 100)) : 0;
   const fullName = `${client.name} ${client.surname || ""}`.trim();
   const obDl = isOnboarding ? ((client as any).onboarding_deadline as string | null) : null;
   const obLeft = obDl ? Math.round((new Date(`${obDl}T00:00:00`).getTime() - new Date(new Date().toISOString().slice(0, 10) + "T00:00:00").getTime()) / 86400000) : null;
@@ -141,11 +141,14 @@ function ClientCard({
         </div>
       )}
 
-      {/* ГЛАВНОЕ: суммарный охват по всем соцсетям + рост подписчиков */}
+      {/* ГЛАВНОЕ: суммарный охват по всем соцсетям + рост подписчиков — только когда есть данные */}
+      {(tot.reach == null && tot.followers == null) ? (
+        <div style={{ fontSize: 11, color: "var(--t3)", padding: "8px 10px", borderRadius: 9, background: "var(--inset)", border: "1px dashed var(--brd)", marginBottom: 12 }}>Нет данных: добавь ссылку на аккаунт в карточке клиента, аккаунт должен отслеживаться в Viralmaxing (или привяжи бренд Metricool)</div>
+      ) : (
       <div style={{ padding: "14px 15px", borderRadius: 13, background: "var(--inset)", border: "1px solid var(--brd)", marginBottom: 12 }}>
         <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.6 }}>Охват за месяц · все соцсети</div>
+            <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.6 }}>Просмотры за 30 дней · все соцсети</div>
             <div style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 30, fontWeight: 800, color: "var(--t1)", lineHeight: 1.15, marginTop: 3 }}>
               {compactNumber(tot.reach)}
             </div>
@@ -178,13 +181,14 @@ function ClientCard({
             );
           })}
         </div>
-        <div style={{ fontSize: 9, color: "var(--t3)", marginTop: 8 }}>
-          Metricool · обновлено {formatSnapshotDate(tot.date)}
+        <div style={{ fontSize: 10, color: "var(--t3)", marginTop: 8 }}>
+          Viralmaxing / Metricool · обновлено {formatSnapshotDate(tot.date)}
         </div>
       </div>
+      )}
 
       <div className="client-v2-production">
-        <div><b><em>{production.ready}</em>/{plan}</b><span>ролики</span></div>
+        <div><b><em>{production.pub}</em>/{plan}</b><span>вышло</span></div>
         <div><b><strong>{production.scr}</strong>/{plan}</b><span>сценарии</span></div>
         <div><b>{production.month?.package || client.package}</b><span>пакет</span></div>
       </div>
@@ -235,6 +239,7 @@ export default function ClientsPage() {
   const [syncing, setSyncing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [tourOpen, setTourOpen] = useState(false);
+  useEffect(() => { if (new URLSearchParams(window.location.search).get("add")) setShowAdd(true); }, []);
   const [form, setForm] = useState({ name: "", surname: "", niche: "", package: 30, montager_id: 0, teamlead_id: 0, start_date: new Date().toISOString().split("T")[0], pub_date: "" });
   const router = useRouter();
   const supabase = createClient();
@@ -291,10 +296,16 @@ export default function ClientsPage() {
   async function refreshStats() {
     setSyncing(true);
     try {
-      const r = await fetch("/api/metricool/refresh-snapshots");
+      const r = await fetch("/api/social/refresh");
       const j = await r.json();
-      if (!r.ok) alert("Metricool: " + (j?.error || r.status));
-      else if (j.written === 0 && j.note) alert(j.note);
+      if (!r.ok) alert("Статистика: " + (j?.error || r.status));
+      else {
+        const parts = [`Записано: ${j.written}`, `Viralmaxing: ${(j.viralmaxing || []).length}`, `Metricool: ${(j.metricool || []).length}`];
+        if (j.unmatched?.length) parts.push(`Не отслеживаются в Viralmaxing: ${j.unmatched.map((u: any) => `${u.client} (${u.platform} @${u.handle})`).join(", ")}`);
+        if (j.noHandle?.length) parts.push(`Нет ссылки на Instagram: ${j.noHandle.map((u: any) => u.client).join(", ")}`);
+        if (j.errors?.length) parts.push(`Ошибки: ${j.errors.length}`);
+        alert(parts.join("\n"));
+      }
       await load();
     } catch (e: any) { alert(String(e)); }
     setSyncing(false);
@@ -337,7 +348,9 @@ export default function ClientsPage() {
 
   function productionFor(clientId: number): ClientProduction {
     const months = clientMonths.filter((m) => m.client_id === clientId && m.status !== "cancelled");
-    const month = months.find((m) => m.status === "active")
+    const todayIso = new Date().toISOString().slice(0, 10);
+    const month = months.find((m) => m.status !== "cancelled" && m.start_date <= todayIso && todayIso <= m.end_date)
+      || months.find((m) => m.status === "active")
       || months.find((m) => m.status === "onboarding")
       || months.sort((a, b) => b.month_number - a.month_number)[0]
       || null;
@@ -395,7 +408,7 @@ export default function ClientsPage() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 12, marginBottom: 16,
             padding: 18, borderRadius: 16, background: "linear-gradient(135deg, rgba(123,63,228,.12), rgba(66,212,244,.05))", border: "1px solid rgba(157,107,255,.3)" }}>
             <div>
-              <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.6 }}>Суммарный охват / мес</div>
+              <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.6 }}>Просмотры за 30 дней</div>
               <div style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 32, fontWeight: 800, color: "var(--cy)", lineHeight: 1.1, marginTop: 4 }}>{compactNumber(hasR ? reach : null)}</div>
               <div style={{ fontSize: 10, color: "var(--t3)", marginTop: 4 }}>
                 {platforms.map(p => perPlat[p] ? `${platformMeta[p].short} ${compactNumber(perPlat[p])}` : null).filter(Boolean).join(" · ") || "—"}
@@ -422,7 +435,7 @@ export default function ClientsPage() {
 
       <div data-tour="cl-sync" className="clients-v2-sync" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-          <i /> Статистика Metricool · {latestSync ? `обновлено ${formatSnapshotDate(latestSync)}` : "данных пока нет"}
+          <i /> Статистика соцсетей (Viralmaxing + Metricool) · {latestSync ? `обновлено ${formatSnapshotDate(latestSync)}` : "данных пока нет"}
         </span>
         <button type="button" onClick={refreshStats} disabled={syncing}
           style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 12px", borderRadius: 8, background: "rgba(66,212,244,0.12)", border: "1px solid var(--brd)", color: "var(--cy)", fontSize: 11, fontWeight: 700, cursor: syncing ? "default" : "pointer" }}>
