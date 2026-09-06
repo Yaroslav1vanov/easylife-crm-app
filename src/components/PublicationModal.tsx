@@ -212,7 +212,7 @@ export default function PublicationModal({ pub, client, script, onClose, onUpdat
         {/* ---- ③ тексты ---- */}
         <Step n={3} title="Тексты" right={!locked ? <button onClick={async () => { setBusy(true); await onRegenerate(pub.id); setBusy(false); }} disabled={busy} className="v2-act"><Wand2 size={13} /> {busy ? "Генерю…" : f.ai_generated_at ? "Сгенерить заново" : "Сгенерить под соцсети (AI)"}</button> : null}>
           {lbl(isCarousel ? "Основа подписи" : "Исходный текст (из сценария)")}
-          <textarea defaultValue={f.base_text || ""} onBlur={e => save({ base_text: e.target.value })} rows={5} disabled={locked} style={ta} placeholder="Основной текст — из него AI делает отдельные подписи под каждую сеть" />
+          <textarea key={`base-${f.ai_generated_at || ""}-${f.base_text ? 1 : 0}`} defaultValue={f.base_text || ""} onBlur={e => save({ base_text: e.target.value })} rows={5} disabled={locked} style={ta} placeholder="Основной текст — из него AI делает отдельные подписи под каждую сеть. Если пусто, при генерации подтянется из сценария." />
           <div className="v2-stabs" style={{ marginTop: 12 }}>
             {CHANNELS.filter(c => allowedChannels.includes(c.id)).map(c => { const on = channels.includes(c.id); const txt = c.id === "ig" ? f.caption_ig : c.id === "tt" ? f.caption_tt : c.id === "yt" ? f.yt_description : f.threads_post; const n = (txt || "").length; return (
               <button key={c.id} className={tab === c.id ? "on" : ""} onClick={() => setTab(c.id)} style={{ opacity: on ? 1 : .45 }}>
@@ -222,18 +222,19 @@ export default function PublicationModal({ pub, client, script, onClose, onUpdat
           </div>
           {(() => {
             const c = CHANNELS.find(x => x.id === tab)!; const on = channels.includes(tab);
+            const gk = `${tab}-${f.ai_generated_at || ""}`; // после генерации поля перемонтируются с новым текстом
             const counter = (n: number, lim: number) => <span style={{ fontSize: 11, color: n > lim ? "var(--rd)" : "var(--t3)", fontWeight: 700 }}>{n} / {lim}</span>;
             if (!on) return <div className="v2-hint">Эта соцсеть выключена для публикации. Включи её в шаге 2.</div>;
             if (tab === "yt") return (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div key={gk} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 <div><div style={{ display: "flex", justifyContent: "space-between" }}>{lbl("Заголовок YouTube")}{counter((f.yt_title || "").length, 100)}</div><input defaultValue={f.yt_title || ""} disabled={locked} onBlur={e => save({ yt_title: e.target.value })} style={{ ...ta, fontSize: 13 }} placeholder="Обязателен для YouTube" /></div>
                 <div>{lbl("Описание")}<textarea defaultValue={f.yt_description || ""} disabled={locked} onBlur={e => save({ yt_description: e.target.value })} rows={4} style={ta} /></div>
                 <div>{lbl("Теги через запятую")}<input defaultValue={(f.yt_tags || []).join(", ")} disabled={locked} onBlur={e => save({ yt_tags: e.target.value.split(",").map(s => s.trim()).filter(Boolean) })} style={{ ...ta, fontSize: 12 }} /></div>
               </div>
             );
-            if (tab === "threads") return <div><div style={{ display: "flex", justifyContent: "space-between" }}>{lbl("Пост Threads")}{counter((f.threads_post || "").length, 500)}</div><textarea defaultValue={f.threads_post || ""} disabled={locked} onBlur={e => save({ threads_post: e.target.value })} rows={5} style={ta} /></div>;
+            if (tab === "threads") return <div key={gk}><div style={{ display: "flex", justifyContent: "space-between" }}>{lbl("Пост Threads")}{counter((f.threads_post || "").length, 500)}</div><textarea defaultValue={f.threads_post || ""} disabled={locked} onBlur={e => save({ threads_post: e.target.value })} rows={5} style={ta} /></div>;
             const val = tab === "ig" ? f.caption_ig : f.caption_tt;
-            return <div><div style={{ display: "flex", justifyContent: "space-between" }}>{lbl(`Подпись ${c.label}`)}{counter((val || "").length, c.limit)}</div><textarea defaultValue={val || ""} disabled={locked} onBlur={e => save(tab === "ig" ? { caption_ig: e.target.value } : { caption_tt: e.target.value })} rows={6} style={ta} placeholder={`Если пусто — уйдёт исходный текст`} /></div>;
+            return <div key={gk}><div style={{ display: "flex", justifyContent: "space-between" }}>{lbl(`Подпись ${c.label}`)}{counter((val || "").length, c.limit)}</div><textarea defaultValue={val || ""} disabled={locked} onBlur={e => save(tab === "ig" ? { caption_ig: e.target.value } : { caption_tt: e.target.value })} rows={6} style={ta} placeholder={`Если пусто — уйдёт исходный текст`} /></div>;
           })()}
         </Step>
 

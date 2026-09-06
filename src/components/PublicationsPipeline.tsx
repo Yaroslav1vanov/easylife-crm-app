@@ -95,6 +95,8 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
       const j = await r.json();
       if (!r.ok) { await updatePub(id, { pub_status: "error", error_message: j?.error || "AI error" }); alert("AI: " + (j?.error || "ошибка")); return; }
       if (j.publication) setPubs(arr => arr.map(p => p.id === id ? { ...p, ...j.publication } : p));
+      const got = ["caption_ig", "caption_tt", "yt_description", "threads_post"].filter(k => (j.publication?.[k] || "").trim()).length;
+      alert(got ? `Готово: тексты сгенерированы (${got} ${got === 1 ? "сеть" : got < 5 ? "сети" : "сетей"}). Проверь и поправь перед отправкой.` : "AI вернул пустые тексты — проверь исходный текст в шаге 3.");
     } catch (e: any) { await updatePub(id, { pub_status: "error", error_message: String(e) }); }
   }
 

@@ -3,13 +3,9 @@ import { createClient } from "@/lib/supabase-server";
 
 // AI-адаптатор: из base_text + brand_voice клиента генерит тексты под выбранные соцсети.
 import { getModel } from "@/lib/aiModels";
+import { getSetting } from "@/lib/appSettings";
+import { PROMPT_KEYS, DEFAULT_ADAPTER_SYSTEM, DEFAULT_ADAPTER_NETWORK } from "@/lib/adapterPrompts";
 
-const LIMITS: Record<string, string> = {
-  ig: "Instagram Reels caption: до 2200 символов. СТРУКТУРА обязательна: (1) первая строка — цепляющий хук-вопрос или обещание, в конце 1-2 эмодзи по смыслу и стрелка 👇; (2) 2-4 коротких абзаца основного текста, в них по смыслу вплетены эмодзи (💡🔥⚖️🏡 и подобные — там, где усиливают мысль, НЕ в каждой строке); (3) блок CTA в конце: строка «сохрани/поделись» с 🔥, строка-вопрос к аудитории с 💬, строка про подписку/экспертность автора с 📌. В САМОМ конце — МАКСИМУМ 5 хэштегов, только реальные рабочие нишевые/тематические (по теме и нише клиента). БЕЗ выдуманных, без склеенных из фразы, без общих спам-тегов (#love #follow #viral #fyp в IG).",
-  tt: "TikTok caption: коротко и хлёстко (1-3 строки) с 1-3 эмодзи, крючок в первой строке. В конце — МАКСИМУМ 5 хэштегов: реальные рабочие, нишевые по теме + максимум 1-2 в меру трендовых по этой же теме. БЕЗ спама и выдуманных тегов.",
-  yt: "YouTube Shorts: yt_title до 100 символов с 1 эмодзи-акцентом, yt_description развёрнутое с ключевыми словами, yt_tags 5-12 тегов (это поле тегов, НЕ хэштеги в тексте).",
-  threads: "Threads: СТРОГО до 500 символов (это лимит символов, не слов). Разговорный тон, 2-4 эмодзи по смыслу. Текст обязан быть законченной самодостаточной мыслью — НИКОГДА не обрывай предложение на середине. Если не помещается — сократи и переформулируй, чтобы мысль была завершена в пределах 500 символов. Максимум 1 хэштег или без них.",
-};
 
 export async function POST(_req: Request, { params }: { params: { id: string } }) {
   const MODEL = await getModel(createClient(), "adapter");
@@ -23,27 +19,38 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
   const { data: pub } = await sb.from("publications").select("*").eq("id", id).maybeSingle();
   if (!pub) return NextResponse.json({ error: "публикация не найдена" }, { status: 404 });
 
-  const { data: client } = await sb.from("clients").select("name, surname, brand_voice, platforms").eq("id", pub.client_id).maybeSingle();
+  const { data: client } = await sb.from("clients").select("name, surname, niche, brand_voice, platforms").eq("id", pub.client_id).maybeSingle();
+
+  // Исходный текст: если пуст — собираем из сценария (хук + тело + CTA) и сохраняем в карточку
+  let baseText: string = (pub.base_text || "").trim();
+  if (!baseText && pub.script_id) {
+    const { data: sc } = await sb.from("scripts").select("hook_text, hook, body_text, cta").eq("id", pub.script_id).maybeSingle();
+    baseText = [sc?.hook_text || sc?.hook, sc?.body_text, sc?.cta].map(x => (x || "").trim()).filter(Boolean).join("\n\n");
+    if (baseText) await sb.from("publications").update({ base_text: baseText }).eq("id", id);
+  }
+  if (!baseText) return NextResponse.json({ error: "Нет исходного текста. Впиши текст ролика в шаг 3 (или заполни сценарий) и нажми «Сгенерить» ещё раз." }, { status: 400 });
 
   const channels: string[] = pub.target_channels?.length ? pub.target_channels : client?.platforms?.length ? client.platforms : ["ig", "tt", "yt", "threads"];
-  const limitText = channels.map(c => `- ${LIMITS[c] || c}`).join("\n");
+  const NETS: Record<string, string> = {
+    ig: await getSetting(sb, PROMPT_KEYS.ig, DEFAULT_ADAPTER_NETWORK.ig),
+    tt: await getSetting(sb, PROMPT_KEYS.tt, DEFAULT_ADAPTER_NETWORK.tt),
+    yt: await getSetting(sb, PROMPT_KEYS.yt, DEFAULT_ADAPTER_NETWORK.yt),
+    threads: await getSetting(sb, PROMPT_KEYS.threads, DEFAULT_ADAPTER_NETWORK.threads),
+  };
+  const limitText = channels.map(c => `- ${NETS[c] || c}`).join("\n");
 
-  const system = `Ты — опытный SMM-копирайтер агентства EasyLife AI. Твоя задача — адаптировать готовый текст ролика (сценарий) в нативные подписи под разные соцсети, строго в тоне голоса клиента. Пиши на том же языке, что и сценарий клиента. Не выдумывай фактов, которых нет в сценарии.
-
-ЭМОДЗИ: текст должен быть живым и структурированным с эмодзи — хук с эмодзи и стрелкой 👇, эмодзи-акценты по смыслу в теле, эмодзи-маркеры в CTA (🔥 сохрани/поделись, 💬 вопрос в комменты, 📌 подписка). НО если тон голоса клиента прямо требует минимализма/строгости — снизь количество эмодзи до уместного, не ломай тон.
-
-ХЭШТЕГИ (важно, 2026): много хэштегов не помогает охватам — Instagram и TikTok ранжируют по смыслу текста и ключевым словам, а не по количеству тегов. Поэтому: МАКСИМУМ 5 хэштегов для IG и TikTok, и только РЕАЛЬНЫЕ рабочие теги, реально существующие и релевантные нише и теме ролика. НИКОГДА не выдумывай хэштеги, не склеивай их из целых фраз, не ставь общий спам (#love #follow #viral #fyp). Лучше 3 точных нишевых тега, чем 5 общих. Ключевые слова по теме вплетай в сам текст — это работает лучше тегов.
+  const system = `${await getSetting(sb, PROMPT_KEYS.system, DEFAULT_ADAPTER_SYSTEM)}
 
 Верни ТОЛЬКО валидный JSON без markdown-обёртки.`;
 
-  const user = `Клиент: ${client?.name || ""} ${client?.surname || ""}
+  const user = `Клиент: ${client?.name || ""} ${client?.surname || ""}${client?.niche ? ` · ниша: ${client.niche}` : ""}
 
 Тон голоса клиента (соблюдать строго):
 ${client?.brand_voice || "(не задан — пиши нейтрально-экспертно, минимум эмодзи)"}
 
 Исходный текст ролика (сценарий):
 """
-${pub.base_text || "(пусто)"}
+${baseText}
 """
 
 Сделай адаптации ТОЛЬКО под эти соцсети: ${channels.join(", ")}.
@@ -98,5 +105,5 @@ ${limitText}
   const { error } = await sb.from("publications").update(patch).eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  return NextResponse.json({ ok: true, publication: { ...pub, ...patch } });
+  return NextResponse.json({ ok: true, publication: { ...pub, ...patch, base_text: baseText } });
 }
