@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase-server";
 import { Sidebar } from "@/components/Sidebar";
 import { RoleProvider } from "@/components/RoleContext";
 import RoleGuard from "@/components/RoleGuard";
+import NoticeHost from "@/components/NoticeHost";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const sb = createClient();
@@ -18,6 +19,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <RoleProvider role={userRole}>
       <RoleGuard role={userRole} />
+      <NoticeHost />
       <div className="flex min-h-screen" style={{ background: "var(--bg)" }}>
         <Sidebar userRole={userRole} />
         {/* Desktop: margin-left for sidebar. Mobile: margin-top for top bar */}
