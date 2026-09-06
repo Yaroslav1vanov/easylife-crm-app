@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase-browser";
 import db, { Client, Script, TeamMember, Publication, PubStatus } from "@/lib/database";
 import { getStore, setStore } from "@/lib/store";
 import Avatar from "@/components/Avatar";
+import PublicationModal, { type PublishOpts, type StatusItem } from "@/components/PublicationModal";
 import Tour, { TourButton, type TourStep } from "@/components/Tour";
 import { DEFAULT_TZ, tzShort, nowInTz, utcToZonedInput, zonedInputToUtc, fmtInTz } from "@/lib/tz";
 import {
@@ -126,21 +127,33 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
     setBrandsBusy(false);
   }
 
-  async function publishToMetricool(id: number) {
-    const r = await fetch(`/api/publications/${id}/publish`, { method: "POST" });
-    const j = await r.json();
+  async function publishToMetricool(id: number, opts?: PublishOpts): Promise<{ ok: boolean; code?: string; error?: string }> {
+    const r = await fetch(`/api/publications/${id}/publish`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(opts || {}) });
+    const j = await r.json().catch(() => ({}));
+    // перечитываем карточку — сервер сам выставил статус/ids/ошибку
+    const { data } = await supabase.from("publications").select("*").eq("id", id).maybeSingle();
+    if (data) setPubs(arr => arr.map(p => p.id === id ? (data as Publication) : p));
     if (!r.ok) {
-      setPubs(arr => arr.map(p => p.id === id ? { ...p, pub_status: "error", error_message: j?.error || "Metricool error" } : p));
-      alert("Metricool: " + (j?.error || "ошибка"));
-      return false;
+      if (j?.code !== "past") alert("Metricool: " + (j?.error || "ошибка"));
+      return { ok: false, code: j?.code, error: j?.error };
     }
-    setPubs(arr => arr.map(p => p.id === id ? { ...p, pub_status: "scheduled", error_message: null } : p));
-    return true;
+    return { ok: true };
+  }
+  async function checkStatus(id: number): Promise<{ items: StatusItem[]; allPublished: boolean } | null> {
+    try {
+      const r = await fetch(`/api/publications/${id}/status`);
+      const j = await r.json();
+      if (!r.ok) { alert("Metricool: " + (j?.error || "ошибка")); return null; }
+      if (j.patch && Object.keys(j.patch).length) setPubs(arr => arr.map(p => p.id === id ? { ...p, ...j.patch } : p));
+      return { items: j.items || [], allPublished: !!j.allPublished };
+    } catch (e: any) { alert(String(e)); return null; }
   }
 
   async function moveToColumn(colId: string, id: number) {
     const col = COLUMNS.find(c => c.id === colId); if (!col) return;
     setDraggedId(null); setDragOverCol(null);
+    if (colId === "scheduled") { setOpenId(id); return; } // «Запланировано» ставит только Metricool — открываем карточку
+    if (colId === "published" && !confirm("Отметить как опубликованное вручную (без Metricool)?")) return;
     await updatePub(id, { pub_status: col.statuses[0] });
   }
 
@@ -278,7 +291,7 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
           <div style={{ fontSize: 13, color: "var(--t2)", lineHeight: 1.6 }}>{errMsg}</div>
         </div>
       ) : (
-        <div data-tour="pp-board" style={{ display: "grid", gridTemplateColumns: `repeat(${COLUMNS.length}, minmax(210px, 1fr))`, gap: 10, overflowX: "auto", paddingBottom: 8 }}>
+        <div data-tour="pp-board" className="pp-board" style={{ display: "grid", gridTemplateColumns: `repeat(${COLUMNS.length}, minmax(210px, 1fr))`, gap: 10, overflowX: "auto", paddingBottom: 8 }}>
           {COLUMNS.map(col => {
             const items = byColumn[col.id] || [];
             const isOver = dragOverCol === col.id;
@@ -347,255 +360,13 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
           script={openPub.script_id != null ? scriptById[openPub.script_id] : undefined}
           onClose={() => setOpenId(null)}
           onUpdate={updatePub}
-          onApprove={approve}
           onRegenerate={regenerate}
           onPublish={publishToMetricool}
+          onCheckStatus={checkStatus}
         />
       )}
       <Tour steps={PIPELINE_TOUR} open={tourOpen} onClose={() => { setTourOpen(false); setOpenId(null); }} />
-      <style>{`.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-    </div>
-  );
-}
-
-function PublicationModal({ pub, client, script, onClose, onUpdate, onApprove, onRegenerate, onPublish }: {
-  pub: Publication; client?: Client; script?: Script;
-  onClose: () => void; onUpdate: (id: number, patch: Partial<Publication>) => void;
-  onApprove: (id: number) => void; onRegenerate: (id: number) => void; onPublish: (id: number) => Promise<boolean>;
-}) {
-  const [tab, setTab] = useState("ig");
-  const [busy, setBusy] = useState(false);
-  const [pubBusy, setPubBusy] = useState(false);
-  const [upBusy, setUpBusy] = useState(false);
-  const [f, setF] = useState(pub);
-  useEffect(() => { setF(pub); }, [pub.id, pub.ai_generated_at, pub.pub_status]);
-
-  const isCarousel = pub.content_type === "carousel";
-  const allowedChannels = isCarousel ? ["ig", "threads"] : ["ig", "tt", "yt", "threads"];
-  const tz = client?.timezone || DEFAULT_TZ; // время публикации — по поясу клиента
-
-  async function uploadSlides(files: File[]) {
-    setUpBusy(true);
-    const uploaded: string[] = [];
-    try {
-      for (const file of files) {
-        const r = await fetch("/api/r2/sign", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ kind: "image", filename: file.name, clientId: pub.client_id, scriptId: pub.id }) });
-        const j = await r.json();
-        if (!r.ok) { alert("R2: " + (j?.error || "ошибка подписи")); break; }
-        const put = await fetch(j.uploadUrl, { method: "PUT", body: file, headers: file.type ? { "content-type": file.type } : {} });
-        if (!put.ok) { alert(`Загрузка слайда не удалась (${put.status}). Проверь CORS бакета.`); break; }
-        uploaded.push(j.publicUrl);
-      }
-      if (uploaded.length) {
-        const next = [...(f.media_urls || []), ...uploaded];
-        setF(p => ({ ...p, media_urls: next })); onUpdate(pub.id, { media_urls: next });
-      }
-    } catch (e: any) { alert("Ошибка загрузки: " + String(e)); }
-    setUpBusy(false);
-  }
-  function removeSlide(idx: number) {
-    const next = (f.media_urls || []).filter((_, i) => i !== idx);
-    setF(p => ({ ...p, media_urls: next })); onUpdate(pub.id, { media_urls: next });
-  }
-  function moveSlide(idx: number, dir: -1 | 1) {
-    const arr = [...(f.media_urls || [])]; const j = idx + dir;
-    if (j < 0 || j >= arr.length) return;
-    [arr[idx], arr[j]] = [arr[j], arr[idx]];
-    setF(p => ({ ...p, media_urls: arr })); onUpdate(pub.id, { media_urls: arr });
-  }
-
-  async function uploadVideo(file: File) {
-    setUpBusy(true);
-    try {
-      const r = await fetch("/api/r2/sign", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ filename: file.name, clientId: pub.client_id, scriptId: pub.script_id }) });
-      const j = await r.json();
-      if (!r.ok) { alert("R2: " + (j?.error || "ошибка подписи")); setUpBusy(false); return; }
-      const put = await fetch(j.uploadUrl, { method: "PUT", body: file, headers: file.type ? { "content-type": file.type } : {} });
-      if (!put.ok) { alert(`Загрузка в R2 не удалась (${put.status}). Проверь CORS бакета.`); setUpBusy(false); return; }
-      setF(p => ({ ...p, video_url: j.publicUrl })); onUpdate(pub.id, { video_url: j.publicUrl });
-    } catch (e: any) { alert("Ошибка загрузки: " + String(e)); }
-    setUpBusy(false);
-  }
-
-  // Обложка ролика (статичный превью-креатив) → video_thumbnail_url, уходит в Metricool как videoThumbnailUrl
-  async function uploadCover(file: File) {
-    setUpBusy(true);
-    try {
-      const r = await fetch("/api/r2/sign", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ kind: "image", filename: file.name, clientId: pub.client_id, scriptId: pub.id }) });
-      const j = await r.json();
-      if (!r.ok) { alert("R2: " + (j?.error || "ошибка подписи")); setUpBusy(false); return; }
-      const put = await fetch(j.uploadUrl, { method: "PUT", body: file, headers: file.type ? { "content-type": file.type } : {} });
-      if (!put.ok) { alert(`Загрузка обложки не удалась (${put.status}). Проверь CORS бакета.`); setUpBusy(false); return; }
-      setF(p => ({ ...p, video_thumbnail_url: j.publicUrl })); onUpdate(pub.id, { video_thumbnail_url: j.publicUrl });
-    } catch (e: any) { alert("Ошибка загрузки: " + String(e)); }
-    setUpBusy(false);
-  }
-  function removeCover() {
-    setF(p => ({ ...p, video_thumbnail_url: null })); onUpdate(pub.id, { video_thumbnail_url: null });
-  }
-
-  const channels = (f.target_channels?.length ? f.target_channels : client?.platforms?.length ? client.platforms : allowedChannels).filter(x => allowedChannels.includes(x));
-  const save = (patch: Partial<Publication>) => onUpdate(pub.id, patch);
-  const toggleChan = (id: string) => {
-    const set = new Set(channels); set.has(id) ? set.delete(id) : set.add(id);
-    const arr = CHANNELS.map(c => c.id).filter(x => set.has(x));
-    setF(p => ({ ...p, target_channels: arr })); save({ target_channels: arr });
-  };
-
-  const ta: React.CSSProperties = { width: "100%", padding: "10px 12px", borderRadius: 9, background: "var(--inset2)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 13, outline: "none", resize: "vertical", fontFamily: "inherit", lineHeight: 1.5 };
-  const lbl = (t: string) => <label style={{ fontSize: 10, fontWeight: 700, color: "var(--t3)", letterSpacing: 0.5, textTransform: "uppercase", display: "block", marginBottom: 5 }}>{t}</label>;
-
-  return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.72)", zIndex: 200, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "40px 20px", overflowY: "auto" }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 18, width: "100%", maxWidth: 820, padding: 24, display: "flex", flexDirection: "column", gap: 16, boxShadow: "0 24px 70px rgba(0,0,0,0.55)" }}>
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-            {client && <Avatar name={`${client.name} ${client.surname || ""}`} src={client.avatar_url} size={40} />}
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 16, fontWeight: 800 }}>{client?.name} {client?.surname || ""}</div>
-              <div style={{ fontSize: 11, color: "var(--t3)" }}>{isCarousel ? "🖼 Карусель" : `#${script?.order_num ?? "?"} · ${script?.hook_text || script?.hook || "Без темы"}`}</div>
-            </div>
-          </div>
-          <button onClick={onClose} style={{ flexShrink: 0, width: 34, height: 34, borderRadius: 9, background: "var(--track)", border: "1px solid var(--brd)", color: "var(--t2)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><X size={16} /></button>
-        </div>
-
-        {isCarousel ? (
-          <div data-tour="pm-media" style={{ padding: 12, borderRadius: 12, background: "var(--inset)", border: "1px solid var(--brd)", display: "flex", flexDirection: "column", gap: 10 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                {lbl(`🖼 Слайды карусели (${(f.media_urls || []).length})`)}
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                <div>
-                  <span style={{ fontSize: 9, fontWeight: 700, color: "var(--t3)", marginRight: 6 }}>📅 Публиковать · {tzShort(tz)}</span>
-                  <input type="datetime-local" defaultValue={utcToZonedInput(f.publish_at, tz)} onBlur={e => save({ publish_at: e.target.value ? zonedInputToUtc(e.target.value, tz) : null })} style={{ ...ta, fontSize: 12, width: "auto", display: "inline-block" }} />
-                  <div style={{ fontSize: 9, color: "var(--t3)", marginTop: 4 }}>🕒 сейчас у клиента {nowInTz(tz)} · выйдет {fmtInTz(f.publish_at, tz)}</div>
-                </div>
-                <label style={{ flexShrink: 0, padding: "8px 12px", borderRadius: 9, background: "rgba(66,212,244,0.12)", border: "1px solid var(--brd)", color: "var(--cy)", display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, cursor: upBusy ? "default" : "pointer", whiteSpace: "nowrap" }}>
-                  {upBusy ? "Загружаю…" : "⬆ Добавить слайды"}
-                  <input type="file" accept="image/*" multiple disabled={upBusy} onChange={e => { const files = Array.from(e.target.files || []); if (files.length) uploadSlides(files); e.target.value = ""; }} style={{ display: "none" }} />
-                </label>
-              </div>
-            </div>
-            {(f.media_urls || []).length === 0 ? (
-              <div style={{ padding: "20px 8px", textAlign: "center", color: "var(--t3)", fontSize: 12, fontStyle: "italic" }}>Слайдов пока нет — загрузи PNG/JPG (порядок = порядок в карусели)</div>
-            ) : (
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {(f.media_urls || []).map((url, i) => (
-                  <div key={url} style={{ position: "relative", width: 92, borderRadius: 10, overflow: "hidden", border: "1px solid var(--track)", background: "var(--inset2)" }}>
-                    <a href={url} target="_blank" rel="noreferrer"><img src={url} alt={`слайд ${i + 1}`} style={{ width: "100%", height: 115, objectFit: "cover", display: "block" }} /></a>
-                    <span style={{ position: "absolute", top: 4, left: 4, fontSize: 9, fontWeight: 800, color: "#fff", background: "rgba(0,0,0,0.6)", borderRadius: 5, padding: "1px 5px" }}>{i + 1}</span>
-                    <button onClick={() => removeSlide(i)} title="Удалить" style={{ position: "absolute", top: 4, right: 4, width: 18, height: 18, borderRadius: 5, background: "rgba(255,92,122,0.85)", border: "none", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Trash2 size={10} /></button>
-                    <div style={{ display: "flex", borderTop: "1px solid var(--track)" }}>
-                      <button onClick={() => moveSlide(i, -1)} disabled={i === 0} style={{ flex: 1, padding: "3px 0", background: "transparent", border: "none", color: i === 0 ? "var(--t3)" : "var(--t2)", cursor: i === 0 ? "default" : "pointer", fontSize: 11 }}>←</button>
-                      <button onClick={() => moveSlide(i, 1)} disabled={i === (f.media_urls || []).length - 1} style={{ flex: 1, padding: "3px 0", background: "transparent", border: "none", color: i === (f.media_urls || []).length - 1 ? "var(--t3)" : "var(--t2)", cursor: "pointer", fontSize: 11 }}>→</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        ) : (
-          <div data-tour="pm-media" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, padding: 12, borderRadius: 12, background: "var(--inset)", border: "1px solid var(--brd)" }}>
-            <div>
-              {lbl("🎬 Видео")}
-              <div style={{ display: "flex", gap: 6 }}>
-                <input value={f.video_url || ""} onChange={e => setF(p => ({ ...p, video_url: e.target.value }))} onBlur={e => save({ video_url: e.target.value })} placeholder="ссылка или загрузи файл →" style={{ ...ta, fontSize: 12 }} />
-                {f.video_url && <a href={f.video_url} target="_blank" rel="noreferrer" style={{ flexShrink: 0, padding: "0 12px", borderRadius: 9, background: "rgba(157,107,255,0.12)", border: "1px solid var(--brd)", color: "var(--pu)", display: "inline-flex", alignItems: "center" }}><ExternalLink size={15} /></a>}
-                <label style={{ flexShrink: 0, padding: "0 12px", borderRadius: 9, background: "rgba(66,212,244,0.12)", border: "1px solid var(--brd)", color: "var(--cy)", display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, cursor: upBusy ? "default" : "pointer", whiteSpace: "nowrap" }}>
-                  {upBusy ? "Загружаю…" : "⬆ Файл"}
-                  <input type="file" accept="video/*" disabled={upBusy} onChange={e => { const file = e.target.files?.[0]; if (file) uploadVideo(file); e.target.value = ""; }} style={{ display: "none" }} />
-                </label>
-              </div>
-              {/* Превью загруженного ролика — сразу видно, какое видео пойдёт в пост */}
-              {f.video_url
-                ? <video src={f.video_url} controls playsInline preload="metadata" style={{ width: "100%", maxHeight: 220, marginTop: 8, borderRadius: 10, background: "#000", display: "block" }} />
-                : <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 9, background: "rgba(255,174,66,0.08)", border: "1px dashed rgba(255,174,66,0.4)", fontSize: 11, color: "var(--or)", fontWeight: 600 }}>⚠ Ролик ещё не загружен</div>}
-
-              {/* Обложка ролика (статичный креатив-превью) — уходит в Metricool как кастомная обложка */}
-              <div style={{ marginTop: 10 }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                  {lbl("🖼 Обложка ролика (необязательно)")}
-                  <label style={{ padding: "6px 10px", borderRadius: 8, background: "rgba(66,212,244,0.12)", border: "1px solid var(--brd)", color: "var(--cy)", fontSize: 10, fontWeight: 800, cursor: upBusy ? "default" : "pointer", whiteSpace: "nowrap" }}>
-                    {f.video_thumbnail_url ? "Заменить" : "⬆ Загрузить"}
-                    <input type="file" accept="image/*" disabled={upBusy} onChange={e => { const file = e.target.files?.[0]; if (file) uploadCover(file); e.target.value = ""; }} style={{ display: "none" }} />
-                  </label>
-                </div>
-                {f.video_thumbnail_url ? (
-                  <div style={{ position: "relative", width: 92, marginTop: 4, borderRadius: 10, overflow: "hidden", border: "1px solid var(--track)", background: "var(--inset2)" }}>
-                    <a href={f.video_thumbnail_url} target="_blank" rel="noreferrer"><img src={f.video_thumbnail_url} alt="обложка" style={{ width: "100%", height: 120, objectFit: "cover", display: "block" }} /></a>
-                    <button onClick={removeCover} title="Убрать обложку" style={{ position: "absolute", top: 4, right: 4, width: 18, height: 18, borderRadius: 5, background: "rgba(255,92,122,0.85)", border: "none", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Trash2 size={10} /></button>
-                  </div>
-                ) : (
-                  <div style={{ fontSize: 9, color: "var(--t3)", marginTop: 2 }}>Если не задать — соцсеть возьмёт первый кадр видео. Формат вертикальный 1080×1920.</div>
-                )}
-              </div>
-            </div>
-            <div>
-              {lbl(`📅 Публиковать · время клиента (${tzShort(tz)})`)}
-              <input type="datetime-local" defaultValue={utcToZonedInput(f.publish_at, tz)} onBlur={e => save({ publish_at: e.target.value ? zonedInputToUtc(e.target.value, tz) : null })} style={{ ...ta, fontSize: 12 }} />
-              <div style={{ fontSize: 9, color: "var(--t3)", marginTop: 4 }}>🕒 сейчас у клиента {nowInTz(tz)} · выйдет {fmtInTz(f.publish_at, tz)}</div>
-            </div>
-          </div>
-        )}
-
-        <div data-tour="pm-basetext">
-          {lbl(isCarousel ? "📄 Текст карусели (основа подписи)" : "📄 Исходный текст (из сценария)")}
-          <textarea defaultValue={f.base_text || ""} onBlur={e => save({ base_text: e.target.value })} rows={9} placeholder={isCarousel ? "Подпись/идея карусели — основа для адаптаций под IG/Threads" : "Текст ролика — основа для адаптаций"} style={{ ...ta, fontSize: 13, minHeight: 180 }} />
-        </div>
-
-        <button data-tour="pm-ai" onClick={async () => { setBusy(true); await onRegenerate(pub.id); setBusy(false); }} disabled={busy}
-          style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "10px", borderRadius: 10, background: "rgba(157,107,255,0.1)", border: "1px dashed var(--pu)", color: "var(--pu)", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>
-          <Wand2 size={14} /> {busy ? "Генерю адаптации…" : f.ai_generated_at ? "Сгенерить заново" : "Сгенерить тексты под соцсети (AI)"}
-        </button>
-
-        <div data-tour="pm-tabs" style={{ display: "flex", gap: 6, borderBottom: "1px solid var(--brd)", paddingBottom: 2, flexWrap: "wrap" }}>
-          {CHANNELS.filter(ch => allowedChannels.includes(ch.id)).map(ch => {
-            const on = channels.includes(ch.id);
-            return (
-              <button key={ch.id} onClick={() => setTab(ch.id)}
-                style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: "9px 9px 0 0", border: "none", borderBottom: tab === ch.id ? "2px solid var(--pu)" : "2px solid transparent", background: tab === ch.id ? "rgba(157,107,255,0.08)" : "transparent", color: tab === ch.id ? "var(--pu)" : on ? "var(--t2)" : "var(--t3)", fontSize: 12, fontWeight: 700, cursor: "pointer", opacity: on ? 1 : 0.5 }}>
-                <ch.Icon size={13} /> {ch.label}
-              </button>
-            );
-          })}
-        </div>
-
-        {(() => {
-          const ch = CHANNELS.find(c => c.id === tab)!;
-          const on = channels.includes(tab);
-          return (
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <label style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--t2)", cursor: "pointer" }}>
-                <input type="checkbox" checked={on} onChange={() => toggleChan(tab)} /> Публиковать в {ch.label}
-              </label>
-              {tab === "yt" ? (
-                <>
-                  <div>{lbl("Заголовок (до 100)")}<input defaultValue={f.yt_title || ""} onBlur={e => save({ yt_title: e.target.value })} style={{ ...ta, fontSize: 13 }} /></div>
-                  <div>{lbl("Описание")}<textarea defaultValue={f.yt_description || ""} onBlur={e => save({ yt_description: e.target.value })} rows={5} style={ta} /></div>
-                  <div>{lbl("Теги (через запятую)")}<input defaultValue={(f.yt_tags || []).join(", ")} onBlur={e => save({ yt_tags: e.target.value.split(",").map(s => s.trim()).filter(Boolean) })} style={{ ...ta, fontSize: 12 }} /></div>
-                </>
-              ) : tab === "threads" ? (
-                <div>{lbl("Пост (до 500)")}<textarea defaultValue={f.threads_post || ""} onBlur={e => save({ threads_post: e.target.value })} rows={5} style={ta} /></div>
-              ) : (
-                <div>{lbl(tab === "ig" ? "Caption Instagram (до 2200)" : "Caption TikTok")}<textarea defaultValue={(tab === "ig" ? f.caption_ig : f.caption_tt) || ""} onBlur={e => save(tab === "ig" ? { caption_ig: e.target.value } : { caption_tt: e.target.value })} rows={7} style={ta} /></div>
-              )}
-            </div>
-          );
-        })()}
-
-        <div data-tour="pm-publish" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, paddingTop: 4, borderTop: "1px solid var(--brd)", marginTop: 4 }}>
-          <span style={{ fontSize: 11, color: f.pub_status === "scheduled" ? "var(--cy)" : "var(--t3)" }}>
-            {f.pub_status === "scheduled" ? "✓ Запланировано в Metricool" : f.ai_model ? `модель: ${f.ai_model}` : ""}{f.error_message ? ` · ⚠ ${f.error_message}` : ""}
-          </span>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <button onClick={async () => { setPubBusy(true); const ok = await onPublish(pub.id); setPubBusy(false); if (ok) onClose(); }} disabled={pubBusy}
-              style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 18px", borderRadius: 9, background: "linear-gradient(135deg, var(--cy), var(--pu))", border: "none", color: "#fff", fontSize: 12, fontWeight: 800, cursor: pubBusy ? "default" : "pointer", opacity: pubBusy ? 0.7 : 1 }}>
-              <Rocket size={14} /> {pubBusy ? "Отправляю…" : "Опубликовать в Metricool"}
-            </button>
-          </div>
-        </div>
-      </div>
+      <style>{`.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}@media(max-width:767px){.pp-board{grid-template-columns:1fr !important}.pp-board>div{min-height:auto !important}}`}</style>
     </div>
   );
 }
