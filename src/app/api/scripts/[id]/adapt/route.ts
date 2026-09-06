@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
 
 // Адаптация сценария из донора: транскрибация + разбор (что сохранить) + тон клиента → Хук/Основной/Призыв.
-const MODEL = process.env.SCRIPT_MODEL || "claude-opus-4-8";
+import { getModel } from "@/lib/aiModels";
 
 const SYSTEM = `Ты — топовый сценарист коротких видео по методологии «инженерия внимания». Не пишешь с нуля — берёшь донора (уже виральный ролик) и переносишь его РЫЧАГ на клиента, не потеряв то, что заставляло смотреть.
 
@@ -13,6 +13,7 @@ const SYSTEM = `Ты — топовый сценарист коротких ви
 ГЛАВНОЕ: сохрани РЫЧАГ донора (из разбора) — то, что тащило ролик. Контекст и примеры меняем под нишу/оффер клиента, смысловой механизм сохраняем. Не копируй дословно — уникализируй под клиента и его тон голоса.`;
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
+  const MODEL = await getModel(createClient(), "script");
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return NextResponse.json({ error: "ANTHROPIC_API_KEY не задан" }, { status: 400 });
   const id = Number(params.id);

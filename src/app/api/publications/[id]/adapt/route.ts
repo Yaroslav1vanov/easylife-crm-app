@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
 
 // AI-адаптатор: из base_text + brand_voice клиента генерит тексты под выбранные соцсети.
-const MODEL = process.env.ADAPTER_MODEL || "claude-sonnet-4-6";
+import { getModel } from "@/lib/aiModels";
 
 const LIMITS: Record<string, string> = {
   ig: "Instagram Reels caption: до 2200 символов. СТРУКТУРА обязательна: (1) первая строка — цепляющий хук-вопрос или обещание, в конце 1-2 эмодзи по смыслу и стрелка 👇; (2) 2-4 коротких абзаца основного текста, в них по смыслу вплетены эмодзи (💡🔥⚖️🏡 и подобные — там, где усиливают мысль, НЕ в каждой строке); (3) блок CTA в конце: строка «сохрани/поделись» с 🔥, строка-вопрос к аудитории с 💬, строка про подписку/экспертность автора с 📌. В САМОМ конце — МАКСИМУМ 5 хэштегов, только реальные рабочие нишевые/тематические (по теме и нише клиента). БЕЗ выдуманных, без склеенных из фразы, без общих спам-тегов (#love #follow #viral #fyp в IG).",
@@ -12,6 +12,7 @@ const LIMITS: Record<string, string> = {
 };
 
 export async function POST(_req: Request, { params }: { params: { id: string } }) {
+  const MODEL = await getModel(createClient(), "adapter");
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return NextResponse.json({ error: "ANTHROPIC_API_KEY не задан в окружении" }, { status: 400 });
 

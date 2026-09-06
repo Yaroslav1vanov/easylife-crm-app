@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
 
 // «Оценка вирусности» = РАЗБОР ДОНОРА (шаг 2 методологии): вскрыть, какой элемент тащил ролик.
-const MODEL = process.env.ANALYZE_MODEL || "claude-opus-4-8";
+import { getModel } from "@/lib/aiModels";
 
 const SYSTEM = `Ты — эксперт по виральности коротких видео (Reels/TikTok/Shorts). Работаешь по методологии «инженерия внимания».
 
@@ -16,6 +16,7 @@ CTA: ключевое слово в комментах, зашитое в лог
 ВАЖНО: донор УЖЕ виральный. Твоя задача не «хорош ли он», а понять, КАКОЙ ЭЛЕМЕНТ ЕГО ТАЩИЛ — чтобы при адаптации под клиента этот рычаг НЕ потеряли. Будь конкретным и жёстким, без воды.`;
 
 export async function POST(_req: Request, { params }: { params: { id: string } }) {
+  const MODEL = await getModel(createClient(), "analyze");
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return NextResponse.json({ error: "ANTHROPIC_API_KEY не задан" }, { status: 400 });
   const id = Number(params.id);

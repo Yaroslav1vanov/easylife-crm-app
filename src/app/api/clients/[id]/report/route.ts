@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase-server";
+import { getModel } from "@/lib/aiModels";
 import { buildReportHtml } from "@/lib/reportTemplate";
 
 // Генерирует клиентский месячный отчёт (HTML) из данных Metricool.
@@ -73,7 +74,7 @@ async function aiNarrative(c: any, cur: any, prev: any, monthLabel: string): Pro
   };
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) return fallback;
-  const model = process.env.REPORT_MODEL || "claude-opus-4-8";
+  const model = await getModel(createClient(), "report");
   const facts = `Клиент: ${[c.name, c.surname].filter(Boolean).join(" ")} · ниша: ${c.niche || "—"}
 Месяц: ${monthLabel}
 Reels: ${cur.reels_count ?? "—"}${prev?.reels_count != null ? ` (прошлый месяц ${prev.reels_count})` : ""}
