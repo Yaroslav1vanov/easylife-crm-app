@@ -315,6 +315,17 @@ export default function ClientDetailPage() {
           </div>
           <div className="v2-fg">
             <h4>Публикации</h4>
+            <div className="v2-fr" style={{ display: "block" }}>
+              <span style={{ display: "block", marginBottom: 6 }}>Соцсети, куда публикуем</span>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {([["ig", "Instagram"], ["tt", "TikTok"], ["yt", "YouTube Shorts"], ["threads", "Threads"]] as const).map(([k, l]) => {
+                  const cur = (c.platforms || []) as string[]; const on = cur.includes(k);
+                  return <button key={k} className={`v2-chip ${on ? "pu" : "mut"}`} style={{ height: 32, padding: "0 12px", cursor: "pointer", opacity: on ? 1 : .6 }}
+                    onClick={() => updateClientField("platforms", on ? cur.filter(x => x !== k) : [...cur, k])}>{on ? "✓ " : ""}{l}</button>;
+                })}
+              </div>
+              <div className="v2-hint">Только эти сети получат посты из «Публикаций». Пусто = все четыре. Должны быть подключены к бренду в Metricool.</div>
+            </div>
             <div className="v2-fr" style={{ display: "block" }}><span style={{ display: "block", marginBottom: 6 }}>Бренд в Metricool</span>
               <MetricoolBrandPicker blogId={c.metricool_blog_id ?? null} onPick={(v) => { if (v !== (c.metricool_blog_id ?? null)) updateClientField("metricool_blog_id", v); }} /></div>
             <div className="v2-fr"><span>Часовой пояс</span>
