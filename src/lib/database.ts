@@ -28,6 +28,7 @@ export type Script = {
   ref_url: string; ref_text?: string | null; transcription: string; hook_text: string; body_text: string; cta: string;
   description: string; script_status: string; video_status: string; pub_date: string | null;
   ready_at: string | null; video_url?: string | null; published_url?: string | null; content_type?: string | null;
+  post_caption?: string | null;   // описание к рилсу — пишется вместе со сценарием
   // «Дуэль» статистики: исходник (реф) vs наше опубликованное видео
   ref_views?: number | null; ref_likes?: number | null; ref_comments?: number | null;
   our_views?: number | null; our_likes?: number | null; our_comments?: number | null; our_stats_at?: string | null;
@@ -517,7 +518,7 @@ const db = {
       video_url: script.video_url ?? null,
       publish_at: script.pub_date ?? null,
       target_channels: client?.platforms ?? [],
-      base_text: script.body_text || null,
+      base_text: script.post_caption || script.body_text || null,
       pub_status: "adapting" as PubStatus,
     };
     const { error } = await sb.from("publications").upsert(row, { onConflict: "script_id", ignoreDuplicates: true });

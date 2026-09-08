@@ -49,6 +49,7 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
   const [hook, setHook] = useState(s.hook || "");
   const [bodyText, setBodyText] = useState(s.body_text || "");
   const [cta, setCta] = useState(s.cta || "");
+  const [postCaption, setPostCaption] = useState(s.post_caption || "");
   const [videoUrl, setVideoUrl] = useState(s.video_url || "");
   const [pubUrl, setPubUrl] = useState(s.published_url || "");
   const [pubDate, setPubDate] = useState(s.pub_date || "");
@@ -88,7 +89,7 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
 
   useEffect(() => {
     setHookText(s.hook_text || ""); setRefUrl(s.ref_url || ""); setRefText(s.ref_text || "");
-    setHook(s.hook || ""); setBodyText(s.body_text || ""); setCta(s.cta || "");
+    setHook(s.hook || ""); setBodyText(s.body_text || ""); setCta(s.cta || ""); setPostCaption(s.post_caption || "");
     setVideoUrl(s.video_url || ""); setPubDate(s.pub_date || ""); setReadyAt(s.ready_at || "");
   }, [s.id]);
 
@@ -229,6 +230,13 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
             <textarea value={cta} onChange={(e) => setCta(e.target.value)} readOnly={ro}
               onBlur={() => { if (!ro && cta !== (s.cta || "")) onUpdate(s.id, { cta }); }}
               rows={2} placeholder="Призыв к действию в конце…" style={{ ...ta, background: "var(--inset2)" }} />
+          </div>
+          <div>
+            {label("4. Описание к рилсу", "var(--or)")}
+            <textarea value={postCaption} onChange={(e) => setPostCaption(e.target.value)} readOnly={ro}
+              onBlur={() => { if (!ro && postCaption !== (s.post_caption || "")) onUpdate(s.id, { post_caption: postCaption }); }}
+              rows={4} placeholder="Текст под роликом — то, что пойдёт в подпись поста…" style={{ ...ta, background: "var(--inset2)" }} />
+            <div style={{ fontSize: 9.5, color: "var(--t3)", marginTop: 4 }}>Уедет в «Публикации» как основа текста — там его адаптируют под каждую соцсеть.</div>
           </div>
         </div>
 
