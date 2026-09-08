@@ -7,6 +7,8 @@ export type Client = {
   birthday?: string | null;      // ДР — для поздравлений (видят владелец и ассистент)
   avg_check: string; instagram: string; tiktok: string; youtube: string; avatar_url: string;
   metricool_blog_id?: number | null; platforms?: string[] | null;
+  publisher?: string | null;            // metricool | uploadpost
+  uploadpost_profile?: string | null;   // имя профиля в аккаунте клиента
   brand_voice?: string | null; timezone?: string | null; default_post_time?: string | null;
   telegram_topic_id?: number | null;
   delivery_day?: number | null;  // день сдачи партии видео клиенту (1=Пн…7=Вс)

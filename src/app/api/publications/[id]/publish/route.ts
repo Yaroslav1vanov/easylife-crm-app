@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
+import { publishVideo, UP_NET } from "@/lib/uploadpost";
 
 /* ============================================================
    Выгрузка публикации в Metricool: на каждую выбранную соцсеть — отдельный
@@ -61,7 +62,12 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const sb = createClient();
   const { data: pub } = await sb.from("publications").select("*").eq("id", id).maybeSingle();
   if (!pub) return NextResponse.json({ error: "публикация не найдена" }, { status: 404 });
-  const { data: client } = await sb.from("clients").select("name, surname, metricool_blog_id, timezone, platforms").eq("id", pub.client_id).maybeSingle();
+  const { data: client } = await sb.from("clients").select("name, surname, metricool_blog_id, timezone, platforms, publisher, uploadpost_profile").eq("id", pub.client_id).maybeSingle();
+
+  // ---- Upload-Post: клиент публикуется через свой аккаунт
+  if (client?.publisher === "uploadpost") {
+    return await publishViaUploadPost(sb, pub, client, force);
+  }
 
   const blogId = client?.metricool_blog_id;
   if (!blogId) return NextResponse.json({ error: "У клиента не задан бренд Metricool (карточка клиента → Настройки)" }, { status: 400 });
@@ -161,4 +167,63 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     await sb.from("publications").update({ error_message: `Ошибка отправки: ${String(e?.message || e)}` }).eq("id", id);
     return NextResponse.json({ error: String(e?.message || e) }, { status: 500 });
   }
+}
+
+
+/* ============================================================
+   Upload-Post: один запрос на все сети сразу, файл забирается по ссылке из R2.
+   request_id храним в metricool_post_id как "up:<id>" — по нему смотрим статус.
+   ============================================================ */
+async function publishViaUploadPost(sb: any, pub: any, client: any, force: boolean) {
+  const apiKey = process.env.UPLOADPOST_API_KEY;
+  if (!apiKey) return NextResponse.json({ error: "UPLOADPOST_API_KEY не задан в переменных окружения" }, { status: 400 });
+  const profile = (client.uploadpost_profile || "").trim();
+  if (!profile) return NextResponse.json({ error: "У клиента не указан профиль Upload-Post (карточка клиента → Настройки)" }, { status: 400 });
+
+  if (pub.content_type === "carousel")
+    return NextResponse.json({ error: "Карусели через Upload-Post пока не отправляем — только ролики" }, { status: 400 });
+  if (!pub.video_url)
+    return NextResponse.json({ error: "Нет видео — загрузи файл ролика" }, { status: 400 });
+  if (!pub.publish_at)
+    return NextResponse.json({ error: "Не задана дата и время публикации" }, { status: 400 });
+
+  // повторная отправка создаст второй пост — без force не пускаем
+  const already = (pub.metricool_post_id || "").startsWith("up:");
+  if (already && !force) {
+    return NextResponse.json({
+      error: "Уже отправлено в Upload-Post. Повторная отправка создаст дубль.",
+      code: "already_scheduled",
+    }, { status: 409 });
+  }
+
+  const allow = Object.keys(UP_NET);
+  const channels: string[] = (pub.target_channels?.length ? pub.target_channels : client?.platforms?.length ? client.platforms : ["ig"])
+    .filter((ch: string) => allow.includes(ch));
+  if (!channels.length) return NextResponse.json({ error: "Не выбрана ни одна соцсеть (карточка клиента → Настройки)" }, { status: 400 });
+
+  const textFor = (ch: string) =>
+    ch === "ig" ? pub.caption_ig : ch === "tt" ? pub.caption_tt :
+    ch === "yt" ? (pub.yt_title || pub.yt_description) : ch === "threads" ? pub.threads_post : pub.base_text;
+
+  const future = Date.parse(pub.publish_at) > Date.now() + 60 * 1000;
+  const r = await publishVideo({
+    apiKey, profile,
+    videoUrl: pub.video_url,
+    channels,
+    titleFor: (ch) => textFor(ch) || "",
+    fallbackTitle: pub.base_text || pub.caption_ig || "",
+    scheduledIso: future ? new Date(pub.publish_at).toISOString() : null,
+    timezone: client.timezone || null,
+  });
+
+  if (!r.ok) {
+    await sb.from("publications").update({ pub_status: "error", error_message: r.error }).eq("id", pub.id);
+    return NextResponse.json({ error: r.error }, { status: 502 });
+  }
+  await sb.from("publications").update({
+    pub_status: "scheduled",
+    metricool_post_id: `up:${r.requestId}`,
+    error_message: null,
+  }).eq("id", pub.id);
+  return NextResponse.json({ ok: true, provider: "uploadpost", requestId: r.requestId, platforms: channels });
 }

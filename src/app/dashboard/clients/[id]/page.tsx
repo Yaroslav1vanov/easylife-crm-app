@@ -324,10 +324,24 @@ export default function ClientDetailPage() {
                     onClick={() => updateClientField("platforms", on ? cur.filter(x => x !== k) : [...cur, k])}>{on ? "✓ " : ""}{l}</button>;
                 })}
               </div>
-              <div className="v2-hint">Только эти сети получат посты из «Публикаций». Пусто = все четыре. Должны быть подключены к бренду в Metricool.</div>
+              <div className="v2-hint">Только эти сети получат посты из «Публикаций». Должны быть подключены в том сервисе, через который публикуем.</div>
             </div>
-            <div className="v2-fr" style={{ display: "block" }}><span style={{ display: "block", marginBottom: 6 }}>Бренд в Metricool</span>
-              <MetricoolBrandPicker blogId={c.metricool_blog_id ?? null} onPick={(v) => { if (v !== (c.metricool_blog_id ?? null)) updateClientField("metricool_blog_id", v); }} /></div>
+            <div className="v2-fr"><span>Через что публикуем</span>
+              <select style={selStyle} value={c.publisher || "metricool"} onChange={(e) => updateClientField("publisher", e.target.value)}>
+                <option value="metricool">Metricool (наш аккаунт)</option>
+                <option value="uploadpost">Upload-Post (аккаунт клиента)</option>
+              </select></div>
+            {(c.publisher || "metricool") === "uploadpost" ? (
+              <>
+                <div className="v2-fr"><span>Профиль Upload-Post</span>
+                  <input style={{ ...inpStyle, width: 200 }} defaultValue={c.uploadpost_profile ?? ""} placeholder="напр. Edeal_Business"
+                    onBlur={(e) => { const v = e.target.value.trim() || null; if (v !== (c.uploadpost_profile ?? null)) updateClientField("uploadpost_profile", v); }} /></div>
+                <div className="v2-hint">Имя профиля из аккаунта Upload-Post клиента. Соцсети клиент подключает у себя — мы только отправляем ролики.</div>
+              </>
+            ) : (
+              <div className="v2-fr" style={{ display: "block" }}><span style={{ display: "block", marginBottom: 6 }}>Бренд в Metricool</span>
+                <MetricoolBrandPicker blogId={c.metricool_blog_id ?? null} onPick={(v) => { if (v !== (c.metricool_blog_id ?? null)) updateClientField("metricool_blog_id", v); }} /></div>
+            )}
             <div className="v2-fr"><span>Часовой пояс</span>
               <select style={selStyle} value={c.timezone || DEFAULT_TZ} onChange={(e) => updateClientField("timezone", e.target.value)}>{CLIENT_TIMEZONES.map(t => <option key={t.tz} value={t.tz}>{t.label}</option>)}</select></div>
             <div className="v2-hint">в этом поясе задаётся время публикаций · сейчас там {nowInTz(c.timezone || DEFAULT_TZ)}</div>
