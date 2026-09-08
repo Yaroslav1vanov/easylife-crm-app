@@ -181,7 +181,7 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
   const ppCloseModal = () => setOpenId(null);
   const ppOpenSample = () => { if (tourSampleId != null) setOpenId(tourSampleId); };
   const PIPELINE_TOUR: TourStep[] = [
-    { title: "Metricool · подготовка постов", text: "Тут готовое видео превращается в пост и уходит во все соцсети клиента через Metricool. Проведу по всей цепочке — от видео до публикации.", action: ppCloseModal },
+    { title: "Подготовка постов", text: "Тут готовое видео превращается в пост и уходит во все соцсети клиента. Через что именно — Metricool или Upload-Post — задано в карточке клиента. Проведу по всей цепочке.", action: ppCloseModal },
     { target: "pp-client", title: "Фильтр по клиенту", text: "Когда постов много — выбери здесь клиента, и на доске останутся только его карточки. «Все» — показать всех.", action: ppCloseModal },
     { target: "pp-pull", title: "Шаг 0 · Подтянуть готовые видео", text: "Жми — CRM возьмёт все ролики, которые монтажёр перевёл в «Готово к публикации», и создаст под них карточки постов в первой колонке (ролик уже загружен в Монтаже — тянется автоматически). Карусель добавляется отдельной кнопкой «+ Карусель».", action: ppCloseModal },
     { target: "pp-brands", title: "«Мои бренды» (настроить один раз)", text: "Показывает список аккаунтов, подключённых к Metricool, с их blogId. Этот blogId нужно один раз вписать в карточку клиента — иначе CRM не знает, в какой аккаунт публиковать.", action: ppCloseModal },
@@ -190,7 +190,7 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
     { target: "pm-basetext", title: "② Исходный текст", text: "Впиши сюда основной текст ролика — это «сырьё». AI на его основе сделает отдельные версии подписи под каждую соцсеть. Чем толковее исходник, тем лучше адаптации.", action: ppOpenSample },
     { target: "pm-ai", title: "③ Сгенерить тексты под соцсети", text: "Одна кнопка — AI пишет РАЗНЫЕ тексты под Instagram, TikTok, YouTube и Threads (у каждой свои лимиты и стиль). Не нравится — жми ещё раз «Сгенерить заново».", action: ppOpenSample },
     { target: "pm-tabs", title: "④ Вкладки соцсетей — куда и какой текст", text: "Вот здесь и решается, «что куда». Переключай вкладки IG / TikTok / YouTube / Threads. В каждой: галочка «Публиковать в …» (СНЯТА — туда НЕ уйдёт) и своё поле текста. У YouTube — заголовок + описание + теги, у остальных — подпись. Проверь/поправь текст в каждой отмеченной сети.", action: ppOpenSample },
-    { target: "pm-publish", title: "⑤ Опубликовать в Metricool", text: "«Опубликовать в Metricool» — CRM отправляет пост во ВСЕ отмеченные соцсети на заданное время, и карточка уходит в «Запланировано». Ошибка вылезет в колонке «Ошибка» с причиной. Для ручной публикации — просто перетащи карточку в «Опубликовано».", action: ppOpenSample },
+    { target: "pm-publish", title: "⑤ Опубликовать", text: "Кнопка публикации отправляет пост во ВСЕ отмеченные соцсети на заданное время, и карточка уходит в «Запланировано». Ошибка вылезет в колонке «Ошибка» с причиной. Для ручной публикации — просто перетащи карточку в «Опубликовано».", action: ppOpenSample },
   ];
 
   const Toggle = (
@@ -204,7 +204,7 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
     <div style={{ fontFamily: "'Manrope', sans-serif" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 14, flexWrap: "wrap", marginBottom: 16 }}>
         <div>
-          <h1 style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 22, fontWeight: 800, letterSpacing: -0.5 }}>Metricool · подготовка постов</h1>
+          <h1 style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 22, fontWeight: 800, letterSpacing: -0.5 }}>Публикации · подготовка постов</h1>
           <p style={{ fontSize: 12, color: "var(--t3)", marginTop: 4 }}>Готовое видео → AI-адаптация текста под соцсети → утверждение тимлидом → Metricool</p>
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>

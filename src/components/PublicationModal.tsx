@@ -54,6 +54,7 @@ export default function PublicationModal({ pub, client, script, onClose, onUpdat
   const isCarousel = pub.content_type === "carousel";
   const allowedChannels = isCarousel ? ["ig", "threads"] : ["ig", "tt", "yt", "threads"];
   const tz = client?.timezone || DEFAULT_TZ;
+  const service = client?.publisher === "uploadpost" ? "Upload-Post" : "Metricool";
   const ids = parseIds(f.metricool_post_id);
   const sentCount = Object.keys(ids).length;
   const isScheduled = f.pub_status === "scheduled";
@@ -260,7 +261,7 @@ export default function PublicationModal({ pub, client, script, onClose, onUpdat
                 <button className="v2-act ghost" onClick={() => publish({ force: true })} disabled={pubBusy}><RefreshCw size={13} /> {pubBusy ? "…" : "Переотправить"}</button>
               </>) : (<>
                 {sentCount > 0 && <button className="v2-act ghost" onClick={() => publish({ force: true })} disabled={pubBusy}>Переотправить всё</button>}
-                <button className="v2-act pri" onClick={() => publish()} disabled={pubBusy || !channels.length} style={{ height: 40 }}><Rocket size={14} /> {pubBusy ? "Отправляю…" : sentCount > 0 ? "Дослать недостающие" : "Опубликовать в Metricool"}</button>
+                <button className="v2-act pri" onClick={() => publish()} disabled={pubBusy || !channels.length} style={{ height: 40 }}><Rocket size={14} /> {pubBusy ? "Отправляю…" : sentCount > 0 ? "Дослать недостающие" : `Опубликовать в ${service}`}</button>
               </>)}
           </div>
         </div>
