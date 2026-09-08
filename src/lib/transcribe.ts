@@ -43,6 +43,23 @@ export async function pollFile(jobId: string) {
   } catch (e: any) { return { ok: false as const, error: String(e) }; }
 }
 
+
+/** Сообщения провайдера — человеческим языком, с подсказкой что делать дальше. */
+function humanLinkError(raw: string): string {
+  const m = (raw || "").toLowerCase();
+  if (m.includes("does not have a video"))
+    return "Instagram не отдал это видео. Чаще всего так с роликами 18+ (возрастное ограничение) и с закрытыми аккаунтами — их видно только из-под входа. Скачай ролик и загрузи через «Свой файл».";
+  if (m.includes("too long")) {
+    const sec = raw.match(/\((\d+)s\)/)?.[1];
+    return `Ролик длиннее 2 минут${sec ? ` (${sec} сек)` : ""} — по ссылке столько не тянется. Загрузи файл через «Свой файл», там ограничения по длине нет.`;
+  }
+  if (m.includes("not found") || m.includes("404"))
+    return "Публикация не найдена — возможно, её удалили или ссылка неверная.";
+  if (m.includes("private"))
+    return "Аккаунт закрытый — по ссылке текст снять нельзя. Скачай ролик и загрузи через «Свой файл».";
+  return raw;
+}
+
 export function detectPlatform(url: string) {
   if (/tiktok\.com/i.test(url)) return "tiktok";
   if (/instagram\.com/i.test(url)) return "instagram";
@@ -74,25 +91,25 @@ export async function transcribeLink(rawUrl: string) {
     if (platform === "instagram") {
       const r = await fetch(`${SC}/v2/instagram/media/transcript?url=${encodeURIComponent(url)}`, { headers: { "x-api-key": key } });
       const j = await r.json().catch(() => null);
-      if (!r.ok) return { ok: false as const, error: j?.message || `ScrapeCreators ${r.status}` };
+      if (!r.ok) return { ok: false as const, error: humanLinkError(j?.message || `ScrapeCreators ${r.status}`) };
       const t = toText(j?.transcript || j?.text || j?.data?.transcript || j?.transcripts);
-      return t ? { ok: true as const, text: t, platform } : { ok: false as const, error: "в ролике не нашлось речи" };
+      return t ? { ok: true as const, text: t, platform } : { ok: false as const, error: "В ролике не нашлось речи — возможно, там только музыка. Если речь есть, загрузи файл через «Свой файл»." };
     }
     if (platform === "youtube") {
       // У YouTube (в т.ч. Shorts) транскрипт отдаёт ОТДЕЛЬНЫЙ эндпоинт —
       // в /v1/youtube/video лежат только ссылки на дорожки субтитров, не текст.
       const r = await fetch(`${SC}/v1/youtube/video/transcript?url=${encodeURIComponent(url)}`, { headers: { "x-api-key": key } });
       const j = await r.json().catch(() => null);
-      if (!r.ok) return { ok: false as const, error: j?.message || j?.error || `ScrapeCreators ${r.status}` };
+      if (!r.ok) return { ok: false as const, error: humanLinkError(j?.message || j?.error || `ScrapeCreators ${r.status}`) };
       const t = toText(j?.transcript_only_text) || toText(j?.transcript);
       return t ? { ok: true as const, text: t, platform }
         : { ok: false as const, error: "у ролика нет субтитров на YouTube — залей файл через «Свой файл»" };
     }
     const r = await fetch(`${SC}/v2/tiktok/video?url=${encodeURIComponent(url)}&get_transcript=true`, { headers: { "x-api-key": key } });
     const j = await r.json().catch(() => null);
-    if (!r.ok) return { ok: false as const, error: j?.message || `ScrapeCreators ${r.status}` };
+    if (!r.ok) return { ok: false as const, error: humanLinkError(j?.message || `ScrapeCreators ${r.status}`) };
     const d = j?.data || j?.video || j || {};
     const t = toText(d.transcript ?? d.transcription ?? d.subtitles ?? d.text);
-    return t ? { ok: true as const, text: t, platform } : { ok: false as const, error: "в ролике не нашлось речи" };
+    return t ? { ok: true as const, text: t, platform } : { ok: false as const, error: "В ролике не нашлось речи — возможно, там только музыка. Если речь есть, загрузи файл через «Свой файл»." };
   } catch (e: any) { return { ok: false as const, error: String(e) }; }
 }
