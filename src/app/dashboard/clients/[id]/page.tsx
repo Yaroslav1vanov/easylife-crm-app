@@ -387,6 +387,30 @@ export default function ClientDetailPage() {
         <div><b style={{ color: "var(--cy)" }}>{pipe.ready}</b><span>готов</span></div>
         <div><b style={{ color: "var(--gr)" }}>{pipe.published}</b><span>вышло</span></div>
       </div>
+      {/* Онбординг — пока не закрыт, это главная работа по клиенту: держим на виду */}
+      {onbProgress && onbProgress.pending_tasks > 0 && (
+        <div className="card mb-3" style={{ padding: "14px 16px", borderRadius: 14, border: "1px solid rgba(66,212,244,0.4)", background: "rgba(66,212,244,0.06)", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 20 }}>🧩</span>
+          <div style={{ flex: 1, minWidth: 180 }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "var(--t1)", marginBottom: 4 }}>
+              Онбординг · {onbProgress.done_tasks} из {onbProgress.total_tasks - onbProgress.skipped_tasks}
+              {onbProgress.overdue_tasks > 0 && <span style={{ color: "var(--rd)", marginLeft: 8 }}>⚠ просрочено {onbProgress.overdue_tasks}</span>}
+            </div>
+            <div style={{ height: 6, borderRadius: 4, background: "var(--track)", overflow: "hidden" }}>
+              <div style={{ width: `${onbProgress.progress_pct}%`, height: "100%", background: "linear-gradient(90deg, var(--cy), var(--pu))", borderRadius: 4 }} />
+            </div>
+          </div>
+          <span style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 18, fontWeight: 800, color: "var(--cy)" }}>{onbProgress.progress_pct}%</span>
+          <button className="v2-act pri" style={{ height: 36 }} onClick={() => router.push(`/dashboard/clients/${clientId}/onboarding`)}>Открыть чек-лист →</button>
+        </div>
+      )}
+      {onbProgress && onbProgress.pending_tasks === 0 && onbProgress.total_tasks > 0 && (
+        <div style={{ display: "flex", gap: 8, marginBottom: 14, alignItems: "center" }}>
+          <span className="v2-chip gr" style={{ height: 32 }}>✓ Онбординг завершён</span>
+          <button className="v2-act" style={{ height: 32 }} onClick={() => router.push(`/dashboard/clients/${clientId}/onboarding`)}>посмотреть →</button>
+        </div>
+      )}
+
       {currentM && (
         <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
           <button className="v2-act pri" onClick={() => router.push(`/dashboard/plan?client=${clientId}&m=${currentM.month_number}`)}>📅 Контент-план M{currentM.month_number} →</button>
