@@ -15,6 +15,16 @@ import Sheet, { SheetOption } from "@/components/Sheet";
 import { useIsMobile } from "@/lib/useMedia";
 import { fmtDateShort } from "@/components/ScriptModal";
 import { SCRIPT_COLUMNS, MONTAGE_COLUMNS } from "@/components/kanbanConfigs";
+import { handleOf } from "@/lib/socialHandles";
+import { Camera, Music2, Play } from "lucide-react";
+
+// Соцсети клиента в шапке: иконка + хэндл, клик открывает профиль
+const SOCIALS = [
+  { key: "instagram", cls: "ig", label: "Instagram", Icon: Camera, color: "#ec4899" },
+  { key: "tiktok", cls: "tt", label: "TikTok", Icon: Music2, color: "#34d399" },
+  { key: "youtube", cls: "yt", label: "YouTube", Icon: Play, color: "#ef4444" },
+] as const;
+
 
 /** Реальный текущий рабочий месяц: тот, в чьи даты попадает сегодня; иначе active; иначе последний. */
 function computeCurrentMonth(months: ClientMonth[], todayIso: string): number {
@@ -247,15 +257,35 @@ export default function ClientDetailPage() {
 
       {/* ===== Шапка клиента ===== */}
       <div className="v2-hero">
-        <AvatarUploader currentUrl={c.avatar_url} name={`${c.name} ${c.surname || ""}`} pathPrefix="clients" entityId={c.id} size={isMobile ? 56 : 72} onUploaded={async (url) => { await updateClientField("avatar_url", url); }} />
+        <AvatarUploader currentUrl={c.avatar_url} name={`${c.name} ${c.surname || ""}`} pathPrefix="clients" entityId={c.id} size={isMobile ? 56 : 72} compact onUploaded={async (url) => { await updateClientField("avatar_url", url); }} />
         <div style={{ minWidth: 0 }}>
           <h1>{c.name} {c.surname || ""}</h1>
-          <p>{c.niche || c.product || "—"}{socials.length ? " · " : ""}{socials.map((k, i) => { const u = c[k]; return <a key={k} href={u.startsWith("http") ? u : `https://${u}`} target="_blank" rel="noopener noreferrer" style={{ color: k === "instagram" ? "#ec4899" : k === "tiktok" ? "#34d399" : "#ef4444", fontWeight: 700, textDecoration: "none" }}>{i ? " · " : ""}{k === "instagram" ? "Instagram" : k === "tiktok" ? "TikTok" : "YouTube"}</a>; })}</p>
+          <p>{c.niche || c.product || "—"}</p>
           <div className="team">
             <span className={`v2-chip ${stageChip.cls}`}>{stageChip.l}</span>
             {teamlead && <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Avatar name={teamlead.name} src={teamlead.avatar_url} size={20} />{teamlead.name}</span>}
             {montager && <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Avatar name={montager.name} src={montager.avatar_url} size={20} />{montager.name}</span>}
             {currentM && <span className="v2-chip mut">M{currentM.month_number} · до {fmtDateShort(currentM.end_date)}{monthDaysLeft != null && monthDaysLeft < 0 ? ` · просрочка ${-monthDaysLeft} дн` : ""}</span>}
+          </div>
+          <div className="v2-soc">
+            {SOCIALS.map(({ key, cls, label, Icon, color }) => {
+              const raw = (c as any)[key] as string | undefined;
+              if (!raw) return null;
+              const href = raw.startsWith("http") ? raw : `https://${raw}`;
+              const handle = handleOf(raw, key === "instagram" ? "ig" : key === "tiktok" ? "tt" : "yt");
+              return (
+                <a key={key} className={cls} href={href} target="_blank" rel="noopener noreferrer" title={`Открыть ${label}`}>
+                  <Icon size={13} style={{ color }} />
+                  <span>{label}</span>
+                  {handle && <span className="h">@{handle}</span>}
+                </a>
+              );
+            })}
+            {SOCIALS.every(({ key }) => !(c as any)[key]) && (
+              <button className="add" onClick={() => { setEditData({ name: c.name, surname: c.surname, niche: c.niche, phone: c.phone, product: c.product, avg_check: c.avg_check, package: c.package, montager_id: c.montager_id, teamlead_id: c.teamlead_id, stage: c.stage, instagram: c.instagram, tiktok: c.tiktok, youtube: c.youtube, birthday: c.birthday || "" }); setEditing(true); }}>
+                + добавить соцсети
+              </button>
+            )}
           </div>
         </div>
         <button className="v2-iconbtn" onClick={() => setMenuOpen(true)} aria-label="Действия" style={{ fontSize: 18, lineHeight: 1 }}>⋯</button>

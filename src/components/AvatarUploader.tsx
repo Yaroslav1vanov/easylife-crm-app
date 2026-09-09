@@ -21,7 +21,7 @@ type Props = {
   readonly?: boolean;
 };
 
-export default function AvatarUploader({ currentUrl, name, pathPrefix, entityId, size = 80, onUploaded, readonly }: Props) {
+export default function AvatarUploader({ currentUrl, name, pathPrefix, entityId, size = 80, onUploaded, readonly, compact }: Props & { compact?: boolean }) {
   const supabase = createClient();
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -130,6 +130,10 @@ export default function AvatarUploader({ currentUrl, name, pathPrefix, entityId,
         >
           <Upload size={Math.max(14, size * 0.22)} strokeWidth={2} style={{ color: "#fff" }} />
           <span style={{ fontSize: Math.max(8, size * 0.1), fontWeight: 700, color: "#fff" }}>Загрузить</span>
+          {compact && (
+            <span onClick={(e) => { e.stopPropagation(); setShowUrlInput(true); }}
+              style={{ fontSize: Math.max(7, size * 0.085), color: "#c9b6ff", textDecoration: "underline", marginTop: 1 }}>из соцсети</span>
+          )}
         </div>
       </div>
 
@@ -141,7 +145,7 @@ export default function AvatarUploader({ currentUrl, name, pathPrefix, entityId,
         onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }}
       />
 
-      {!showUrlInput && (
+      {!showUrlInput && !compact && (
         <div style={{ display: "flex", gap: 4, flexWrap: "wrap", justifyContent: "center" }}>
           <button onClick={() => fileRef.current?.click()} disabled={uploading} style={{
             padding: "5px 9px", borderRadius: 7, fontSize: 10, fontWeight: 700,
