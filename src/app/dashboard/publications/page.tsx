@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase-browser";
 import db, { Client, Script, TeamMember, ClientMonth } from "@/lib/database";
 import Avatar from "@/components/Avatar";
 import Tour, { TourButton, type TourStep } from "@/components/Tour";
+import { myClients } from "@/lib/scope";
+import { useRole } from "@/components/RoleContext";
 import {
   AlertTriangle, CalendarClock, CheckCircle2, Clock, Wand2,
   Filter, ChevronDown, ChevronLeft, ChevronRight, X, ExternalLink, CalendarDays, List, type LucideIcon,
@@ -62,6 +64,7 @@ function slotStatus(s: Script, todayIso: string): SlotStatus {
 export default function PublicationsPage() {
   const router = useRouter();
   const supabase = createClient();
+  const role = useRole();
   const today = new Date();
   const todayIso = isoOf(today);
   const currentYM = ymOfDate(today);
@@ -89,7 +92,10 @@ export default function PublicationsPage() {
   async function load() {
     const cls = await db.getClients(supabase);
     const tm = await db.getTeam(supabase);
-    setClients(cls); setTeam(tm);
+    setTeam(tm);
+    const { data: { session } } = await supabase.auth.getSession();
+    const meNow = session?.user?.id ? tm.find(t => t.profile_id === session.user.id) || null : null;
+    setClients(myClients(role, meNow, cls));   // тимлид видит только своих клиентов
     const all = await db.getScriptsForClients(supabase, cls.map(c => c.id));
     setAllScripts(all);
     const cmRes = await db.getClientMonths(supabase);

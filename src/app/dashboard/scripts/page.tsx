@@ -3,12 +3,13 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
 import db, { Client, Script, ClientMonth, TeamMember } from "@/lib/database";
+import { myClients } from "@/lib/scope";
 import { getStore, setStore, patchScriptInStore } from "@/lib/store";
 import Avatar from "@/components/Avatar";
 import KanbanBoard from "@/components/KanbanBoard";
 import ScriptModal, { SCRIPT_LEAD, fmtDateShort, addDaysIso } from "@/components/ScriptModal";
 import { SCRIPT_COLUMNS } from "@/components/kanbanConfigs";
-import { useCanEditReadyAt } from "@/components/RoleContext";
+import { useCanEditReadyAt, useRole } from "@/components/RoleContext";
 import Tour, { TourButton, type TourStep } from "@/components/Tour";
 import { useIsMobile } from "@/lib/useMedia";
 
@@ -40,6 +41,7 @@ function buildCalendar(ym: string): (string | null)[][] {
 
 export default function ScriptsPage() {
   const supabase = createClient();
+  const role = useRole();
   const canEditReadyAt = useCanEditReadyAt();
   const todayIso = isoOf(new Date());
   const tomorrowIso = addDaysIso(todayIso, 1);
@@ -74,10 +76,12 @@ export default function ScriptsPage() {
   async function load() {
     // кэш уже показан из getStore() — обновляем в фоне
     const [cls, tm] = await Promise.all([db.getClients(supabase), db.getTeam(supabase)]);
-    setClients(cls); setTeam(tm);
+    setTeam(tm);
     const { data: { session } } = await supabase.auth.getSession();
     const uid = session?.user?.id;
-    if (uid) setMe(tm.find(t => t.profile_id === uid) || null);
+    const meNow = uid ? tm.find(t => t.profile_id === uid) || null : null;
+    if (uid) setMe(meNow);
+    setClients(myClients(role, meNow, cls));   // тимлид видит только своих клиентов
     const [all, cmRes] = await Promise.all([db.getScriptsForClients(supabase, cls.map(c => c.id)), db.getClientMonths(supabase)]);
     setAllScripts(all); setClientMonths(cmRes?.data || []);
     setStore({ clients: cls, team: tm, scripts: all, clientMonths: cmRes?.data || [] });

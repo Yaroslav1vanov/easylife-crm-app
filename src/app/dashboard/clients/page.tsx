@@ -2,6 +2,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
+import { myClients } from "@/lib/scope";
+import { useRole } from "@/components/RoleContext";
 import db, { Client, ClientMonth, Script, SocialSnapshot, TeamMember, OnboardingProgress } from "@/lib/database";
 import Tour, { TourButton, type TourStep } from "@/components/Tour";
 
@@ -243,6 +245,7 @@ export default function ClientsPage() {
   const [form, setForm] = useState({ name: "", surname: "", niche: "", package: 30, montager_id: 0, teamlead_id: 0, start_date: new Date().toISOString().split("T")[0], pub_date: "" });
   const router = useRouter();
   const supabase = createClient();
+  const role = useRole();
 
   useEffect(() => { load(); }, []);
 
@@ -254,8 +257,10 @@ export default function ClientsPage() {
     let cls: Client[] = [];
     try {
       const [c, tm] = await Promise.all([db.getClients(supabase), db.getTeam(supabase)]);
-      cls = c;
-      setClients(c);
+      const { data: { session } } = await supabase.auth.getSession();
+      const meNow = session?.user?.id ? tm.find(t => t.profile_id === session.user.id) || null : null;
+      cls = myClients(role, meNow, c);          // тимлид видит только своих клиентов
+      setClients(cls);
       setTeam(tm);
       if (c.length === 0) {
         const { data: { user } } = await supabase.auth.getUser();
