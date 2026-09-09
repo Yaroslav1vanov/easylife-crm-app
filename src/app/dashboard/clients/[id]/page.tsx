@@ -16,6 +16,7 @@ import { useIsMobile } from "@/lib/useMedia";
 import { fmtDateShort } from "@/components/ScriptModal";
 import { SCRIPT_COLUMNS, MONTAGE_COLUMNS } from "@/components/kanbanConfigs";
 import { handleOf } from "@/lib/socialHandles";
+import { notify } from "@/components/NoticeHost";
 import { Camera, Music2, Play } from "lucide-react";
 
 // Соцсети клиента в шапке: иконка + хэндл, клик открывает профиль
@@ -124,7 +125,17 @@ export default function ClientDetailPage() {
   }
 
   async function saveEdit() {
-    await db.updateClient(supabase, clientId, editData);
+    // Пустые поля-даты нельзя слать как "" — Postgres роняет весь запрос,
+    // и тогда молча не сохраняется ничего, включая соцсети.
+    const clean: any = { ...editData };
+    for (const k of ["birthday", "start_date", "pub_date", "onboarding_start", "onboarding_deadline"]) {
+      if (clean[k] === "") clean[k] = null;
+    }
+    for (const k of ["montager_id", "teamlead_id"]) {
+      if (clean[k] === "" || clean[k] === 0) clean[k] = null;
+    }
+    const { error } = await db.updateClient(supabase, clientId, clean);
+    if (error) { notify(`Не сохранилось: ${error.message}`); return; }
     setEditing(false); load();
   }
 
