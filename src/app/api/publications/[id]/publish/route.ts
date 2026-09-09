@@ -203,7 +203,7 @@ async function publishViaUploadPost(sb: any, pub: any, client: any, force: boole
 
   const textFor = (ch: string) =>
     ch === "ig" ? pub.caption_ig : ch === "tt" ? pub.caption_tt :
-    ch === "yt" ? (pub.yt_title || pub.yt_description) : ch === "threads" ? pub.threads_post : pub.base_text;
+    ch === "yt" ? (pub.yt_description || pub.base_text) : ch === "threads" ? pub.threads_post : pub.base_text;
 
   const future = Date.parse(pub.publish_at) > Date.now() + 60 * 1000;
   const r = await publishVideo({
@@ -212,6 +212,7 @@ async function publishViaUploadPost(sb: any, pub: any, client: any, force: boole
     channels,
     titleFor: (ch) => textFor(ch) || "",
     fallbackTitle: pub.base_text || pub.caption_ig || "",
+    ytTitle: pub.yt_title || (pub.base_text || pub.caption_ig || "").split("\n")[0] || "",
     scheduledIso: future ? new Date(pub.publish_at).toISOString() : null,
     timezone: client.timezone || null,
   });
