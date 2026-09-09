@@ -7,8 +7,8 @@ import { vmxFindAccount, vmxAvatarUrl } from "@/lib/viralmaxing";
 // Источники по порядку:
 //   1. Viralmaxing — если аккаунт отслеживается (свой или конкурент), аватар лежит на его CDN.
 //   2. TikTok / YouTube — публичная страница профиля (с Vercel открывается).
-//   3. Instagram напрямую с сервера не отдаёт (429/логин), unavatar.io стал платным —
-//      поэтому для IG без Viralmaxing честно говорим «загрузи файлом».
+//   3. Instagram — через ScrapeCreators (profile_pic_url_hd): сам IG серверу фото не отдаёт
+//      (429/логин), а unavatar.io стал платным.
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -30,6 +30,20 @@ function detect(input: string): { plat: Plat; handle: string } | null {
   if (/youtube\.com|youtu\.be/i.test(s)) return tryP("yt");
   if (/^@?[A-Za-z0-9_.]{2,30}$/.test(s)) return { plat: "ig", handle: s.replace(/^@/, "") };
   return null;
+}
+
+/** Аватар профиля Instagram через ScrapeCreators — сам IG серверу фото не отдаёт. */
+async function instagramAvatar(handle: string): Promise<string | null> {
+  const key = process.env.SCRAPECREATORS_API_KEY;
+  if (!key) return null;
+  try {
+    const r = await fetchT(`https://api.scrapecreators.com/v1/instagram/profile?handle=${encodeURIComponent(handle)}`,
+      { headers: { "x-api-key": key } }, 12000);
+    if (!r.ok) return null;
+    const j: any = await r.json().catch(() => null);
+    const u = j?.data?.user || j?.user || {};
+    return u.profile_pic_url_hd || u.profile_pic_url || null;
+  } catch { return null; }
 }
 
 async function tiktokAvatar(handle: string): Promise<string | null> {
@@ -66,11 +80,10 @@ export async function GET(req: NextRequest) {
       const acc = await vmxFindAccount(key, d.handle, d.plat);
       if (acc) candidates.push(vmxAvatarUrl(acc.id));
     }
+    if (d.plat === "ig") { const u = await instagramAvatar(d.handle); if (u) candidates.push(u); }
     if (d.plat === "tt") { const u = await tiktokAvatar(d.handle); if (u) candidates.push(u); }
     if (d.plat === "yt") { const u = await youtubeAvatar(d.handle); if (u) candidates.push(u); }
-    if (d.plat === "ig") hint = key
-      ? `Instagram не отдаёт фото напрямую. Аккаунт @${d.handle} не отслеживается в Viralmaxing — добавь его туда или загрузи фото файлом.`
-      : "Instagram не отдаёт фото напрямую. Загрузи файлом.";
+    if (d.plat === "ig") hint = `Не получилось взять фото профиля @${d.handle} — возможно, аккаунт закрытый. Загрузи фото файлом.`;
     if (!candidates.length) return NextResponse.json({ error: "no_source", hint }, { status: 404 });
   }
 
