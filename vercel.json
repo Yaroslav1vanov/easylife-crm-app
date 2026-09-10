@@ -3,6 +3,10 @@
     {
       "path": "/api/social/refresh",
       "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/cron/publications-sync",
+      "schedule": "0 * * * *"
     }
   ]
 }

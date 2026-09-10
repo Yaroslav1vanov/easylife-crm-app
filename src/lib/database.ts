@@ -541,6 +541,18 @@ const db = {
   },
   async updatePublication(sb: SupabaseClient, id: number, patch: Partial<Publication>) {
     const { error } = await sb.from("publications").update(patch).eq("id", id);
+    // Опубликовано в «Публикациях» = опубликовано и в «Монтаже».
+    // В базе это делает триггер; здесь страховка на случай, если его ещё нет.
+    if (!error && patch.pub_status === "published") {
+      const { data: pub } = await sb.from("publications").select("script_id, publish_at").eq("id", id).maybeSingle();
+      if (pub?.script_id) {
+        const { data: sc } = await sb.from("scripts").select("pub_date").eq("id", pub.script_id).maybeSingle();
+        await sb.from("scripts").update({
+          video_status: "published",
+          ...(sc && !sc.pub_date && pub.publish_at ? { pub_date: String(pub.publish_at).slice(0, 10) } : {}),
+        }).eq("id", pub.script_id).neq("video_status", "published");
+      }
+    }
     return { error };
   },
   async approvePublication(sb: SupabaseClient, id: number, teamMemberId: number) {
