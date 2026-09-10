@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase-browser";
 import { useTheme } from "@/components/ThemeProvider";
 import { sectionAllowed, isOwner, seesOverview } from "@/components/RoleContext";
 import Avatar from "@/components/Avatar";
+import AlertsBell from "@/components/AlertsBell";
 import Sheet from "@/components/Sheet";
 import { useIsMobile } from "@/lib/useMedia";
 import {
@@ -146,14 +147,17 @@ export function Sidebar({ userRole }: { userRole: string }) {
             </button>
           </div>
         )}
-        <button onClick={() => setUserMenuOpen(v => !v)}
-          style={{ width: "100%", border: "none", background: userMenuOpen ? "rgba(157,107,255,0.1)" : "transparent", cursor: "pointer", padding: 6, borderRadius: 10, display: "flex", alignItems: "center", gap: 10 }}>
-          <Avatar name={name} src={me?.avatar_url} size={32} />
-          <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--t1)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</div>
-            <div style={{ fontSize: 10, color: "var(--t3)", letterSpacing: 0.4, textTransform: "uppercase", fontWeight: 600 }}>{role}</div>
-          </div>
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <button onClick={() => setUserMenuOpen(v => !v)}
+            style={{ flex: 1, minWidth: 0, border: "none", background: userMenuOpen ? "rgba(157,107,255,0.1)" : "transparent", cursor: "pointer", padding: 6, borderRadius: 10, display: "flex", alignItems: "center", gap: 10 }}>
+            <Avatar name={name} src={me?.avatar_url} size={32} />
+            <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--t1)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</div>
+              <div style={{ fontSize: 10, color: "var(--t3)", letterSpacing: 0.4, textTransform: "uppercase", fontWeight: 600 }}>{role}</div>
+            </div>
+          </button>
+          {!compact && <AlertsBell role={userRole} />}
+        </div>
       </div>
     );
   };
@@ -164,11 +168,11 @@ export function Sidebar({ userRole }: { userRole: string }) {
     const moreActive = !tabs.some(t => isActive(t.path));
     return (
       <>
-        <div className="v2-topbar">
+        <div className="v2-topbar" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
           <div className="app-logo" style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15, fontWeight: 700 }}>
             <BrandMark size={22} /><span style={{ color: "var(--t1)" }}>Easy</span><span className="brand-gradient">Life</span><span style={{ color: "var(--t1)" }}> AI</span>
-            
           </div>
+          <AlertsBell role={userRole} />
         </div>
         <nav className="v2-tabbar">
           {tabs.map(t => {
