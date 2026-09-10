@@ -79,6 +79,15 @@ type Props = {
   monthOptionsFor?: (clientId: number) => number[];
 };
 
+
+/** Пустой слот плана: карточка с датой публикации, но без единого слова сценария.
+ *  Создаётся при открытии месяца / распределении графика — на доске только мешает. */
+export function isEmptySlot(s: Script): boolean {
+  const txt = (v: any) => String(v || "").trim();
+  const hook = txt(s.hook).replace(/^Сценарий #\d+$/, "");
+  return !hook && !txt(s.hook_text) && !txt(s.body_text) && !txt(s.ref_url) && !txt(s.transcription) && !txt((s as any).ref_text);
+}
+
 export default function KanbanBoard({ scripts, clients, columns, onUpdate, showClient = false, minColWidth = 220, emptyHint = "Пусто", onAddCard, addColumnId, onDelete, deadlineLeadDays, deadlineDone, deadlineShow, canEditScript = true, canEditReadyAt = false, cardAction, onBulkExport, onBulkMoveMonth, monthOptionsFor }: Props) {
   const todayIso = todayIsoLocal();
   const hasDeadline = deadlineLeadDays != null;
@@ -94,6 +103,8 @@ export default function KanbanBoard({ scripts, clients, columns, onUpdate, showC
   const [bulkConfirm, setBulkConfirm] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [moveMenu, setMoveMenu] = useState(false);
+  const [showSlots, setShowSlots] = useState<Set<string>>(new Set());
+  const toggleSlots = (colId: string) => setShowSlots(prev => { const n = new Set(prev); n.has(colId) ? n.delete(colId) : n.add(colId); return n; });
   // v2: на телефоне — вкладки-статусы и лист «Перевести в…» вместо перетаскивания
   const isMobile = useIsMobile();
   const [mobCol, setMobCol] = useState<string>(columns[0]?.id);
@@ -172,16 +183,23 @@ export default function KanbanBoard({ scripts, clients, columns, onUpdate, showC
       )}
       {isMobile ? (() => {
         const col = columns.find(c => c.id === mobCol) || columns[0];
-        const items = byColumn[col.id] || [];
+        const itemsAll = byColumn[col.id] || [];
+        const slotItems = itemsAll.filter(isEmptySlot);
+        const items = showSlots.has(col.id) ? [...itemsAll.filter(x => !isEmptySlot(x)), ...slotItems] : itemsAll.filter(x => !isEmptySlot(x));
         const showAdd = !!onAddCard && col.id === addColId;
         return (
           <div className="v2">
             <div className="v2-stabs">
-              {columns.map(c => <button key={c.id} className={mobCol === c.id ? "on" : ""} onClick={() => setMobCol(c.id)} style={mobCol === c.id ? { borderColor: c.color } : undefined}>{c.label}<span className="cnt">{(byColumn[c.id] || []).length}</span></button>)}
+              {columns.map(c => <button key={c.id} className={mobCol === c.id ? "on" : ""} onClick={() => setMobCol(c.id)} style={mobCol === c.id ? { borderColor: c.color } : undefined}>{c.label}<span className="cnt">{(byColumn[c.id] || []).filter(x => !isEmptySlot(x)).length}</span></button>)}
             </div>
             {showAdd && (
               <button onClick={handleAdd} disabled={adding} className="v2-act ghost" style={{ width: "100%", marginBottom: 8, borderStyle: "dashed", color: col.color }}>
                 <Plus size={13} strokeWidth={2.4} /> {adding ? "Создаю..." : "Добавить сценарий"}
+              </button>
+            )}
+            {slotItems.length > 0 && (
+              <button onClick={() => toggleSlots(col.id)} className="v2-act ghost" style={{ width: "100%", marginBottom: 8, borderStyle: "dashed", color: "var(--t3)", fontSize: 11 }}>
+                {showSlots.has(col.id) ? `скрыть ${slotItems.length} пустых слотов` : `скрыто ${slotItems.length} пустых слотов плана · показать`}
               </button>
             )}
             {items.length === 0 && <div className="v2-empty">Пусто</div>}
@@ -214,7 +232,9 @@ export default function KanbanBoard({ scripts, clients, columns, onUpdate, showC
       <div style={{ display: "grid", gridTemplateColumns: `repeat(${columns.length}, minmax(${minColWidth}px, 1fr))`, gap: 10, overflowX: "auto", paddingBottom: 8 }}>
         {columns.map(col => {
           const Icon = col.Icon;
-          const items = byColumn[col.id] || [];
+          const itemsAll = byColumn[col.id] || [];
+          const slotItems = itemsAll.filter(isEmptySlot);
+          const items = showSlots.has(col.id) ? [...itemsAll.filter(x => !isEmptySlot(x)), ...slotItems] : itemsAll.filter(x => !isEmptySlot(x));
           const isOver = dragOverCol === col.id;
           const showAdd = !!onAddCard && col.id === addColId;
           return (
@@ -240,7 +260,7 @@ export default function KanbanBoard({ scripts, clients, columns, onUpdate, showC
                   <Icon size={13} style={{ color: col.color }} strokeWidth={1.8} />
                   <h3 style={{ fontSize: 11, fontWeight: 800, color: "var(--t1)", textTransform: "uppercase", letterSpacing: 0.5 }}>{col.label}</h3>
                 </div>
-                <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 6, background: `${col.color}22`, color: col.color }}>{items.length}</span>
+                <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 6, background: `${col.color}22`, color: col.color }}>{itemsAll.length - slotItems.length}</span>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 7, flex: 1 }}>
                 {showAdd && (
@@ -252,6 +272,13 @@ export default function KanbanBoard({ scripts, clients, columns, onUpdate, showC
                       color: col.color, fontSize: 11, fontWeight: 700, cursor: "pointer",
                     }}>
                     <Plus size={13} strokeWidth={2.4} /> {adding ? "Создаю..." : "Добавить сценарий"}
+                  </button>
+                )}
+{slotItems.length > 0 && (
+                  <button onClick={() => toggleSlots(col.id)}
+                    title="Слоты плана — карточки с датой, но без текста. Появятся на доске, как только в них начнут писать."
+                    style={{ padding: "6px 9px", borderRadius: 8, background: "transparent", border: "1px dashed var(--brd)", color: "var(--t3)", fontSize: 10, fontWeight: 700, cursor: "pointer", textAlign: "left" }}>
+                    {showSlots.has(col.id) ? `▾ скрыть ${slotItems.length} пустых слотов` : `▸ скрыто ${slotItems.length} пустых слотов плана · показать`}
                   </button>
                 )}
                 {items.length === 0 && !showAdd && (
