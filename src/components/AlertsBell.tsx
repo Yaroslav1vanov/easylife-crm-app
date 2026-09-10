@@ -44,10 +44,22 @@ export default function AlertsBell({ role }: { role: string }) {
 
   useEffect(() => {
     try { setRead(new Set(JSON.parse(localStorage.getItem(READ_KEY) || "[]"))); } catch {}
-    load();
+    syncPublished().then(load);
     const t = setInterval(load, 5 * 60 * 1000);   // тихо обновляем раз в 5 минут
     return () => clearInterval(t);
   }, []);
+
+  /** Сверяем вышедшие посты с Metricool / Upload-Post не чаще раза в 20 минут на браузер.
+   *  Бесплатный Vercel даёт расписание только раз в день — а так статусы обновляются,
+   *  пока кто-то из команды работает в CRM. */
+  async function syncPublished() {
+    try {
+      const last = Number(localStorage.getItem("crm-pubsync-at") || 0);
+      if (Date.now() - last < 20 * 60 * 1000) return;
+      localStorage.setItem("crm-pubsync-at", String(Date.now()));
+      await fetch("/api/cron/publications-sync", { cache: "no-store" });
+    } catch { /* не критично — расписание подхватит утром */ }
+  }
 
   async function load() {
     const [cls, tm] = await Promise.all([db.getClients(supabase), db.getTeam(supabase)]);
