@@ -118,6 +118,7 @@ type ClientRow = {
   pace: ReturnType<typeof paceOf>;
   // календарно-месячная статистика (по плановым датам публикаций)
   publishedInMonth: number; plannedInMonth: number; dueByToday: number; factByToday: number;
+  onboardingUntil: string | null;   // пока идёт онбординг — дата начала публикаций
 };
 
 function ClientsBlock(p: ClientsBlockProps) {
@@ -155,11 +156,25 @@ function ClientsBlock(p: ClientsBlockProps) {
       const dueByDates = list.filter(s => inMonth(s) && (s.pub_date as string) < p.todayIso).length;
       // Если план задан цифрой, а даты не расставлены — «должно быть к сегодня» считаем
       // ровным темпом: сколько дней месяца прошло, столько и роликов должно выйти.
-      const daysInMonth = new Date(selY, selM, 0).getDate();
-      const dayNow = p.selectedMonth === p.currentYM ? Math.max(0, Number(p.todayIso.slice(8, 10)) - 1) : (p.selectedMonth < p.currentYM ? daysInMonth : 0);
-      const dueByToday = target != null && byDates === 0
-        ? Math.round((target * dayNow) / daysInMonth)
-        : dueByDates;
+      // С какого дня клиент вообще публикуется: в M1 — после онбординга (~2 недели),
+      // иначе новый клиент «отстаёт» с первого дня, пока идёт анализ ниши и запись аватара.
+      const publishFrom = cm.month_number === 1
+        ? ((c as any).onboarding_deadline || addDaysIso(cm.start_date, ONBOARDING_DAYS))
+        : cm.start_date;
+      const monthStart = `${p.selectedMonth}-01`;
+      const monthEnd = `${p.selectedMonth}-${String(new Date(selY, selM, 0).getDate()).padStart(2, "0")}`;
+      // окно публикаций внутри календарного месяца: план — цифра на весь месяц,
+      // поэтому режем только начало (онбординг / старт), конец — всегда конец месяца
+      const winStart = publishFrom > monthStart ? publishFrom : monthStart;
+      const winEnd = monthEnd;
+      const winDays = Math.max(0, daysBetween(winStart, winEnd) + 1);
+      const winPassed = Math.max(0, Math.min(winDays, daysBetween(winStart, p.todayIso)));  // «к сегодня» = до сегодня
+      const inOnboardingNow = cm.month_number === 1 && p.todayIso < publishFrom;
+      const dueByToday = inOnboardingNow
+        ? 0
+        : target != null && byDates === 0
+          ? (winDays > 0 ? Math.round((target * winPassed) / winDays) : 0)
+          : dueByDates;
       const factByToday = list.filter(s => s.video_status === "published" && inMonth(s) && (s.pub_date as string) < p.todayIso).length;
       const remaining = Math.max(0, plan - published);
       const progressPct = Math.round((published / plan) * 100);
@@ -181,7 +196,7 @@ function ClientsBlock(p: ClientsBlockProps) {
             label: `онбординг · публикации с ${obEnd!.slice(8, 10)}.${obEnd!.slice(5, 7)}`,
             color: "var(--cy)", icon: "neutral" as const }
         : paceOf(paceStart, cm.end_date, p.todayIso, published, plan);
-      out.push({ c, cm, plan, scrApproved, scrInProgress, montage, montageInProgress, ready, published, remaining, progressPct, daysToEnd, daysTotal, isOverdue, isPaused, status, pace, publishedInMonth, plannedInMonth, dueByToday, factByToday });
+      out.push({ c, cm, plan, scrApproved, scrInProgress, montage, montageInProgress, ready, published, remaining, progressPct, daysToEnd, daysTotal, isOverdue, isPaused, status, pace, publishedInMonth, plannedInMonth, dueByToday, factByToday, onboardingUntil: inOnboardingNow ? publishFrom : null });
     }
     // Сортируем: клиент.id, потом по month_number — соседние месяцы одного клиента рядом
     out.sort((a, b) => a.c.id - b.c.id || a.cm.month_number - b.cm.month_number);
@@ -360,7 +375,15 @@ function ClientsBlock(p: ClientsBlockProps) {
   };
 
   // Темп к сегодня: факт vs «должно быть к сегодня» (строго до сегодня), по плановым датам
-  const DueCell = ({ fact, due }: { fact: number; due: number }) => {
+  const DueCell = ({ fact, due, onboardingUntil }: { fact: number; due: number; onboardingUntil?: string | null }) => {
+    if (onboardingUntil) {
+      return (
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 800, color: "var(--cy)", lineHeight: 1.2 }}>🧩 онбординг</div>
+          <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 700, marginTop: 3 }}>публикации с {onboardingUntil.slice(8, 10)}.{onboardingUntil.slice(5, 7)}</div>
+        </div>
+      );
+    }
     const delta = fact - due;
     const color = delta >= 0 ? "var(--gr)" : delta >= -2 ? "var(--or)" : "var(--rd)";
     const PI = delta < 0 ? TrendingDown : Minus;
@@ -566,7 +589,7 @@ function ClientsBlock(p: ClientsBlockProps) {
                     {/* Сделано за этот месяц (текущий M-период): опубликовано / пакет */}
                     <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 110 }}><StageCell done={r.published} plan={r.plan} color="#9d6bff" /></td>
                     {/* Темп к сегодня */}
-                    <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 110 }}><DueCell fact={r.factByToday} due={r.dueByToday} /></td>
+                    <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 110 }}><DueCell fact={r.factByToday} due={r.dueByToday} onboardingUntil={r.onboardingUntil} /></td>
                     {/* Дедлайн */}
                     <td style={{ padding: "12px 8px", verticalAlign: "middle", whiteSpace: "nowrap" }}>
                       <div style={{ fontSize: 11, fontWeight: 700, color: "var(--t1)" }}>{fmtDateShort(r.cm.end_date)}</div>
