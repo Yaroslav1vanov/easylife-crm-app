@@ -63,6 +63,15 @@ export default function PublicationModal({ pub, client, script, onClose, onUpdat
   const pastBy = f.publish_at ? Math.round((Date.now() - Date.parse(f.publish_at)) / 60000) : 0;
 
   const save = (patch: Partial<Publication>) => { if (locked) return; setF(p => ({ ...p, ...patch })); onUpdate(pub.id, patch); };
+  /** Вернуть опубликованный пост в «Готово к публикации», чтобы отправить заново.
+   *  Сценарий в «Монтаже» не трогаем: ролик уже сделан и оплачен — переопубликация
+   *  это правка поста в соцсетях, а не новый ролик, ЗП и счётчики не меняются. */
+  const reopen = () => {
+    if (!confirm("Вернуть пост на переопубликацию?\n\n• Карточка уйдёт в «Готово к публикации», можно поменять текст, время и сети.\n• Уже вышедший пост в соцсетях останется — удали его там вручную, если нужно.\n• В «Монтаже» ролик останется опубликованным, ЗП не пересчитается.")) return;
+    const patch = { pub_status: "queued" as const, metricool_post_id: null, error_message: null };
+    setF(p => ({ ...p, ...patch }));
+    onUpdate(pub.id, patch as Partial<Publication>);
+  };
   const channels = (f.target_channels?.length ? f.target_channels : client?.platforms?.length ? client.platforms : allowedChannels).filter(x => allowedChannels.includes(x));
   const toggleChan = (id: string) => {
     if (locked || isScheduled) return;
@@ -255,7 +264,10 @@ export default function PublicationModal({ pub, client, script, onClose, onUpdat
           )}
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
             <span style={{ fontSize: 11, color: "var(--t3)", flex: 1, minWidth: 120 }}>{isPublished ? "Опубликовано, правки закрыты" : isScheduled ? "Запланировано. Повторная отправка не создаст дубли" : f.ai_model ? `AI: ${f.ai_model}` : ""}</span>
-            {isPublished ? <span className="v2-act gr" style={{ cursor: "default" }}><Check size={14} /> Опубликовано</span>
+            {isPublished ? (<>
+                <span className="v2-act gr" style={{ cursor: "default" }}><Check size={14} /> Опубликовано</span>
+                <button className="v2-act ghost" onClick={reopen} title="Вернуть в «Готово к публикации», чтобы отправить заново"><RefreshCw size={13} /> Переопубликовать</button>
+              </>)
               : isScheduled ? (<>
                 <span className="v2-act gr" style={{ cursor: "default" }}><Check size={14} /> Запланировано</span>
                 <button className="v2-act ghost" onClick={() => publish({ force: true })} disabled={pubBusy}><RefreshCw size={13} /> {pubBusy ? "…" : "Переотправить"}</button>
