@@ -53,6 +53,15 @@ function todayFullRu(d: Date) {
   return `${d.getDate()} ${RU_MONTHS_GEN[d.getMonth()]} ${d.getFullYear()}, ${RU_WEEKDAYS[d.getDay()]}`;
 }
 
+/** Сколько дней первого месяца уходит на онбординг: анализ ниши, референсы,
+ *  стратегия и запись аватара. Публикации начинаются после. */
+export const ONBOARDING_DAYS = 14;
+
+function addDaysIso(s: string, n: number) {
+  const d = new Date(s + "T00:00:00"); d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
 /* темп: где должны быть vs где есть (в % или в роликах) */
 function paceOf(start: string, end: string, today: string, doneCount: number, planCount: number) {
   if (planCount <= 0) return { delta: 0, expected: 0, actualPct: 0, expectedPct: 0, label: "—", color: "var(--t3)", icon: "neutral" as const };
@@ -160,7 +169,18 @@ function ClientsBlock(p: ClientsBlockProps) {
       const isOverdue = !paused && ((daysToEnd < 0 && published < plan) || p.overdueClientIds.has(c.id));
       const isPaused = paused || cm.status === "planned" || cm.status === "cancelled";
       const status: ClientRow["status"] = isPaused ? "paused" : isOverdue ? "overdue" : published >= plan ? "done" : "working";
-      const pace = paceOf(cm.start_date, cm.end_date, p.todayIso, published, plan);
+      // В M1 первые ~2 недели идёт онбординг — публикаций там быть не должно,
+      // иначе новый клиент с первого дня показан «отстающим».
+      const obEnd = cm.month_number === 1
+        ? ((c as any).onboarding_deadline || addDaysIso(cm.start_date, ONBOARDING_DAYS))
+        : null;
+      const inOnboarding = !!obEnd && p.todayIso < obEnd;
+      const paceStart = obEnd && obEnd < cm.end_date ? obEnd : cm.start_date;
+      const pace = inOnboarding
+        ? { delta: 0, expected: 0, actualPct: (published / plan) * 100, expectedPct: 0,
+            label: `онбординг · публикации с ${obEnd!.slice(8, 10)}.${obEnd!.slice(5, 7)}`,
+            color: "var(--cy)", icon: "neutral" as const }
+        : paceOf(paceStart, cm.end_date, p.todayIso, published, plan);
       out.push({ c, cm, plan, scrApproved, scrInProgress, montage, montageInProgress, ready, published, remaining, progressPct, daysToEnd, daysTotal, isOverdue, isPaused, status, pace, publishedInMonth, plannedInMonth, dueByToday, factByToday });
     }
     // Сортируем: клиент.id, потом по month_number — соседние месяцы одного клиента рядом
