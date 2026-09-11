@@ -248,6 +248,22 @@ const db = {
     const { data } = await sb.from("scripts").select("*").eq("client_id", clientId).order("order_num");
     return (data || []) as Script[];
   },
+  /** Сценарии без тяжёлых текстов (полный текст, транскрибации, тексты рефов — это ~80% объёма).
+   *  Для мест, где нужны только статусы и даты: уведомления, счётчики. В 5–6 раз легче полной выборки. */
+  async getScriptsLite(sb: SupabaseClient, clientIds: number[]) {
+    if (clientIds.length === 0) return [] as Script[];
+    const cols = "id, client_id, month_number, order_num, hook, hook_text, script_status, video_status, pub_date, ready_at";
+    const all: Script[] = [];
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await sb.from("scripts").select(cols).in("client_id", clientIds)
+        .order("id").range(from, from + 999);
+      if (error || !data) break;
+      all.push(...(data as unknown as Script[]));
+      if (data.length < 1000) break;
+    }
+    return all;
+  },
+
   async getScriptsForClients(sb: SupabaseClient, clientIds: number[]) {
     if (clientIds.length === 0) return [] as Script[];
     // Supabase REST отдаёт максимум 1000 строк за запрос — тянем страницами, иначе

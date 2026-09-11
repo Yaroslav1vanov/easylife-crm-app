@@ -69,7 +69,7 @@ export default function AlertsBell({ role }: { role: string }) {
     setClients(mine);
     if (!mine.length) { setScripts([]); setMonths([]); return; }
     const [all, cmRes] = await Promise.all([
-      db.getScriptsForClients(supabase, mine.map(c => c.id)),
+      db.getScriptsLite(supabase, mine.map(c => c.id)),   // колокольчику тексты не нужны — только статусы и даты
       db.getClientMonths(supabase),
     ]);
     setScripts(all);
