@@ -17,6 +17,7 @@ import { fmtDateShort } from "@/components/ScriptModal";
 import { SCRIPT_COLUMNS, MONTAGE_COLUMNS } from "@/components/kanbanConfigs";
 import { handleOf } from "@/lib/socialHandles";
 import { notify } from "@/components/NoticeHost";
+import { avatarFromClientSocials } from "@/lib/avatarFromSocial";
 import { Camera, Music2, Play } from "lucide-react";
 
 // Соцсети клиента в шапке: иконка + хэндл, клик открывает профиль
@@ -76,6 +77,7 @@ export default function ClientDetailPage() {
       db.getOnboardingProgress(supabase, clientId),
     ]);
     setClient(c); setScripts(s); setChecklist(ch); setTeam(tm);
+    tryAutoAvatar(c);
     if (cmRes?.data) {
       setClientMonths(cmRes.data);
       // На первой загрузке открываем канбан на реальном текущем месяце.
@@ -89,8 +91,26 @@ export default function ClientDetailPage() {
     setLoading(false);
   }
 
+  /** Аватара нет, соцсети есть → подтягиваем фото профиля сами.
+   *  Один раз за сессию на клиента, чтобы закрытый аккаунт не дёргать при каждом открытии. */
+  async function tryAutoAvatar(c: any, force = false) {
+    if (!c || c.avatar_url) return;
+    if (!(c.instagram || c.tiktok || c.youtube)) return;
+    const key = `ava-tried-${c.id}`;
+    try { if (!force && sessionStorage.getItem(key)) return; sessionStorage.setItem(key, "1"); } catch {}
+    const url = await avatarFromClientSocials(supabase, c);
+    if (url) {
+      await db.updateClient(supabase, c.id, { avatar_url: url } as any);
+      setClient((prev: any) => prev && prev.id === c.id ? { ...prev, avatar_url: url } : prev);
+    }
+  }
+
   async function updateClientField(field: string, value: any) {
     await db.updateClient(supabase, clientId, { [field]: value } as any);
+    // добавили соцсеть, а фото нет — сразу подтягиваем
+    if (["instagram", "tiktok", "youtube"].includes(field) && value && client && !client.avatar_url) {
+      await tryAutoAvatar({ ...client, [field]: value, id: clientId }, true);
+    }
     load();
   }
 
@@ -136,7 +156,12 @@ export default function ClientDetailPage() {
     }
     const { error } = await db.updateClient(supabase, clientId, clean);
     if (error) { notify(`Не сохранилось: ${error.message}`); return; }
-    setEditing(false); load();
+    setEditing(false);
+    const socialsChanged = ["instagram", "tiktok", "youtube"].some(k => (clean[k] || "") !== ((client as any)?.[k] || ""));
+    if (socialsChanged && client && !client.avatar_url) {
+      await tryAutoAvatar({ ...client, ...clean, id: clientId }, true);
+    }
+    load();
   }
 
   if (loading) return <div style={{ color: "var(--t2)", padding: 40, textAlign: "center" }}>Загрузка...</div>;

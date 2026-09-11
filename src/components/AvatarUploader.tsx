@@ -103,7 +103,7 @@ export default function AvatarUploader({ currentUrl, name, pathPrefix, entityId,
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, position: compact ? "relative" : undefined }}>
       <div style={{ position: "relative" }}>
         <Avatar name={name} src={currentUrl} size={size} />
         {uploading && (
@@ -174,7 +174,10 @@ export default function AvatarUploader({ currentUrl, name, pathPrefix, entityId,
       )}
 
       {showUrlInput && (
-        <div style={{ display: "flex", gap: 4, width: "100%", maxWidth: 240 }}>
+        <div style={compact
+          ? { position: "absolute", top: size + 8, left: 0, zIndex: 60, display: "flex", gap: 4, width: 290,
+              padding: 8, borderRadius: 10, background: "var(--side)", border: "1px solid var(--brd)", boxShadow: "0 12px 34px rgba(0,0,0,0.5)" }
+          : { display: "flex", gap: 4, width: "100%", maxWidth: 240 }}>
           <input
             autoFocus
             value={urlInput}
@@ -200,7 +203,10 @@ export default function AvatarUploader({ currentUrl, name, pathPrefix, entityId,
         </div>
       )}
 
-      {error && <div style={{ fontSize: 10, color: "var(--rd)", textAlign: "center" }}>{error}</div>}
+      {error && <div style={compact
+        ? { position: "absolute", top: size + (showUrlInput ? 58 : 8), left: 0, zIndex: 60, width: 290, padding: "7px 10px", borderRadius: 9,
+            background: "var(--side)", border: "1px solid rgba(255,92,122,0.4)", fontSize: 11, color: "var(--rd)", boxShadow: "0 12px 34px rgba(0,0,0,0.5)" }
+        : { fontSize: 10, color: "var(--rd)", textAlign: "center" }}>{error}</div>}
     </div>
   );
 }
