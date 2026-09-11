@@ -16,6 +16,23 @@ export async function GET(req: Request) {
   if (!/^\d{4}-\d{2}$/.test(ym)) return NextResponse.json({ error: "ym в формате 2026-08" }, { status: 400 });
   const clientId = sp.get("clientId");
 
+  // debug=1&clientId=… — сырой первый элемент каждого эндпоинта (разбор полей новой сети)
+  if (sp.get("debug") === "1" && clientId) {
+    const sbd = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, { auth: { persistSession: false } });
+    const { data: c } = await sbd.from("clients").select("metricool_blog_id, timezone").eq("id", Number(clientId)).maybeSingle();
+    const token = process.env.METRICOOL_TOKEN!, uid = process.env.METRICOOL_USER_ID!;
+    const [yy, mm] = ym.split("-").map(Number); const last = new Date(yy, mm, 0).getDate();
+    const qs = `from=${ym}-01T00:00:00&to=${ym}-${last}T23:59:59&timezone=America%2FNew_York&blogId=${c?.metricool_blog_id}&userToken=${encodeURIComponent(token)}&userId=${encodeURIComponent(uid)}`;
+    const out: any = { blogId: c?.metricool_blog_id };
+    for (const path of ["/v2/analytics/posts/tiktok", "/v2/analytics/posts/youtube", "/v2/analytics/videos/youtube"]) {
+      const r = await fetch(`https://app.metricool.com/api${path}?${qs}`, { headers: { "X-Mc-Auth": token } });
+      const j: any = await r.json().catch(() => null);
+      const arr = Array.isArray(j?.data) ? j.data : Array.isArray(j) ? j : [];
+      out[path] = { status: r.status, count: arr.length, first: arr[0] || j };
+    }
+    return NextResponse.json(out);
+  }
+
   const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, { auth: { persistSession: false } })   // тот же доступ, что у всей CRM;
   let q = sb.from("clients").select("id, name, surname, metricool_blog_id, timezone, stage").not("metricool_blog_id", "is", null);
   if (clientId) q = q.eq("id", Number(clientId)); else q = q.neq("stage", "churned");
