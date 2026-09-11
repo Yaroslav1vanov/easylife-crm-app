@@ -16,7 +16,7 @@ export async function GET(req: Request) {
   if (!/^\d{4}-\d{2}$/.test(ym)) return NextResponse.json({ error: "ym в формате 2026-08" }, { status: 400 });
   const clientId = sp.get("clientId");
 
-  const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, { auth: { persistSession: false } });
+  const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, { auth: { persistSession: false } })   // тот же доступ, что у всей CRM;
   let q = sb.from("clients").select("id, name, surname, metricool_blog_id, timezone, stage").not("metricool_blog_id", "is", null);
   if (clientId) q = q.eq("id", Number(clientId)); else q = q.neq("stage", "churned");
   const { data: clients, error } = await q;
