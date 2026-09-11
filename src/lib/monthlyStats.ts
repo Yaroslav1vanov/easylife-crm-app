@@ -10,9 +10,30 @@ const MC = "https://app.metricool.com/api";
 const NETS: { network: string; snap: string; paths: string[] }[] = [
   { network: "instagram", snap: "ig",  paths: ["/v2/analytics/reels/instagram", "/v2/analytics/posts/instagram"] },
   { network: "tiktok",    snap: "tt",  paths: ["/v2/analytics/posts/tiktok"] },
-  { network: "youtube",   snap: "yt",  paths: ["/v2/analytics/posts/youtube", "/v2/analytics/videos/youtube"] },
+  { network: "youtube",   snap: "yt",  paths: ["/v2/analytics/posts/youtube"] },
   { network: "facebook",  snap: "fb",  paths: ["/v2/analytics/reels/facebook", "/v2/analytics/posts/facebook"] },
 ];
+
+// У каждой сети свои названия полей: IG — views/likes, TikTok — viewCount/likeCount, YouTube — watchUrl…
+const F = {
+  views:    ["views", "viewCount", "videoViews", "plays", "impressionsTotal", "impressions"],
+  likes:    ["likes", "likeCount", "reactions"],
+  comments: ["comments", "commentCount"],
+  saves:    ["saved", "saves"],
+  shares:   ["shares", "shareCount"],
+  url:      ["url", "shareUrl", "watchUrl", "permalink", "link"],
+  title:    ["content", "videoDescription", "title", "text", "caption", "description"],
+  image:    ["imageUrl", "coverImageUrl", "thumbnailUrl", "picture", "image"],
+  watch:    ["averageWatchTime", "averageViewDuration", "avgWatchTime"],
+  date:     ["publishedAt", "createTime", "publicationDate", "created", "timestamp"],
+};
+
+/** Дата публикации YYYY-MM-DD: у YouTube это объект { dateTime }, у TikTok — строка с поясом. */
+function postDate(p: any): string | null {
+  let v = pick(p, ...F.date);
+  if (v && typeof v === "object") v = v.dateTime || v.date || null;
+  return typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) : null;
+}
 
 /** Поле без учёта регистра, первое непустое из вариантов. */
 function pick(o: any, ...keys: string[]): any {
@@ -59,7 +80,7 @@ export type MonthRow = {
 };
 
 /** Собирает месяц по одному клиенту: строка на каждую соцсеть, где есть публикации. */
-export async function collectClientMonth(sb: SupabaseClient, client: { id: number; metricool_blog_id: number | null; timezone?: string | null }, ym: string): Promise<MonthRow[]> {
+export async function collectClientMonth(sb: SupabaseClient, client: { id: number; metricool_blog_id: number | null; timezone?: string | null; platforms?: string[] | null }, ym: string): Promise<MonthRow[]> {
   const token = process.env.METRICOOL_TOKEN, userId = process.env.METRICOOL_USER_ID;
   if (!token || !userId || !client.metricool_blog_id) return [];
   const { from, to } = monthRange(ym);
@@ -72,42 +93,47 @@ export async function collectClientMonth(sb: SupabaseClient, client: { id: numbe
     .order("snapshot_date", { ascending: true });
 
   const rows: MonthRow[] = [];
+  const allowed = client.platforms?.length ? new Set(client.platforms) : null;
   for (const n of NETS) {
+    if (allowed && !allowed.has(n.snap)) continue;   // сеть не отмечена у клиента
     let reels: any[] = [], posts: any[] = [];
     for (const path of n.paths) {
       const arr = await mcList(path, qs, token);
       if (!arr?.length) continue;
       if (path.includes("/reels/")) reels = arr; else posts = posts.length ? posts : arr;
     }
+    const inMonth = (p: any) => { const d = postDate(p); return !d || (d >= from && d <= to); };
+    reels = reels.filter(inMonth); posts = posts.filter(inMonth);
     const all = [...reels, ...posts];
     const fs = (snaps || []).filter(s => s.platform === n.snap);
     if (!all.length && !fs.length) continue;   // эта сеть у бренда не подключена
 
     const top = [...all]
-      .sort((a, b) => (num(pick(b, "views", "videoViews", "plays", "impressions")) || 0) - (num(pick(a, "views", "videoViews", "plays", "impressions")) || 0))
+      .sort((a, b) => (num(pick(b, ...F.views)) || 0) - (num(pick(a, ...F.views)) || 0))
       .slice(0, 5)
       .map(p => ({
-        url: pick(p, "url", "permalink", "link") || null,
-        title: String(pick(p, "content", "text", "caption", "title", "description") || "").replace(/\s+/g, " ").slice(0, 110),
-        image: pick(p, "imageUrl", "thumbnailUrl", "picture", "image") || null,
-        views: num(pick(p, "views", "videoViews", "plays", "impressions")),
-        likes: num(pick(p, "likes", "reactions")),
-        comments: num(pick(p, "comments")),
-        saves: num(pick(p, "saved", "saves")),
-        shares: num(pick(p, "shares")),
+        url: pick(p, ...F.url) || null,
+        title: String(pick(p, ...F.title) || "").replace(/\s+/g, " ").slice(0, 110),
+        image: pick(p, ...F.image) || null,
+        date: postDate(p),
+        views: num(pick(p, ...F.views)),
+        likes: num(pick(p, ...F.likes)),
+        comments: num(pick(p, ...F.comments)),
+        saves: num(pick(p, ...F.saves)),
+        shares: num(pick(p, ...F.shares)),
       }));
 
-    const watch = all.map(p => num(pick(p, "averageWatchTime", "avgWatchTime", "averageViewDuration"))).filter((v): v is number => v != null);
+    const watch = all.map(p => num(pick(p, ...F.watch))).filter((v): v is number => v != null);
     rows.push({
       client_id: client.id, ym, network: n.network,
       reels_count: reels.length || null,
       posts_count: all.length,
-      views: sum(all, "views", "videoViews", "plays", "impressionsTotal", "impressions"),
+      views: sum(all, ...F.views),
       reach: sum(all, "reach"),
-      likes: sum(all, "likes", "reactions"),
-      comments: sum(all, "comments"),
-      saves: sum(all, "saved", "saves"),
-      shares: sum(all, "shares"),
+      likes: sum(all, ...F.likes),
+      comments: sum(all, ...F.comments),
+      saves: sum(all, ...F.saves),
+      shares: sum(all, ...F.shares),
       interactions: sum(all, "interactions", "engagement"),
       avg_watch_sec: watch.length ? Math.round((watch.reduce((a, b) => a + b, 0) / watch.length) * 10) / 10 : null,
       followers_start: fs.length ? fs[0].followers : null,

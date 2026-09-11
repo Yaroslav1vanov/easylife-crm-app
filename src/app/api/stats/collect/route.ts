@@ -34,7 +34,7 @@ export async function GET(req: Request) {
   }
 
   const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, { auth: { persistSession: false } })   // тот же доступ, что у всей CRM;
-  let q = sb.from("clients").select("id, name, surname, metricool_blog_id, timezone, stage").not("metricool_blog_id", "is", null);
+  let q = sb.from("clients").select("id, name, surname, metricool_blog_id, timezone, stage, platforms").not("metricool_blog_id", "is", null);
   if (clientId) q = q.eq("id", Number(clientId)); else q = q.neq("stage", "churned");
   const { data: clients, error } = await q;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
