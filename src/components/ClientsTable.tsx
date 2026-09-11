@@ -205,7 +205,7 @@ function ClientsBlock(p: ClientsBlockProps) {
 
   // Сколько клиентов в этом месяце остались без проставленного плана — чтобы не терялось
   const noPlanCount = useMemo(
-    () => new Set(rows.filter(r => !r.isPaused && !r.plannedInMonth).map(r => r.c.id)).size,
+    () => new Set(rows.filter(r => !r.isPaused && r.c.stage !== "paused" && r.c.stage !== "churned" && !r.plannedInMonth).map(r => r.c.id)).size,
     [rows]
   );
 
@@ -217,6 +217,8 @@ function ClientsBlock(p: ClientsBlockProps) {
         const hay = `${r.c.name} ${r.c.surname || ""} ${r.c.niche || ""} ${r.c.product || ""}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
+      // Клиенты на паузе и ушедшие в общей таблице не нужны — только если явно выбрать «На паузе»
+      if (p.filterStatus !== "paused" && (r.c.stage === "paused" || r.c.stage === "churned")) return false;
       if (p.filterStatus !== "all" && r.status !== p.filterStatus) return false;
       if (p.filterPkg !== "all" && r.cm.package !== p.filterPkg) return false;
       if (p.filterMontager !== "all" && r.c.montager_id !== p.filterMontager) return false;
