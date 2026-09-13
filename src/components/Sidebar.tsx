@@ -156,7 +156,6 @@ export function Sidebar({ userRole }: { userRole: string }) {
               <div style={{ fontSize: 10, color: "var(--t3)", letterSpacing: 0.4, textTransform: "uppercase", fontWeight: 600 }}>{role}</div>
             </div>
           </button>
-          {!compact && <AlertsBell role={userRole} />}
         </div>
       </div>
     );
@@ -219,7 +218,8 @@ export function Sidebar({ userRole }: { userRole: string }) {
         <div className="app-logo" style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 16, fontWeight: 700 }}>
           <BrandMark size={26} />
           <span style={{ display: "inline-flex" }}><span style={{ color: "var(--t1)" }}>Easy</span><span className="brand-gradient">Life</span><span style={{ color: "var(--t1)" }}> AI</span></span>
-          
+          <span style={{ flex: 1 }} />
+          <AlertsBell role={userRole} align="left" />
         </div>
       </div>
       <NavGroups compact />

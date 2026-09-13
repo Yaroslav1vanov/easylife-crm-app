@@ -33,7 +33,7 @@ const addDays = (s: string, n: number) => { const d = new Date(s + "T00:00:00");
 const daysBetween = (a: string, b: string) => Math.round((new Date(b + "T00:00:00").getTime() - new Date(a + "T00:00:00").getTime()) / 86400000);
 const READ_KEY = "crm-alerts-read";
 
-export default function AlertsBell({ role }: { role: string }) {
+export default function AlertsBell({ role, align = "right" }: { role: string; align?: "left" | "right" }) {
   const supabase = createClient();
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -164,7 +164,7 @@ export default function AlertsBell({ role }: { role: string }) {
       {open && (
         <>
           <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 200 }} />
-          <div style={{ position: "absolute", top: "calc(100% + 8px)", right: 0, zIndex: 210, width: 360, maxWidth: "92vw", maxHeight: 460, overflowY: "auto",
+          <div style={{ position: "absolute", top: "calc(100% + 8px)", ...(align === "left" ? { left: 0 } : { right: 0 }), zIndex: 210, width: 360, maxWidth: "92vw", maxHeight: 460, overflowY: "auto",
             background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 14, boxShadow: "0 18px 50px rgba(0,0,0,0.55)", padding: 12 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
               <span style={{ fontSize: 13, fontWeight: 800, color: "var(--t1)" }}>
