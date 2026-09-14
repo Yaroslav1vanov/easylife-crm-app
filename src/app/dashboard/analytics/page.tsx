@@ -18,8 +18,9 @@ type Row = {
   client_id: number; ym: string; network: string; posts_count: number | null;
   views: number | null; reach: number | null; likes: number | null; comments: number | null;
   saves: number | null; shares: number | null; top_posts: any[] | null;
+  carousels_count: number | null; carousel_views: number | null; our_videos: number | null;
 };
-type Totals = { posts: number; views: number; reach: number; likes: number; comments: number; saves: number; shares: number };
+type Totals = { posts: number; views: number; reach: number; likes: number; comments: number; saves: number; shares: number; our: number; carousels: number };
 
 const NETS = [
   { id: "all", label: "Все сети", color: "var(--pu)" },
@@ -40,10 +41,13 @@ const fmt = (v: number | null | undefined) => {
   if (v >= 10_000) return Math.round(v / 1000) + " тыс";
   return v.toLocaleString("ru-RU");
 };
+/** Роликов за месяц: одно и то же видео публикуется в Instagram и TikTok, поэтому берём сеть, где их больше. */
+const maxPosts = (list: Row[]) => list.reduce((m, r) => Math.max(m, r.posts_count || 0), 0);
 const pct = (cur: number, prev: number | undefined) => (prev ? Math.round(((cur - prev) / prev) * 100) : null);
-const zero = (): Totals => ({ posts: 0, views: 0, reach: 0, likes: 0, comments: 0, saves: 0, shares: 0 });
+const zero = (): Totals => ({ posts: 0, views: 0, reach: 0, likes: 0, comments: 0, saves: 0, shares: 0, our: 0, carousels: 0 });
 const addRow = (t: Totals, r: Row) => {
-  t.posts += r.posts_count || 0; t.views += r.views || 0; t.reach += r.reach || 0; t.likes += r.likes || 0;
+  // ролики сюда не суммируем: одно видео выходит в нескольких сетях — см. maxPosts
+  t.carousels += r.carousels_count || 0; t.views += r.views || 0; t.reach += r.reach || 0; t.likes += r.likes || 0;
   t.comments += r.comments || 0; t.saves += r.saves || 0; t.shares += r.shares || 0;
 };
 
@@ -69,7 +73,7 @@ export default function AnalyticsPage() {
     setClients(mine);
     if (mine.length) {
       const { data } = await supabase.from("client_monthly_stats")
-        .select("client_id, ym, network, posts_count, views, reach, likes, comments, saves, shares, top_posts")
+        .select("client_id, ym, network, posts_count, views, reach, likes, comments, saves, shares, top_posts, carousels_count, carousel_views, our_videos")
         .in("client_id", mine.map(c => c.id)).order("ym");
       setRows((data || []) as Row[]);
     }
@@ -108,6 +112,10 @@ export default function AnalyticsPage() {
 
   const months = useMemo(() => Array.from(new Set(rows.map(r => r.ym))).sort(), [rows]);
 
+  // «Наших» роликов — по CRM, у каждого клиента бренда своя цифра (Панченко TikTok и Instagram — отдельно)
+  const ourOf = (b: { clients: Client[] }, ym: string) =>
+    b.clients.reduce((s, c) => s + rows.filter(r => r.client_id === c.id && r.ym === ym).reduce((m, r) => Math.max(m, r.our_videos || 0), 0), 0);
+
   // итоги агентства по месяцам; одинаковые данные разных брендов (общий канал) считаем один раз
   const monthly = useMemo(() => {
     return months.map(ym => {
@@ -124,6 +132,8 @@ export default function AnalyticsPage() {
           addRow(t, r);
           byNet[r.network] = (byNet[r.network] || 0) + (r.views || 0);
         }
+        t.posts += maxPosts(list);
+        t.our += ourOf(b, ym);
       }
       return { ym, t, byNet, active, partial: ym === curYm() };
     });
@@ -148,7 +158,9 @@ export default function AnalyticsPage() {
     const prevYm = pi >= 0 ? months[pi] : null;
     return brands.map(b => {
       const list = brandRows.get(b.blog) || [];
-      const t = zero(); list.filter(r => r.ym === sel).forEach(r => addRow(t, r));
+      const inSel = list.filter(r => r.ym === sel);
+      const t = zero(); inSel.forEach(r => addRow(t, r));
+      t.posts = maxPosts(inSel); t.our = ourOf(b, sel);
       const p = zero(); list.filter(r => r.ym === prevYm).forEach(r => addRow(p, r));
       const spark = months.map(ym => list.filter(r => r.ym === ym).reduce((s, r) => s + (r.views || 0), 0));
       const nets = Array.from(new Set(list.filter(r => r.ym === sel && (r.posts_count || 0) > 0).map(r => r.network)));
@@ -225,6 +237,8 @@ export default function AnalyticsPage() {
             <Tile big label="Просмотры по агентству" v={cur.t.views} p={pct(cur.t.views, prev?.t.views)} />
             <Tile label="Клиентов с публикациями" v={cur.active} p={pct(cur.active, prev?.active)} />
             <Tile label="Роликов вышло" v={cur.t.posts} p={pct(cur.t.posts, prev?.t.posts)} />
+            <Tile label="Из них наших · по CRM" v={cur.t.our} p={pct(cur.t.our, prev?.t.our)} />
+            {cur.t.carousels > 0 && <Tile label="Карусели и фото" v={cur.t.carousels} p={pct(cur.t.carousels, prev?.t.carousels)} />}
             <Tile label="Охват" v={cur.t.reach} p={pct(cur.t.reach, prev?.t.reach)} />
             <Tile label="Лайки" v={cur.t.likes} p={pct(cur.t.likes, prev?.t.likes)} />
             <Tile label="Комментарии" v={cur.t.comments} p={pct(cur.t.comments, prev?.t.comments)} />
@@ -301,7 +315,10 @@ export default function AnalyticsPage() {
                             </div>
                           </div>
                         </td>
-                        <td style={{ padding: "10px 12px", textAlign: "right" }}>{b.t.posts || "—"}</td>
+                        <td style={{ padding: "10px 12px", textAlign: "right", whiteSpace: "nowrap" }}>
+                          {b.t.posts || "—"}
+                          {b.t.our > 0 && <div style={{ fontSize: 10.5, color: "var(--t3)" }}>наших {b.t.our}</div>}
+                        </td>
                         <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 800, color: "var(--t1)", whiteSpace: "nowrap" }}>
                           {fmt(b.t.views)}
                           {d != null && <div style={{ fontSize: 10.5, fontWeight: 700, color: d >= 0 ? "var(--gr)" : "var(--rd)" }}>{d >= 0 ? "+" : ""}{d}%</div>}
@@ -343,7 +360,7 @@ export default function AnalyticsPage() {
         </div>
 
         <div style={{ fontSize: 10.5, color: "var(--t3)", lineHeight: 1.6 }}>
-          Данные — из Metricool, с момента подключения бренда; собираются автоматически 1-го числа за прошлый месяц. Клиенты на одном аккаунте Metricool показаны одной строкой и посчитаны один раз. Подписчики копятся с сентября 2026.
+          Данные — из Metricool, с момента подключения бренда; собираются автоматически 1-го числа за прошлый месяц. «Роликов» — только видео: рилсы, TikTok, Shorts; одно видео в нескольких сетях считается один раз. Карусели и фото — отдельно. «Наших» — опубликованные нами по CRM, остальное клиент выкладывает сам. Клиенты на одном аккаунте Metricool показаны одной строкой и посчитаны один раз. Подписчики копятся с сентября 2026.
         </div>
       </>)}
 

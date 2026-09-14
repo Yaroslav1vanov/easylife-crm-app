@@ -11,6 +11,7 @@ type Row = {
   views: number | null; reach: number | null; likes: number | null; comments: number | null;
   saves: number | null; shares: number | null; avg_watch_sec: number | null;
   followers_start: number | null; followers_end: number | null; top_posts: any[] | null; collected_at: string;
+  carousels_count?: number | null; carousel_views?: number | null; our_videos?: number | null;
 };
 
 const NET_LABEL: Record<string, string> = { all: "Все сети", instagram: "Instagram", tiktok: "TikTok", youtube: "YouTube", facebook: "Facebook" };
@@ -62,10 +63,14 @@ export default function ClientStatsTab({ clientId, hasMetricool }: { clientId: n
     return Object.keys(by).sort().map(ym => {
       const list = by[ym];
       const agg = list.reduce((acc, r) => ({
-        posts: add(acc.posts, r.posts_count), views: add(acc.views, r.views), reach: add(acc.reach, r.reach),
+        // одно видео выходит в нескольких сетях — роликов берём по сети, где их больше, а не сумму
+        posts: acc.posts == null && r.posts_count == null ? null : Math.max(acc.posts || 0, r.posts_count || 0),
+        our: Math.max(acc.our || 0, r.our_videos || 0) || null,
+        carousels: add(acc.carousels, r.carousels_count ?? null),
+        views: add(acc.views, r.views), reach: add(acc.reach, r.reach),
         likes: add(acc.likes, r.likes), comments: add(acc.comments, r.comments), saves: add(acc.saves, r.saves), shares: add(acc.shares, r.shares),
         fStart: add(acc.fStart, r.followers_start), fEnd: add(acc.fEnd, r.followers_end),
-      }), { posts: null, views: null, reach: null, likes: null, comments: null, saves: null, shares: null, fStart: null, fEnd: null } as any);
+      }), { posts: null, our: null, carousels: null, views: null, reach: null, likes: null, comments: null, saves: null, shares: null, fStart: null, fEnd: null } as any);
       const top = list.flatMap(r => (r.top_posts || []).map(p => ({ ...p, network: r.network })))
         .sort((a, b) => (b.views || 0) - (a.views || 0)).slice(0, 5);
       return { ym, ...agg, top, partial: ym === curYm() };
@@ -140,7 +145,8 @@ export default function ClientStatsTab({ clientId, hasMetricool }: { clientId: n
             {prev && <span style={{ fontSize: 11, color: "var(--t3)", fontWeight: 600 }}> · сравнение с {ymLabel(prev.ym)}</span>}
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 10 }}>
-            <Tile label="Роликов" v={cur.posts} p={pct(cur.posts, prev?.posts)} />
+            <Tile label="Роликов" v={cur.posts} p={pct(cur.posts, prev?.posts)} hint={cur.our ? `наших по CRM: ${cur.our}` : undefined} />
+            {cur.carousels ? <Tile label="Карусели и фото" v={cur.carousels} p={pct(cur.carousels, prev?.carousels)} /> : null}
             <Tile label="Просмотры" v={cur.views} p={pct(cur.views, prev?.views)} />
             <Tile label="Охват" v={cur.reach} p={pct(cur.reach, prev?.reach)} />
             <Tile label="Лайки" v={cur.likes} p={pct(cur.likes, prev?.likes)} />
@@ -188,7 +194,7 @@ export default function ClientStatsTab({ clientId, hasMetricool }: { clientId: n
                 return (
                   <tr key={m.ym} onClick={() => setSel(m.ym)} style={{ borderTop: "1px solid var(--brd)", cursor: "pointer", background: m.ym === sel ? "rgba(157,107,255,0.08)" : "transparent" }}>
                     <td style={{ padding: "10px 12px", fontWeight: 700, color: "var(--t1)" }}>{ymLabel(m.ym)}{m.partial ? " *" : ""}</td>
-                    <td style={{ padding: "10px 12px", textAlign: "right" }}>{fmt(m.posts)}</td>
+                    <td style={{ padding: "10px 12px", textAlign: "right", whiteSpace: "nowrap" }}>{fmt(m.posts)}{m.our ? <span style={{ fontSize: 10.5, color: "var(--t3)" }}> · наших {m.our}</span> : null}</td>
                     <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 700, color: "var(--t1)" }}>
                       {fmt(m.views)}{d != null && <span style={{ marginLeft: 6, fontSize: 10.5, color: d >= 0 ? "var(--gr)" : "var(--rd)" }}>{d >= 0 ? "+" : ""}{d}%</span>}
                     </td>

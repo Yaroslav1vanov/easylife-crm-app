@@ -77,6 +77,7 @@ export type MonthRow = {
   saves: number | null; shares: number | null; interactions: number | null; avg_watch_sec: number | null;
   followers_start: number | null; followers_end: number | null;
   top_posts: any[]; source: string; collected_at: string;
+  carousels_count: number | null; carousel_views: number | null; our_videos: number | null;
 };
 
 /** Собирает месяц по одному клиенту: строка на каждую соцсеть, где есть публикации. */
@@ -92,6 +93,10 @@ export async function collectClientMonth(sb: SupabaseClient, client: { id: numbe
     .eq("client_id", client.id).gte("snapshot_date", from).lte("snapshot_date", to).gt("followers", 0)
     .order("snapshot_date", { ascending: true });
 
+  // сколько роликов за месяц опубликовали мы — по CRM (остальное клиент публикует сам)
+  const { count: ourVideos } = await sb.from("scripts").select("id", { count: "exact", head: true })
+    .eq("client_id", client.id).eq("video_status", "published").gte("pub_date", from).lte("pub_date", to);
+
   const rows: MonthRow[] = [];
   const allowed = client.platforms?.length ? new Set(client.platforms) : null;
   for (const n of NETS) {
@@ -104,9 +109,13 @@ export async function collectClientMonth(sb: SupabaseClient, client: { id: numbe
     }
     const inMonth = (p: any) => { const d = postDate(p); return !d || (d >= from && d <= to); };
     reels = reels.filter(inMonth); posts = posts.filter(inMonth);
-    const all = [...reels, ...posts];
+    // Instagram / Facebook: /reels — видео, /posts — карусели и фото. Это другой тип контента,
+    // в «ролики» его не считаем, храним отдельно. TikTok и YouTube через /posts отдают только видео.
+    const splitByType = n.network === "instagram" || n.network === "facebook";
+    const all = splitByType ? reels : [...reels, ...posts];
+    const carousels = splitByType ? posts : [];
     const fs = (snaps || []).filter(s => s.platform === n.snap);
-    if (!all.length && !fs.length) continue;   // эта сеть у бренда не подключена
+    if (!all.length && !carousels.length && !fs.length) continue;   // эта сеть у бренда не подключена
 
     const top = [...all]
       .sort((a, b) => (num(pick(b, ...F.views)) || 0) - (num(pick(a, ...F.views)) || 0))
@@ -139,6 +148,9 @@ export async function collectClientMonth(sb: SupabaseClient, client: { id: numbe
       followers_start: fs.length ? fs[0].followers : null,
       followers_end: fs.length ? fs[fs.length - 1].followers : null,
       top_posts: top,
+      carousels_count: carousels.length || null,
+      carousel_views: carousels.length ? sum(carousels, ...F.views) : null,
+      our_videos: ourVideos ?? null,
       source: "metricool",
       collected_at: new Date().toISOString(),
     });
