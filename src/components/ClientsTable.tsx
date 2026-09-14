@@ -3,6 +3,7 @@ import React, { useMemo, useState } from "react";
 import { Client, Script, ClientMonth, TeamMember } from "@/lib/database";
 import Avatar from "@/components/Avatar";
 import { VIDEO_LEAD, SCRIPT_LEAD } from "@/components/ScriptModal";
+import { isEmptySlot } from "@/components/KanbanBoard";
 import {
   Users, Film, AlertCircle, CalendarCheck, Rocket,
   Plus, Calendar as CalendarIcon, ChevronLeft, ChevronRight, ChevronDown,
@@ -151,15 +152,23 @@ function ClientsBlock(p: ClientsBlockProps) {
       // План на календарный месяц: цифра тимлида (проставлена при открытии месяца) важнее
       // автосчёта по датам карточек — карточки часто ещё без pub_date.
       const target = p.calTargets[`${c.id}:${p.selectedMonth}`];
-      const byDates = list.filter(inMonth).length;
+      // Пустые слоты идей (без темы и текста) — не план: у них бывают даты «по дню на слот»,
+      // и тогда рядом с опубликованным роликом на тот же день висит пустая карточка → план ×2.
+      const dated = list.filter(s => inMonth(s) && (s.video_status === "published" || !isEmptySlot(s)));
+      const byDates = dated.length;
       const plannedInMonth = target != null ? target : byDates;
-      const dueByDates = list.filter(s => inMonth(s) && (s.pub_date as string) < p.todayIso).length;
+      const dueByDates = dated.filter(s => (s.pub_date as string) < p.todayIso).length;
+      // По датам карточек считаем, только если датами расписан весь план месяца;
+      // иначе опубликованные сами получают pub_date и «должно» всегда равно «сделано».
+      const useDates = byDates > 0 && (target == null || byDates >= target);
       // Если план задан цифрой, а даты не расставлены — «должно быть к сегодня» считаем
       // ровным темпом: сколько дней месяца прошло, столько и роликов должно выйти.
       // С какого дня клиент вообще публикуется: в M1 — после онбординга (~2 недели),
       // иначе новый клиент «отстаёт» с первого дня, пока идёт анализ ниши и запись аватара.
+      // если M1 уже сдвинут на дату после онбординга — считаем от старта месяца
+      const obDeadline = (c as any).onboarding_deadline || addDaysIso(cm.start_date, ONBOARDING_DAYS);
       const publishFrom = cm.month_number === 1
-        ? ((c as any).onboarding_deadline || addDaysIso(cm.start_date, ONBOARDING_DAYS))
+        ? (obDeadline > cm.start_date ? obDeadline : cm.start_date)
         : cm.start_date;
       const monthStart = `${p.selectedMonth}-01`;
       const monthEnd = `${p.selectedMonth}-${String(new Date(selY, selM, 0).getDate()).padStart(2, "0")}`;
@@ -172,7 +181,7 @@ function ClientsBlock(p: ClientsBlockProps) {
       const inOnboardingNow = cm.month_number === 1 && p.todayIso < publishFrom;
       const dueByToday = inOnboardingNow
         ? 0
-        : target != null && byDates === 0
+        : target != null && !useDates
           ? (winDays > 0 ? Math.round((target * winPassed) / winDays) : 0)
           : dueByDates;
       const factByToday = list.filter(s => s.video_status === "published" && inMonth(s) && (s.pub_date as string) < p.todayIso).length;
