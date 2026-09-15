@@ -16,11 +16,10 @@ const PLAT: Record<string, { label: string; Icon: any; color: string }> = {
   instagram: { label: "Instagram", Icon: Camera, color: "#e1306c" },
   youtube: { label: "YouTube", Icon: Play, color: "#ff5c7a" },
 };
+// Две колонки: всё собранное и то, что уходит в сценарии. Старые статусы selected/review показываются в «Все референсы».
 const COLUMNS: { id: RefStatus; label: string; color: string }[] = [
   { id: "new", label: "Все референсы", color: "#9d6bff" },
-  { id: "selected", label: "Отобраны", color: "#42d4f4" },
-  { id: "review", label: "На утверждении", color: "#ffae42" },
-  { id: "approved", label: "Утверждены", color: "#a8e063" },
+  { id: "approved", label: "Перенести в сценарии", color: "#a8e063" },
 ];
 const fmtNum = (n: number | null) => n == null ? "—" : n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(1) + "K" : String(n);
 // Битые транскрибации из объектов («[object Object]») показываем как пусто, чтобы можно было вписать заново
@@ -116,10 +115,10 @@ export default function ReferencesPage() {
   const REF_TOUR: TourStep[] = [
     { title: "Референсы · залётные ролики", text: "Тут собираем чужие «залетевшие» ролики как образцы и превращаем их в сценарии для клиента. Проведу по всей цепочке.", action: refCloseModal },
     { target: "ref-add", title: "Добавить референс", text: "Сначала выбери клиента слева, потом вставь ссылку на TikTok / Instagram / YouTube-ролик и жми «Добавить». CRM сама подтянет просмотры, лайки, превью и (если есть) расшифровку. Ещё можно просто кидать ссылки в наш Telegram-канал — бот сам разложит их по клиентам.", action: refCloseModal },
-    { target: "ref-board", title: "Колонки отбора", text: "Референс едет: Все → Отобраны → На утверждении → Утверждены. Тащи карточки мышкой. Как только перетащишь в «Утверждены» — CRM автоматически создаёт сценарий у этого клиента (со ссылкой и статами). Откроем карточку.", action: refCloseModal },
+    { target: "ref-board", title: "Две колонки", text: "Слева все собранные референсы клиента. Перетащи карточку в «Перенести в сценарии» — CRM сразу создаст сценарий у этого клиента (со ссылкой, статами и транскрибацией). Откроем карточку.", action: refCloseModal },
     { target: "rm-stats", title: "① Статы исходника", text: "Просмотры / комментарии / лайки оригинала. По ним видно, насколько ролик реально «залетел» — берём в работу только сильные образцы.", action: refOpenSample },
     { target: "rm-transcript", title: "② Транскрибация", text: "Текст ролика. Обычно подтягивается сам. Если озвучки нет (например, просто видеоряд) — впиши вручную, что говорится/показывается. По этому тексту потом пишется сценарий.", action: refOpenSample },
-    { target: "rm-stage", title: "③ В работу → сценарий", text: "Кнопками стадии переведи референс в «Утверждены» — и у клиента сразу появится готовая карточка-сценарий в разделе «Сценарии», куда уже перенесены ссылка и статы. Дальше — обычная работа над сценарием.", action: refOpenSample },
+    { target: "rm-stage", title: "③ В работу → сценарий", text: "Нажми «Перенести в сценарии» — и у клиента сразу появится готовая карточка-сценарий в разделе «Сценарии», куда уже перенесены ссылка и статы. Дальше — обычная работа над сценарием.", action: refOpenSample },
   ];
 
   if (loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--t2)" }}>Загрузка…</div>;
@@ -161,7 +160,7 @@ export default function ReferencesPage() {
           </div>
           )}
 
-          <div data-tour="ref-board" style={{ display: "grid", gridTemplateColumns: `repeat(${COLUMNS.length}, minmax(230px, 1fr))`, gap: 10, overflowX: "auto", paddingBottom: 8 }}>
+          <div data-tour="ref-board" style={{ display: "grid", gridTemplateColumns: `repeat(${COLUMNS.length}, minmax(260px, 1fr))`, gap: 10, overflowX: "auto", paddingBottom: 8 }}>
             {COLUMNS.map(col => {
               const items = byColumn[col.id] || [];
               const isOver = dragOverCol === col.id;
@@ -281,7 +280,7 @@ function RefModal({ ref0, client, onClose, onNote, onTranscript, onDelete, onMov
         </div>
 
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 4, borderTop: "1px solid var(--brd)" }}>
-          {ref0.script_id ? <span style={{ fontSize: 12, fontWeight: 700, color: "var(--gr)", display: "inline-flex", alignItems: "center", gap: 6 }}><CheckCircle2 size={14} /> Сценарий создан</span> : <span style={{ fontSize: 11, color: "var(--t3)" }}>{readOnly ? "" : "Перетащи в «Утверждены» → создастся сценарий"}</span>}
+          {ref0.script_id ? <span style={{ fontSize: 12, fontWeight: 700, color: "var(--gr)", display: "inline-flex", alignItems: "center", gap: 6 }}><CheckCircle2 size={14} /> Сценарий создан</span> : <span style={{ fontSize: 11, color: "var(--t3)" }}>{readOnly ? "" : "Перетащи в «Перенести в сценарии» → создастся сценарий"}</span>}
           {!readOnly && (
           <button onClick={() => onDelete(ref0.id)} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 8, background: "transparent", border: "1px solid rgba(255,92,122,0.4)", color: "var(--rd)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}><Trash2 size={13} /> Удалить</button>
           )}
