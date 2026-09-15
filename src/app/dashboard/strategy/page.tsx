@@ -40,6 +40,18 @@ const ROADMAP: Record<string, string[]> = {
 const KIND_LABEL: Record<string, string> = { plan: "План дня", push: "Пуш", review: "Итог дня", decision: "Решение", note: "Заметка" };
 const KIND_COLOR: Record<string, string> = { plan: "var(--gr)", push: "var(--cy)", review: "var(--pu)", decision: "var(--or)", note: "var(--t2)" };
 
+/** Сколько клиентов считать в плане: правило из app_settings.strategy_client_count —
+ *  exclude: id, которые не клиенты (личный аккаунт); merge: группы id одного клиента (разные соцсети). */
+// По умолчанию: 31 — личный аккаунт Ярослава (не клиент); 14 + 15 — Иван Панченко, TikTok и Instagram ведутся отдельно, но это один клиент.
+const DEFAULT_COUNT_RULE = { exclude: [31], merge: [[14, 15]] };
+function countClients(ids: number[], ruleJson?: string | null): number {
+  let rule: { exclude?: number[]; merge?: number[][] } = DEFAULT_COUNT_RULE;
+  try { if (ruleJson) rule = JSON.parse(ruleJson); } catch {}
+  const excl = new Set(rule.exclude || []);
+  const keyOf = new Map<number, string>();
+  (rule.merge || []).forEach((g, i) => g.forEach(id => keyOf.set(id, `g${i}`)));
+  return new Set(ids.filter(id => !excl.has(id)).map(id => keyOf.get(id) || `c${id}`)).size;
+}
 const todayIso = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
 const addDays = (iso: string, n: number) => { const d = new Date(iso + "T00:00:00"); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
 const daysBetween = (a: string, b: string) => Math.round((new Date(b + "T00:00:00").getTime() - new Date(a + "T00:00:00").getTime()) / 86400000);
@@ -118,15 +130,16 @@ export default function StrategyPage() {
 
   useEffect(() => { load(); }, []);
   async function load() {
-    const [t, j, c] = await Promise.all([
+    const [t, j, c, rule] = await Promise.all([
       supabase.from("strategy_tasks").select("*").order("planned_for", { ascending: true, nullsFirst: false }).order("id"),
       supabase.from("strategy_journal").select("*").order("id", { ascending: false }).limit(120),
-      supabase.from("clients").select("id", { count: "exact", head: true }).eq("stage", "active"),
+      supabase.from("clients").select("id").eq("stage", "active"),
+      supabase.from("app_settings").select("value").eq("key", "strategy_client_count").maybeSingle(),
     ]);
     if (t.error) setErr(t.error.message.includes("does not exist") ? "Таблицы стратегии ещё не созданы — нужно прогнать миграцию MIGRATION_2026-09-15_strategy.sql" : t.error.message);
     setTasks((t.data || []) as Task[]);
     setJournal((j.data || []) as Entry[]);
-    setActiveClients(c.count ?? null);
+    setActiveClients(countClients((c.data || []).map((x: any) => x.id), rule.data?.value));
     setLoading(false);
   }
 
@@ -216,7 +229,7 @@ export default function StrategyPage() {
           <div className="l">Активных клиентов</div>
           <div className="v">{activeClients ?? "—"} <small>/ {GOAL_CLIENTS}</small></div>
           <div className="bar"><i style={{ width: `${Math.min(100, ((activeClients || 0) / GOAL_CLIENTS) * 100)}%` }} /></div>
-          <div className="d">цель на 31.10 · по CRM</div>
+          <div className="d">цель на 31.10 · по CRM, без личного аккаунта, Панченко — один клиент</div>
         </div>
         <div className="kpi">
           <div className="l">Задач выполнено</div>
