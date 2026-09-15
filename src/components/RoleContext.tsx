@@ -27,7 +27,7 @@ export const ALLOWED_SECTIONS: Record<string, string[] | "all"> = {
   montager: ["dashboard", "today", "plan", "montage", "references", "transcribe", "motivation", "guide"],
 };
 /** Разделы только для владельца — деньги команды. Остальные роли их не видят вообще. */
-export const OWNER_ONLY_SECTIONS = ["payroll"];
+export const OWNER_ONLY_SECTIONS = ["payroll", "strategy"];
 export function isOwner(role: Role): boolean {
   return role === "owner" || role === "admin";
 }

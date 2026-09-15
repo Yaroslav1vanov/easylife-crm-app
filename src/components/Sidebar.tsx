@@ -11,7 +11,7 @@ import { useIsMobile } from "@/lib/useMedia";
 import {
   LayoutDashboard, Users, FileText, Scissors, Send, Calendar, Rocket, Flame,
   HandshakeIcon, BarChart3, Mic, Coins, ClipboardList, BookOpen, Settings, LogOut, Moon, Sun, Wallet,
-  CalendarCheck, CalendarDays, MoreHorizontal, type LucideIcon,
+  CalendarCheck, CalendarDays, MoreHorizontal, Target, type LucideIcon,
 } from "lucide-react";
 
 function BrandMark({ size = 26 }: { size?: number }) {
@@ -45,6 +45,7 @@ const GROUPS: NavGroup[] = [
     { id: "metricool", path: "/dashboard/metricool", icon: Rocket, label: "Metricool" },
   ]},
   { title: "Управление", items: [
+    { id: "strategy", path: "/dashboard/strategy", icon: Target, label: "Стратегия" },
     { id: "team", path: "/dashboard/team", icon: HandshakeIcon, label: "Команда" },
     { id: "analytics", path: "/dashboard/analytics", icon: BarChart3, label: "Аналитика" },
     { id: "reports", path: "/dashboard/reports", icon: ClipboardList, label: "Отчёты" },
