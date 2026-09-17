@@ -4,12 +4,13 @@ import { createClient } from "@/lib/supabase-browser";
 import db, { Client, Script, TeamMember, Publication, PubStatus } from "@/lib/database";
 import { getStore, setStore } from "@/lib/store";
 import Avatar from "@/components/Avatar";
-import PublicationModal, { type PublishOpts, type StatusItem } from "@/components/PublicationModal";
+import PublicationModal, { isVideoUrl, type PublishOpts, type StatusItem } from "@/components/PublicationModal";
+import StoryBatchModal from "@/components/StoryBatchModal";
 import Tour, { TourButton, type TourStep } from "@/components/Tour";
 import { DEFAULT_TZ, tzShort, nowInTz, utcToZonedInput, zonedInputToUtc, fmtInTz } from "@/lib/tz";
 import {
   Camera, Play, Music2, AtSign, Wand2, X, ExternalLink, ChevronDown,
-  RefreshCw, AlertTriangle, Database, CalendarDays, Rocket, Plus, Images, Film, Trash2, type LucideIcon,
+  RefreshCw, AlertTriangle, Database, CalendarDays, Rocket, Plus, Images, Film, Trash2, Smartphone, type LucideIcon,
 } from "lucide-react";
 
 type Channel = { id: string; label: string; Icon: LucideIcon };
@@ -47,6 +48,7 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
   const [brands, setBrands] = useState<{ blogId: number; label: string }[] | null>(null);
   const [brandsBusy, setBrandsBusy] = useState(false);
   const [carouselPicker, setCarouselPicker] = useState(false);
+  const [storyOpen, setStoryOpen] = useState(false);
   const [tourOpen, setTourOpen] = useState(false);
   const [clientFilter, setClientFilter] = useState<number | "all">("all");
   const [clientMenu, setClientMenu] = useState(false);
@@ -74,6 +76,9 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
       else setErrMsg(`${error.message}${error.code ? ` (${error.code})` : ""}`);
     } else { setPubs((data || []) as Publication[]); setTableMissing(false); setErrMsg(null); }
     setLoading(false);
+    // /dashboard/metricool?open=ID — открыть карточку (ссылка из календаря публикаций)
+    const openParam = Number(new URLSearchParams(window.location.search).get("open"));
+    if (openParam) setOpenId(openParam);
   }
 
   const clientById = useMemo(() => Object.fromEntries(clients.map(c => [c.id, c])) as Record<number, Client>, [clients]);
@@ -108,6 +113,29 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
     const { data } = await supabase.from("publications").select("*").order("created_at", { ascending: false });
     setPubs((data || []) as Publication[]);
     setPulling(false);
+  }
+
+  async function createStories(clientId: number, frames: { file: File; publishAt: string | null; note: string }[], scheduleNow: boolean) {
+    const uploaded: { media_url: string; publish_at: string | null; note: string }[] = [];
+    for (let i = 0; i < frames.length; i++) {
+      const f = frames[i];
+      const isImg = !f.file.type.startsWith("video/");
+      const r = await fetch("/api/r2/sign", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...(isImg ? { kind: "image" } : {}), filename: f.file.name, clientId, scriptId: `story${Date.now()}-${i}` }) });
+      const j = await r.json();
+      if (!r.ok) { alert("R2: " + (j?.error || "ошибка подписи")); return; }
+      const put = await fetch(j.uploadUrl, { method: "PUT", body: f.file, headers: f.file.type ? { "content-type": f.file.type } : {} });
+      if (!put.ok) { alert(`Кадр ${i + 1} не загрузился (${put.status})`); return; }
+      uploaded.push({ media_url: j.publicUrl, publish_at: f.publishAt, note: f.note });
+    }
+    const { data, error } = await db.createStoryPublications(supabase, clientId, uploaded);
+    if (error) { alert("Не удалось создать сторис: " + error.message); return; }
+    setPubs(arr => [...data, ...arr]);
+    setStoryOpen(false);
+    if (scheduleNow && clientById[clientId]?.publisher !== "uploadpost") {
+      let fail = 0;
+      for (const p of data) { const res = await publishToMetricool(p.id); if (!res.ok) fail++; }
+      if (fail) alert(`Запланировано ${data.length - fail} из ${data.length}. Карточки с ошибкой — в колонке «Ошибка».`);
+    }
   }
 
   async function createCarousel(clientId: number) {
@@ -233,6 +261,10 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
             style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: 10, background: "rgba(66,212,244,0.1)", border: "1px solid var(--brd)", color: "var(--cy)", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
             <Rocket size={13} /> {brandsBusy ? "Гружу…" : "Мои бренды"}
           </button>
+          <button onClick={() => setStoryOpen(true)} disabled={tableMissing}
+            style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: 10, background: "rgba(236,72,153,0.12)", border: "1px solid var(--brd)", color: "var(--pk)", fontSize: 12, fontWeight: 700, cursor: tableMissing ? "not-allowed" : "pointer" }}>
+            <Smartphone size={13} /> + Сторис
+          </button>
           <div data-tour="pp-carousel" style={{ position: "relative" }}>
             <button onClick={() => setCarouselPicker(v => !v)} disabled={tableMissing}
               style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: 10, background: "rgba(255,174,66,0.12)", border: "1px solid var(--brd)", color: "var(--or)", fontSize: 12, fontWeight: 700, cursor: tableMissing ? "not-allowed" : "pointer" }}>
@@ -312,8 +344,10 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
                   {items.map(p => {
                     const c = clientById[p.client_id]; const sc = p.script_id != null ? scriptById[p.script_id] : undefined;
                     const isCar = p.content_type === "carousel";
-                    const title = (isCar ? (p.base_text || p.caption_ig) : (sc?.hook_text || sc?.hook)) || (isCar ? "Карусель без текста" : "Без темы");
-                    const allowCh = isCar ? ["ig", "threads"] : ["ig", "tt", "yt", "threads"];
+                    const isStory = p.content_type === "story";
+                    const storyUrl = isStory ? (p.media_urls || [])[0] : null;
+                    const title = (isStory ? p.base_text : isCar ? (p.base_text || p.caption_ig) : (sc?.hook_text || sc?.hook)) || (isStory ? "Сторис" : isCar ? "Карусель без текста" : "Без темы");
+                    const allowCh = isStory ? ["ig"] : isCar ? ["ig", "threads"] : ["ig", "tt", "yt", "threads"];
                     const chans = (p.target_channels?.length ? p.target_channels : c?.platforms?.length ? c.platforms : allowCh).filter(x => allowCh.includes(x));
                     return (
                       <div key={p.id} role="button" tabIndex={0} draggable
@@ -325,16 +359,21 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
                           {c && <Avatar name={`${c.name} ${c.surname || ""}`} src={c.avatar_url} size={22} />}
                           <div style={{ minWidth: 0, flex: 1 }}>
                             <div style={{ fontSize: 10, fontWeight: 700, color: "var(--t1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c?.name} {c?.surname || ""}</div>
-                            <div style={{ fontSize: 8, color: "var(--t3)", fontFamily: "monospace" }}>{isCar ? "карусель" : `#${sc?.order_num ?? "?"}`} · {fmtInTz(p.publish_at, c?.timezone || DEFAULT_TZ)}</div>
+                            <div style={{ fontSize: 8, color: "var(--t3)", fontFamily: "monospace" }}>{isStory ? "сторис" : isCar ? "карусель" : `#${sc?.order_num ?? "?"}`} · {fmtInTz(p.publish_at, c?.timezone || DEFAULT_TZ)}</div>
                           </div>
-                          {isCar
+                          {isStory
+                            ? <span title="Сторис" style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 8, fontWeight: 800, color: "var(--pk)", background: "rgba(236,72,153,0.14)", padding: "2px 5px", borderRadius: 5, flexShrink: 0 }}><Smartphone size={9} />сторис</span>
+                            : isCar
                             ? <span title="Карусель" style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 8, fontWeight: 800, color: "var(--or)", background: "rgba(255,174,66,0.14)", padding: "2px 5px", borderRadius: 5 }}><Images size={9} />{(p.media_urls?.length || 0)}</span>
                             : p.video_url
                               ? <Film size={11} style={{ color: "var(--gr)", flexShrink: 0 }} />
                               : <span title="Ролик не загружен" style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 8, fontWeight: 800, color: "var(--or)", background: "rgba(255,174,66,0.14)", padding: "2px 5px", borderRadius: 5, flexShrink: 0 }}><AlertTriangle size={9} />нет файла</span>}
                         </div>
                         {/* Превью загруженного ролика — чтобы видно было, какое именно видео */}
-                        {!isCar && p.video_url && (
+                        {storyUrl && (isVideoUrl(storyUrl)
+                          ? <video src={`${storyUrl}#t=0.1`} muted playsInline preload="metadata" style={{ width: 54, height: 96, objectFit: "cover", borderRadius: 8, background: "#000", display: "block" }} />
+                          : <img src={storyUrl} alt="" style={{ width: 54, height: 96, objectFit: "cover", borderRadius: 8, display: "block" }} />)}
+                        {!isCar && !isStory && p.video_url && (
                           <video src={`${p.video_url}#t=0.1`} muted playsInline preload="metadata"
                             onClick={e => { e.stopPropagation(); const v = e.currentTarget; v.paused ? v.play() : v.pause(); }}
                             style={{ width: "100%", height: 96, objectFit: "cover", borderRadius: 8, background: "#000", display: "block" }} />
@@ -367,6 +406,7 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
           onCheckStatus={checkStatus}
         />
       )}
+      {storyOpen && <StoryBatchModal clients={clients} defaultClientId={clientFilter === "all" ? null : clientFilter} onClose={() => setStoryOpen(false)} onCreate={createStories} />}
       <Tour steps={PIPELINE_TOUR} open={tourOpen} onClose={() => { setTourOpen(false); setOpenId(null); }} />
       <style>{`.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}@media(max-width:767px){.pp-board{grid-template-columns:1fr !important}.pp-board>div{min-height:auto !important}}`}</style>
     </div>

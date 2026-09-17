@@ -94,7 +94,7 @@ export type Reference = {
   status: RefStatus; analysis: string | null; analyzed_at: string | null; script_id: number | null;
 };
 export type PubStatus = "adapting" | "review" | "queued" | "scheduled" | "published" | "error";
-export type ContentType = "reel" | "carousel";
+export type ContentType = "reel" | "carousel" | "story";
 export type Publication = {
   id: number;
   script_id: number | null;
@@ -554,6 +554,16 @@ const db = {
     };
     const { data, error } = await sb.from("publications").insert(row).select("*").single();
     return { data: (data || null) as Publication | null, error };
+  },
+  // Серия сторис: по карточке на кадр, время каждого следующего кадра — через заданный интервал.
+  async createStoryPublications(sb: SupabaseClient, clientId: number, frames: { media_url: string; publish_at: string | null; note?: string | null }[]) {
+    const rows = frames.map(f => ({
+      script_id: null, client_id: clientId, content_type: "story" as ContentType,
+      media_urls: [f.media_url], publish_at: f.publish_at, target_channels: ["ig"],
+      base_text: f.note || null, pub_status: "queued" as PubStatus,
+    }));
+    const { data, error } = await sb.from("publications").insert(rows).select("*");
+    return { data: (data || []) as Publication[], error };
   },
   async updatePublication(sb: SupabaseClient, id: number, patch: Partial<Publication>) {
     const { error } = await sb.from("publications").update(patch).eq("id", id);

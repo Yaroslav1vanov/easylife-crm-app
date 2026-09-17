@@ -25,6 +25,7 @@ export function parseIds(s: string | null | undefined): Record<string, string> {
   s.split(",").map(x => x.trim()).filter(Boolean).forEach((x, i) => { const m = x.match(/^([a-z]+):(.+)$/); if (m) out[m[1]] = m[2]; else out[`_${i}`] = x; });
   return out;
 }
+export const isVideoUrl = (u: string) => /\.(mp4|mov|m4v|webm)(\?|#|$)/i.test(u);
 export type PublishOpts = { force?: boolean; allowPast?: boolean };
 export type StatusItem = { ch: string; id: string; status: string | null; error: string | null; url: string | null };
 
@@ -52,7 +53,10 @@ export default function PublicationModal({ pub, client, script, onClose, onUpdat
   useEffect(() => { const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); }; window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h); }, [onClose]);
 
   const isCarousel = pub.content_type === "carousel";
-  const allowedChannels = isCarousel ? ["ig", "threads"] : ["ig", "tt", "yt", "threads"];
+  const isStory = pub.content_type === "story";
+  const allowedChannels = isStory ? ["ig"] : isCarousel ? ["ig", "threads"] : ["ig", "tt", "yt", "threads"];
+  const storyUrl = (f.media_urls || [])[0] || null;
+  const storyIsVideo = !!storyUrl && isVideoUrl(storyUrl);
   const tz = client?.timezone || DEFAULT_TZ;
   const service = client?.publisher === "uploadpost" ? "Upload-Post" : "Metricool";
   const ids = parseIds(f.metricool_post_id);
@@ -90,6 +94,12 @@ export default function PublicationModal({ pub, client, script, onClose, onUpdat
   }
   async function uploadVideo(file: File) { setUpBusy(true); try { const u = await r2Upload(file); if (u) { setPreviewErr(false); save({ video_url: u }); } } catch (e: any) { alert(String(e)); } setUpBusy(false); }
   async function uploadCover(file: File) { setUpBusy(true); try { const u = await r2Upload(file, "image"); if (u) save({ video_thumbnail_url: u }); } catch (e: any) { alert(String(e)); } setUpBusy(false); }
+  async function uploadStoryFrame(file: File) {
+    setUpBusy(true);
+    try { const u = await r2Upload(file, file.type.startsWith("video/") ? undefined : "image"); if (u) { setPreviewErr(false); save({ media_urls: [u] }); } }
+    catch (e: any) { alert(String(e)); }
+    setUpBusy(false);
+  }
   async function uploadSlides(files: File[]) {
     setUpBusy(true);
     try { const urls: string[] = []; for (const file of files) { const u = await r2Upload(file, "image"); if (!u) break; urls.push(u); } if (urls.length) save({ media_urls: [...(f.media_urls || []), ...urls] }); }
@@ -132,15 +142,28 @@ export default function PublicationModal({ pub, client, script, onClose, onUpdat
           {client && <Avatar name={`${client.name} ${client.surname || ""}`} src={client.avatar_url} size={40} />}
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 15, fontWeight: 800, color: "var(--t1)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{client?.name} {client?.surname || ""}</div>
-            <div style={{ fontSize: 12, color: "var(--t3)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{isCarousel ? "Карусель" : `${script?.order_num ? `#${script.order_num} · ` : ""}${script?.hook_text || script?.hook || "Без темы"}`}</div>
+            <div style={{ fontSize: 12, color: "var(--t3)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{isStory ? "Сторис" : isCarousel ? "Карусель" : `${script?.order_num ? `#${script.order_num} · ` : ""}${script?.hook_text || script?.hook || "Без темы"}`}</div>
           </div>
           <span className={`v2-chip ${meta.cls}`}>{meta.l}</span>
           <button className="v2-iconbtn" onClick={onClose} aria-label="Закрыть"><X size={16} /></button>
         </div>
 
         {/* ---- ① ролик ---- */}
-        <Step n={1} title={isCarousel ? "Слайды карусели" : "Ролик и обложка"} right={!isCarousel && f.video_url ? <a href={f.video_url} target="_blank" rel="noreferrer" className="v2-act ghost" style={{ height: 30 }}><ExternalLink size={12} /> открыть</a> : null}>
-          {isCarousel ? (
+        <Step n={1} title={isStory ? "Кадр сторис" : isCarousel ? "Слайды карусели" : "Ролик и обложка"} right={isStory && storyUrl ? <a href={storyUrl} target="_blank" rel="noreferrer" className="v2-act ghost" style={{ height: 30 }}><ExternalLink size={12} /> открыть</a> : !isCarousel && !isStory && f.video_url ? <a href={f.video_url} target="_blank" rel="noreferrer" className="v2-act ghost" style={{ height: 30 }}><ExternalLink size={12} /> открыть</a> : null}>
+          {isStory ? (
+            <div style={{ display: "flex", gap: 14, alignItems: "flex-start", flexWrap: "wrap" }}>
+              <div style={{ width: 150, aspectRatio: "9 / 16", borderRadius: 12, overflow: "hidden", border: "1px solid var(--brd)", background: "var(--v2-inset)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                {!storyUrl ? <span style={{ fontSize: 11, color: "var(--t3)", textAlign: "center", padding: 10 }}>Кадра пока нет</span>
+                  : storyIsVideo && !previewErr ? <video key={storyUrl} src={storyUrl} controls playsInline preload="metadata" onError={() => setPreviewErr(true)} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  : storyIsVideo ? <span style={{ fontSize: 11, color: "var(--t3)", textAlign: "center", padding: 10 }}>видео на месте, превью не грузится</span>
+                  : <img src={storyUrl} alt="кадр сторис" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+              </div>
+              <div style={{ flex: 1, minWidth: 220 }}>
+                <div className="v2-hint" style={{ marginBottom: 10, lineHeight: 1.55 }}>Картинка или вертикальное видео 1080×1920, видео до 60 сек. Один файл = одна сторис. Стикеры (ссылка, опрос, вопрос, музыка) через API не ставятся — если нужны, выкладывайте такую сторис вручную с телефона.</div>
+                {!locked && !isScheduled && <label className="v2-act pri" style={{ cursor: "pointer" }}>{upBusy ? "Загружаю…" : storyUrl ? "⬆ Заменить кадр" : "⬆ Загрузить кадр"}<input type="file" accept="image/*,video/*" disabled={upBusy} onChange={e => { const file = e.target.files?.[0]; if (file) uploadStoryFrame(file); e.target.value = ""; }} style={{ display: "none" }} /></label>}
+              </div>
+            </div>
+          ) : isCarousel ? (
             <>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
                 {(f.media_urls || []).map((url, i) => (
@@ -220,6 +243,11 @@ export default function PublicationModal({ pub, client, script, onClose, onUpdat
         </Step>
 
         {/* ---- ③ тексты ---- */}
+        {isStory ? (
+        <Step n={3} title="Заметка для команды">
+          <textarea defaultValue={f.base_text || ""} onBlur={e => save({ base_text: e.target.value })} rows={3} disabled={locked} style={ta} placeholder="Что на сторис и зачем: анонс ролика, отзыв, прогрев к эфиру… У сторис нет подписи — этот текст видит только команда." />
+        </Step>
+        ) : (
         <Step n={3} title="Тексты" right={!locked ? <button onClick={async () => { setBusy(true); await onRegenerate(pub.id); setBusy(false); }} disabled={busy} className="v2-act"><Wand2 size={13} /> {busy ? "Генерю…" : f.ai_generated_at ? "Сгенерить заново" : "Сгенерить под соцсети (AI)"}</button> : null}>
           {lbl(isCarousel ? "Основа подписи" : "Исходный текст (из сценария)")}
           <textarea key={`base-${f.ai_generated_at || ""}-${f.base_text ? 1 : 0}`} defaultValue={f.base_text || ""} onBlur={e => save({ base_text: e.target.value })} rows={5} disabled={locked} style={ta} placeholder="Основной текст — из него AI делает отдельные подписи под каждую сеть. Если пусто, при генерации подтянется из сценария." />
@@ -247,6 +275,7 @@ export default function PublicationModal({ pub, client, script, onClose, onUpdat
             return <div key={gk}><div style={{ display: "flex", justifyContent: "space-between" }}>{lbl(`Подпись ${c.label}`)}{counter((val || "").length, c.limit)}</div><textarea defaultValue={val || ""} disabled={locked} onBlur={e => save(tab === "ig" ? { caption_ig: e.target.value } : { caption_tt: e.target.value })} rows={6} style={ta} placeholder={`Если пусто — уйдёт исходный текст`} /></div>;
           })()}
         </Step>
+        )}
 
         {/* ---- футер ---- */}
         <div style={{ position: "sticky", bottom: 0, background: "var(--side)", borderTop: "1px solid var(--brd)", margin: "0 -18px", padding: "12px 18px calc(14px + env(safe-area-inset-bottom))", borderRadius: "0 0 18px 18px", display: "flex", flexDirection: "column", gap: 10 }}>

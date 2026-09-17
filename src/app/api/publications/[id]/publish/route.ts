@@ -73,7 +73,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   if (!blogId) return NextResponse.json({ error: "У клиента не задан бренд Metricool (карточка клиента → Настройки)" }, { status: 400 });
 
   const isCarousel = pub.content_type === "carousel";
-  const media: string[] = isCarousel ? (pub.media_urls || []).filter(Boolean) : (pub.video_url ? [pub.video_url] : []);
+  const isStory = pub.content_type === "story";
+  const media: string[] = isStory ? [(pub.media_urls || [])[0] || pub.video_url].filter(Boolean)
+    : isCarousel ? (pub.media_urls || []).filter(Boolean) : (pub.video_url ? [pub.video_url] : []);
+  if (isStory && media.length < 1) return NextResponse.json({ error: "Нет кадра сторис — загрузи картинку или видео" }, { status: 400 });
   if (isCarousel && media.length < 1) return NextResponse.json({ error: "Нет картинок-слайдов карусели (загрузи хотя бы одну)" }, { status: 400 });
   if (!isCarousel && media.length < 1) return NextResponse.json({ error: "Нет видео — загрузи файл ролика или вставь прямую ссылку" }, { status: 400 });
   if (!pub.publish_at) return NextResponse.json({ error: "Не задана дата и время публикации" }, { status: 400 });
@@ -83,7 +86,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   const tz = client?.timezone || "America/New_York";
   const dateTime = tzIso(pub.publish_at, tz);
-  const allow = isCarousel ? ["ig", "threads"] : ["ig", "tt", "yt", "threads"];
+  const allow = isStory ? ["ig"] : isCarousel ? ["ig", "threads"] : ["ig", "tt", "yt", "threads"];
   const channels: string[] = (pub.target_channels?.length ? pub.target_channels : client?.platforms?.length ? client.platforms : allow).filter((ch: string) => allow.includes(ch));
   const targetsAll = channels.filter(ch => NET[ch]);
   if (!targetsAll.length) return NextResponse.json({ error: "Не выбрана ни одна соцсеть" }, { status: 400 });
@@ -138,10 +141,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
     const results = await Promise.all(targets.map(async ch => {
       const network = NET[ch];
-      const raw = textFor(ch) || pub.base_text || "";
+      const raw = isStory ? "" : (textFor(ch) || pub.base_text || ""); // у сторис подписи нет; base_text — заметка команды
       const body: any = { text: network === "threads" ? fit(raw, 500) : raw, providers: [{ network }], publicationDate: { dateTime, timezone: tz }, draft: false, autoPublish: true, media };
-      if (!isCarousel && pub.video_thumbnail_url) body.videoThumbnailUrl = pub.video_thumbnail_url;
-      if (network === "instagram") body.instagramData = { type: isCarousel ? "POST" : "REEL" };
+      if (!isCarousel && !isStory && pub.video_thumbnail_url) body.videoThumbnailUrl = pub.video_thumbnail_url;
+      if (network === "instagram") body.instagramData = { type: isStory ? "STORY" : isCarousel ? "POST" : "REEL" };
       if (network === "youtube") body.youtubeData = { title: ytTitle, type: "SHORT", tags: pub.yt_tags || [], madeForKids: false, privacy: "public" };
       if (network === "tiktok") body.tiktokData = { privacyOption: "PUBLIC_TO_EVERYONE", disableComment: false, disableDuet: false, disableStitch: false, commercialContentThirdParty: false, commercialContentOwnBrand: false };
       try {
@@ -180,8 +183,8 @@ async function publishViaUploadPost(sb: any, pub: any, client: any, force: boole
   const profile = (client.uploadpost_profile || "").trim();
   if (!profile) return NextResponse.json({ error: "У клиента не указан профиль Upload-Post (карточка клиента → Настройки)" }, { status: 400 });
 
-  if (pub.content_type === "carousel")
-    return NextResponse.json({ error: "Карусели через Upload-Post пока не отправляем — только ролики" }, { status: 400 });
+  if (pub.content_type === "carousel" || pub.content_type === "story")
+    return NextResponse.json({ error: `${pub.content_type === "story" ? "Сторис" : "Карусели"} через Upload-Post пока не отправляем — только ролики` }, { status: 400 });
   if (!pub.video_url)
     return NextResponse.json({ error: "Нет видео — загрузи файл ролика" }, { status: 400 });
   if (!pub.publish_at)

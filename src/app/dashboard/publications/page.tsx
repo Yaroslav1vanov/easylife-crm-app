@@ -2,7 +2,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
-import db, { Client, Script, TeamMember, ClientMonth } from "@/lib/database";
+import db, { Client, Script, TeamMember, ClientMonth, Publication } from "@/lib/database";
+import { utcToZonedInput, fmtInTz, DEFAULT_TZ } from "@/lib/tz";
 import Avatar from "@/components/Avatar";
 import Tour, { TourButton, type TourStep } from "@/components/Tour";
 import { myClients } from "@/lib/scope";
@@ -73,6 +74,7 @@ export default function PublicationsPage() {
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [allScripts, setAllScripts] = useState<Script[]>([]);
   const [clientMonths, setClientMonths] = useState<ClientMonth[]>([]);
+  const [stories, setStories] = useState<Publication[]>([]);
   const [loading, setLoading] = useState(true);
   const [ym, setYm] = useState(currentYM);
   const [clientFilter, setClientFilter] = useState<"all" | number>("all");
@@ -100,6 +102,9 @@ export default function PublicationsPage() {
     setAllScripts(all);
     const cmRes = await db.getClientMonths(supabase);
     setClientMonths(cmRes?.data || []);
+    // сторис живут только в публикациях (в план роликов не входят) — показываем их на днях отдельно
+    const { data: st } = await supabase.from("publications").select("id, client_id, publish_at, pub_status, base_text, media_urls, content_type").eq("content_type", "story").not("publish_at", "is", null);
+    setStories((st || []) as Publication[]);
     setLoading(false);
   }
 
@@ -174,6 +179,21 @@ export default function PublicationsPage() {
     for (const k of Object.keys(map)) map[k].sort((a, b) => a.client_id - b.client_id || a.order_num - b.order_num);
     return map;
   }, [activeVisible, ym]);
+
+  const storiesByDay = useMemo(() => {
+    const map: Record<string, Publication[]> = {};
+    for (const p of stories) {
+      const c = clientById[p.client_id];
+      if (!c || c.stage === "paused" || !p.publish_at) continue;
+      if (clientFilter !== "all" && p.client_id !== clientFilter) continue;
+      if (tlFilter !== "all" && c.teamlead_id !== tlFilter) continue;
+      const day = utcToZonedInput(p.publish_at, c.timezone || DEFAULT_TZ).slice(0, 10);
+      if (day.slice(0, 7) !== ym) continue;
+      (map[day] ||= []).push(p);
+    }
+    for (const k of Object.keys(map)) map[k].sort((a, b) => (a.publish_at || "").localeCompare(b.publish_at || ""));
+    return map;
+  }, [stories, clientById, clientFilter, tlFilter, ym]);
 
   const pool = useMemo(() => activeVisible.filter(s => !s.pub_date && s.video_status !== "published")
     .sort((a, b) => a.client_id - b.client_id || a.month_number - b.month_number || a.order_num - b.order_num), [activeVisible]);
@@ -400,6 +420,27 @@ export default function PublicationsPage() {
                             );
                           })}
                           {items.length > 4 && <span style={{ fontSize: 8, color: "var(--t3)" }}>+{items.length - 4}</span>}
+                          {(() => {
+                            const daySt = storiesByDay[dayIso] || [];
+                            if (!daySt.length) return null;
+                            const byClient = new Map<number, Publication[]>();
+                            daySt.forEach(p => byClient.set(p.client_id, [...(byClient.get(p.client_id) || []), p]));
+                            return Array.from(byClient.entries()).map(([cid, list]) => {
+                              const c = clientById[cid];
+                              const done = list.every(p => p.pub_status === "published");
+                              const err = list.some(p => p.pub_status === "error");
+                              const col = err ? "#ff5c7a" : done ? "#34a853" : "#ec4899";
+                              return (
+                                <div key={`st${cid}`} onClick={() => router.push(`/dashboard/metricool?open=${list[0].id}`)}
+                                  title={`Сторис · ${c?.name} · ${list.map(p => fmtInTz(p.publish_at, c?.timezone || DEFAULT_TZ)).join(", ")}`}
+                                  style={{ display: "flex", alignItems: "center", gap: 5, padding: "3px 5px", borderRadius: 6, background: `${col}1c`, border: `1px solid ${col}40`, cursor: "pointer" }}>
+                                  <span style={{ fontSize: 10, flexShrink: 0 }}>📱</span>
+                                  <Avatar name={c ? `${c.name} ${c.surname || ""}` : "?"} src={c?.avatar_url} size={14} />
+                                  <span style={{ fontSize: 9, color: "var(--t1)", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>сторис{list.length > 1 ? ` ×${list.length}` : ""}</span>
+                                </div>
+                              );
+                            });
+                          })()}
                         </div>
                       </div>
                     );
@@ -408,6 +449,7 @@ export default function PublicationsPage() {
               ))}
             </div>
             <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--brd)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 10 }}>📱</span><span style={{ fontSize: 10, color: "var(--t3)", fontWeight: 600 }}>Сторис (создаются в «Metricool» → «+ Сторис»)</span></div>
               {(Object.keys(STATUS_META) as SlotStatus[]).map(k => (
                 <div key={k} style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <span style={{ width: 8, height: 8, borderRadius: "50%", background: STATUS_META[k].color }} />
