@@ -6,7 +6,7 @@ import { createClient as createAdmin } from "@supabase/supabase-js";
 // поэтому здесь service_role.
 export const dynamic = "force-dynamic";
 
-const DIRECTIONS = ["Удержание", "Трафик", "Продажи", "Производство", "HR", "Деньги", "Разгрузка", "Итог"];
+const DIRECTIONS = ["Удержание", "Трафик", "Владельцы", "Рекомендации", "Продажи", "Производство", "HR", "Деньги", "Разгрузка", "Итог"];
 const COLS = ["text", "status", "priority", "direction", "planned_for", "owner", "result", "source", "created_at", "updated_at", "done_at", "description", "subtasks", "sprint_id", "sort_order"];
 
 function directionOf(text: string): string | null {

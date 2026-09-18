@@ -23,10 +23,11 @@ type Entry = { id: number; kind: string; day: string; text: string; source: stri
 type Sprint = { id: number; title: string; start_date: string; end_date: string; goals: string | null; client_target: number | null; status: string };
 type View = { type: "today" | "tomorrow" | "week" | "done" | "brain" } | { type: "month"; ym: string; sprintId: number };
 
-const DIRECTIONS = ["Удержание", "Трафик", "Продажи", "Производство", "HR", "Деньги", "Разгрузка", "Итог"];
+const DIRECTIONS = ["Удержание", "Трафик", "Владельцы", "Рекомендации", "Продажи", "Производство", "HR", "Деньги", "Разгрузка", "Итог"];
 const DIR_COLOR: Record<string, string> = {
   "Удержание": "#a8e063", "Трафик": "#42d4f4", "Продажи": "#9d6bff", "Производство": "#ffae42",
   "HR": "#ec4899", "Деньги": "#f5c451", "Разгрузка": "#5b8cff", "Итог": "#a890d0",
+  "Владельцы": "#2ee6c8", "Рекомендации": "#a98bff",
 };
 const PRI_COLOR: Record<string, string> = { A: "#ff5c7a", B: "#ffae42", C: "#77658f" };
 const PRI_LABEL: Record<string, string> = { A: "Высокий", B: "Средний", C: "Низкий" };
@@ -52,7 +53,7 @@ const addDays = (s: string, n: number) => { const d = new Date(s + "T00:00:00");
 const daysBetween = (a: string, b: string) => Math.round((new Date(b + "T00:00:00").getTime() - new Date(a + "T00:00:00").getTime()) / 86400000);
 const dm = (s: string | null) => (s ? `${s.slice(8, 10)}.${s.slice(5, 7)}` : "без срока");
 const longDate = (s: string) => { const d = new Date(s + "T00:00:00"); return `${RU_WD[d.getDay()]}, ${d.getDate()} ${RU_MONTH_GEN[d.getMonth()]}`; };
-const stripDir = (t: string) => t.replace(/^(Удержание|Трафик|Продажи|Производство|HR|Деньги|Разгрузка|Итог плана|Итог забега|Итог)\s*:\s*/i, "");
+const stripDir = (t: string) => t.replace(/^(Удержание|Трафик|Владельцы|Рекомендации|Продажи|Производство|HR|Деньги|Разгрузка|Итог плана|Итог забега|Итог)\s*:\s*/i, "");
 const monthsOf = (sp: Sprint) => {
   const out: string[] = []; let y = +sp.start_date.slice(0, 4), m = +sp.start_date.slice(5, 7);
   const endKey = sp.end_date.slice(0, 7);
@@ -504,7 +505,7 @@ function TaskDrawer({ task, today, onClose, onPatch, onDelete }: {
           <button className="btn danger" onClick={onDelete}><Trash2 size={14} />Удалить</button>
         </div>
         <div className="meta">
-          {task.source === "roadmap_sep_oct" ? "Из дорожной карты сентябрь–октябрь" : task.source === "crm" ? "Добавлена в CRM" : `Источник: ${task.source}`} · создана {dm(task.created_at.slice(0, 10))}
+          {task.source === "roadmap_sep_oct" ? "Из дорожной карты сентябрь–октябрь" : task.source === "goal_auto_oct" ? "Из цели «Авто до 09.10»" : task.source === "crm" ? "Добавлена в CRM" : `Источник: ${task.source}`} · создана {dm(task.created_at.slice(0, 10))}
           <br />CEO-бот видит эту задачу и её статус.
         </div>
       </div>
