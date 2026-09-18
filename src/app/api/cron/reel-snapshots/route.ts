@@ -21,7 +21,7 @@ export async function GET(req: Request) {
     .not("metricool_blog_id", "is", null);
   const list = (clients || []).filter(c => c.stage !== "churned" && (!sp.get("clientId") || c.id === Number(sp.get("clientId"))));
 
-  const out: { client: string; saved: number }[] = [];
+  const out: { client: string; saved: number; error?: string }[] = [];
   for (const c of list) {
     const posts = await fetchNetworkPosts(c, from, today);
     const rows = posts.map(p => {
@@ -34,9 +34,13 @@ export async function GET(req: Request) {
         shares: f.shares, avg_watch_sec: f.watch,
       };
     }).filter(r => r.published_at);
-    if (!rows.length) { out.push({ client: c.name, saved: 0 }); continue; }
-    const { error } = await sb.from("reel_snapshots").upsert(rows, { onConflict: "client_id,post_url,snapshot_date" });
-    out.push({ client: c.name, saved: error ? 0 : rows.length });
+    // один ключ (клиент + ссылка + день) не должен встречаться в пачке дважды, иначе Postgres отклонит весь upsert
+    const uniq = new Map<string, (typeof rows)[number]>();
+    for (const r of rows) uniq.set(`${r.post_url}`, r);
+    const list2 = Array.from(uniq.values());
+    if (!list2.length) { out.push({ client: c.name, saved: 0 }); continue; }
+    const { error } = await sb.from("reel_snapshots").upsert(list2, { onConflict: "client_id,post_url,snapshot_date" });
+    out.push({ client: c.name, saved: error ? 0 : list2.length, ...(error ? { error: error.message } : {}) });
     if (error) console.error("reel_snapshots", c.name, error.message);
   }
   return NextResponse.json({ ok: true, date: today, clients: out.length, result: out });
