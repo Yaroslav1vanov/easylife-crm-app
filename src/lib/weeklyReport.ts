@@ -19,6 +19,10 @@ export type WeeklyArgs = {
   ourVideos: number | null;              // сколько роликов недели сделали мы (по CRM)
   month: { published: number; package: number; from: string; to: string } | null;
   followers: { value: number; delta: number | null } | null;
+  account: {
+    ready: boolean; views: number; reach: number; likes: number; comments: number; saved: number; shares: number;
+    older: number; olderViews: number; newInWeek: number; baseDate: string | null; endDate: string | null;
+  } | null;                              // прирост за неделю по ВСЕМ роликам (наши ежедневные снимки)
   narrative: { headline: string; lead: string; hit: string[]; cards: { tone: "g" | "y" | "r"; title: string; text: string }[]; plan: string[] };
   lang: "ru" | "en";
   generatedAt: string;
@@ -46,6 +50,10 @@ const T = {
     sources: (d: string) => `Данные — Metricool на ${d}. Неделя — с понедельника по воскресенье. «Обычный уровень аккаунта» — медиана просмотров последних 30 роликов. Досмотр — средняя доля ролика, которую смотрит зритель. Ролики последних двух-трёх дней ещё набирают просмотры.`,
     excluded: (n: number, v: string) => `Не учитываем ${n} ${n === 1 ? "ролик" : "ролика"}, которые почти не показывались в ленте (${v} просмотров).`,
     mln: " млн", tys: " тыс",
+    accTitle: "Весь аккаунт за неделю", accSub: "включая ролики, выпущенные раньше — они продолжают набирать",
+    accNew: "новых роликов за неделю", accOld: "старых роликов продолжали набирать",
+    accOldViews: "просмотров принесли старые ролики",
+    accSoon: "Этот блок появится в следующем отчёте: мы начали снимать цифры по каждому ролику ежедневно, и для сравнения нужны две точки — начало и конец недели.",
   },
   en: {
     report: "Weekly report", views: "Views", reels: "Videos", reach: "Reach", likes: "Likes",
@@ -64,6 +72,10 @@ const T = {
     sources: (d: string) => `Data — Metricool as of ${d}. Week runs Monday to Sunday. "Usual level" is the median views of the last 30 videos. Watch-through is the average share of the video a viewer watches. Videos posted in the last two or three days are still gaining views.`,
     excluded: (n: number, v: string) => `${n} ${n === 1 ? "video" : "videos"} excluded — they were barely shown in the feed (${v} views).`,
     mln: "M", tys: "K",
+    accTitle: "Whole account this week", accSub: "including older videos — they keep gaining views",
+    accNew: "videos published this week", accOld: "older videos kept gaining",
+    accOldViews: "views came from older videos",
+    accSoon: "This block appears in the next report: we just started taking daily snapshots per video, and a comparison needs two points — the start and the end of the week.",
   },
 };
 
@@ -204,6 +216,18 @@ a{color:var(--white);text-decoration:none}a:hover{color:var(--neon)}
   ${a.followers ? `<div class="kpi"><div class="l">${t.followers}</div><div class="v">${n(a.followers.value)}</div>${a.followers.delta != null ? `<div class="d ${a.followers.delta >= 0 ? "up" : "down"}">${a.followers.delta >= 0 ? "+" : "−"}${n(Math.abs(a.followers.delta))}</div>` : ""}</div>` : ""}
 </div>
 ${a.excluded.length ? `<p class="excl">${t.excluded(a.excluded.length, a.excluded.map(x => x.views).join(", "))}</p>` : ""}
+
+<h2>${t.accTitle} <small>${t.accSub}</small></h2>
+${a.account?.ready ? `
+<div class="grid">
+  <div class="kpi big"><div class="l">${t.views}</div><div class="v">${n(a.account.views)}</div><div class="d">${t.accOldViews}: ${n(a.account.olderViews)}</div></div>
+  <div class="kpi"><div class="l">${t.reach}</div><div class="v">${n(a.account.reach)}</div></div>
+  <div class="kpi"><div class="l">${t.likes}</div><div class="v">${n(a.account.likes)}</div></div>
+  <div class="kpi"><div class="l">${t.comments}</div><div class="v">${n(a.account.comments)}</div></div>
+  <div class="kpi"><div class="l">${t.saves}</div><div class="v">${n(a.account.saved)}</div></div>
+  <div class="kpi"><div class="l">${t.shares}</div><div class="v">${n(a.account.shares)}</div></div>
+  <div class="kpi"><div class="l">${t.reels}</div><div class="v">${a.account.newInWeek}</div><div class="d">${t.accNew} · ${a.account.older} ${t.accOld}</div></div>
+</div>` : `<div class="note">${t.accSoon}</div>`}
 
 ${top ? `
 <h2>${t.hit}</h2>

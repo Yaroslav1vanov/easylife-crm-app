@@ -124,3 +124,39 @@ export async function inlineImage(url: string | null | undefined, maxBytes = 900
     return `data:${type};base64,${buf.toString("base64")}`;
   } catch { return null; }
 }
+
+export type AccountWeek = {
+  ready: boolean; views: number; reach: number; likes: number; comments: number; saved: number; shares: number;
+  tracked: number; newInWeek: number; older: number; olderViews: number; baseDate: string | null; endDate: string | null;
+};
+
+/** Сколько НЕДЕЛЯ принесла по всем роликам аккаунта, включая выпущенные раньше.
+ *  Считается как разница наших ежедневных снимков: снимок на конец недели минус снимок на её начало.
+ *  Ролики, вышедшие внутри недели, идут целиком. */
+export async function accountWeekDelta(sb: any, clientId: number, from: string, to: string): Promise<AccountWeek> {
+  const empty: AccountWeek = { ready: false, views: 0, reach: 0, likes: 0, comments: 0, saved: 0, shares: 0, tracked: 0, newInWeek: 0, older: 0, olderViews: 0, baseDate: null, endDate: null };
+  const { data } = await sb.from("reel_snapshots")
+    .select("post_url, published_at, snapshot_date, views, reach, likes, comments, saves, shares")
+    .eq("client_id", clientId).gte("snapshot_date", addDays(from, -3)).lte("snapshot_date", addDays(to, 3))
+    .order("snapshot_date", { ascending: true });
+  const rows = (data || []) as any[];
+  if (!rows.length) return empty;
+  const dates = Array.from(new Set(rows.map(r => r.snapshot_date))).sort();
+  const baseDate = [...dates].reverse().find(d => d <= from) || null;           // снимок на начало недели
+  const endDate = dates.find(d => d >= to) || dates[dates.length - 1] || null;  // снимок на конец недели
+  if (!baseDate || !endDate || baseDate >= endDate) return { ...empty, baseDate, endDate };
+
+  const at = (d: string) => new Map(rows.filter(r => r.snapshot_date === d).map(r => [r.post_url, r]));
+  const base = at(baseDate), end = at(endDate);
+  const out: AccountWeek = { ...empty, ready: true, baseDate, endDate };
+  end.forEach((cur: any, url: string) => {
+    const was: any = base.get(url);
+    const isNew = !was || (cur.published_at && cur.published_at >= from);
+    const d = (k: string) => Math.max(0, Number(cur[k] || 0) - (isNew ? 0 : Number(was?.[k] || 0)));
+    out.views += d("views"); out.reach += d("reach"); out.likes += d("likes");
+    out.comments += d("comments"); out.saved += d("saves"); out.shares += d("shares");
+    out.tracked++;
+    if (isNew) out.newInWeek++; else { out.older++; out.olderViews += d("views"); }
+  });
+  return out;
+}

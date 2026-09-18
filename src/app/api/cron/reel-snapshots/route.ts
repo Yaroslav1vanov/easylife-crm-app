@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
 import { fetchNetworkPosts, reelFields } from "@/lib/weeklyStats";
 
-/* Ежедневный снимок метрик по роликам последних 21 дня у всех клиентов Metricool.
+/* Ежедневный снимок метрик по роликам последних 45 дней у всех клиентов Metricool.
    Зачем: в недельном отчёте сравнивать ролики в одинаковом возрасте (например, «через 7 дней
    после выхода»), а не свежие против созревших. GET /api/cron/reel-snapshots */
 export const maxDuration = 300;
@@ -14,7 +14,7 @@ export async function GET(req: Request) {
   const sb = createClient();
   const sp = new URL(req.url).searchParams;
   const today = iso(new Date());
-  const from = iso(new Date(Date.now() - 21 * 86400000));
+  const from = iso(new Date(Date.now() - 45 * 86400000));
 
   const { data: clients } = await sb.from("clients")
     .select("id, name, metricool_blog_id, timezone, platforms, stage")

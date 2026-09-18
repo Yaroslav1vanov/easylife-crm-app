@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase-server";
 import { getModel } from "@/lib/aiModels";
 import { buildWeeklyHtml, type WeekReel, type WeekTotals } from "@/lib/weeklyReport";
-import { addDays, fetchNetworkPosts, inlineImage, median, mondayOf, reelFields } from "@/lib/weeklyStats";
+import { accountWeekDelta, addDays, fetchNetworkPosts, inlineImage, median, mondayOf, reelFields } from "@/lib/weeklyStats";
 
 /* Недельный отчёт клиенту.
    GET /api/clients/{id}/report-week?week=YYYY-MM-DD (понедельник) | ?from&to | ?lang=ru|en | ?download=1
@@ -97,6 +97,8 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     ? { value: snaps[0].followers as number, delta: snaps.find(s => s.snapshot_date <= prevTo)?.followers != null ? (snaps[0].followers as number) - (snaps.find(s => s.snapshot_date <= prevTo)!.followers as number) : null }
     : null;
 
+  // прирост за неделю по всем роликам аккаунта (включая старые) — из наших ежедневных снимков
+  const account = await accountWeekDelta(sb, id, from, to);
   const narrative = await aiNarrative(sb, { c, from, to, cur, prev, reels, norm, lang });
 
   // картинки в файл: топ-ролик крупно, остальные — миниатюрами
@@ -109,7 +111,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
 
   const html = buildWeeklyHtml({
     client: c, avatar, from, to, prevFrom, prevTo, cur, prev, reels, excluded, norm,
-    ourVideos: ourVideos ?? null, month, followers, narrative, lang, generatedAt: today,
+    ourVideos: ourVideos ?? null, month, followers, account, narrative, lang, generatedAt: today,
   });
   const fn = `${[c.name, c.surname].filter(Boolean).join(" ")} — отчёт ${from}—${to}.html`;
   return new Response(html, { headers: htmlHeaders(sp.get("download") ? fn : undefined) });
