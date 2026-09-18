@@ -165,8 +165,16 @@ function ClientsBlock(p: ClientsBlockProps) {
       // ровным темпом: сколько дней месяца прошло, столько и роликов должно выйти.
       // С какого дня клиент вообще публикуется: в M1 — после онбординга (~2 недели),
       // иначе новый клиент «отстаёт» с первого дня, пока идёт анализ ниши и запись аватара.
-      // если M1 уже сдвинут на дату после онбординга — считаем от старта месяца
-      const obDeadline = (c as any).onboarding_deadline || addDaysIso(cm.start_date, ONBOARDING_DAYS);
+      // Онбординг закончился по факту, как только клиент начал публиковаться: берём самую раннюю из дат —
+      // дедлайн онбординга (или старт + 14 дней), дата первой публикации из карточки, первая реальная публикация.
+      const firstPublished = list.filter(s => s.video_status === "published" && s.pub_date)
+        .map(s => s.pub_date as string).sort()[0];
+      const obCandidates = [
+        (c as any).onboarding_deadline || addDaysIso(cm.start_date, ONBOARDING_DAYS),
+        (c as any).first_pub_date || null,
+        firstPublished || null,
+      ].filter(Boolean) as string[];
+      const obDeadline = obCandidates.sort()[0];
       const publishFrom = cm.month_number === 1
         ? (obDeadline > cm.start_date ? obDeadline : cm.start_date)
         : cm.start_date;
@@ -178,7 +186,8 @@ function ClientsBlock(p: ClientsBlockProps) {
       const winEnd = monthEnd;
       const winDays = Math.max(0, daysBetween(winStart, winEnd) + 1);
       const winPassed = Math.max(0, Math.min(winDays, daysBetween(winStart, p.todayIso)));  // «к сегодня» = до сегодня
-      const inOnboardingNow = cm.month_number === 1 && p.todayIso < publishFrom;
+      // уже публикуемся — значит онбординг закрыт, даже если по датам он ещё идёт
+      const inOnboardingNow = cm.month_number === 1 && p.todayIso < publishFrom && published === 0;
       const dueByToday = inOnboardingNow
         ? 0
         : target != null && !useDates
@@ -195,10 +204,8 @@ function ClientsBlock(p: ClientsBlockProps) {
       const status: ClientRow["status"] = isPaused ? "paused" : isOverdue ? "overdue" : published >= plan ? "done" : "working";
       // В M1 первые ~2 недели идёт онбординг — публикаций там быть не должно,
       // иначе новый клиент с первого дня показан «отстающим».
-      const obEnd = cm.month_number === 1
-        ? ((c as any).onboarding_deadline || addDaysIso(cm.start_date, ONBOARDING_DAYS))
-        : null;
-      const inOnboarding = !!obEnd && p.todayIso < obEnd;
+      const obEnd = cm.month_number === 1 ? obDeadline : null;
+      const inOnboarding = !!obEnd && p.todayIso < obEnd && published === 0;
       const paceStart = obEnd && obEnd < cm.end_date ? obEnd : cm.start_date;
       const pace = inOnboarding
         ? { delta: 0, expected: 0, actualPct: (published / plan) * 100, expectedPct: 0,

@@ -39,10 +39,26 @@ function computeCurrentMonth(months: ClientMonth[], todayIso: string): number {
   return [...months].sort((a, b) => b.month_number - a.month_number)[0].month_number;
 }
 
+const RU_M_GEN = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
+/** «7 — 13 сентября» по дате понедельника */
+function weekLabel(monday: string): string {
+  const a = new Date(monday + "T00:00:00"); const b = new Date(a); b.setDate(b.getDate() + 6);
+  return a.getMonth() === b.getMonth()
+    ? `${a.getDate()} — ${b.getDate()} ${RU_M_GEN[b.getMonth()]}`
+    : `${a.getDate()} ${RU_M_GEN[a.getMonth()]} — ${b.getDate()} ${RU_M_GEN[b.getMonth()]}`;
+}
+
 export default function ClientDetailPage() {
   const { id } = useParams();
   const clientId = parseInt(id as string);
   const [client, setClient] = useState<Client | null>(null);
+  // прошлая полная неделя (пн–вс): в пятницу это неделя, закончившаяся в воскресенье
+  const [reportWeek, setReportWeek] = useState(() => {
+    const d = new Date(); const dow = (d.getDay() + 6) % 7;
+    d.setDate(d.getDate() - dow - 7);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  });
+  const [reportLang, setReportLang] = useState<"ru" | "en">("ru");
   const [reportMonth, setReportMonth] = useState(() => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; });
   const [scripts, setScripts] = useState<Script[]>([]);
   const [checklist, setChecklist] = useState<ChecklistTask[]>([]);
@@ -333,7 +349,8 @@ export default function ClientDetailPage() {
           <SheetOption color="#42d4f4" label="Контент-план" hint={currentM ? `M${currentM.month_number}` : ""} onClick={() => router.push(`/dashboard/plan?client=${clientId}${currentM ? `&m=${currentM.month_number}` : ""}`)} />
           <SheetOption color="#ffae42" label="Онбординг" hint={onbProgress ? (onbProgress.pending_tasks > 0 ? `${onbProgress.progress_pct}%` : "завершён") : ""} onClick={() => router.push(`/dashboard/clients/${clientId}/onboarding`)} />
           <SheetOption color="#9d6bff" label="Редактировать профиль" hint="имя, ниша, соцсети" onClick={() => { setMenuOpen(false); setEditData({ name: c.name, surname: c.surname, niche: c.niche, phone: c.phone, product: c.product, avg_check: c.avg_check, package: c.package, montager_id: c.montager_id, teamlead_id: c.teamlead_id, stage: c.stage, instagram: c.instagram, tiktok: c.tiktok, youtube: c.youtube, birthday: c.birthday || "" }); setEditing(true); }} />
-          {c.metricool_blog_id ? <SheetOption color="#a8e063" label="Отчёт клиенту" hint={reportMonth} onClick={() => window.open(`/api/clients/${clientId}/report?month=${reportMonth}`, "_blank")} /> : null}
+          {c.metricool_blog_id ? <SheetOption color="#a8e063" label="Отчёт клиенту · месяц" hint={reportMonth} onClick={() => window.open(`/api/clients/${clientId}/report?month=${reportMonth}`, "_blank")} /> : null}
+          {c.metricool_blog_id ? <SheetOption color="#2ee6c8" label="Отчёт клиенту · неделя" hint={weekLabel(reportWeek)} onClick={() => window.open(`/api/clients/${clientId}/report-week?week=${reportWeek}&lang=${reportLang}`, "_blank")} /> : null}
           <SheetOption color={c.stage === "paused" ? "#a8e063" : "#f5c451"} label={c.stage === "paused" ? "Снять с паузы" : "Поставить на паузу"} onClick={async () => { setMenuOpen(false); await updateClientField("stage", c.stage === "paused" ? "active" : "paused"); }} />
           {userRole === "admin" && <SheetOption danger label="Удалить клиента" hint="безвозвратно" onClick={async () => { if (confirm("Удалить клиента? Все данные будут потеряны.")) { await db.deleteClient(supabase, clientId); router.push("/dashboard/clients"); } }} />}
         </div>
@@ -419,7 +436,25 @@ export default function ClientDetailPage() {
               <input type="number" style={{ ...inpStyle, width: 120 }} defaultValue={c.telegram_topic_id ?? ""} placeholder="напр. 12" onBlur={(e) => { const v = e.target.value ? Number(e.target.value) : null; if (v !== (c.telegram_topic_id ?? null)) updateClientField("telegram_topic_id", v); }} /></div>
             <div className="v2-hint">id топика клиента в ТГ — по нему бот понимает, чьё это видео</div>
             {c.metricool_blog_id ? (
-              <div className="v2-fr"><span>Отчёт клиенту</span>
+              <div className="v2-fr"><span>Отчёт за неделю</span>
+                <span style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                  <select style={selStyle} value={reportWeek} onChange={(e) => setReportWeek(e.target.value)}>
+                    {Array.from({ length: 10 }, (_, i) => {
+                      const d = new Date(); const dow = (d.getDay() + 6) % 7;
+                      d.setDate(d.getDate() - dow - 7 - i * 7);
+                      const v = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+                      return <option key={v} value={v}>{weekLabel(v)}</option>;
+                    })}
+                  </select>
+                  <select style={selStyle} value={reportLang} onChange={(e) => setReportLang(e.target.value as "ru" | "en")}>
+                    <option value="ru">рус</option><option value="en">англ</option>
+                  </select>
+                  <a href={`/api/clients/${clientId}/report-week?week=${reportWeek}&lang=${reportLang}`} target="_blank" rel="noreferrer" className="v2-act gr" style={{ height: 32 }}>Открыть →</a>
+                  <a href={`/api/clients/${clientId}/report-week?week=${reportWeek}&lang=${reportLang}&download=1`} className="v2-act ghost" style={{ height: 32 }}>Скачать</a>
+                </span></div>
+            ) : null}
+            {c.metricool_blog_id ? (
+              <div className="v2-fr"><span>Отчёт за месяц</span>
                 <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
                   <select style={selStyle} value={reportMonth} onChange={(e) => setReportMonth(e.target.value)}>
                     {Array.from({ length: 12 }, (_, i) => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - i); const v = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; const RU = ["январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"]; return <option key={v} value={v}>{RU[d.getMonth()]} {d.getFullYear()}</option>; })}

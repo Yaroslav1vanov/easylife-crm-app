@@ -27,12 +27,25 @@ function getMonthLabel(key: string) {
   return `${MONTH_NAMES[parseInt(m) - 1]} ${y}`;
 }
 
+const RU_GEN = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
+const isoDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+/** «7 — 13 сентября» по дате понедельника */
+function weekLabel(monday: string) {
+  const a = new Date(monday + "T00:00:00"); const b = new Date(a); b.setDate(b.getDate() + 6);
+  return a.getMonth() === b.getMonth()
+    ? `${a.getDate()} — ${b.getDate()} ${RU_GEN[b.getMonth()]}`
+    : `${a.getDate()} ${RU_GEN[a.getMonth()]} — ${b.getDate()} ${RU_GEN[b.getMonth()]}`;
+}
+
 export default function ReportsPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [allScripts, setAllScripts] = useState<(Script & { clientName: string; montager: string; teamlead: string; pkg: number })[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState("");
   const [view, setView] = useState<"clients" | "teamleads" | "montagers">("clients");
+  // недельные отчёты клиентам: по умолчанию прошлая полная неделя (пн–вс)
+  const [week, setWeek] = useState(() => { const d = new Date(); const dow = (d.getDay() + 6) % 7; d.setDate(d.getDate() - dow - 7); return isoDay(d); });
+  const [wLang, setWLang] = useState<"ru" | "en">("ru");
   const supabase = createClient();
 
   useEffect(() => {
@@ -149,6 +162,36 @@ export default function ReportsPage() {
         <div>
           <h1 className="text-lg font-extrabold" style={{ color: "var(--t1)" }}>Отчёты</h1>
           <p className="text-xs mt-0.5" style={{ color: "var(--t2)" }}>Статистика по роликам за месяц</p>
+        </div>
+      </div>
+
+      {/* Недельные отчёты клиентам */}
+      <div className="card mb-3" style={{ padding: 14 }}>
+        <div className="flex items-center gap-2 flex-wrap mb-2">
+          <span className="text-[12px] font-extrabold" style={{ color: "var(--t1)" }}>Недельные отчёты клиентам</span>
+          <select value={week} onChange={e => setWeek(e.target.value)}
+            style={{ background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)", borderRadius: 8, padding: "5px 8px", fontSize: 12 }}>
+            {Array.from({ length: 10 }, (_, i) => { const d = new Date(); const dow = (d.getDay() + 6) % 7; d.setDate(d.getDate() - dow - 7 - i * 7); const v = isoDay(d); return <option key={v} value={v}>{weekLabel(v)}</option>; })}
+          </select>
+          <select value={wLang} onChange={e => setWLang(e.target.value as "ru" | "en")}
+            style={{ background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)", borderRadius: 8, padding: "5px 8px", fontSize: 12 }}>
+            <option value="ru">рус</option><option value="en">англ</option>
+          </select>
+          <span className="text-[10px]" style={{ color: "var(--t2)" }}>файл со зашитыми картинками — можно сразу отправлять клиенту</span>
+        </div>
+        <div className="flex flex-col gap-1">
+          {clients.filter(c => (c as any).metricool_blog_id && c.stage === "active").map(c => (
+            <div key={c.id} className="flex items-center gap-2 py-1" style={{ borderTop: "1px solid var(--brd)" }}>
+              <span className="text-[12px] flex-1 truncate" style={{ color: "var(--t1)" }}>{c.name} {c.surname || ""}</span>
+              <a href={`/api/clients/${c.id}/report-week?week=${week}&lang=${wLang}`} target="_blank" rel="noreferrer"
+                className="text-[11px] font-bold px-2 py-1 rounded-lg" style={{ border: "1px solid var(--brd)", color: "var(--gr)" }}>Открыть</a>
+              <a href={`/api/clients/${c.id}/report-week?week=${week}&lang=${wLang}&download=1`}
+                className="text-[11px] font-bold px-2 py-1 rounded-lg" style={{ border: "1px solid var(--brd)", color: "var(--t2)" }}>Скачать</a>
+            </div>
+          ))}
+          {clients.filter(c => (c as any).metricool_blog_id && c.stage === "active").length === 0 && (
+            <div className="text-[11px]" style={{ color: "var(--t2)" }}>Нет клиентов с привязанным брендом Metricool.</div>
+          )}
         </div>
       </div>
 
