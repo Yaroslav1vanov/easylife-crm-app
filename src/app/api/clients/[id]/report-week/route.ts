@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase-server";
 import { getModel } from "@/lib/aiModels";
-import { buildWeeklyHtml, type WeekReel, type WeekTotals } from "@/lib/weeklyReport";
+import { buildWeeklyHtml, type PlanItem, type WeekReel, type WeekTotals } from "@/lib/weeklyReport";
 import { accountWeekDelta, addDays, fetchNetworkPosts, inlineImage, median, mondayOf, reelFields } from "@/lib/weeklyStats";
 
 /* Недельный отчёт клиенту.
@@ -74,6 +74,31 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   if (!reels.length && !prevReels.length)
     return new Response(htmlError(`За ${from} — ${to} Metricool не отдал ни одного ролика. Проверь период и привязку бренда.`), { status: 502, headers: htmlHeaders() });
 
+  // наши сценарии: названия вышедших роликов и план на следующую неделю
+  const { data: scr } = await sb.from("scripts")
+    .select("id, pub_date, hook_text, hook, content_type, video_status, published_url, ref_url, ref_views, description")
+    .eq("client_id", id).gte("pub_date", addDays(from, -1)).lte("pub_date", addDays(to, 8)).order("pub_date");
+  const scripts = (scr || []) as any[];
+  const nameOf = (x: any) => String(x.hook_text || x.hook || "").replace(/^Сценарий #\d+$/, "").trim();
+  const code = (u: string | null) => { const m = String(u || "").match(/(?:reel|reels|p|video)\/([A-Za-z0-9_-]+)/); return m ? m[1] : null; };
+  const byCode = new Map(scripts.filter(x => x.published_url).map(x => [code(x.published_url), x]));
+  const used = new Set<number>();
+  for (const r of reels) {
+    let sc = (code(r.url) && byCode.get(code(r.url))) || null;
+    if (!sc) sc = scripts.find(x => x.pub_date === r.date && x.video_status === "published" && !used.has(x.id) && nameOf(x)) || null;
+    if (!sc) sc = scripts.find(x => x.pub_date === r.date && !used.has(x.id) && nameOf(x)) || null;
+    if (sc) { used.add(sc.id); r.ourTitle = nameOf(sc); }
+  }
+  const fmtViews = (v: number) => (v >= 1e6 ? `${(v / 1e6).toFixed(1).replace(".", ",")} млн` : v >= 1e3 ? `${Math.round(v / 1000)} тыс` : String(v));
+  const nextWeek: PlanItem[] = scripts
+    .filter(x => x.pub_date > to && x.pub_date <= addDays(to, 7) && nameOf(x))
+    .map(x => ({
+      date: x.pub_date, title: nameOf(x), type: x.content_type || "reel",
+      why: x.ref_views
+        ? (lang === "ru" ? `Формат уже сработал: похожий ролик собрал ${fmtViews(Number(x.ref_views))} просмотров` : `The format already worked: a similar video got ${fmtViews(Number(x.ref_views))} views`)
+        : (x.description ? String(x.description).slice(0, 140) : null),
+    }));
+
   // сколько роликов недели сделали мы (по CRM), план месяца и подписчики
   const [{ count: ourVideos }, monthsRes, snapsRes] = await Promise.all([
     sb.from("scripts").select("id", { count: "exact", head: true })
@@ -111,7 +136,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
 
   const html = buildWeeklyHtml({
     client: c, avatar, from, to, prevFrom, prevTo, cur, prev, reels, excluded, norm,
-    ourVideos: ourVideos ?? null, month, followers, account, narrative, lang, generatedAt: today,
+    ourVideos: ourVideos ?? null, month, followers, account, nextWeek, narrative, lang, generatedAt: today,
   });
   const fn = `${[c.name, c.surname].filter(Boolean).join(" ")} — отчёт ${from}—${to}.html`;
   return new Response(html, { headers: htmlHeaders(sp.get("download") ? fn : undefined) });

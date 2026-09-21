@@ -6,7 +6,9 @@ export type WeekReel = {
   comments: number | null; saved: number | null; shares: number | null;
   ret: number | null; skip: number | null; dur: number | null;
   url: string | null; title: string; img: string | null; x: number; ageDays: number;
+  ourTitle?: string | null;              // как ролик называется у нас в контент-плане
 };
+export type PlanItem = { date: string; title: string; type: string; why: string | null };
 export type WeekTotals = { n: number; views: number; reach: number; likes: number; comments: number; saved: number; shares: number; ret: number | null };
 export type WeeklyArgs = {
   client: { name: string; surname?: string | null; avatar_url?: string | null; instagram?: string | null };
@@ -23,6 +25,7 @@ export type WeeklyArgs = {
     ready: boolean; views: number; reach: number; likes: number; comments: number; saved: number; shares: number;
     older: number; olderViews: number; newInWeek: number; baseDate: string | null; endDate: string | null;
   } | null;                              // прирост за неделю по ВСЕМ роликам (наши ежедневные снимки)
+  nextWeek: PlanItem[];                  // что выходит на следующей неделе (контент-план CRM)
   narrative: { headline: string; lead: string; hit: string[]; cards: { tone: "g" | "y" | "r"; title: string; text: string }[]; plan: string[] };
   lang: "ru" | "en";
   generatedAt: string;
@@ -53,6 +56,9 @@ const T = {
     accTitle: "Весь аккаунт за неделю", accSub: "включая ролики, выпущенные раньше — они продолжают набирать",
     accNew: "новых роликов за неделю", accOld: "старых роликов продолжали набирать",
     accOldViews: "просмотров принесли старые ролики",
+    planNext: "Что выходит на следующей неделе", planNextSub: "из контент-плана — темы уже отобраны",
+    why: "почему взяли", reel: "Рилс", carousel: "Карусель", story: "Сторис",
+    noPlanNext: "План на следующую неделю ещё собирается — пришлём отдельно.",
     accSoon: "Этот блок появится в следующем отчёте: мы начали снимать цифры по каждому ролику ежедневно, и для сравнения нужны две точки — начало и конец недели.",
   },
   en: {
@@ -75,6 +81,9 @@ const T = {
     accTitle: "Whole account this week", accSub: "including older videos — they keep gaining views",
     accNew: "videos published this week", accOld: "older videos kept gaining",
     accOldViews: "views came from older videos",
+    planNext: "Coming next week", planNextSub: "from the content plan — topics are already selected",
+    why: "why we picked it", reel: "Reel", carousel: "Carousel", story: "Story",
+    noPlanNext: "Next week's plan is still being finalised, we will send it separately.",
     accSoon: "This block appears in the next report: we just started taking daily snapshots per video, and a comparison needs two points — the start and the end of the week.",
   },
 };
@@ -108,7 +117,8 @@ export function buildWeeklyHtml(a: WeeklyArgs): string {
 
   const top = a.reels.length ? a.reels.reduce((m, r) => (r.views > m.views ? r : m), a.reels[0]) : null;
   const rows = [...a.reels].sort((x, y) => y.views - x.views).map(r => {
-    const title = r.title.trim() && !/^@/.test(r.title.trim()) ? esc(r.title.slice(0, 90)) : `<span class="muted">${t.noCaption}</span>`;
+    const caption = r.title.trim() && !/^@/.test(r.title.trim()) ? esc(r.title.slice(0, 80)) : "";
+    const title = r.ourTitle ? esc(r.ourTitle.slice(0, 90)) : caption || `<span class="muted">${t.noCaption}</span>`;
     const young = r.ageDays <= 3 ? `<span class="tag young">${t.still} · ${r.ageDays} ${t.days}</span>` : "";
     return `<tr>
       <td class="th">${r.img ? `<img src="${r.img}" alt="">` : `<div class="noimg"></div>`}</td>
@@ -196,6 +206,7 @@ a{color:var(--white);text-decoration:none}a:hover{color:var(--neon)}
 .plan li::before{content:counter(k);font-family:'Unbounded',sans-serif;font-weight:800;color:var(--neon);flex:none;width:20px}
 .foot{margin-top:46px;color:var(--muted2);font-size:12px;line-height:1.7}
 .excl{margin-top:10px;font-size:12.5px;color:var(--muted)}
+.plan-tbl{min-width:560px}.plan-tbl td{vertical-align:top}.plan-tbl td:nth-child(2){max-width:330px}
 @media print{body{background:#070526;-webkit-print-color-adjust:exact;print-color-adjust:exact}body::before{display:none}.wrap{padding:20px}h2{break-after:avoid}.card,.kpi,.hit,tr{break-inside:avoid}}
 </style></head><body><div class="wrap">
 
@@ -260,6 +271,15 @@ ${a.narrative.hit.length ? `<div class="why">${a.narrative.hit.map(x => `<div cl
 <div class="tbl"><table>
 <thead><tr><th></th><th>${t.reels}</th><th>${t.views}</th><th>${t.retention}</th><th>${t.saves}</th><th>${t.shares}</th><th>${t.comments}</th></tr></thead>
 <tbody>${rows || `<tr><td colspan="7" class="muted" style="padding:20px;text-align:center">—</td></tr>`}</tbody></table></div>
+
+<h2>${t.planNext} <small>${t.planNextSub}</small></h2>
+${a.nextWeek.length ? `<div class="tbl"><table class="plan-tbl">
+<thead><tr><th>${isRu ? "Дата" : "Date"}</th><th>${isRu ? "Ролик" : "Video"}</th><th>${t.why}</th></tr></thead>
+<tbody>${a.nextWeek.map(x => `<tr>
+  <td class="num strong">${dm(x.date)}</td>
+  <td>${esc(x.title)}<div class="muted small">${(t as any)[x.type] || x.type}</div></td>
+  <td class="muted">${x.why ? esc(x.why) : "—"}</td></tr>`).join("")}</tbody></table></div>`
+: `<div class="note">${t.noPlanNext}</div>`}
 
 ${a.month ? `
 <h2>${t.plan}</h2>
