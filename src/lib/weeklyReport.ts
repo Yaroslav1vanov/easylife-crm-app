@@ -56,6 +56,9 @@ const T = {
     accTitle: "Весь аккаунт за неделю", accSub: "включая ролики, выпущенные раньше — они продолжают набирать",
     accNew: "новых роликов за неделю", accOld: "старых роликов продолжали набирать",
     accOldViews: "просмотров принесли старые ролики",
+    er: "Вовлечённость (ER)", erHint: "реакции делить на охват",
+    erFoot: "ER — вовлечённость: лайки, комментарии, сохранения и репосты делим на охват. Норма в Instagram 1–3%, выше 5% — сильно.",
+    followersHint: "на конец недели", noFollowers: "подписчики появятся в следующем отчёте",
     planNext: "Что выходит на следующей неделе", planNextSub: "из контент-плана — темы уже отобраны",
     why: "почему взяли", reel: "Рилс", carousel: "Карусель", story: "Сторис",
     noPlanNext: "План на следующую неделю ещё собирается — пришлём отдельно.",
@@ -81,6 +84,9 @@ const T = {
     accTitle: "Whole account this week", accSub: "including older videos — they keep gaining views",
     accNew: "videos published this week", accOld: "older videos kept gaining",
     accOldViews: "views came from older videos",
+    er: "Engagement rate", erHint: "reactions divided by reach",
+    erFoot: "ER is engagement rate: likes, comments, saves and shares divided by reach. In Instagram 1–3% is normal, above 5% is strong.",
+    followersHint: "end of week", noFollowers: "followers will appear in the next report",
     planNext: "Coming next week", planNextSub: "from the content plan — topics are already selected",
     why: "why we picked it", reel: "Reel", carousel: "Carousel", story: "Story",
     noPlanNext: "Next week's plan is still being finalised, we will send it separately.",
@@ -125,10 +131,16 @@ export function buildWeeklyHtml(a: WeeklyArgs): string {
       <td><div class="rt">${r.url ? `<a href="${esc(r.url)}" target="_blank" rel="noreferrer">${title}</a>` : title}</div>
           <div class="muted small">${dm(r.date)}${r.dur ? ` · ${r.dur} ${t.sec}` : ""}${r.net !== "instagram" ? ` · ${r.net}` : ""} ${young}</div></td>
       <td class="num strong">${n(r.views)}<div>${tag(r.x)}</div></td>
+      <td class="num">${(() => { const base = r.reach || r.views; const e = base ? Math.round((((r.likes || 0) + (r.comments || 0) + (r.saved || 0) + (r.shares || 0)) / base) * 1000) / 10 : 0; return `${fx(e)}%`; })()}</td>
       <td class="num">${r.ret != null ? `<div class="bar"><i style="width:${Math.min(100, r.ret)}%"></i></div><span class="small">${r.ret}%</span>` : "—"}</td>
       <td class="num">${n(r.saved)}</td><td class="num">${n(r.shares)}</td><td class="num">${n(r.comments)}</td></tr>`;
   }).join("");
 
+  const erOf = (t: { likes: number; comments: number; saved: number; shares: number; reach: number; views: number }) => {
+    const base = t.reach || t.views;
+    return base ? Math.round(((t.likes + t.comments + t.saved + t.shares) / base) * 1000) / 10 : 0;
+  };
+  const erCur = erOf(a.cur), erPrev = erOf(a.prev);
   const saveRate = a.cur.views ? Math.round((a.cur.saved / a.cur.views) * 1000) / 10 : 0;
   const perSaver = a.cur.saved ? Math.round(a.cur.views / a.cur.saved) : 0;
   const planPct = a.month && a.month.package ? Math.min(100, Math.round((a.month.published / a.month.package) * 100)) : 0;
@@ -224,7 +236,10 @@ a{color:var(--white);text-decoration:none}a:hover{color:var(--neon)}
   ${kpi(t.comments, a.cur.comments, a.prev.comments)}
   ${kpi(t.saves, a.cur.saved, a.prev.saved)}
   ${kpi(t.shares, a.cur.shares, a.prev.shares)}
-  ${a.followers ? `<div class="kpi"><div class="l">${t.followers}</div><div class="v">${n(a.followers.value)}</div>${a.followers.delta != null ? `<div class="d ${a.followers.delta >= 0 ? "up" : "down"}">${a.followers.delta >= 0 ? "+" : "−"}${n(Math.abs(a.followers.delta))}</div>` : ""}</div>` : ""}
+  <div class="kpi"><div class="l">${t.er}</div><div class="v">${fx(erCur)}%</div>${erPrev ? `<div class="d ${erCur >= erPrev ? "up" : "down"}">${t.was}: ${fx(erPrev)}%</div>` : `<div class="d">${t.erHint}</div>`}</div>
+  ${a.followers
+    ? `<div class="kpi"><div class="l">${t.followers}</div><div class="v">${n(a.followers.value)}</div>${a.followers.delta != null ? `<div class="d ${a.followers.delta >= 0 ? "up" : "down"}">${a.followers.delta >= 0 ? "+" : "−"}${n(Math.abs(a.followers.delta))} ${t.followersHint}</div>` : `<div class="d">${t.followersHint}</div>`}</div>`
+    : `<div class="kpi"><div class="l">${t.followers}</div><div class="v">—</div><div class="d">${t.noFollowers}</div></div>`}
 </div>
 ${a.excluded.length ? `<p class="excl">${t.excluded(a.excluded.length, a.excluded.map(x => x.views).join(", "))}</p>` : ""}
 
@@ -237,6 +252,7 @@ ${a.account?.ready ? `
   <div class="kpi"><div class="l">${t.comments}</div><div class="v">${n(a.account.comments)}</div></div>
   <div class="kpi"><div class="l">${t.saves}</div><div class="v">${n(a.account.saved)}</div></div>
   <div class="kpi"><div class="l">${t.shares}</div><div class="v">${n(a.account.shares)}</div></div>
+  <div class="kpi"><div class="l">${t.er}</div><div class="v">${fx(erOf({ ...a.account, views: a.account.views }))}%</div><div class="d">${t.erHint}</div></div>
   <div class="kpi"><div class="l">${t.reels}</div><div class="v">${a.account.newInWeek}</div><div class="d">${t.accNew} · ${a.account.older} ${t.accOld}</div></div>
 </div>` : `<div class="note">${t.accSoon}</div>`}
 
@@ -269,7 +285,7 @@ ${a.narrative.hit.length ? `<div class="why">${a.narrative.hit.map(x => `<div cl
 
 <h2>${t.allReels} <small>${t.normIs} — ${n(Math.round(a.norm))} ${t.viewsWord}</small></h2>
 <div class="tbl"><table>
-<thead><tr><th></th><th>${t.reels}</th><th>${t.views}</th><th>${t.retention}</th><th>${t.saves}</th><th>${t.shares}</th><th>${t.comments}</th></tr></thead>
+<thead><tr><th></th><th>${t.reels}</th><th>${t.views}</th><th>ER</th><th>${t.retention}</th><th>${t.saves}</th><th>${t.shares}</th><th>${t.comments}</th></tr></thead>
 <tbody>${rows || `<tr><td colspan="7" class="muted" style="padding:20px;text-align:center">—</td></tr>`}</tbody></table></div>
 
 <h2>${t.planNext} <small>${t.planNextSub}</small></h2>
@@ -295,7 +311,7 @@ ${a.narrative.cards.map(c => `<div class="card"><h3><span class="dot ${c.tone}">
 ${a.narrative.plan.length ? `<h2>${t.nextWeek}</h2>
 <ol class="plan">${a.narrative.plan.map(x => `<li>${esc(x)}</li>`).join("")}</ol>` : ""}
 
-<p class="foot">${t.sources(dm(a.generatedAt))}<br>EasyLife AI · easylifeai.biz</p>
+<p class="foot">${t.erFoot} ${t.sources(dm(a.generatedAt))}<br>EasyLife AI · easylifeai.biz</p>
 </div></body></html>`;
 }
 
