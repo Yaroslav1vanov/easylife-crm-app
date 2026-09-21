@@ -53,7 +53,7 @@ export async function collectClientWeek(sb: SupabaseClient, client: ClientLike, 
     avg_retention: rets.length ? Math.round(rets.reduce((a, b) => a + b, 0) / rets.length) : null,
     followers_end: (snap.data as any)?.followers ?? null,
     followers_gained: fd?.gained ?? null, followers_lost: fd?.lost ?? null,
-    top_post: top ? { title: safeText(top.title).slice(0, 120), url: top.url || null, views: top.views, date: top.date || null, image: top.image || null } : null,
+    top_post: top ? { title: safeText(top.title.slice(0, 120)), url: top.url || null, views: top.views, date: top.date || null, image: top.image || null } : null,
     collected_at: new Date().toISOString(),
   };
 }
