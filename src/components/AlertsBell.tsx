@@ -13,7 +13,7 @@ import { Bell } from "lucide-react";
 
 type Alert = {
   id: string;
-  kind: "script" | "montage" | "publish" | "month" | "onboarding";
+  kind: "script" | "montage" | "publish" | "month" | "onboarding" | "task";
   title: string;
   sub: string;
   days: number;          // насколько просрочено (дней)
@@ -26,6 +26,7 @@ const KIND: Record<Alert["kind"], { label: string; color: string; icon: string }
   publish:    { label: "Публикация", color: "#a8e063", icon: "🚀" },
   month:      { label: "Месяц",      color: "#ffae42", icon: "📅" },
   onboarding: { label: "Онбординг",  color: "#ff6b8b", icon: "🧩" },
+  task:       { label: "По клиенту",  color: "#2ee6c8", icon: "✅" },
 };
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
@@ -40,6 +41,7 @@ export default function AlertsBell({ role, align = "right" }: { role: string; al
   const [clients, setClients] = useState<Client[]>([]);
   const [scripts, setScripts] = useState<Script[]>([]);
   const [months, setMonths] = useState<ClientMonth[]>([]);
+  const [ctasks, setCtasks] = useState<any[]>([]);
   const [read, setRead] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -67,13 +69,17 @@ export default function AlertsBell({ role, align = "right" }: { role: string; al
     const me = session?.user?.id ? tm.find((t: TeamMember) => t.profile_id === session.user.id) || null : null;
     const mine = myClients(role, me, cls).filter(c => c.stage === "active");
     setClients(mine);
-    if (!mine.length) { setScripts([]); setMonths([]); return; }
+    if (!mine.length) { setScripts([]); setMonths([]); setCtasks([]); return; }
     const [all, cmRes] = await Promise.all([
       db.getScriptsLite(supabase, mine.map(c => c.id)),   // колокольчику тексты не нужны — только статусы и даты
       db.getClientMonths(supabase),
     ]);
     setScripts(all);
     setMonths((cmRes?.data || []).filter((m: ClientMonth) => mine.some(c => c.id === m.client_id)));
+    // задачи проджекта по клиентам: напоминаем о тех, чей срок наступил
+    const { data: ct } = await supabase.from("client_tasks").select("id, client_id, kind, title, due_date, status")
+      .in("client_id", mine.map(c => c.id)).eq("status", "open").lte("due_date", iso(new Date()));
+    setCtasks(ct || []);
   }
 
   const alerts = useMemo<Alert[]>(() => {
@@ -124,8 +130,17 @@ export default function AlertsBell({ role, align = "right" }: { role: string; al
       });
     }
 
+    for (const t of ctasks) {
+      const late = daysBetween(t.due_date, today);
+      out.push({
+        id: `ct-${t.id}`, kind: "task", title: String(t.title).slice(0, 52),
+        sub: `${nameOf(t.client_id)}${late > 0 ? ` · просрочено ${late} дн` : " · сегодня"}`,
+        days: late > 0 ? late : 0, href: "/dashboard/tasks",
+      });
+    }
+
     return out.sort((a, b) => b.days - a.days);
-  }, [scripts, months, clients]);
+  }, [scripts, months, clients, ctasks]);
 
   const unread = alerts.filter(a => !read.has(a.id));
   const markAllRead = () => {

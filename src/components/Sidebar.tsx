@@ -11,7 +11,7 @@ import { useIsMobile } from "@/lib/useMedia";
 import {
   LayoutDashboard, Users, FileText, Scissors, Send, Calendar, Rocket, Flame,
   HandshakeIcon, BarChart3, Mic, Coins, ClipboardList, BookOpen, Settings, LogOut, Moon, Sun, Wallet,
-  CalendarCheck, CalendarDays, MoreHorizontal, Target, type LucideIcon,
+  CalendarCheck, CalendarDays, MoreHorizontal, Target, ListChecks, type LucideIcon,
 } from "lucide-react";
 
 function BrandMark({ size = 26 }: { size?: number }) {
@@ -31,6 +31,7 @@ type NavGroup = { title: string; items: NavItem[] };
 const GROUPS: NavGroup[] = [
   { title: "Работа", items: [
     { id: "today", path: "/dashboard/today", icon: CalendarCheck, label: "Сегодня" },
+    { id: "tasks", path: "/dashboard/tasks", icon: ListChecks, label: "Задачи" },
     { id: "dashboard", path: "/dashboard", icon: LayoutDashboard, label: "Дашборд" },
     { id: "transcribe", path: "/dashboard/transcribe", icon: Mic, label: "Транскрибация" },
     { id: "references", path: "/dashboard/references", icon: Flame, label: "Референсы", short: "Рефы" },

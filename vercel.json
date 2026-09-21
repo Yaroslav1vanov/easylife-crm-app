@@ -15,6 +15,10 @@
     {
       "path": "/api/cron/reel-snapshots",
       "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/client-tasks",
+      "schedule": "30 4 * * *"
     }
   ]
 }
