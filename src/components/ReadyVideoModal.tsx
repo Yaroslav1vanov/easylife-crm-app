@@ -151,8 +151,15 @@ export default function ReadyVideoModal({ clients, defaultClientId, onClose, onC
                     <input type="datetime-local" value={r.when} onChange={e => patch(i, { when: e.target.value, custom: true })} style={{ ...inp, width: 200, padding: "6px 8px", fontSize: 12 }} />
                     <span style={{ fontSize: 11, color: "var(--t3)" }}>{fmtInTz(utcOf(r.when), tz)} · {tzShort(tz)}</span>
                   </div>
-                  <textarea value={r.caption} onChange={e => patch(i, { caption: e.target.value })} rows={2} placeholder="Подпись к посту (одна на все сети, потом можно поправить в карточке)"
-                    style={{ ...inp, padding: "7px 9px", fontSize: 12, resize: "vertical" }} />
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                      <span style={{ fontSize: 10, fontWeight: 800, color: "var(--t3)", letterSpacing: .5, textTransform: "uppercase" }}>Описание к ролику</span>
+                      <span style={{ fontSize: 10.5, color: r.caption.length > 2200 ? "var(--rd)" : "var(--t3)" }}>{r.caption.length} знаков</span>
+                    </div>
+                    <textarea value={r.caption} onChange={e => patch(i, { caption: e.target.value })} rows={3}
+                      placeholder="Текст поста с хэштегами — уйдёт во все выбранные сети. Оставить пустым тоже можно."
+                      style={{ ...inp, padding: "8px 9px", fontSize: 12, resize: "vertical", lineHeight: 1.5 }} />
+                  </div>
                 </div>
                 <button onClick={() => { if (r.preview) URL.revokeObjectURL(r.preview); setRows(a => a.filter((_, k) => k !== i)); }}
                   className="v2-iconbtn" style={{ alignSelf: "flex-start" }} aria-label="Убрать"><Trash2 size={14} /></button>
@@ -161,6 +168,7 @@ export default function ReadyVideoModal({ clients, defaultClientId, onClose, onC
             <label style={{ padding: 14, borderRadius: 10, border: "1.5px dashed var(--brd)", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: "var(--pu)", fontSize: 12.5, fontWeight: 700, cursor: "pointer", textAlign: "center" }}>
               + Добавить видео
               <span style={{ fontSize: 10.5, color: "var(--t3)", fontWeight: 500 }}>mp4 9:16, можно несколько файлов сразу</span>
+              <span style={{ fontSize: 10.5, color: "var(--t3)", fontWeight: 500 }}>у каждого ролика появится своё поле «описание» и своё время</span>
               <input type="file" accept="video/*" multiple onChange={e => { addFiles(Array.from(e.target.files || [])); e.target.value = ""; }} style={{ display: "none" }} />
             </label>
             <div style={{ display: "flex", gap: 6 }}>
