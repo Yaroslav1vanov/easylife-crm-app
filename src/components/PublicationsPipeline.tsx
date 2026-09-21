@@ -6,6 +6,7 @@ import { getStore, setStore } from "@/lib/store";
 import Avatar from "@/components/Avatar";
 import PublicationModal, { isVideoUrl, type PublishOpts, type StatusItem } from "@/components/PublicationModal";
 import StoryBatchModal from "@/components/StoryBatchModal";
+import ReadyVideoModal, { type ReadyDraft } from "@/components/ReadyVideoModal";
 import Tour, { TourButton, type TourStep } from "@/components/Tour";
 import { DEFAULT_TZ, tzShort, nowInTz, utcToZonedInput, zonedInputToUtc, fmtInTz } from "@/lib/tz";
 import {
@@ -49,6 +50,7 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
   const [brandsBusy, setBrandsBusy] = useState(false);
   const [carouselPicker, setCarouselPicker] = useState(false);
   const [storyOpen, setStoryOpen] = useState(false);
+  const [readyOpen, setReadyOpen] = useState(false);
   const [tourOpen, setTourOpen] = useState(false);
   const [clientFilter, setClientFilter] = useState<number | "all">("all");
   const [clientMenu, setClientMenu] = useState(false);
@@ -136,6 +138,34 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
       for (const p of data) { const res = await publishToMetricool(p.id); if (!res.ok) fail++; }
       if (fail) alert(`Запланировано ${data.length - fail} из ${data.length}. Карточки с ошибкой — в колонке «Ошибка».`);
     }
+  }
+
+  /* Готовый ролик без сценария: файлы льём в R2, карточки создаём сразу с подписью и сетями. */
+  async function createReadyVideos(clientId: number, items: ReadyDraft[], channels: string[], scheduleNow: boolean) {
+    const uploaded: { video_url: string; publish_at: string | null; caption: string }[] = [];
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      if (it.file) {
+        const r = await fetch("/api/r2/sign", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ filename: it.file.name, clientId, scriptId: `ready${Date.now()}-${i}` }) });
+        const j = await r.json();
+        if (!r.ok) { alert("R2: " + (j?.error || "ошибка подписи")); return; }
+        const put = await fetch(j.uploadUrl, { method: "PUT", body: it.file, headers: it.file.type ? { "content-type": it.file.type } : {} });
+        if (!put.ok) { alert(`Ролик ${i + 1} не загрузился (${put.status})`); return; }
+        uploaded.push({ video_url: j.publicUrl, publish_at: it.publishAt, caption: it.caption });
+      } else if (it.url) {
+        uploaded.push({ video_url: it.url, publish_at: it.publishAt, caption: it.caption });
+      }
+    }
+    if (!uploaded.length) return;
+    const { data, error } = await db.createReadyPublications(supabase, clientId, uploaded, channels);
+    if (error) { alert("Не удалось создать публикации: " + error.message); return; }
+    setPubs(arr => [...data, ...arr]);
+    setReadyOpen(false);
+    if (scheduleNow) {
+      let fail = 0;
+      for (const p of data) { const res = await publishToMetricool(p.id); if (!res.ok) fail++; }
+      if (fail) alert(`Запланировано ${data.length - fail} из ${data.length}. Карточки с ошибкой — в колонке «Ошибка».`);
+    } else if (data.length === 1) setOpenId(data[0].id);
   }
 
   async function createCarousel(clientId: number) {
@@ -260,6 +290,10 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
           <button data-tour="pp-brands" onClick={loadBrands} disabled={brandsBusy}
             style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: 10, background: "rgba(66,212,244,0.1)", border: "1px solid var(--brd)", color: "var(--cy)", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
             <Rocket size={13} /> {brandsBusy ? "Гружу…" : "Мои бренды"}
+          </button>
+          <button onClick={() => setReadyOpen(true)} disabled={tableMissing} title="Видео уже готово — просто поставить в график, без сценария"
+            style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: 10, background: "rgba(168,224,99,0.12)", border: "1px solid var(--brd)", color: "var(--gr)", fontSize: 12, fontWeight: 700, cursor: tableMissing ? "not-allowed" : "pointer" }}>
+            <Film size={13} /> + Готовый ролик
           </button>
           <button onClick={() => setStoryOpen(true)} disabled={tableMissing}
             style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: 10, background: "rgba(236,72,153,0.12)", border: "1px solid var(--brd)", color: "var(--pk)", fontSize: 12, fontWeight: 700, cursor: tableMissing ? "not-allowed" : "pointer" }}>
@@ -406,6 +440,7 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
           onCheckStatus={checkStatus}
         />
       )}
+      {readyOpen && <ReadyVideoModal clients={clients} defaultClientId={clientFilter === "all" ? null : clientFilter} onClose={() => setReadyOpen(false)} onCreate={createReadyVideos} />}
       {storyOpen && <StoryBatchModal clients={clients} defaultClientId={clientFilter === "all" ? null : clientFilter} onClose={() => setStoryOpen(false)} onCreate={createStories} />}
       <Tour steps={PIPELINE_TOUR} open={tourOpen} onClose={() => { setTourOpen(false); setOpenId(null); }} />
       <style>{`.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}@media(max-width:767px){.pp-board{grid-template-columns:1fr !important}.pp-board>div{min-height:auto !important}}`}</style>

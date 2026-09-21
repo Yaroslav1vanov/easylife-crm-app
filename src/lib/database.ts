@@ -555,6 +555,18 @@ const db = {
     const { data, error } = await sb.from("publications").insert(row).select("*").single();
     return { data: (data || null) as Publication | null, error };
   },
+  // Готовый ролик без сценария: видео уже есть, нужно только поставить в график.
+  async createReadyPublications(sb: SupabaseClient, clientId: number, items: { video_url: string; publish_at: string | null; caption?: string | null }[], channels: string[]) {
+    const rows = items.map(i => ({
+      script_id: null, client_id: clientId, content_type: "reel" as ContentType,
+      video_url: i.video_url, publish_at: i.publish_at, target_channels: channels,
+      base_text: i.caption || null, caption_ig: i.caption || null, caption_tt: i.caption || null,
+      threads_post: i.caption || null, yt_description: i.caption || null,
+      pub_status: "queued" as PubStatus,
+    }));
+    const { data, error } = await sb.from("publications").insert(rows).select("*");
+    return { data: (data || []) as Publication[], error };
+  },
   // Серия сторис: по карточке на кадр, время каждого следующего кадра — через заданный интервал.
   async createStoryPublications(sb: SupabaseClient, clientId: number, frames: { media_url: string; publish_at: string | null; note?: string | null }[]) {
     const rows = frames.map(f => ({

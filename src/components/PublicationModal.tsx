@@ -142,7 +142,7 @@ export default function PublicationModal({ pub, client, script, onClose, onUpdat
           {client && <Avatar name={`${client.name} ${client.surname || ""}`} src={client.avatar_url} size={40} />}
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 15, fontWeight: 800, color: "var(--t1)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{client?.name} {client?.surname || ""}</div>
-            <div style={{ fontSize: 12, color: "var(--t3)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{isStory ? "Сторис" : isCarousel ? "Карусель" : `${script?.order_num ? `#${script.order_num} · ` : ""}${script?.hook_text || script?.hook || "Без темы"}`}</div>
+            <div style={{ fontSize: 12, color: "var(--t3)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{isStory ? "Сторис" : isCarousel ? "Карусель" : script ? `${script.order_num ? `#${script.order_num} · ` : ""}${script.hook_text || script.hook || "Без темы"}` : `Готовый ролик${(pub.base_text || "").trim() ? ` · ${(pub.base_text || "").trim().split("\n")[0].slice(0, 60)}` : ""}`}</div>
           </div>
           <span className={`v2-chip ${meta.cls}`}>{meta.l}</span>
           <button className="v2-iconbtn" onClick={onClose} aria-label="Закрыть"><X size={16} /></button>
