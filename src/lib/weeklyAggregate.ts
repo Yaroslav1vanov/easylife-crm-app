@@ -53,7 +53,7 @@ export async function collectClientWeek(sb: SupabaseClient, client: ClientLike, 
     avg_retention: rets.length ? Math.round(rets.reduce((a, b) => a + b, 0) / rets.length) : null,
     followers_end: (snap.data as any)?.followers ?? null,
     followers_gained: fd?.gained ?? null, followers_lost: fd?.lost ?? null,
-    top_post: top ? { title: top.title.slice(0, 120), url: top.url, views: top.views, date: top.date, image: top.image } : null,
+    top_post: top ? { title: safeText(top.title).slice(0, 120), url: top.url || null, views: top.views, date: top.date || null, image: top.image || null } : null,
     collected_at: new Date().toISOString(),
   };
 }
@@ -65,4 +65,14 @@ export function weeksBetween(start: string, end: string): string[] {
   const last = mondayOf(end);
   while (w <= last && out.length < 200) { out.push(w); w = addDays(w, 7); }
   return out;
+}
+
+/** Текст без управляющих символов и «половинок» эмодзи — иначе Postgres не принимает JSON. */
+function safeText(v: string): string {
+  return String(v || "")
+    .replace(/[\u0000-\u001F\u007F]/g, " ")
+    .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/g, "")
+    .replace(/(^|[^\uD800-\uDBFF])[\uDC00-\uDFFF]/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
 }

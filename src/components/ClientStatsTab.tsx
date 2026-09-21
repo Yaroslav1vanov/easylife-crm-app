@@ -28,6 +28,12 @@ const fmt = (v: number | null | undefined) => {
 const pct = (cur: number | null, prev: number | null) => (cur == null || !prev ? null : Math.round(((cur - prev) / prev) * 100));
 const curYm = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
 
+type Reel = {
+  date: string; net: string; title: string; ourTitle: string | null; url: string | null; image: string | null;
+  views: number; reach: number | null; likes: number | null; comments: number | null; saves: number | null;
+  shares: number | null; er: number | null; retention: number | null; duration: number | null; x: number; isOurs: boolean;
+};
+
 export default function ClientStatsTab({ clientId, hasMetricool }: { clientId: number; hasMetricool: boolean }) {
   const supabase = createClient();
   const [rows, setRows] = useState<Row[]>([]);
@@ -35,6 +41,20 @@ export default function ClientStatsTab({ clientId, hasMetricool }: { clientId: n
   const [net, setNet] = useState("all");
   const [sel, setSel] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [openYm, setOpenYm] = useState<string | null>(null);              // раскрытый месяц в таблице
+  const [reels, setReels] = useState<Record<string, Reel[] | "loading">>({});
+
+  async function toggleMonth(ym: string) {
+    if (openYm === ym) { setOpenYm(null); return; }
+    setOpenYm(ym);
+    if (reels[ym]) return;
+    setReels(r => ({ ...r, [ym]: "loading" }));
+    try {
+      const res = await fetch(`/api/clients/${clientId}/reels?ym=${ym}`, { cache: "no-store" });
+      const j = await res.json();
+      setReels(r => ({ ...r, [ym]: (j.reels || []) as Reel[] }));
+    } catch { setReels(r => ({ ...r, [ym]: [] })); }
+  }
 
   async function load() {
     const { data } = await supabase.from("client_monthly_stats").select("*").eq("client_id", clientId).order("ym");
@@ -193,8 +213,11 @@ export default function ClientStatsTab({ clientId, hasMetricool }: { clientId: n
                 const p = arr[k + 1];
                 const d = pct(m.views, p?.views);
                 return (
-                  <tr key={m.ym} onClick={() => setSel(m.ym)} style={{ borderTop: "1px solid var(--brd)", cursor: "pointer", background: m.ym === sel ? "rgba(157,107,255,0.08)" : "transparent" }}>
-                    <td style={{ padding: "10px 12px", fontWeight: 700, color: "var(--t1)" }}>{ymLabel(m.ym)}{m.partial ? " *" : ""}</td>
+                  <><tr key={m.ym} onClick={() => { setSel(m.ym); toggleMonth(m.ym); }} style={{ borderTop: "1px solid var(--brd)", cursor: "pointer", background: m.ym === sel ? "rgba(157,107,255,0.08)" : "transparent" }}>
+                    <td style={{ padding: "10px 12px", fontWeight: 700, color: "var(--t1)" }}>
+                      <span style={{ color: "var(--pu)", marginRight: 6, display: "inline-block", transform: openYm === m.ym ? "rotate(90deg)" : "none", transition: ".15s" }}>›</span>
+                      {ymLabel(m.ym)}{m.partial ? " *" : ""}
+                    </td>
                     <td style={{ padding: "10px 12px", textAlign: "right", whiteSpace: "nowrap" }}>{fmt(m.posts)}{m.our ? <span style={{ fontSize: 10.5, color: "var(--t3)" }}> · наших {m.our}</span> : null}</td>
                     <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 700, color: "var(--t1)" }}>
                       {fmt(m.views)}{d != null && <span style={{ marginLeft: 6, fontSize: 10.5, color: d >= 0 ? "var(--gr)" : "var(--rd)" }}>{d >= 0 ? "+" : ""}{d}%</span>}
@@ -206,6 +229,52 @@ export default function ClientStatsTab({ clientId, hasMetricool }: { clientId: n
                     <td style={{ padding: "10px 12px", textAlign: "right" }}>{fmt(m.shares)}</td>
                     <td style={{ padding: "10px 12px", textAlign: "right" }}>{m.fEnd != null ? `${fmt(m.fEnd)}${m.fStart != null ? ` (${m.fEnd - m.fStart >= 0 ? "+" : ""}${fmt(m.fEnd - m.fStart)})` : ""}` : "—"}</td>
                   </tr>
+                  {openYm === m.ym && (
+                    <tr key={`${m.ym}-reels`}>
+                      <td colSpan={9} style={{ padding: 0, background: "rgba(10,1,24,.45)" }}>
+                        {reels[m.ym] === "loading" ? (
+                          <div style={{ padding: "14px 16px", fontSize: 12, color: "var(--t3)" }}>Загружаю ролики месяца…</div>
+                        ) : !reels[m.ym] || (reels[m.ym] as Reel[]).length === 0 ? (
+                          <div style={{ padding: "14px 16px", fontSize: 12, color: "var(--t3)" }}>Роликов за этот месяц Metricool не отдал.</div>
+                        ) : (
+                          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                            <thead><tr style={{ color: "var(--t3)", fontSize: 9.5, textTransform: "uppercase", letterSpacing: .4 }}>
+                              {["Дата", "Ролик", "Просмотры", "Охват", "Лайки", "Комм.", "Сохр.", "Репосты", "ER", "Досмотр"].map(h => (
+                                <th key={h} style={{ textAlign: h === "Дата" || h === "Ролик" ? "left" : "right", padding: "8px 12px", fontWeight: 800 }}>{h}</th>
+                              ))}
+                            </tr></thead>
+                            <tbody>
+                              {(reels[m.ym] as Reel[]).map((r, idx) => (
+                                <tr key={idx} style={{ borderTop: "1px solid var(--brd)" }}>
+                                  <td style={{ padding: "8px 12px", color: "var(--t2)", whiteSpace: "nowrap" }}>{r.date.slice(8, 10)}.{r.date.slice(5, 7)}</td>
+                                  <td style={{ padding: "8px 12px", maxWidth: 340 }}>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                      {r.image ? <img src={r.image} alt="" style={{ width: 26, height: 34, objectFit: "cover", borderRadius: 4, flexShrink: 0 }} onError={e => { (e.target as HTMLImageElement).style.visibility = "hidden"; }} /> : null}
+                                      <div style={{ minWidth: 0 }}>
+                                        <a href={r.url || "#"} target="_blank" rel="noreferrer" style={{ color: "var(--t1)", textDecoration: "none", display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.title}</a>
+                                        <div style={{ fontSize: 9.5, color: "var(--t3)" }}>
+                                          {NET_LABEL[r.net] || r.net}{r.duration ? ` · ${r.duration} сек` : ""}{r.isOurs ? " · наш" : ""}{r.x >= 1.5 ? ` · ×${String(Math.round(r.x * 10) / 10).replace(".", ",")} к норме` : ""}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td style={{ padding: "8px 12px", textAlign: "right", fontWeight: 700, color: "var(--t1)" }}>{fmt(r.views)}</td>
+                                  <td style={{ padding: "8px 12px", textAlign: "right" }}>{fmt(r.reach)}</td>
+                                  <td style={{ padding: "8px 12px", textAlign: "right" }}>{fmt(r.likes)}</td>
+                                  <td style={{ padding: "8px 12px", textAlign: "right" }}>{fmt(r.comments)}</td>
+                                  <td style={{ padding: "8px 12px", textAlign: "right" }}>{fmt(r.saves)}</td>
+                                  <td style={{ padding: "8px 12px", textAlign: "right" }}>{fmt(r.shares)}</td>
+                                  <td style={{ padding: "8px 12px", textAlign: "right" }}>{r.er != null ? `${String(r.er).replace(".", ",")}%` : "—"}</td>
+                                  <td style={{ padding: "8px 12px", textAlign: "right" }}>{r.retention != null ? `${r.retention}%` : "—"}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        )}
+                      </td>
+                    </tr>
+                  )}
+                  </>
                 );
               })}
             </tbody>
