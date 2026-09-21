@@ -16,7 +16,7 @@ const CH: { id: string; label: string; Icon: LucideIcon }[] = [
 ];
 
 export type ReadyDraft = { file: File | null; url: string; publishAt: string | null; caption: string };
-type Row = { key: string; file: File | null; url: string; preview: string; name: string; when: string; caption: string };
+type Row = { key: string; file: File | null; url: string; preview: string; name: string; when: string; custom: boolean; caption: string };
 
 export default function ReadyVideoModal({ clients, defaultClientId, onClose, onCreate }: {
   clients: Client[];
@@ -31,27 +31,37 @@ export default function ReadyVideoModal({ clients, defaultClientId, onClose, onC
   const [rows, setRows] = useState<Row[]>([]);
   const [channels, setChannels] = useState<string[]>([]);
   const [link, setLink] = useState("");
+  const [start, setStart] = useState("");          // время первого ролика
+  const [step, setStep] = useState(1440);          // шаг между роликами, минуты (0 = все в одно время)
   const [scheduleNow, setScheduleNow] = useState(true);
   const [busy, setBusy] = useState(false);
 
   // сети по умолчанию — те, что стоят у клиента
   useEffect(() => { setChannels((client?.platforms || []).filter(p => CH.some(c => c.id === p))); }, [clientId]); // eslint-disable-line react-hooks/exhaustive-deps
+  // время первого ролика — завтра в обычное время публикации клиента
+  useEffect(() => {
+    const [hh, mm] = (client?.default_post_time || "12:00").slice(0, 5).split(":").map(Number);
+    const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(hh || 12, mm || 0, 0, 0);
+    setStart(utcToZonedInput(d.toISOString(), tz));
+  }, [clientId, tz]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => rows.forEach(r => r.preview && URL.revokeObjectURL(r.preview)), []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { const h = (e: KeyboardEvent) => { if (e.key === "Escape" && !busy) onClose(); }; window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h); }, [busy, onClose]);
 
-  /* время по умолчанию: первый ролик — завтра в обычное время публикации клиента, дальше по дню на каждый */
-  function defaultWhen(i: number) {
-    const [hh, mm] = (client?.default_post_time || "12:00").slice(0, 5).split(":").map(Number);
-    const d = new Date(); d.setDate(d.getDate() + 1 + i); d.setHours(hh || 12, mm || 0, 0, 0);
-    return utcToZonedInput(d.toISOString(), tz);
+  /* время i-го ролика = общий старт + шаг × i (пока его не поправили руками) */
+  const startUtc = start ? zonedInputToUtc(start, tz) : null;
+  function slotWhen(i: number) {
+    if (!startUtc) return "";
+    return utcToZonedInput(new Date(Date.parse(startUtc) + i * step * 60000).toISOString(), tz);
   }
+  // сдвинули старт или шаг — пересчитываем всё, кроме роликов с ручным временем
+  useEffect(() => { setRows(a => a.map((r, i) => (r.custom ? r : { ...r, when: slotWhen(i) }))); }, [start, step, tz]); // eslint-disable-line react-hooks/exhaustive-deps
   const addFiles = (fs: File[]) => setRows(a => [...a, ...fs.map((file, k) => ({
     key: `${Date.now()}-${k}-${file.name}`, file, url: "", preview: URL.createObjectURL(file),
-    name: file.name, when: defaultWhen(a.length + k), caption: "",
+    name: file.name, when: slotWhen(a.length + k), custom: false, caption: "",
   }))]);
   const addLink = () => {
     const u = link.trim(); if (!/^https?:\/\//i.test(u)) return;
-    setRows(a => [...a, { key: `${Date.now()}-link`, file: null, url: u, preview: "", name: u.split("/").pop() || u, when: defaultWhen(a.length), caption: "" }]);
+    setRows(a => [...a, { key: `${Date.now()}-link`, file: null, url: u, preview: "", name: u.split("/").pop() || u, when: slotWhen(a.length), custom: false, caption: "" }]);
     setLink("");
   };
   const patch = (i: number, p: Partial<Row>) => setRows(a => a.map((r, k) => (k === i ? { ...r, ...p } : r)));
@@ -112,6 +122,21 @@ export default function ReadyVideoModal({ clients, defaultClientId, onClose, onC
           {!channels.length && <div className="v2-hint" style={{ marginTop: 5 }}>выбери хотя бы одну сеть</div>}
         </div>
 
+        <div className="rv-when">
+          <div>
+            {lbl(`Первый ролик · ${tzShort(tz)}`)}
+            <input type="datetime-local" value={start} onChange={e => setStart(e.target.value)} style={inp} />
+            <div className="v2-hint" style={{ marginTop: 5 }}>сейчас у клиента {nowInTz(tz)}</div>
+          </div>
+          <div>
+            {lbl("Если роликов несколько")}
+            <select value={step} onChange={e => setStep(Number(e.target.value))} style={inp}>
+              {[[0, "все в одно время"], [60, "каждый час"], [180, "каждые 3 часа"], [360, "каждые 6 часов"], [1440, "по одному в день"], [2880, "раз в 2 дня"], [4320, "раз в 3 дня"], [10080, "раз в неделю"]].map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+            <div className="v2-hint" style={{ marginTop: 5 }}>время каждого ролика ниже можно поправить отдельно</div>
+          </div>
+        </div>
+
         <div>
           {lbl(`Ролики · ${rows.length}`)}
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -123,7 +148,7 @@ export default function ReadyVideoModal({ clients, defaultClientId, onClose, onC
                 <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 6 }}>
                   <div style={{ fontSize: 11.5, color: "var(--t2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</div>
                   <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-                    <input type="datetime-local" value={r.when} onChange={e => patch(i, { when: e.target.value })} style={{ ...inp, width: 200, padding: "6px 8px", fontSize: 12 }} />
+                    <input type="datetime-local" value={r.when} onChange={e => patch(i, { when: e.target.value, custom: true })} style={{ ...inp, width: 200, padding: "6px 8px", fontSize: 12 }} />
                     <span style={{ fontSize: 11, color: "var(--t3)" }}>{fmtInTz(utcOf(r.when), tz)} · {tzShort(tz)}</span>
                   </div>
                   <textarea value={r.caption} onChange={e => patch(i, { caption: e.target.value })} rows={2} placeholder="Подпись к посту (одна на все сети, потом можно поправить в карточке)"
@@ -149,7 +174,7 @@ export default function ReadyVideoModal({ clients, defaultClientId, onClose, onC
 
         <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--t1)", cursor: "pointer" }}>
           <input type="checkbox" checked={scheduleNow} onChange={e => setScheduleNow(e.target.checked)} />
-          Сразу запланировать в Metricool <span style={{ color: "var(--t3)", fontSize: 12 }}>— иначе карточки лягут в «Готово к публикации»</span>
+          Сразу отправить в Metricool на указанное время <span style={{ color: "var(--t3)", fontSize: 12 }}>— публикует Metricool сам, ничего больше жать не нужно. Снять галочку — карточки лягут в «Готово к публикации».</span>
         </label>
 
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", borderTop: "1px solid var(--brd)", paddingTop: 12 }}>
@@ -159,7 +184,7 @@ export default function ReadyVideoModal({ clients, defaultClientId, onClose, onC
           </button>
         </div>
       </div>
-      <style>{`.rv-row{display:flex;gap:10px;align-items:stretch;padding:10px;border:1px solid var(--brd);border-radius:12px;background:var(--inset)}`}</style>
+      <style>{`.rv-when{display:grid;grid-template-columns:1fr 1fr;gap:14px}@media(max-width:640px){.rv-when{grid-template-columns:1fr}}.rv-row{display:flex;gap:10px;align-items:stretch;padding:10px;border:1px solid var(--brd);border-radius:12px;background:var(--inset)}`}</style>
     </div>
   );
 }
