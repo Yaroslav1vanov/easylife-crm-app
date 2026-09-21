@@ -13,10 +13,26 @@ export async function GET(req: Request) {
     const j = await r.json().catch(() => null);
     if (!r.ok) return NextResponse.json({ error: j?.message || `Metricool ${r.status}` }, { status: 502 });
     // нормализуем: оставляем имя + blogId
-    const list = (Array.isArray(j) ? j : j?.data || []).map((b: any) => ({
-      blogId: b.blogId ?? b.id ?? b.blog ?? null,
-      label: b.label ?? b.title ?? b.name ?? b.brand ?? "(без названия)",
-    })).filter((b: any) => b.blogId != null);
+    // Название бренда в Metricool часто пустое — подписываем по подключённому аккаунту
+    const handles = (b: any) => {
+      const out: { net: string; handle: string }[] = [];
+      if (b.instagram) out.push({ net: "IG", handle: String(b.instagram) });
+      if (b.tiktok) out.push({ net: "TT", handle: String(b.tiktok) });
+      if (b.youtube || b.youtubeChannelName) out.push({ net: "YT", handle: String(b.youtubeChannelName || b.youtube) });
+      if (b.threads || b.threadsAccountName) out.push({ net: "Threads", handle: String(b.threadsAccountName || b.threads) });
+      if (b.facebook || b.facebookPageId) out.push({ net: "FB", handle: String(b.facebook || b.facebookPageId) });
+      return out;
+    };
+    const list = (Array.isArray(j) ? j : j?.data || []).map((b: any) => {
+      const hs = handles(b);
+      const name = b.label ?? b.title ?? b.name ?? b.brand ?? null;
+      return {
+        blogId: b.blogId ?? b.id ?? b.blog ?? null,
+        label: name || (hs.length ? `@${hs[0].handle}` : "(без названия · сети не подключены)"),
+        networks: hs.map(h => h.net),
+        handles: hs.map(h => `${h.net} @${h.handle}`).join(" · "),
+      };
+    }).filter((b: any) => b.blogId != null);
     // ?raw=1&blogId=… — все поля бренда: видно, какие сети реально привязаны
     const q = new URL(req.url).searchParams;
     if (q.get("raw")) {

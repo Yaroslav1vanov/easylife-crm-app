@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Rocket, Check, X, ChevronDown, Link2, ExternalLink, RefreshCw } from "lucide-react";
 
-type Brand = { blogId: number; label: string };
+type Brand = { blogId: number; label: string; networks?: string[]; handles?: string };
 
 // Привязка клиента к бренду Metricool: грузит список брендов и даёт выбрать,
 // вместо ручного ввода blogId. value — текущий blogId, onPick сохраняет его.
@@ -87,7 +87,10 @@ export default function MetricoolBrandPicker({ blogId, onPick }: { blogId: numbe
                   style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "7px 8px", borderRadius: 8, background: on ? "rgba(157,107,255,0.12)" : "transparent", border: "none", color: "var(--t1)", fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "left" }}
                   onMouseEnter={e => { if (!on) e.currentTarget.style.background = "var(--inset2)"; }} onMouseLeave={e => { if (!on) e.currentTarget.style.background = "transparent"; }}>
                   {on ? <Check size={13} style={{ color: "var(--pu)", flexShrink: 0 }} /> : <Link2 size={13} style={{ color: "var(--t3)", flexShrink: 0 }} />}
-                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{b.label}</span>
+                  <span style={{ overflow: "hidden", flex: 1, minWidth: 0 }}>
+                    <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{b.label}</span>
+                    {b.handles ? <span style={{ display: "block", fontSize: 10, color: "var(--t3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{b.handles}</span> : null}
+                  </span>
                   <span style={{ fontFamily: "monospace", fontSize: 10, color: "var(--t3)" }}>#{b.blogId}</span>
                 </button>
               );
