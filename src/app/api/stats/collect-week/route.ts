@@ -44,8 +44,14 @@ export async function GET(req: Request) {
       const row = await collectClientWeek(sb, c, w);
       if (row && (row.reels_count > 0 || row.followers_gained)) rows.push(row);
     }
+    if (sp.get("dry")) return NextResponse.json({ ok: true, dry: true, client: c.name, rows: rows.slice(0, 3) });
     if (rows.length) {
-      const { error } = await sb.from("client_weekly_stats").upsert(rows, { onConflict: "client_id,week_start" });
+      // пишем по одной неделе: так видно, какая именно строка ломается
+      for (const row of rows) {
+        const { error } = await sb.from("client_weekly_stats").upsert([row], { onConflict: "client_id,week_start" });
+        if (error) return NextResponse.json({ error: error.message, client: c.name, week: row.week_start, row }, { status: 500 });
+      }
+      const error = null as any;
       if (error) return NextResponse.json({ error: error.message, client: c.name }, { status: 500 });
     }
     out.push({ client: c.name, weeks: rows.length, from: weeks[0] });
