@@ -140,24 +140,11 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
     }
   }
 
-  /* Готовый ролик без сценария: файлы льём в R2, карточки создаём сразу с подписью и сетями. */
+  /* Готовый ролик без сценария: файлы уже залиты модалкой, здесь только карточки и отправка. */
   async function createReadyVideos(clientId: number, items: ReadyDraft[], channels: string[], scheduleNow: boolean) {
-    const uploaded: { video_url: string; publish_at: string | null; caption: string }[] = [];
-    for (let i = 0; i < items.length; i++) {
-      const it = items[i];
-      if (it.file) {
-        const r = await fetch("/api/r2/sign", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ filename: it.file.name, clientId, scriptId: `ready${Date.now()}-${i}` }) });
-        const j = await r.json();
-        if (!r.ok) { alert("R2: " + (j?.error || "ошибка подписи")); return; }
-        const put = await fetch(j.uploadUrl, { method: "PUT", body: it.file, headers: it.file.type ? { "content-type": it.file.type } : {} });
-        if (!put.ok) { alert(`Ролик ${i + 1} не загрузился (${put.status})`); return; }
-        uploaded.push({ video_url: j.publicUrl, publish_at: it.publishAt, caption: it.caption });
-      } else if (it.url) {
-        uploaded.push({ video_url: it.url, publish_at: it.publishAt, caption: it.caption });
-      }
-    }
-    if (!uploaded.length) return;
-    const { data, error } = await db.createReadyPublications(supabase, clientId, uploaded, channels);
+    if (!items.length) return;
+    const { data, error } = await db.createReadyPublications(supabase,
+      clientId, items.map(i => ({ video_url: i.videoUrl, publish_at: i.publishAt, caption: i.caption })), channels);
     if (error) { alert("Не удалось создать публикации: " + error.message); return; }
     setPubs(arr => [...data, ...arr]);
     setReadyOpen(false);

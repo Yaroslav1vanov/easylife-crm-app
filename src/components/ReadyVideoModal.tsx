@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Client } from "@/lib/database";
 import Avatar from "@/components/Avatar";
 import { DEFAULT_TZ, tzShort, nowInTz, utcToZonedInput, zonedInputToUtc, fmtInTz } from "@/lib/tz";
@@ -15,8 +15,28 @@ const CH: { id: string; label: string; Icon: LucideIcon }[] = [
   { id: "threads", label: "Threads", Icon: AtSign },
 ];
 
-export type ReadyDraft = { file: File | null; url: string; publishAt: string | null; caption: string };
-type Row = { key: string; file: File | null; url: string; preview: string; name: string; when: string; custom: boolean; caption: string };
+export type ReadyDraft = { videoUrl: string; publishAt: string | null; caption: string };
+type Row = { key: string; file: File | null; url: string; preview: string; name: string; when: string; custom: boolean; caption: string; uploaded?: string; pct?: number; err?: string };
+
+/* Заливка в R2 через XHR: видно проценты, и видно, если канал встал.
+   Нет ни байта 90 секунд — рвём и говорим об этом, иначе браузер висит молча часами. */
+function putWithProgress(url: string, file: File, onProg: (pct: number) => void, hold: (x: XMLHttpRequest) => void) {
+  return new Promise<void>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    hold(xhr);
+    let last = Date.now();
+    const watch = window.setInterval(() => { if (Date.now() - last > 90000) { (xhr as any)._stalled = true; xhr.abort(); } }, 5000);
+    const done = () => window.clearInterval(watch);
+    xhr.open("PUT", url);
+    if (file.type) xhr.setRequestHeader("Content-Type", file.type);
+    xhr.upload.onprogress = e => { last = Date.now(); if (e.lengthComputable) onProg(Math.round((e.loaded / e.total) * 100)); };
+    xhr.onload = () => { done(); (xhr.status >= 200 && xhr.status < 300) ? resolve() : reject(new Error(`хранилище ответило ${xhr.status}`)); };
+    xhr.onerror = () => { done(); reject(new Error("сеть оборвалась")); };
+    xhr.onabort = () => { done(); reject(new Error((xhr as any)._stalled ? "загрузка встала — интернет не отдаёт файл" : "отменено")); };
+    xhr.send(file);
+  });
+}
+const mb = (n: number) => `${(n / 1024 / 1024).toFixed(n > 100 * 1024 * 1024 ? 0 : 1)} МБ`;
 
 export default function ReadyVideoModal({ clients, defaultClientId, onClose, onCreate }: {
   clients: Client[];
@@ -35,6 +55,9 @@ export default function ReadyVideoModal({ clients, defaultClientId, onClose, onC
   const [step, setStep] = useState(1440);          // шаг между роликами, минуты (0 = все в одно время)
   const [scheduleNow, setScheduleNow] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [stage, setStage] = useState("");          // что делаем прямо сейчас
+  const [fail, setFail] = useState("");            // что пошло не так
+  const xhrRef = useRef<XMLHttpRequest | null>(null);
 
   // сети по умолчанию — те, что стоят у клиента
   useEffect(() => { setChannels((client?.platforms || []).filter(p => CH.some(c => c.id === p))); }, [clientId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -73,11 +96,29 @@ export default function ReadyVideoModal({ clients, defaultClientId, onClose, onC
 
   async function submit() {
     if (!clientId || !canSend) return;
-    setBusy(true);
+    setBusy(true); setFail("");
+    const urls: Record<string, string> = {};
     try {
-      await onCreate(clientId, rows.map(r => ({ file: r.file, url: r.url, publishAt: utcOf(r.when), caption: r.caption.trim() })), channels, scheduleNow);
-    } finally { setBusy(false); }
+      for (let i = 0; i < rows.length; i++) {
+        const r = rows[i];
+        if (r.uploaded) { urls[r.key] = r.uploaded; continue; }
+        if (!r.file) { urls[r.key] = r.url; continue; }
+        setStage(`Загружаю ролик ${i + 1} из ${rows.length} · ${mb(r.file.size)}`);
+        patch(i, { pct: 0, err: undefined });
+        const sg = await fetch("/api/r2/sign", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ filename: r.file.name, clientId, scriptId: `ready${Date.now()}-${i}` }) });
+        const sj = await sg.json();
+        if (!sg.ok) throw new Error(sj?.error || "не выдалась ссылка на загрузку");
+        await putWithProgress(sj.uploadUrl, r.file, pct => patch(i, { pct }), x => (xhrRef.current = x));
+        urls[r.key] = sj.publicUrl;
+        patch(i, { uploaded: sj.publicUrl, pct: 100 });
+      }
+      setStage(scheduleNow ? "Отправляю в Metricool…" : "Создаю карточки…");
+      await onCreate(clientId, rows.map(r => ({ videoUrl: urls[r.key], publishAt: utcOf(r.when), caption: r.caption.trim() })).filter(x => x.videoUrl), channels, scheduleNow);
+    } catch (e: any) {
+      setFail(String(e?.message || e));
+    } finally { xhrRef.current = null; setBusy(false); setStage(""); }
   }
+  function cancelUpload() { xhrRef.current?.abort(); xhrRef.current = null; }
 
   const inp: React.CSSProperties = { width: "100%", padding: "9px 10px", borderRadius: 9, background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 13, outline: "none", colorScheme: "dark", fontFamily: "inherit" };
   const lbl = (t: string) => <div style={{ fontSize: 10, fontWeight: 800, color: "var(--t3)", letterSpacing: .5, textTransform: "uppercase", marginBottom: 6 }}>{t}</div>;
@@ -146,7 +187,17 @@ export default function ReadyVideoModal({ clients, defaultClientId, onClose, onC
                   {r.preview ? <video src={r.preview} muted playsInline preload="metadata" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <Film size={18} style={{ color: "var(--t3)" }} />}
                 </div>
                 <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 6 }}>
-                  <div style={{ fontSize: 11.5, color: "var(--t2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 11.5, color: "var(--t2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{r.name}</span>
+                    {r.file ? <span style={{ fontSize: 10.5, color: "var(--t3)", whiteSpace: "nowrap" }}>{mb(r.file.size)}</span> : null}
+                    {r.uploaded ? <span className="v2-chip gr" style={{ padding: "1px 7px" }}>загружен</span>
+                      : r.pct != null ? <span style={{ fontSize: 10.5, color: "var(--cy)", fontWeight: 800, whiteSpace: "nowrap" }}>{r.pct}%</span> : null}
+                  </div>
+                  {r.pct != null && !r.uploaded && (
+                    <div style={{ height: 4, borderRadius: 3, background: "var(--track)", overflow: "hidden" }}>
+                      <div style={{ width: `${r.pct}%`, height: "100%", background: "linear-gradient(90deg, var(--cy), var(--pu))", transition: "width .2s" }} />
+                    </div>
+                  )}
                   <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
                     <input type="datetime-local" value={r.when} onChange={e => patch(i, { when: e.target.value, custom: true })} style={{ ...inp, width: 200, padding: "6px 8px", fontSize: 12 }} />
                     <span style={{ fontSize: 11, color: "var(--t3)" }}>{fmtInTz(utcOf(r.when), tz)} · {tzShort(tz)}</span>
@@ -185,7 +236,15 @@ export default function ReadyVideoModal({ clients, defaultClientId, onClose, onC
           Сразу отправить в Metricool на указанное время <span style={{ color: "var(--t3)", fontSize: 12 }}>— публикует Metricool сам, ничего больше жать не нужно. Снять галочку — карточки лягут в «Готово к публикации».</span>
         </label>
 
+        {fail && (
+          <div className="v2-chip rd" style={{ whiteSpace: "normal", padding: "8px 10px" }}>
+            Не получилось: {fail}. Уже загруженные ролики помечены «загружен» — нажми «Создать» ещё раз, они не будут заливаться заново.
+          </div>
+        )}
+        {busy && stage && <div style={{ fontSize: 12, color: "var(--cy)", fontWeight: 700 }}>{stage}</div>}
+
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", borderTop: "1px solid var(--brd)", paddingTop: 12 }}>
+          {busy ? <button className="v2-act ghost" onClick={cancelUpload}>Прервать загрузку</button> : null}
           <button className="v2-act ghost" onClick={onClose} disabled={busy}>Отмена</button>
           <button className="v2-act pri" onClick={submit} disabled={busy || !canSend} style={{ height: 40 }}>
             <Rocket size={14} /> {busy ? "Загружаю…" : `Создать ${rows.length || ""} ${rows.length === 1 ? "публикацию" : "публикаций"}${scheduleNow ? " и запланировать" : ""}`}
