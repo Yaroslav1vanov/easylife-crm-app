@@ -37,8 +37,8 @@ const RU_MONTH = ["Январь", "Февраль", "Март", "Апрель", 
 const RU_MONTH_GEN = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
 const RU_WD = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
 
-// 31 — личный аккаунт Ярослава (не клиент); 14 + 15 — Иван Панченко (TikTok и Instagram), один клиент.
-const DEFAULT_COUNT_RULE = { exclude: [31], merge: [[14, 15]] };
+// 31 — личный аккаунт Ярослава (не клиент); 14 + 15 — Иван Панченко, 40 + 41 — Laccura (два аккаунта по локациям): каждая пара считается одним клиентом.
+const DEFAULT_COUNT_RULE = { exclude: [31], merge: [[14, 15], [40, 41]] };
 function countClients(ids: number[], ruleJson?: string | null): number {
   let rule: { exclude?: number[]; merge?: number[][] } = DEFAULT_COUNT_RULE;
   try { if (ruleJson) rule = JSON.parse(ruleJson); } catch {}
