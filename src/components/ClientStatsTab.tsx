@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase-browser";
 import { RefreshCw, TrendingUp, TrendingDown, ExternalLink } from "lucide-react";
+import WeeklyStatsTable from "@/components/WeeklyStatsTable";
 
 /* Вкладка «Статистика» в карточке клиента: помесячные итоги из client_monthly_stats,
    сравнение с прошлым месяцем, график просмотров, лучшие ролики месяца. */
@@ -210,6 +211,7 @@ export default function ClientStatsTab({ clientId, hasMetricool }: { clientId: n
             </tbody>
           </table>
         </div>
+        <WeeklyStatsTable clientId={clientId} />
         <div style={{ fontSize: 10.5, color: "var(--t3)", lineHeight: 1.6 }}>
           Данные — из Metricool, с момента подключения бренда. Подписчики — из ежедневных снимков CRM, история по ним с сентября 2026. Прошлый месяц собирается автоматически 1-го числа.
         </div>
