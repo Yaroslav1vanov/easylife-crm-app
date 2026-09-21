@@ -20,7 +20,7 @@ export type WeeklyArgs = {
   norm: number;                          // обычный уровень аккаунта (медиана последних 30)
   ourVideos: number | null;              // сколько роликов недели сделали мы (по CRM)
   month: { published: number; package: number; from: string; to: string } | null;
-  followers: { value: number; delta: number | null } | null;
+  followers: { value: number; delta: number | null; deltaPrev?: number | null; gained?: number | null; lost?: number | null } | null;
   account: {
     ready: boolean; views: number; reach: number; likes: number; comments: number; saved: number; shares: number;
     older: number; olderViews: number; newInWeek: number; baseDate: string | null; endDate: string | null;
@@ -59,6 +59,7 @@ const T = {
     er: "Вовлечённость (ER)", erHint: "реакции делить на охват",
     erFoot: "ER — вовлечённость: лайки, комментарии, сохранения и репосты делим на охват. Норма в Instagram 1–3%, выше 5% — сильно.",
     followersHint: "на конец недели", noFollowers: "подписчики появятся в следующем отчёте",
+    gainedLost: (g: number, l: number) => `пришло ${g}, ушло ${l}`,
     planNext: "Что выходит на следующей неделе", planNextSub: "из контент-плана — темы уже отобраны",
     why: "почему взяли", reel: "Рилс", carousel: "Карусель", story: "Сторис",
     noPlanNext: "План на следующую неделю ещё собирается — пришлём отдельно.",
@@ -87,6 +88,7 @@ const T = {
     er: "Engagement rate", erHint: "reactions divided by reach",
     erFoot: "ER is engagement rate: likes, comments, saves and shares divided by reach. In Instagram 1–3% is normal, above 5% is strong.",
     followersHint: "end of week", noFollowers: "followers will appear in the next report",
+    gainedLost: (g: number, l: number) => `${g} gained, ${l} lost`,
     planNext: "Coming next week", planNextSub: "from the content plan — topics are already selected",
     why: "why we picked it", reel: "Reel", carousel: "Carousel", story: "Story",
     noPlanNext: "Next week's plan is still being finalised, we will send it separately.",
@@ -238,7 +240,10 @@ a{color:var(--white);text-decoration:none}a:hover{color:var(--neon)}
   ${kpi(t.shares, a.cur.shares, a.prev.shares)}
   <div class="kpi"><div class="l">${t.er}</div><div class="v">${fx(erCur)}%</div>${erPrev ? `<div class="d ${erCur >= erPrev ? "up" : "down"}">${t.was}: ${fx(erPrev)}%</div>` : `<div class="d">${t.erHint}</div>`}</div>
   ${a.followers
-    ? `<div class="kpi"><div class="l">${t.followers}</div><div class="v">${n(a.followers.value)}</div>${a.followers.delta != null ? `<div class="d ${a.followers.delta >= 0 ? "up" : "down"}">${a.followers.delta >= 0 ? "+" : "−"}${n(Math.abs(a.followers.delta))} ${t.followersHint}</div>` : `<div class="d">${t.followersHint}</div>`}</div>`
+    ? `<div class="kpi"><div class="l">${t.followers}</div><div class="v">${a.followers.value ? n(a.followers.value) : (a.followers.delta != null ? `${a.followers.delta >= 0 ? "+" : "−"}${n(Math.abs(a.followers.delta))}` : "—")}</div>${
+        a.followers.delta != null
+          ? `<div class="d ${a.followers.delta >= 0 ? "up" : "down"}">${a.followers.value ? `${a.followers.delta >= 0 ? "+" : "−"}${n(Math.abs(a.followers.delta))} ${isRu ? "за неделю" : "this week"}` : t.followersHint}${a.followers.deltaPrev != null ? ` · ${t.was}: ${a.followers.deltaPrev >= 0 ? "+" : "−"}${n(Math.abs(a.followers.deltaPrev))}` : ""}</div>${a.followers.gained != null && a.followers.lost != null ? `<div class="d">${(t as any).gainedLost(a.followers.gained, a.followers.lost)}</div>` : ""}`
+          : `<div class="d">${t.followersHint}</div>`}</div>`
     : `<div class="kpi"><div class="l">${t.followers}</div><div class="v">—</div><div class="d">${t.noFollowers}</div></div>`}
 </div>
 ${a.excluded.length ? `<p class="excl">${t.excluded(a.excluded.length, a.excluded.map(x => x.views).join(", "))}</p>` : ""}

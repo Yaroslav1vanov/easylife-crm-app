@@ -160,3 +160,25 @@ export async function accountWeekDelta(sb: any, clientId: number, from: string, 
   });
   return out;
 }
+
+/** Прирост подписчиков за период: Metricool, метрики аккаунта (пришло минус ушло). */
+export async function followersDelta(client: ClientLike, from: string, to: string): Promise<{ gained: number; lost: number; net: number } | null> {
+  const token = process.env.METRICOOL_TOKEN, userId = process.env.METRICOOL_USER_ID;
+  if (!token || !userId || !client.metricool_blog_id) return null;
+  const tz = encodeURIComponent(client.timezone || "Europe/Kyiv");
+  const one = async (metric: string): Promise<number | null> => {
+    const qs = `network=instagram&subject=account&metric=${metric}&from=${from}T00:00:00&to=${to}T23:59:59`
+      + `&timezone=${tz}&blogId=${client.metricool_blog_id}&userToken=${encodeURIComponent(token)}&userId=${encodeURIComponent(userId)}`;
+    try {
+      const r = await fetch(`${MC}/v2/analytics/timelines?${qs}`, { headers: { "X-Mc-Auth": token }, cache: "no-store" });
+      if (!r.ok) return null;
+      const j: any = await r.json().catch(() => null);
+      const values: any[] = Array.isArray(j?.data) ? (j.data[0]?.values || []) : [];
+      const nums = values.map(v => Number(v?.value ?? v?.y ?? v)).filter(n => !isNaN(n));
+      return nums.length ? Math.round(nums.reduce((a, b) => a + b, 0)) : null;
+    } catch { return null; }
+  };
+  const [gained, lost] = await Promise.all([one("followers_gained"), one("followers_lost")]);
+  if (gained == null && lost == null) return null;
+  return { gained: gained || 0, lost: lost || 0, net: (gained || 0) - (lost || 0) };
+}

@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase-server";
 import { getModel } from "@/lib/aiModels";
 import { buildWeeklyHtml, type PlanItem, type WeekReel, type WeekTotals } from "@/lib/weeklyReport";
-import { accountWeekDelta, addDays, fetchNetworkPosts, inlineImage, median, mondayOf, reelFields } from "@/lib/weeklyStats";
+import { accountWeekDelta, addDays, fetchNetworkPosts, followersDelta, inlineImage, median, mondayOf, reelFields } from "@/lib/weeklyStats";
 
 /* Недельный отчёт клиенту.
    GET /api/clients/{id}/report-week?week=YYYY-MM-DD (понедельник) | ?from&to | ?lang=ru|en | ?download=1
@@ -117,9 +117,18 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       .gte("pub_date", m.start_date).lte("pub_date", m.end_date);
     month = { published: count || 0, package: m.package || c.package || 0, from: m.start_date, to: m.end_date };
   }
+  // подписчики: число — из наших ежедневных снимков, прирост за неделю — из метрик аккаунта Metricool
   const snaps = snapsRes.data || [];
-  const followers = snaps.length
-    ? { value: snaps[0].followers as number, delta: snaps.find(s => s.snapshot_date <= prevTo)?.followers != null ? (snaps[0].followers as number) - (snaps.find(s => s.snapshot_date <= prevTo)!.followers as number) : null }
+  const [fd, fdPrev] = await Promise.all([followersDelta(c, from, to), followersDelta(c, prevFrom, prevTo)]);
+  const snapVal = snaps.length ? (snaps[0].followers as number) : null;
+  const snapPrev = snaps.find(s => s.snapshot_date <= prevTo)?.followers ?? null;
+  const followers = snapVal != null || fd
+    ? {
+        value: snapVal ?? 0,
+        delta: fd ? fd.net : (snapPrev != null && snapVal != null && snapPrev !== snapVal ? snapVal - snapPrev : null),
+        deltaPrev: fdPrev ? fdPrev.net : null,
+        gained: fd?.gained ?? null, lost: fd?.lost ?? null,
+      }
     : null;
 
   // прирост за неделю по всем роликам аккаунта (включая старые) — из наших ежедневных снимков
