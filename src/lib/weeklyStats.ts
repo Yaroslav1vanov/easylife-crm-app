@@ -182,3 +182,24 @@ export async function followersDelta(client: ClientLike, from: string, to: strin
   if (gained == null && lost == null) return null;
   return { gained: gained || 0, lost: lost || 0, net: (gained || 0) - (lost || 0) };
 }
+
+/** Когда Metricool последний раз забирал данные из сетей бренда. Ключ — сеть, значение — ISO-время. */
+export async function lastSyncs(client: ClientLike): Promise<Record<string, string> | null> {
+  const token = process.env.METRICOOL_TOKEN, userId = process.env.METRICOOL_USER_ID;
+  if (!token || !userId || !client.metricool_blog_id) return null;
+  const qs = `blogId=${client.metricool_blog_id}&userToken=${encodeURIComponent(token)}&userId=${encodeURIComponent(userId)}`;
+  try {
+    const r = await fetch(`${MC}/profile/lastsyncs?${qs}`, { headers: { "X-Mc-Auth": token }, cache: "no-store" });
+    if (!r.ok) return null;
+    const j: any = await r.json().catch(() => null);
+    const src = j?.data && typeof j.data === "object" ? j.data : j;
+    if (!src || typeof src !== "object") return null;
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(src)) {
+      const ms = Number(v);
+      if (!ms || isNaN(ms)) continue;
+      out[k] = new Date(ms < 1e12 ? ms * 1000 : ms).toISOString();
+    }
+    return Object.keys(out).length ? out : null;
+  } catch { return null; }
+}

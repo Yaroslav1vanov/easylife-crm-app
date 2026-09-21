@@ -25,6 +25,7 @@ export type WeeklyArgs = {
     ready: boolean; views: number; reach: number; likes: number; comments: number; saved: number; shares: number;
     older: number; olderViews: number; newInWeek: number; baseDate: string | null; endDate: string | null;
   } | null;                              // прирост за неделю по ВСЕМ роликам (наши ежедневные снимки)
+  syncs: Record<string, string> | null;  // когда Metricool последний раз синхронизировал сети
   nextWeek: PlanItem[];                  // что выходит на следующей неделе (контент-план CRM)
   narrative: { headline: string; lead: string; hit: string[]; cards: { tone: "g" | "y" | "r"; title: string; text: string }[]; plan: string[] };
   lang: "ru" | "en";
@@ -60,6 +61,8 @@ const T = {
     erFoot: "ER — вовлечённость: лайки, комментарии, сохранения и репосты делим на охват. Норма в Instagram 1–3%, выше 5% — сильно.",
     followersHint: "на конец недели", noFollowers: "подписчики появятся в следующем отчёте",
     gainedLost: (g: number, l: number) => `пришло ${g}, ушло ${l}`,
+    synced: (w: string) => `Instagram синхронизирован с Metricool ${w}.`,
+    stale: (w: string) => `Внимание: Metricool последний раз забирал данные из Instagram ${w}. Часть цифр может быть неполной — обновите данные в Metricool и соберите отчёт заново.`,
     planNext: "Что выходит на следующей неделе", planNextSub: "из контент-плана — темы уже отобраны",
     why: "почему взяли", reel: "Рилс", carousel: "Карусель", story: "Сторис",
     noPlanNext: "План на следующую неделю ещё собирается — пришлём отдельно.",
@@ -89,6 +92,8 @@ const T = {
     erFoot: "ER is engagement rate: likes, comments, saves and shares divided by reach. In Instagram 1–3% is normal, above 5% is strong.",
     followersHint: "end of week", noFollowers: "followers will appear in the next report",
     gainedLost: (g: number, l: number) => `${g} gained, ${l} lost`,
+    synced: (w: string) => `Instagram data synced with Metricool ${w}.`,
+    stale: (w: string) => `Heads up: Metricool last pulled Instagram data ${w}. Some numbers may be incomplete — refresh the data in Metricool and rebuild the report.`,
     planNext: "Coming next week", planNextSub: "from the content plan — topics are already selected",
     why: "why we picked it", reel: "Reel", carousel: "Carousel", story: "Story",
     noPlanNext: "Next week's plan is still being finalised, we will send it separately.",
@@ -230,6 +235,14 @@ a{color:var(--white);text-decoration:none}a:hover{color:var(--neon)}
 <h1>${a.narrative.headline}</h1>
 <p class="sub">${a.narrative.lead}</p>
 
+${(() => {
+  const iso = a.syncs?.instagram || a.syncs?.ig || null;
+  if (!iso) return "";
+  const hours = Math.round((Date.now() - Date.parse(iso)) / 3600000);
+  if (hours < 24) return "";
+  const when = `${dm(iso.slice(0, 10))} ${iso.slice(11, 16)}`;
+  return `<div class="note" style="margin-top:18px">${(t as any).stale(when)}</div>`;
+})()}
 <div class="grid">
   ${kpi(t.views, a.cur.views, a.prev.views, true)}
   <div class="kpi"><div class="l">${t.reels}</div><div class="v">${a.cur.n}</div><div class="d ${a.cur.n >= a.prev.n ? "up" : "down"}">${t.was}: ${a.prev.n}${a.ourVideos != null ? ` · ${t.ours}: ${a.ourVideos}` : ""}</div></div>
@@ -316,7 +329,10 @@ ${a.narrative.cards.map(c => `<div class="card"><h3><span class="dot ${c.tone}">
 ${a.narrative.plan.length ? `<h2>${t.nextWeek}</h2>
 <ol class="plan">${a.narrative.plan.map(x => `<li>${esc(x)}</li>`).join("")}</ol>` : ""}
 
-<p class="foot">${t.erFoot} ${t.sources(dm(a.generatedAt))}<br>EasyLife AI · easylifeai.biz</p>
+<p class="foot">${(() => {
+  const iso = a.syncs?.instagram || a.syncs?.ig || null;
+  return iso ? (t as any).synced(`${dm(iso.slice(0, 10))} ${iso.slice(11, 16)}`) + " " : "";
+})()}${t.erFoot} ${t.sources(dm(a.generatedAt))}<br>EasyLife AI · easylifeai.biz</p>
 </div></body></html>`;
 }
 

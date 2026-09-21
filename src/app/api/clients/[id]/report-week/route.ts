@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase-server";
 import { getModel } from "@/lib/aiModels";
 import { buildWeeklyHtml, type PlanItem, type WeekReel, type WeekTotals } from "@/lib/weeklyReport";
-import { accountWeekDelta, addDays, fetchNetworkPosts, followersDelta, inlineImage, median, mondayOf, reelFields } from "@/lib/weeklyStats";
+import { accountWeekDelta, addDays, fetchNetworkPosts, followersDelta, inlineImage, lastSyncs, median, mondayOf, reelFields } from "@/lib/weeklyStats";
 
 /* Недельный отчёт клиенту.
    GET /api/clients/{id}/report-week?week=YYYY-MM-DD (понедельник) | ?from&to | ?lang=ru|en | ?download=1
@@ -133,6 +133,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
 
   // прирост за неделю по всем роликам аккаунта (включая старые) — из наших ежедневных снимков
   const account = await accountWeekDelta(sb, id, from, to);
+  const syncs = await lastSyncs(c);   // когда Metricool последний раз забирал данные из сетей
   const narrative = await aiNarrative(sb, { c, from, to, cur, prev, reels, norm, lang });
 
   // картинки в файл: топ-ролик крупно, остальные — миниатюрами
@@ -145,7 +146,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
 
   const html = buildWeeklyHtml({
     client: c, avatar, from, to, prevFrom, prevTo, cur, prev, reels, excluded, norm,
-    ourVideos: ourVideos ?? null, month, followers, account, nextWeek, narrative, lang, generatedAt: today,
+    ourVideos: ourVideos ?? null, month, followers, account, nextWeek, syncs, narrative, lang, generatedAt: today,
   });
   const fn = `${[c.name, c.surname].filter(Boolean).join(" ")} — отчёт ${from}—${to}.html`;
   return new Response(html, { headers: htmlHeaders(sp.get("download") ? fn : undefined) });
