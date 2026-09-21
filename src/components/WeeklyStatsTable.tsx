@@ -30,6 +30,7 @@ export default function WeeklyStatsTable({ clientId }: { clientId: number }) {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<"" | "last" | "all">("");
   const [missing, setMissing] = useState(false);
+  const [range, setRange] = useState<{ from: string; to: string }>({ from: "", to: "" });   // пусто = за всё время
 
   async function load() {
     const { data, error } = await supabase.from("client_weekly_stats").select("*")
@@ -52,13 +53,24 @@ export default function WeeklyStatsTable({ clientId }: { clientId: number }) {
     setBusy("");
   }
 
-  const maxViews = useMemo(() => Math.max(1, ...rows.map(r => r.views || 0)), [rows]);
-  const totals = useMemo(() => rows.reduce((a, r) => ({
+  // период: пресеты и свои даты
+  const shown = useMemo(() => rows.filter(r =>
+    (!range.from || r.week_start >= range.from) && (!range.to || r.week_end <= range.to)), [rows, range]);
+  const preset = (weeks: number | null) => {
+    if (!weeks) return setRange({ from: "", to: "" });
+    const d = new Date(); const dow = (d.getDay() + 6) % 7;
+    d.setDate(d.getDate() - dow - 7 * weeks);
+    setRange({ from: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`, to: "" });
+  };
+  const qs = [range.from ? `from=${range.from}` : "", range.to ? `to=${range.to}` : ""].filter(Boolean).join("&");
+
+  const maxViews = useMemo(() => Math.max(1, ...shown.map(r => r.views || 0)), [shown]);
+  const totals = useMemo(() => shown.reduce((a, r) => ({
     reels: a.reels + (r.reels_count || 0), views: a.views + (r.views || 0), reach: a.reach + (r.reach || 0),
     likes: a.likes + (r.likes || 0), comments: a.comments + (r.comments || 0),
     saves: a.saves + (r.saves || 0), shares: a.shares + (r.shares || 0),
     gained: a.gained + (r.followers_gained || 0), lost: a.lost + (r.followers_lost || 0),
-  }), { reels: 0, views: 0, reach: 0, likes: 0, comments: 0, saves: 0, shares: 0, gained: 0, lost: 0 }), [rows]);
+  }), { reels: 0, views: 0, reach: 0, likes: 0, comments: 0, saves: 0, shares: 0, gained: 0, lost: 0 }), [shown]);
 
   if (loading) return null;
 
@@ -73,10 +85,26 @@ export default function WeeklyStatsTable({ clientId }: { clientId: number }) {
         <button onClick={() => collect("all")} disabled={!!busy} className="v2-act ghost" style={{ height: 30 }}>
           {busy === "all" ? "Собираю…" : "Собрать за всё время"}
         </button>
-        <a href={`/api/clients/${clientId}/report-all`} target="_blank" rel="noreferrer" className="v2-act gr" style={{ height: 30 }}>
-          <FileDown size={12} /> Отчёт клиенту за всё время
+        <a href={`/api/clients/${clientId}/report-all${qs ? `?${qs}` : ""}`} target="_blank" rel="noreferrer" className="v2-act gr" style={{ height: 30 }}>
+          <FileDown size={12} /> Отчёт клиенту{range.from || range.to ? " за период" : " за всё время"}
         </a>
       </div>
+
+      {!missing && rows.length > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 10.5, color: "var(--t3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: .4 }}>Период</span>
+          {([["4 недели", 4], ["8 недель", 8], ["3 месяца", 13], ["6 месяцев", 26], ["всё время", null]] as [string, number | null][]).map(([lbl, w]) => {
+            const on = w == null ? !range.from && !range.to : false;
+            return <button key={lbl} onClick={() => preset(w)} className={`v2-chip ${on ? "pu" : "mut"}`} style={{ height: 28, padding: "0 10px", cursor: "pointer" }}>{lbl}</button>;
+          })}
+          <input type="date" value={range.from} onChange={e => setRange(r => ({ ...r, from: e.target.value }))}
+            style={{ background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t2)", borderRadius: 8, padding: "4px 8px", fontSize: 11.5, colorScheme: "dark" }} />
+          <span style={{ color: "var(--t3)", fontSize: 11 }}>—</span>
+          <input type="date" value={range.to} onChange={e => setRange(r => ({ ...r, to: e.target.value }))}
+            style={{ background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t2)", borderRadius: 8, padding: "4px 8px", fontSize: 11.5, colorScheme: "dark" }} />
+          <span style={{ fontSize: 11, color: "var(--t3)" }}>показано недель: {shown.length} из {rows.length}</span>
+        </div>
+      )}
 
       {missing ? (
         <div className="card" style={{ padding: 16, borderRadius: 14, fontSize: 13, color: "var(--t2)" }}>
@@ -89,13 +117,13 @@ export default function WeeklyStatsTable({ clientId }: { clientId: number }) {
       ) : (<>
         <div className="card" style={{ padding: 14, borderRadius: 14 }}>
           <div style={{ display: "flex", alignItems: "flex-end", gap: 5, height: 92 }}>
-            {rows.slice(-26).map(r => (
+            {shown.slice(-26).map(r => (
               <div key={r.week_start} title={`${label(r.week_start, r.week_end)} · ${fmt(r.views)} просмотров`}
                 style={{ flex: 1, minWidth: 6, height: Math.max(3, Math.round(((r.views || 0) / maxViews) * 80)), borderRadius: "4px 4px 1px 1px", background: "linear-gradient(180deg, var(--cy), var(--pu))", opacity: .85 }} />
             ))}
           </div>
           <div style={{ fontSize: 10.5, color: "var(--t3)", marginTop: 8 }}>
-            просмотры по неделям · всего за {rows.length} нед.: {fmt(totals.views)} просмотров, {fmt(totals.reels)} роликов, подписчиков +{fmt(totals.gained - totals.lost)}
+            просмотры по неделям · всего за {shown.length} нед.: {fmt(totals.views)} просмотров, {fmt(totals.reels)} роликов, подписчиков +{fmt(totals.gained - totals.lost)}
           </div>
         </div>
 
@@ -107,7 +135,7 @@ export default function WeeklyStatsTable({ clientId }: { clientId: number }) {
               ))}
             </tr></thead>
             <tbody>
-              {[...rows].reverse().map((r, k, arr) => {
+              {[...shown].reverse().map((r, k, arr) => {
                 const p = arr[k + 1];
                 const d = pct(r.views, p?.views);
                 const net = (r.followers_gained || 0) - (r.followers_lost || 0);

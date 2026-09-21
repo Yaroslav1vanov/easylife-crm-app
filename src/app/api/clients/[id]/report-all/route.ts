@@ -17,7 +17,11 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   const { data: c } = await sb.from("clients").select("id, name, surname, avatar_url, instagram, start_date").eq("id", id).maybeSingle();
   if (!c) return new Response("клиент не найден", { status: 404 });
 
-  const { data: weeks } = await sb.from("client_weekly_stats").select("*").eq("client_id", id).order("week_start");
+  const from = sp.get("from"), to = sp.get("to");
+  let q = sb.from("client_weekly_stats").select("*").eq("client_id", id).order("week_start");
+  if (from) q = q.gte("week_start", from);
+  if (to) q = q.lte("week_end", to);
+  const { data: weeks } = await q;
   const rows = (weeks || []) as any[];
   if (!rows.length)
     return new Response(`<!doctype html><meta charset="utf-8"><body style="background:#070526;color:#f3f2ff;font-family:system-ui;padding:40px;text-align:center"><h2 style="color:#b6f500">Недель пока нет</h2><p style="color:#7a78a3">Открой карточку клиента → «Статистика» → «Собрать за всё время».</p></body>`,
@@ -95,9 +99,9 @@ td.k{font-weight:700}
 @media print{body{background:#070526;-webkit-print-color-adjust:exact;print-color-adjust:exact}body::before{display:none}tr{break-inside:avoid}}
 </style></head><body><div class="wrap">
 
-<div class="top"><div class="brand">Easy<b>Life</b> AI</div><div class="pill">Аналитика за всё время · ${dd(rows[0].week_start, rows[0].week_end)} — ${dd(rows[rows.length - 1].week_start, rows[rows.length - 1].week_end)}</div></div>
+<div class="top"><div class="brand">Easy<b>Life</b> AI</div><div class="pill">${from || to ? "Аналитика за период" : "Аналитика за всё время"} · ${dd(rows[0].week_start, rows[0].week_end)} — ${dd(rows[rows.length - 1].week_start, rows[rows.length - 1].week_end)}</div></div>
 <div class="client">${avatar ? `<img src="${avatar}" alt="">` : ""}<div><div class="nm">${esc(c.name)} ${esc(c.surname || "")}</div><div class="hd">${esc(c.instagram || "")}</div></div></div>
-<h1>За ${rows.length} недель работы — <span>${n(t.views)}</span> просмотров</h1>
+<h1>За ${rows.length} ${rows.length === 1 ? "неделю" : rows.length < 5 ? "недели" : "недель"} — <span>${n(t.views)}</span> просмотров</h1>
 <p class="sub">Все недели в одной таблице: сколько роликов вышло, сколько они собрали и как менялась аудитория. Неделя считается с понедельника по воскресенье.</p>
 
 <div class="grid">
@@ -144,7 +148,8 @@ td.k{font-weight:700}
 <p class="foot">Данные — Instagram и другие подключённые сети через Metricool. Неделя — с понедельника по воскресенье. ER — вовлечённость: лайки, комментарии, сохранения и репосты делим на охват. Прирост подписчиков — пришло минус ушло за период. Рекламные и не показанные в ленте ролики в статистику не входят.<br>EasyLife AI · easylifeai.biz</p>
 </div></body></html>`;
 
-  const fn = `${[c.name, c.surname].filter(Boolean).join(" ")} — аналитика за всё время.html`;
+  const period = from || to ? `${from || "начало"}—${to || "сегодня"}` : "за всё время";
+  const fn = `${[c.name, c.surname].filter(Boolean).join(" ")} — аналитика ${period}.html`;
   return new Response(html, {
     headers: {
       "content-type": "text/html; charset=utf-8",
