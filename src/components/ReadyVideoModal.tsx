@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Client } from "@/lib/database";
 import Avatar from "@/components/Avatar";
 import { DEFAULT_TZ, tzShort, nowInTz, utcToZonedInput, zonedInputToUtc, fmtInTz } from "@/lib/tz";
-import { X, Film, Trash2, Rocket, Camera, Music2, Play, AtSign, type LucideIcon } from "lucide-react";
+import { X, Film, Trash2, Rocket, Camera, Music2, Play, AtSign, Image as ImageIcon, type LucideIcon } from "lucide-react";
 
 /* Готовый ролик без сценария: файл (или прямая ссылка) → клиент → дата и сети → Metricool.
    Каждый ролик становится обычной карточкой публикации, просто без привязки к сценарию. */
@@ -15,8 +15,8 @@ const CH: { id: string; label: string; Icon: LucideIcon }[] = [
   { id: "threads", label: "Threads", Icon: AtSign },
 ];
 
-export type ReadyDraft = { videoUrl: string; publishAt: string | null; caption: string };
-type Row = { key: string; file: File | null; url: string; preview: string; name: string; when: string; custom: boolean; caption: string; uploaded?: string; pct?: number; err?: string };
+export type ReadyDraft = { videoUrl: string; thumbUrl: string | null; publishAt: string | null; caption: string };
+type Row = { key: string; file: File | null; url: string; preview: string; name: string; when: string; custom: boolean; caption: string; cover?: File | null; coverPreview?: string; coverUrl?: string; uploaded?: string; pct?: number; err?: string };
 
 /* Заливка в R2 через XHR: видно проценты, и видно, если канал встал.
    Нет ни байта 90 секунд — рвём и говорим об этом, иначе браузер висит молча часами. */
@@ -67,7 +67,7 @@ export default function ReadyVideoModal({ clients, defaultClientId, onClose, onC
     const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(hh || 12, mm || 0, 0, 0);
     setStart(utcToZonedInput(d.toISOString(), tz));
   }, [clientId, tz]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => () => rows.forEach(r => r.preview && URL.revokeObjectURL(r.preview)), []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => rows.forEach(r => { if (r.preview) URL.revokeObjectURL(r.preview); if (r.coverPreview) URL.revokeObjectURL(r.coverPreview); }), []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { const h = (e: KeyboardEvent) => { if (e.key === "Escape" && !busy) onClose(); }; window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h); }, [busy, onClose]);
 
   /* время i-го ролика = общий старт + шаг × i (пока его не поправили руками) */
@@ -98,9 +98,19 @@ export default function ReadyVideoModal({ clients, defaultClientId, onClose, onC
     if (!clientId || !canSend) return;
     setBusy(true); setFail("");
     const urls: Record<string, string> = {};
+    const covers: Record<string, string> = {};
     try {
       for (let i = 0; i < rows.length; i++) {
         const r = rows[i];
+        if (r.cover && !r.coverUrl) {
+          setStage(`Загружаю обложку ролика ${i + 1}`);
+          const cs = await fetch("/api/r2/sign", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ kind: "image", filename: r.cover.name, clientId, scriptId: `cover${Date.now()}-${i}` }) });
+          const cj = await cs.json();
+          if (!cs.ok) throw new Error(cj?.error || "не выдалась ссылка на загрузку обложки");
+          await putWithProgress(cj.uploadUrl, r.cover, () => {}, x => (xhrRef.current = x));
+          covers[r.key] = cj.publicUrl;
+          patch(i, { coverUrl: cj.publicUrl });
+        } else if (r.coverUrl) covers[r.key] = r.coverUrl;
         if (r.uploaded) { urls[r.key] = r.uploaded; continue; }
         if (!r.file) { urls[r.key] = r.url; continue; }
         setStage(`Загружаю ролик ${i + 1} из ${rows.length} · ${mb(r.file.size)}`);
@@ -113,7 +123,7 @@ export default function ReadyVideoModal({ clients, defaultClientId, onClose, onC
         patch(i, { uploaded: sj.publicUrl, pct: 100 });
       }
       setStage(scheduleNow ? "Отправляю в Metricool…" : "Создаю карточки…");
-      await onCreate(clientId, rows.map(r => ({ videoUrl: urls[r.key], publishAt: utcOf(r.when), caption: r.caption.trim() })).filter(x => x.videoUrl), channels, scheduleNow);
+      await onCreate(clientId, rows.map(r => ({ videoUrl: urls[r.key], thumbUrl: covers[r.key] || null, publishAt: utcOf(r.when), caption: r.caption.trim() })).filter(x => x.videoUrl), channels, scheduleNow);
     } catch (e: any) {
       setFail(String(e?.message || e));
     } finally { xhrRef.current = null; setBusy(false); setStage(""); }
@@ -186,6 +196,18 @@ export default function ReadyVideoModal({ clients, defaultClientId, onClose, onC
                 <div style={{ width: 72, aspectRatio: "9 / 16", borderRadius: 9, overflow: "hidden", border: "1px solid var(--brd)", background: "#000", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
                   {r.preview ? <video src={r.preview} muted playsInline preload="metadata" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <Film size={18} style={{ color: "var(--t3)" }} />}
                 </div>
+                <label title="Обложка ролика — что увидят в ленте. Без неё Instagram возьмёт первый кадр."
+                  style={{ width: 72, aspectRatio: "9 / 16", borderRadius: 9, overflow: "hidden", border: `1.5px ${r.coverPreview ? "solid" : "dashed"} var(--brd)`, background: "var(--inp)", flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, cursor: "pointer", position: "relative" }}>
+                  {r.coverPreview
+                    ? <img src={r.coverPreview} alt="обложка" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    : <><ImageIcon size={16} style={{ color: "var(--pu)" }} /><span style={{ fontSize: 9, color: "var(--t3)", textAlign: "center", lineHeight: 1.2 }}>обложка<br />(не обяз.)</span></>}
+                  <input type="file" accept="image/*" onChange={e => {
+                    const file = e.target.files?.[0]; e.target.value = "";
+                    if (!file) return;
+                    if (r.coverPreview) URL.revokeObjectURL(r.coverPreview);
+                    patch(i, { cover: file, coverPreview: URL.createObjectURL(file), coverUrl: undefined });
+                  }} style={{ display: "none" }} />
+                </label>
                 <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 6 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <span style={{ fontSize: 11.5, color: "var(--t2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{r.name}</span>
@@ -242,6 +264,11 @@ export default function ReadyVideoModal({ clients, defaultClientId, onClose, onC
           </div>
         )}
         {busy && stage && <div style={{ fontSize: 12, color: "var(--cy)", fontWeight: 700 }}>{stage}</div>}
+        {!busy && rows.some(r => !r.cover && !r.coverUrl) && (
+          <div className="v2-chip or" style={{ whiteSpace: "normal", padding: "8px 10px" }}>
+            {rows.filter(r => !r.cover && !r.coverUrl).length} из {rows.length} без обложки — в ленте встанет первый кадр видео. Обложку нужно приложить здесь: после отправки в Metricool её уже не подменить.
+          </div>
+        )}
 
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", borderTop: "1px solid var(--brd)", paddingTop: 12 }}>
           {busy ? <button className="v2-act ghost" onClick={cancelUpload}>Прервать загрузку</button> : null}

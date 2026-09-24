@@ -193,6 +193,16 @@ export default function PublicationModal({ pub, client, script, onClose, onUpdat
               </div>
               <div>
                 {lbl("Обложка (необязательно)")}
+                {pub.pub_status === "scheduled" && (
+                  <div className="v2-chip or" style={{ whiteSpace: "normal", padding: "7px 9px", marginBottom: 8 }}>
+                    Пост уже лежит в Metricool. Обложку, добавленную сейчас, он не подхватит — нажми «Переотправить» внизу, тогда пост пересоздастся вместе с ней.
+                  </div>
+                )}
+                {pub.pub_status === "published" && (
+                  <div className="v2-chip or" style={{ whiteSpace: "normal", padding: "7px 9px", marginBottom: 8 }}>
+                    Ролик уже опубликован — через CRM обложку не поменять, только вручную в самом Instagram.
+                  </div>
+                )}
                 {f.video_thumbnail_url ? (
                   <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
                     <div style={{ width: 96, height: 128, borderRadius: 10, overflow: "hidden", border: "1px solid var(--brd)", background: "var(--v2-inset)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "var(--t3)", textAlign: "center" }}>

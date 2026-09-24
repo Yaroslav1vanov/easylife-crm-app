@@ -144,7 +144,7 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
   async function createReadyVideos(clientId: number, items: ReadyDraft[], channels: string[], scheduleNow: boolean) {
     if (!items.length) return;
     const { data, error } = await db.createReadyPublications(supabase,
-      clientId, items.map(i => ({ video_url: i.videoUrl, publish_at: i.publishAt, caption: i.caption })), channels);
+      clientId, items.map(i => ({ video_url: i.videoUrl, thumb_url: i.thumbUrl, publish_at: i.publishAt, caption: i.caption })), channels);
     if (error) { alert("Не удалось создать публикации: " + error.message); return; }
     setPubs(arr => [...data, ...arr]);
     setReadyOpen(false);

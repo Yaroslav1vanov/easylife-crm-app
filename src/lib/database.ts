@@ -556,10 +556,11 @@ const db = {
     return { data: (data || null) as Publication | null, error };
   },
   // Готовый ролик без сценария: видео уже есть, нужно только поставить в график.
-  async createReadyPublications(sb: SupabaseClient, clientId: number, items: { video_url: string; publish_at: string | null; caption?: string | null }[], channels: string[]) {
+  async createReadyPublications(sb: SupabaseClient, clientId: number, items: { video_url: string; thumb_url?: string | null; publish_at: string | null; caption?: string | null }[], channels: string[]) {
     const rows = items.map(i => ({
       script_id: null, client_id: clientId, content_type: "reel" as ContentType,
-      video_url: i.video_url, publish_at: i.publish_at, target_channels: channels,
+      video_url: i.video_url, video_thumbnail_url: i.thumb_url || null,
+      publish_at: i.publish_at, target_channels: channels,
       base_text: i.caption || null, caption_ig: i.caption || null, caption_tt: i.caption || null,
       threads_post: i.caption || null, yt_description: i.caption || null,
       pub_status: "queued" as PubStatus,
