@@ -28,10 +28,12 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   let body: any;
   try { body = await req.json(); } catch { return NextResponse.json({ error: "bad json" }, { status: 400 }); }
-  const email = String(body?.email || "").trim().toLowerCase();
+  // почту часто вставляют с лишним «@» спереди или с пробелами — чистим, чтобы Supabase не ругался
+  const email = String(body?.email || "").trim().toLowerCase().replace(/[\s\u200b-\u200d\uFEFF<>]/g, "").replace(/^@+/, "");
   const password = body?.password ? String(body.password) : "";
   const role = ROLES.includes(body?.role) ? body.role : "montager";
-  if (!email || !email.includes("@")) return NextResponse.json({ error: "нужна корректная почта" }, { status: 400 });
+  if (!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(email))
+    return NextResponse.json({ error: `«${email}» не похоже на почту. Нужен вид name@gmail.com — без «@» в начале и без лишних символов.` }, { status: 400 });
 
   const { data: member } = await sb.from("team_members").select("id, name").eq("id", teamId).maybeSingle();
   if (!member) return NextResponse.json({ error: "сотрудник не найден" }, { status: 404 });

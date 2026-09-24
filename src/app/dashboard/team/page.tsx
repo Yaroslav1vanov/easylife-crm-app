@@ -44,13 +44,18 @@ export default function TeamPage() {
     setAccRole(m.member_type === "montager" ? "montager" : "teamlead");
   }
 
+  // «@name@gmail.com», пробелы и невидимые символы из копипасты — частая причина отказа Supabase
+  const cleanEmail = (v: string) => v.trim().toLowerCase().replace(/[\s\u200b-\u200d\uFEFF<>]/g, "").replace(/^@+/, "");
+  const emailOk = (v: string) => /^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(cleanEmail(v));
+
   async function grantAccess() {
     if (!accessFor) return;
+    if (!emailOk(accEmail)) { setAccHint("Почта записана неверно. Нужен вид name@gmail.com — без «@» в начале."); return; }
     setAccessBusy(accessFor.id); setAccHint(null);
     try {
       const r = await fetch(`/api/team/${accessFor.id}/access`, {
         method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email: accEmail.trim(), password: accPass, role: accRole }),
+        body: JSON.stringify({ email: cleanEmail(accEmail), password: accPass, role: accRole }),
       });
       const j = await r.json();
       if (!r.ok) setAccHint(j?.error || "не получилось");
@@ -296,7 +301,9 @@ export default function TeamPage() {
 
             <div>
               <label style={{ fontSize: 9, fontWeight: 800, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 0.5, display: "block", marginBottom: 5 }}>Почта сотрудника</label>
-              <input value={accEmail} onChange={e => setAccEmail(e.target.value)} placeholder="name@gmail.com" autoFocus style={fld} />
+              <input value={accEmail} onChange={e => setAccEmail(e.target.value.replace(/^@+/, ""))} onBlur={e => setAccEmail(cleanEmail(e.target.value))}
+                placeholder="name@gmail.com" autoFocus spellCheck={false} autoComplete="off" style={fld} />
+              {accEmail.trim() && !emailOk(accEmail) && <div style={{ fontSize: 10.5, color: "var(--or)", marginTop: 5 }}>похоже на опечатку — нужен вид name@gmail.com</div>}
             </div>
 
             <div>
@@ -331,8 +338,8 @@ export default function TeamPage() {
 
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
               <button onClick={() => setAccessFor(null)} style={{ padding: "9px 14px", borderRadius: 9, background: "transparent", border: "1px solid var(--brd)", color: "var(--t2)", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Отмена</button>
-              <button onClick={grantAccess} disabled={!accEmail.trim() || accessBusy != null}
-                style={{ padding: "9px 18px", borderRadius: 9, background: "linear-gradient(135deg, var(--cy), var(--pu))", border: "none", color: "#fff", fontSize: 12, fontWeight: 800, cursor: "pointer", opacity: !accEmail.trim() || accessBusy != null ? 0.6 : 1 }}>
+              <button onClick={grantAccess} disabled={!emailOk(accEmail) || accessBusy != null}
+                style={{ padding: "9px 18px", borderRadius: 9, background: "linear-gradient(135deg, var(--cy), var(--pu))", border: "none", color: "#fff", fontSize: 12, fontWeight: 800, cursor: "pointer", opacity: !emailOk(accEmail) || accessBusy != null ? 0.6 : 1 }}>
                 {accessBusy != null ? "Выдаю…" : "Выдать доступ"}
               </button>
             </div>
