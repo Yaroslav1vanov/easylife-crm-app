@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { AwsClient } from "aws4fetch";
+import { requireUser } from "@/lib/apiGuard";
 
 // Выдаёт подписанную ссылку для прямой загрузки видео в R2 (браузер/бот грузит мимо нашего сервера).
 export async function POST(req: Request) {
+  const denied = await requireUser(); if (denied) return denied;
   const accountId = process.env.R2_ACCOUNT_ID;
   const accessKeyId = process.env.R2_ACCESS_KEY_ID;
   const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;

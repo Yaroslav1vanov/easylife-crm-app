@@ -5,9 +5,11 @@ import { createClient } from "@/lib/supabase-server";
 import { getModel } from "@/lib/aiModels";
 import { getSetting } from "@/lib/appSettings";
 import { PROMPT_KEYS, DEFAULT_ADAPTER_SYSTEM, DEFAULT_ADAPTER_NETWORK } from "@/lib/adapterPrompts";
+import { requireUser } from "@/lib/apiGuard";
 
 
 export async function POST(_req: Request, { params }: { params: { id: string } }) {
+  const denied = await requireUser(); if (denied) return denied;
   const MODEL = await getModel(createClient(), "adapter");
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return NextResponse.json({ error: "ANTHROPIC_API_KEY не задан в окружении" }, { status: 400 });

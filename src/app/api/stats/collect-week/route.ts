@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
 import { collectClientWeek, weeksBetween } from "@/lib/weeklyAggregate";
 import { addDays, mondayOf } from "@/lib/weeklyStats";
+import { requireUserOrCron } from "@/lib/apiGuard";
 
 /* Недельные итоги в client_weekly_stats.
    GET /api/stats/collect-week?clientId=25&week=2026-09-14        — одна неделя
@@ -12,6 +13,7 @@ export const maxDuration = 300;
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
+  const denied = await requireUserOrCron(req); if (denied) return denied;
   const sb = createClient();
   const sp = new URL(req.url).searchParams;
   const today = new Date().toISOString().slice(0, 10);

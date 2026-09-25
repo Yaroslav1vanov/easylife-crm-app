@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { ingestReference } from "@/lib/ingestReference";
+import { requireUser } from "@/lib/apiGuard";
 
 // По ссылке на чужой ролик тянет статистику + транскрибацию и сохраняет в reference_videos.
 // Логика общая с ТГ-ботом — в @/lib/ingestReference.
 export async function POST(req: Request) {
+  const denied = await requireUser(); if (denied) return denied;
   const body = await req.json().catch(() => ({}));
   const url: string = (body.url || "").trim();
   const clientId = Number(body.clientId);

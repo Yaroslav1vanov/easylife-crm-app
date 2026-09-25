@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
 import { handleOf, type Plat } from "@/lib/socialHandles";
 import { vmxMcp, vmxMyAccounts, vmxAvatarUrl } from "@/lib/viralmaxing";
+import { requireUserOrCron } from "@/lib/apiGuard";
 
 /* ============================================================
    Соц-статистика клиентов → social_snapshots.
@@ -29,6 +30,7 @@ const int = (v: any) => (v == null || v === "" || isNaN(Number(v)) ? null : Math
 
 
 export async function GET(req: Request) {
+  const denied = await requireUserOrCron(req); if (denied) return denied;
   const url = new URL(req.url);
   const dry = url.searchParams.get("dry") === "1";
   const debug = url.searchParams.get("debug") === "1";

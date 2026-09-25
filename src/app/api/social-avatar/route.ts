@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { handleOf, type Plat } from "@/lib/socialHandles";
 import { vmxFindAccount, vmxAvatarUrl } from "@/lib/viralmaxing";
+import { requireUser } from "@/lib/apiGuard";
 
 // Серверный прокси: по ссылке на профиль (IG / TikTok / YouTube) или прямой ссылке
 // на фото возвращает байты картинки. Клиент перезаливает их в наш Storage.
@@ -66,6 +67,7 @@ async function youtubeAvatar(handle: string): Promise<string | null> {
 }
 
 export async function GET(req: NextRequest) {
+  const denied = await requireUser(); if (denied) return denied;
   const input = req.nextUrl.searchParams.get("u") || "";
   const candidates: string[] = [];
   let hint = "Не удалось определить фото по ссылке";

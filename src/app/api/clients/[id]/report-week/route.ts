@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase-server";
 import { getModel } from "@/lib/aiModels";
 import { buildWeeklyHtml, type PlanItem, type WeekReel, type WeekTotals } from "@/lib/weeklyReport";
 import { accountWeekDelta, addDays, fetchNetworkPosts, followersDelta, inlineImage, lastSyncs, median, mondayOf, reelFields } from "@/lib/weeklyStats";
+import { requireUser } from "@/lib/apiGuard";
 
 /* Недельный отчёт клиенту.
    GET /api/clients/{id}/report-week?week=YYYY-MM-DD (понедельник) | ?from&to | ?lang=ru|en | ?download=1
@@ -19,6 +20,7 @@ const htmlError = (msg: string) =>
   `<!doctype html><meta charset="utf-8"><body style="background:#070526;color:#f3f2ff;font-family:system-ui;display:flex;align-items:center;justify-content:center;height:100vh;text-align:center;padding:40px"><div><h2 style="color:#b6f500">Отчёт не собран</h2><p style="color:#7a78a3;margin-top:12px">${msg}</p></div></body>`;
 
 export async function GET(req: Request, { params }: { params: { id: string } }) {
+  const denied = await requireUser(); if (denied) return denied;
   const id = Number(params.id);
   const sp = new URL(req.url).searchParams;
   const lang = sp.get("lang") === "en" ? "en" : "ru";

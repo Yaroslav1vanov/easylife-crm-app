@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
+import { requireUser } from "@/lib/apiGuard";
 
 // Диагностика/Этап 4: тянет реальный статус поста из Metricool по его id + blogId.
 const BASE = "https://app.metricool.com/api";
 
 export async function GET(req: Request) {
+  const denied = await requireUser(); if (denied) return denied;
   const userId = process.env.METRICOOL_USER_ID, token = process.env.METRICOOL_TOKEN;
   if (!userId || !token) return NextResponse.json({ error: "METRICOOL creds не заданы" }, { status: 400 });
 

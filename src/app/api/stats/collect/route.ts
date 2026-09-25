@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { collectClientMonth, prevYm } from "@/lib/monthlyStats";
+import { requireUserOrCron } from "@/lib/apiGuard";
 
 /* Сбор помесячной статистики.
    GET /api/stats/collect?ym=2026-08&clientId=25
@@ -11,6 +12,7 @@ export const maxDuration = 60;
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
+  const denied = await requireUserOrCron(req); if (denied) return denied;
   const sp = new URL(req.url).searchParams;
   const ym = sp.get("ym") || prevYm();
   if (!/^\d{4}-\d{2}$/.test(ym)) return NextResponse.json({ error: "ym в формате 2026-08" }, { status: 400 });

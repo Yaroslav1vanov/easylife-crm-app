@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase-server";
 import { getModel } from "@/lib/aiModels";
 import { buildReportHtml } from "@/lib/reportTemplate";
+import { requireUser } from "@/lib/apiGuard";
 
 // Генерирует клиентский месячный отчёт (HTML) из данных Metricool.
 // GET /api/clients/{id}/report?month=YYYY-MM
@@ -20,6 +21,7 @@ function monthBounds(ym: string) {
 }
 
 export async function GET(req: Request, { params }: { params: { id: string } }) {
+  const denied = await requireUser(); if (denied) return denied;
   const id = Number(params.id);
   const url = new URL(req.url);
   const now = new Date();

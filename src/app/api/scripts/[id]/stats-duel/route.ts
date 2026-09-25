@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
 import { fetchClipStats } from "@/lib/scrape";
+import { requireUser } from "@/lib/apiGuard";
 
 // Обновляет «дуэль»: свежая статистика исходника (ref_url) и нашего видео (video_url).
 export async function POST(_req: Request, { params }: { params: { id: string } }) {
+  const denied = await requireUser(); if (denied) return denied;
   const key = process.env.SCRAPECREATORS_API_KEY;
   if (!key) return NextResponse.json({ error: "SCRAPECREATORS_API_KEY не задан" }, { status: 400 });
   const id = Number(params.id);

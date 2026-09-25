@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
+import { requireUser } from "@/lib/apiGuard";
 
 // Read-only аналитика за произвольный период — источник цифр для месячных отчётов клиентам.
 // GET /api/metricool/analytics?from=2026-06-01&to=2026-06-30&clientId=25
@@ -20,6 +21,7 @@ const ci = (o: any, ...keys: string[]) => {
 const int = (v: any) => (v == null ? null : Math.round(Number(v)));
 
 export async function GET(req: Request) {
+  const denied = await requireUser(); if (denied) return denied;
   const userId = process.env.METRICOOL_USER_ID, token = process.env.METRICOOL_TOKEN;
   if (!userId || !token) return NextResponse.json({ error: "METRICOOL_* не заданы" }, { status: 400 });
 

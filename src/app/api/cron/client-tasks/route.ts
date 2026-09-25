@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
 import { plannedTasks, shift, taskDescription, taskTitle, type TaskKind } from "@/lib/clientTasks";
+import { requireUserOrCron } from "@/lib/apiGuard";
 
 /* Создаёт задачи проджектам по каждому активному клиенту: разговор на 15-й день после старта
    публикаций, недельный отчёт по пятницам, напоминание об оплате за 6 дней до конца месяца,
@@ -13,6 +14,7 @@ const HORIZON = 10;    // на сколько дней вперёд создаё
 const BACKFILL = 5;    // и насколько назад добираем пропущенное
 
 export async function GET(req: Request) {
+  const denied = await requireUserOrCron(req); if (denied) return denied;
   const sb = createClient();
   const sp = new URL(req.url).searchParams;
   const today = new Date().toISOString().slice(0, 10);

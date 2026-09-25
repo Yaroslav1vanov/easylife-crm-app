@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
+import { requireUserOrCron } from "@/lib/apiGuard";
 
 // On-demand сбор базовой соц-статистики для карточек клиентов (без крона).
 // Для каждого клиента с metricool_blog_id и платформой ig/tt/yt тянет
@@ -19,6 +20,7 @@ const ci = (o: any, ...keys: string[]) => {
 const int = (v: any) => (v == null ? null : Math.round(Number(v)));
 
 export async function GET(req: Request) {
+  const denied = await requireUserOrCron(req); if (denied) return denied;
   const userId = process.env.METRICOOL_USER_ID, token = process.env.METRICOOL_TOKEN;
   if (!userId || !token) return NextResponse.json({ error: "METRICOOL_* не заданы" }, { status: 400 });
   const dry = new URL(req.url).searchParams.get("dry") === "1";

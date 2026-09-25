@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase-server";
 import { inlineImage } from "@/lib/weeklyStats";
+import { requireUser } from "@/lib/apiGuard";
 
 /* Отчёт клиенту за всё время работы: таблица по неделям + итоги + помесячная динамика.
    GET /api/clients/{id}/report-all?lang=ru|en&download=1 */
@@ -11,6 +12,7 @@ const RU_M = ["января", "февраля", "марта", "апреля", "�
 const RU_MON = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
 
 export async function GET(req: Request, { params }: { params: { id: string } }) {
+  const denied = await requireUser(); if (denied) return denied;
   const id = Number(params.id);
   const sp = new URL(req.url).searchParams;
   const sb = createClient();

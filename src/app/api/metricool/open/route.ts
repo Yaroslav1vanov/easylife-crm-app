@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireUser } from "@/lib/apiGuard";
 
 // Перекидывает на аналитику конкретного бренда в Metricool.
 // URL-шаблон настраивается через env METRICOOL_ANALYTICS_URL (плейсхолдеры {userId} {blogId}),
@@ -6,6 +7,7 @@ import { NextResponse } from "next/server";
 const DEFAULT_TPL = "https://app.metricool.com/evolution/instagram?blogId={blogId}&userId={userId}";
 
 export async function GET(req: Request) {
+  const denied = await requireUser(); if (denied) return denied;
   const userId = process.env.METRICOOL_USER_ID || "";
   const tpl = process.env.METRICOOL_ANALYTICS_URL || DEFAULT_TPL;
   const blogId = new URL(req.url).searchParams.get("blogId");

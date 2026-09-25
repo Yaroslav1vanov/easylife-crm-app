@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
+import { requireUser } from "@/lib/apiGuard";
 
 // Список брендов (аккаунтов) в Metricool — чтобы узнать blogId каждого и прописать клиентам.
 const BASE = "https://app.metricool.com/api";
 
 export async function GET(req: Request) {
+  const denied = await requireUser(); if (denied) return denied;
   const userId = process.env.METRICOOL_USER_ID, token = process.env.METRICOOL_TOKEN;
   if (!userId || !token) return NextResponse.json({ error: "METRICOOL_USER_ID / METRICOOL_TOKEN не заданы" }, { status: 400 });
 

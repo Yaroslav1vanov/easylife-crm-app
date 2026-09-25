@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
 import { fetchNetworkPosts, reelFields } from "@/lib/weeklyStats";
 import { handleOf } from "@/lib/socialHandles";
+import { requireUserOrCron } from "@/lib/apiGuard";
 
 /* Ежедневный снимок метрик по роликам последних 45 дней у всех клиентов Metricool.
    Зачем: в недельном отчёте сравнивать ролики в одинаковом возрасте (например, «через 7 дней
@@ -12,6 +13,7 @@ export const dynamic = "force-dynamic";
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 
 export async function GET(req: Request) {
+  const denied = await requireUserOrCron(req); if (denied) return denied;
   const sb = createClient();
   const sp = new URL(req.url).searchParams;
   const today = iso(new Date());

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
+import { requireUser } from "@/lib/apiGuard";
 
 /* Подписчики по дням из Metricool (метрики аккаунта).
    GET /api/metricool/followers?clientId=25&from=2026-09-01&to=2026-09-21
@@ -12,6 +13,7 @@ const BASE = "https://app.metricool.com/api";
 const METRICS = ["followers_gained", "followers_lost", "delta_followers", "followers"];
 
 export async function GET(req: Request) {
+  const denied = await requireUser(); if (denied) return denied;
   const token = process.env.METRICOOL_TOKEN, userId = process.env.METRICOOL_USER_ID;
   if (!token || !userId) return NextResponse.json({ error: "METRICOOL_* не заданы" }, { status: 400 });
   const sp = new URL(req.url).searchParams;
