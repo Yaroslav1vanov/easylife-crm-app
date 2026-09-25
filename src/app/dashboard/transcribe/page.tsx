@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase-browser";
+import { isMissingTable, isNetworkError } from "@/lib/supabaseConfig";
 import db, { Client } from "@/lib/database";
 import { getStore, setStore } from "@/lib/store";
 import Avatar from "@/components/Avatar";
@@ -40,6 +41,7 @@ export default function TranscribePage() {
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
   const [tableMissing, setTableMissing] = useState(false);
+  const [loadErr, setLoadErr] = useState<string | null>(null);
   const [mode, setMode] = useState<"file" | "link">("file");
   const [lang, setLang] = useState("auto");
   const [langMenu, setLangMenu] = useState(false);
@@ -59,7 +61,8 @@ export default function TranscribePage() {
     if (!cls) { cls = await db.getClients(supabase); setStore({ ...s, clients: cls }); }
     setClients(cls);
     const { data, error } = await supabase.from("transcriptions").select("*").order("created_at", { ascending: false }).limit(200);
-    if (error) setTableMissing(true); else setItems((data || []) as Item[]);
+    if (error) { if (isMissingTable(error)) setTableMissing(true); else setLoadErr(error.message); }
+    else { setTableMissing(false); setLoadErr(null); setItems((data || []) as Item[]); }
     setLoading(false);
   }
 
@@ -157,7 +160,16 @@ export default function TranscribePage() {
       </div>
       <Tour steps={steps} open={tourOpen} onClose={() => setTourOpen(false)} />
 
-      {tableMissing ? (
+      {loadErr ? (
+        <div style={{ padding: 24, borderRadius: 14, border: "1px solid rgba(255,92,122,0.4)", background: "rgba(255,92,122,0.08)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 800, marginBottom: 8, color: "var(--t1)" }}><Database size={16} style={{ color: "var(--rd)" }} /> Не удалось загрузить список</div>
+          <div style={{ fontSize: 13, color: "var(--t2)", lineHeight: 1.6 }}>
+            {isNetworkError(loadErr)
+              ? "Браузер не достучался до базы CRM. Чаще всего это провайдер или антивирус: включите VPN либо мобильный интернет, перезагрузите страницу."
+              : loadErr}
+          </div>
+        </div>
+      ) : tableMissing ? (
         <div style={{ padding: 24, borderRadius: 14, border: "1px solid rgba(255,174,66,0.4)", background: "rgba(255,174,66,0.08)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 800, marginBottom: 8, color: "var(--t1)" }}><Database size={16} style={{ color: "var(--or)" }} /> Таблица транскрибаций не готова</div>
           <div style={{ fontSize: 13, color: "var(--t2)" }}>Прогони <code style={{ background: "var(--inset)", padding: "1px 6px", borderRadius: 5 }}>MIGRATION_2026-08-23_transcriptions.sql</code> в Supabase → SQL Editor.</div>

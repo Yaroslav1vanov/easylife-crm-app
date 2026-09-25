@@ -4,6 +4,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { RoleProvider } from "@/components/RoleContext";
 import RoleGuard from "@/components/RoleGuard";
 import NoticeHost from "@/components/NoticeHost";
+import ConnectionGuard from "@/components/ConnectionGuard";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const sb = createClient();
@@ -20,6 +21,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     <RoleProvider role={userRole}>
       <RoleGuard role={userRole} />
       <NoticeHost />
+      <ConnectionGuard />
       <div className="flex min-h-screen" style={{ background: "var(--bg)" }}>
         <Sidebar userRole={userRole} />
         {/* Desktop: margin-left for sidebar. Mobile: margin-top for top bar */}

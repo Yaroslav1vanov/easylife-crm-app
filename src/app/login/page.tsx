@@ -1,7 +1,8 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase-browser";
+import { createClient, resetClient } from "@/lib/supabase-browser";
+import { isNetworkError, proxyOn, setProxy } from "@/lib/supabaseConfig";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -9,18 +10,34 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
-  const supabase = createClient();
+  const [note, setNote] = useState<string | null>(null);
+
+  /* Вход. Если браузер вообще не достучался до сервера авторизации («Failed to fetch»),
+     включаем запасной путь через наш домен и пробуем ещё раз — у части провайдеров
+     прямой адрес Supabase закрыт. */
+  const signIn = async () => createClient().auth.signInWithPassword({ email, password });
 
   const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault(); setLoading(true); setError(null);
-    const { data, error: err } = await supabase.auth.signInWithPassword({ email, password });
-    if (err) { setError(err.message); setLoading(false); return; }
-    if (data.session) { router.push("/dashboard"); router.refresh(); }
+    e.preventDefault(); setLoading(true); setError(null); setNote(null);
+    let res = await signIn().catch(err => ({ data: { session: null }, error: err } as any));
+    if (res.error && isNetworkError(res.error) && !proxyOn()) {
+      setNote("Прямое подключение не прошло — пробую через резервный канал…");
+      setProxy(true); resetClient();
+      res = await signIn().catch(err => ({ data: { session: null }, error: err } as any));
+      if (res.error) { setProxy(false); resetClient(); }
+    }
+    if (res.error) {
+      setError(isNetworkError(res.error)
+        ? "Нет связи с сервером CRM. Обычно это провайдер или антивирус: включите VPN либо мобильный интернет и попробуйте снова."
+        : res.error.message === "Invalid login credentials" ? "Неверная почта или пароль" : res.error.message);
+      setLoading(false); setNote(null); return;
+    }
+    if (res.data.session) { router.push("/dashboard"); router.refresh(); }
   };
 
   const handleSignUp = async () => {
     setLoading(true); setError(null);
-    const { error: err } = await supabase.auth.signUp({ email, password });
+    const { error: err } = await createClient().auth.signUp({ email, password });
     if (err) setError(err.message);
     else alert("Проверьте email для подтверждения!");
     setLoading(false);
@@ -45,6 +62,7 @@ export default function LoginPage() {
               className="w-full px-4 py-3 rounded-xl text-sm outline-none" style={{ background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)" }} />
           </div>
           {error && <div className="text-xs text-center px-3 py-2 rounded-lg" style={{ color: "#f87171", background: "rgba(239,68,68,0.1)" }}>{error}</div>}
+          {note && <div className="text-xs text-center px-3 py-2 rounded-lg" style={{ color: "#42d4f4", background: "rgba(66,212,244,0.1)" }}>{note}</div>}
           <button type="submit" disabled={loading} className="w-full py-3 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
             style={{ background: "linear-gradient(135deg, var(--cy), var(--pu))" }}>{loading ? "Загрузка..." : "Войти"}</button>
           <button type="button" onClick={handleSignUp} disabled={loading} className="w-full py-3 rounded-xl text-sm font-medium disabled:opacity-50"
