@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
+import { createAdmin } from "@/lib/supabase-admin";
 import { computePayroll } from "@/lib/payroll";
 
 // Готовый расчёт ЗП за месяц — источник правды для финмонитора.
@@ -42,6 +43,7 @@ export async function GET(req: Request) {
     }
   }
 
+  const db = machineOk ? createAdmin() : sb;   // по токену сессии нет — читаем служебным ключом
   const [clients, clientMonths, scripts, team] = await Promise.all([
     fetchAll(sb, "clients", "id,name,surname,package,montager_id,teamlead_id,stage,niche"),
     fetchAll(sb, "client_months", "id,client_id,month_number,start_date,end_date,package,status"),
@@ -51,7 +53,7 @@ export async function GET(req: Request) {
 
   // Ручные правки. Если таблицы ещё нет (миграция не прогнана) — считаем без них.
   let adjustments: any[] = [];
-  const { data: adjData, error: adjErr } = await sb.from("payroll_adjustments").select("*").eq("ym", ym);
+  const { data: adjData, error: adjErr } = await db.from("payroll_adjustments").select("*").eq("ym", ym);
   if (!adjErr && adjData) adjustments = adjData;
 
   const result = computePayroll(ym, { clients, clientMonths, scripts, team, adjustments } as any);
