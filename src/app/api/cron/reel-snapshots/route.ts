@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase-server";
+import { createAdmin } from "@/lib/supabase-admin";
 import { fetchNetworkPosts, reelFields } from "@/lib/weeklyStats";
 import { handleOf } from "@/lib/socialHandles";
 import { requireUserOrCron } from "@/lib/apiGuard";
@@ -14,7 +14,7 @@ const iso = (d: Date) => d.toISOString().slice(0, 10);
 
 export async function GET(req: Request) {
   const denied = await requireUserOrCron(req); if (denied) return denied;
-  const sb = createClient();
+  const sb = createAdmin();
   const sp = new URL(req.url).searchParams;
   const today = iso(new Date());
   const from = iso(new Date(Date.now() - 45 * 86400000));

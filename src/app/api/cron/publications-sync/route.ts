@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createAdmin } from "@/lib/supabase-admin";
 import { checkPublication } from "@/lib/pubStatus";
 
 /* Раз в час: всё, что запланировано и время уже прошло, сверяем с провайдером.
@@ -14,7 +14,7 @@ export async function GET(req: Request) {
   if (secret && req.headers.get("authorization") !== `Bearer ${secret}`) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-  const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, { auth: { persistSession: false } })   // тот же доступ, что у всей CRM;
+  const sb = createAdmin()
 
   // даём сервису 15 минут на саму публикацию, раньше не дёргаем
   const cutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString();

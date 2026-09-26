@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase-server";
+import { createAdmin } from "@/lib/supabase-admin";
 import { requireUserOrCron } from "@/lib/apiGuard";
 
 // On-demand сбор базовой соц-статистики для карточек клиентов (без крона).
@@ -27,7 +27,7 @@ export async function GET(req: Request) {
 
   const auth = `userToken=${encodeURIComponent(token)}&userId=${encodeURIComponent(userId)}`;
   const headers = { "X-Mc-Auth": token };
-  const sb = createClient();
+  const sb = createAdmin();
 
   const { data: clients } = await sb.from("clients").select("id, name, metricool_blog_id, platforms").not("metricool_blog_id", "is", null);
   if (!clients?.length) return NextResponse.json({ ok: true, note: "нет клиентов с metricool_blog_id", written: 0 });

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createAdmin } from "@/lib/supabase-admin";
 import { collectClientMonth, prevYm } from "@/lib/monthlyStats";
 import { requireUserOrCron } from "@/lib/apiGuard";
 
@@ -20,7 +20,7 @@ export async function GET(req: Request) {
 
   // debug=1&clientId=… — сырой первый элемент каждого эндпоинта (разбор полей новой сети)
   if (sp.get("debug") === "1" && clientId) {
-    const sbd = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, { auth: { persistSession: false } });
+    const sbd = createAdmin();
     const { data: c } = await sbd.from("clients").select("metricool_blog_id, timezone").eq("id", Number(clientId)).maybeSingle();
     const token = process.env.METRICOOL_TOKEN!, uid = process.env.METRICOOL_USER_ID!;
     const [yy, mm] = ym.split("-").map(Number); const last = new Date(yy, mm, 0).getDate();
@@ -35,7 +35,7 @@ export async function GET(req: Request) {
     return NextResponse.json(out);
   }
 
-  const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, { auth: { persistSession: false } })   // тот же доступ, что у всей CRM;
+  const sb = createAdmin()
   let q = sb.from("clients").select("id, name, surname, metricool_blog_id, timezone, stage, platforms").not("metricool_blog_id", "is", null);
   if (clientId) q = q.eq("id", Number(clientId)); else q = q.neq("stage", "churned");
   const { data: clients, error } = await q;

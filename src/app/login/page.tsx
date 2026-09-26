@@ -35,13 +35,7 @@ export default function LoginPage() {
     if (res.data.session) { router.push("/dashboard"); router.refresh(); }
   };
 
-  const handleSignUp = async () => {
-    setLoading(true); setError(null);
-    const { error: err } = await createClient().auth.signUp({ email, password });
-    if (err) setError(err.message);
-    else alert("Проверьте email для подтверждения!");
-    setLoading(false);
-  };
+
 
   return (
     <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--bg)" }}>
@@ -65,8 +59,7 @@ export default function LoginPage() {
           {note && <div className="text-xs text-center px-3 py-2 rounded-lg" style={{ color: "#42d4f4", background: "rgba(66,212,244,0.1)" }}>{note}</div>}
           <button type="submit" disabled={loading} className="w-full py-3 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
             style={{ background: "linear-gradient(135deg, var(--cy), var(--pu))" }}>{loading ? "Загрузка..." : "Войти"}</button>
-          <button type="button" onClick={handleSignUp} disabled={loading} className="w-full py-3 rounded-xl text-sm font-medium disabled:opacity-50"
-            style={{ color: "var(--t2)", border: "1px solid var(--brd)", background: "transparent" }}>Создать аккаунт</button>
+          <div className="text-[11px] text-center pt-1" style={{ color: "var(--t3)" }}>Доступ выдаёт владелец в разделе «Команда»</div>
         </form>
       </div>
     </div>

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase-server";
+import { createAdmin } from "@/lib/supabase-admin";
 import { handleOf, type Plat } from "@/lib/socialHandles";
 import { vmxMcp, vmxMyAccounts, vmxAvatarUrl } from "@/lib/viralmaxing";
 import { requireUserOrCron } from "@/lib/apiGuard";
@@ -38,7 +38,7 @@ export async function GET(req: Request) {
   const mcUser = process.env.METRICOOL_USER_ID, mcToken = process.env.METRICOOL_TOKEN;
   if (!vmxKey && !(mcUser && mcToken)) return NextResponse.json({ error: "Не задан ни VIRALMAXING_API_KEY, ни METRICOOL_*" }, { status: 400 });
 
-  const sb = createClient();
+  const sb = createAdmin();
   const { data: clients } = await sb.from("clients")
     .select("id, name, surname, stage, platforms, instagram, tiktok, youtube, metricool_blog_id, avatar_url")
     .neq("stage", "churned");

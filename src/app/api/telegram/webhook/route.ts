@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { waitUntil } from "@vercel/functions";
-import { createClient } from "@/lib/supabase-server";
+import { createAdmin } from "@/lib/supabase-admin";
 import { ingestReference, detectPlatform } from "@/lib/ingestReference";
 import { tgReply, extractUrls } from "@/lib/telegram";
 
@@ -18,7 +18,7 @@ async function handleMessage(msg: any) {
   const urls = extractUrls(msg).filter(u => detectPlatform(u));
   if (!urls.length) return;
 
-  const sb = createClient();
+  const sb = createAdmin();
   const { data: client } = threadId != null
     ? await sb.from("clients").select("id, name, surname").eq("telegram_topic_id", threadId).maybeSingle()
     : { data: null };
