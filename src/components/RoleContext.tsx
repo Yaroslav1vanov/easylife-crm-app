@@ -23,8 +23,10 @@ export function useCanEditReadyAt(): boolean {
   return r === "owner" || r === "admin";
 }
 // Разделы, доступные роли (для сайдбара и гварда маршрутов).
+const MONTAGER_SECTIONS = ["dashboard", "today", "plan", "montage", "references", "transcribe", "motivation", "guide"];
 export const ALLOWED_SECTIONS: Record<string, string[] | "all"> = {
-  montager: ["dashboard", "today", "plan", "montage", "references", "transcribe", "motivation", "guide"],
+  owner: "all", admin: "all", assistant: "all", teamlead: "all",
+  montager: MONTAGER_SECTIONS,
 };
 /** Разделы только для владельца — деньги команды. Остальные роли их не видят вообще. */
 export const OWNER_ONLY_SECTIONS = ["payroll"];
@@ -48,7 +50,9 @@ export function useSeesOverview(): boolean {
 export function sectionAllowed(role: Role, sectionId: string): boolean {
   if (OWNER_ONLY_SECTIONS.includes(sectionId)) return isOwner(role);
   if (STRATEGY_SECTIONS.includes(sectionId)) return isOwner(role) || role === "assistant";
-  const allow = ALLOWED_SECTIONS[role];
-  if (!allow || allow === "all") return true;
+  // Роль, которой нет в списке (осталась от старой версии, опечатка в базе), раньше
+  // получала доступ ко всему. Теперь незнакомая роль получает минимум — как монтажёр.
+  const allow = ALLOWED_SECTIONS[role] ?? MONTAGER_SECTIONS;
+  if (allow === "all") return true;
   return allow.includes(sectionId);
 }
