@@ -30,8 +30,8 @@ export const ALLOWED_SECTIONS: Record<string, string[] | "all"> = {
 };
 /** Разделы только для владельца — деньги команды. Остальные роли их не видят вообще. */
 export const OWNER_ONLY_SECTIONS = ["payroll"];
-/** Стратегия (забеги, задачи и дедлайны) — владелец и ассистент. */
-export const STRATEGY_SECTIONS = ["strategy"];
+/** Стратегия (забеги, задачи и дедлайны) и настройки — владелец и ассистент. */
+export const STRATEGY_SECTIONS = ["strategy", "settings"];
 export function isOwner(role: Role): boolean {
   return role === "owner" || role === "admin";
 }

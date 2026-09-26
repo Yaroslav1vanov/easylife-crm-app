@@ -163,10 +163,10 @@ export default function TeamPage() {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <TourButton onClick={() => setTourOpen(true)} />
-          <button data-tour="team-add" onClick={() => setShowAdd(v => !v)}
+          {seesAll && <button data-tour="team-add" onClick={() => setShowAdd(v => !v)}
             style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "10px 16px", borderRadius: 11, background: "linear-gradient(135deg, var(--cy), var(--pu))", color: "#fff", border: "none", cursor: "pointer", fontSize: 12, fontWeight: 800 }}>
             <UserPlus size={15} /> Добавить
-          </button>
+          </button>}
         </div>
       </div>
 
@@ -225,7 +225,7 @@ export default function TeamPage() {
                           </div>
                         )}
                       </div>
-                      {m.member_type !== "admin" && (
+                      {seesAll && m.member_type !== "admin" && (
                         <button onClick={() => removeMember(m.id)} title="Удалить" style={{ flexShrink: 0, width: 26, height: 26, borderRadius: 7, background: "transparent", border: "1px solid var(--brd)", color: "var(--t3)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><X size={13} /></button>
                       )}
                     </div>
