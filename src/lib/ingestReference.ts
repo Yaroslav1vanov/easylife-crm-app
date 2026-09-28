@@ -1,3 +1,4 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase-server";
 
 // Общая логика: по ссылке на чужой ролик тянет статистику + транскрибацию
@@ -17,7 +18,9 @@ export type IngestResult =
   | { ok: true; reference: any }
   | { ok: false; error: string; status?: number };
 
-export async function ingestReference(rawUrl: string, clientId: number): Promise<IngestResult> {
+/** db — через что писать в базу. Вебхук бота работает без вошедшего сотрудника,
+ *  поэтому передаёт служебный клиент; из CRM вызываем от имени сотрудника. */
+export async function ingestReference(rawUrl: string, clientId: number, db?: SupabaseClient): Promise<IngestResult> {
   const key = process.env.SCRAPECREATORS_API_KEY;
   if (!key) return { ok: false, error: "SCRAPECREATORS_API_KEY не задан" };
   let url = (rawUrl || "").trim();
@@ -30,7 +33,7 @@ export async function ingestReference(rawUrl: string, clientId: number): Promise
   }
 
   // защита от дублей: тот же клиент + тот же ролик
-  const sb = createClient();
+  const sb = db || createClient();
   const { data: dup } = await sb.from("reference_videos").select("id").eq("client_id", clientId).eq("url", url).maybeSingle();
   if (dup) return { ok: false, error: "уже добавлен ранее" };
 

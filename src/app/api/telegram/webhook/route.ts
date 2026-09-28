@@ -19,9 +19,20 @@ async function handleMessage(msg: any) {
   if (!urls.length) return;
 
   const sb = createAdmin();
-  const { data: client } = threadId != null
-    ? await sb.from("clients").select("id, name, surname").eq("telegram_topic_id", threadId).maybeSingle()
-    : { data: null };
+  const { data: rows, error: lookupErr } = threadId != null
+    ? await sb.from("clients").select("id, name, surname").eq("telegram_topic_id", threadId).limit(2)
+    : { data: [] as any[], error: null };
+
+  if (lookupErr) {
+    console.error("[tg-webhook] поиск клиента по теме", threadId, lookupErr.message);
+    await tgReply(chatId, `⚠️ Не смог сверить тему с CRM (ошибка базы). Рефы не потеряны — перешлите их ещё раз чуть позже.\n<code>${lookupErr.message}</code>`, threadId);
+    return;
+  }
+  if ((rows?.length || 0) > 1) {
+    await tgReply(chatId, `⚠️ Этот ID темы (<code>${threadId}</code>) стоит сразу у нескольких клиентов в CRM. Оставьте его только у одного.`, threadId);
+    return;
+  }
+  const client = rows?.[0] || null;
 
   if (!client) {
     await tgReply(chatId,
@@ -34,7 +45,7 @@ async function handleMessage(msg: any) {
   const lines: string[] = [];
   let added = 0;
   for (const url of urls) {
-    const r = await ingestReference(url, client.id);
+    const r = await ingestReference(url, client.id, sb);
     if (r.ok) { added++; lines.push(`✅ 👁 ${fmt(r.reference.views)} · 💬 ${fmt(r.reference.comments)}`); }
     else lines.push(`⚠️ ${r.error}`);
   }
