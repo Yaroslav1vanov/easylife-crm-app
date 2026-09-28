@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase-browser";
 import { notify } from "@/components/NoticeHost";
 import { btn } from "./DocsSection";
-import { uploadClientFile, fileUrl, kindOf } from "./files";
+import { uploadClientFile, fileUrl, kindOf, deleteClientFile } from "./files";
 
 /*
  * Медиатека клиента: фото, видео, логотипы, шрифты, с которыми работают команда и ИИ.
@@ -80,8 +80,11 @@ export default function MediaSection({ clientId }: { clientId: number }) {
   }
 
   async function remove(a: Asset) {
-    if (!confirm("Убрать файл из медиатеки?")) return;
-    await supabase.from("client_assets").delete().eq("id", a.id);
+    if (!confirm("Удалить файл из медиатеки? Он удалится и из хранилища — вернуть не получится.")) return;
+    const { error } = await supabase.from("client_assets").delete().eq("id", a.id);
+    if (error) return notify(`Не удалилось: ${error.message}`);
+    try { await deleteClientFile(a.file_key); }
+    catch (e: any) { notify(`Из медиатеки убрано, но файл в хранилище остался: ${e.message}`); }
     setEdit(null); load();
   }
 

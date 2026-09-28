@@ -12,6 +12,7 @@ import { createClient } from "@/lib/supabase-server";
  *
  *   POST { clientId, category, filename } → { uploadUrl, key }   залить файл
  *   GET  ?key=strategy/...                 → переадресация       открыть файл
+ *   DELETE ?key=strategy/...               → { ok }              удалить файл из хранилища
  */
 
 const CATEGORIES = new Set([
@@ -62,4 +63,20 @@ export async function GET(req: Request) {
 
   const signed = await store.client.sign(`${store.base}/${key}?X-Amz-Expires=3600`, { method: "GET", aws: { signQuery: true } });
   return NextResponse.redirect(signed.url, 302);
+}
+
+/* Убрали файл из медиатеки — удаляем его и из хранилища, чтобы фото людей не оставались
+   лежать без присмотра после того, как их убрали из CRM. */
+export async function DELETE(req: Request) {
+  if (!(await signedIn())) return NextResponse.json({ error: "не авторизован" }, { status: 401 });
+  const store = r2();
+  if (!store) return NextResponse.json({ error: "хранилище R2 не настроено" }, { status: 500 });
+
+  const key = new URL(req.url).searchParams.get("key") || "";
+  if (!key.startsWith("strategy/") || key.includes("..")) return NextResponse.json({ error: "нет файла" }, { status: 400 });
+
+  const r = await store.client.fetch(`${store.base}/${key}`, { method: "DELETE" });
+  // 404 — файла уже нет, это тоже результат
+  if (!r.ok && r.status !== 404) return NextResponse.json({ error: `хранилище ответило ${r.status}` }, { status: 502 });
+  return NextResponse.json({ ok: true });
 }

@@ -16,6 +16,11 @@ export async function uploadClientFile(clientId: number, category: string, file:
 
 export const fileUrl = (key: string) => `/api/client-files?key=${encodeURIComponent(key)}`;
 
+export async function deleteClientFile(key: string): Promise<void> {
+  const r = await fetch(fileUrl(key), { method: "DELETE" });
+  if (!r.ok) throw new Error((await r.json().catch(() => ({})))?.error || "не удалось удалить файл из хранилища");
+}
+
 export function guessType(name: string) {
   const ext = name.split(".").pop()?.toLowerCase();
   return ({ html: "text/html; charset=utf-8", htm: "text/html; charset=utf-8", pdf: "application/pdf", md: "text/markdown; charset=utf-8",

@@ -144,6 +144,11 @@ export default function DocsSection({ clientId, kind, mode, hint }: {
             <iframe src={fileUrl(shown.file_key)} title={shown.title} sandbox="allow-same-origin allow-popups"
               style={{ width: "100%", height: 640, border: "1px solid var(--brd)", borderRadius: 10, marginTop: 6, background: "#fff" }} />
           )}
+          {shown.file_key && /\.html?$/i.test(shown.title) && (
+            <p style={{ fontSize: 11.5, color: "var(--t3)", marginTop: 6 }}>
+              Это безопасное превью: анимации и графики в нём не работают. Чтобы увидеть аудит целиком, нажмите «Открыть».
+            </p>
+          )}
         </div>
       )}
 
