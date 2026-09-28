@@ -6,7 +6,7 @@
 -- ─────────────────────────────────────────────────────────────────────────────
 
 -- 1) убедиться, что клиент находится ровно один
-select id, name, surname from public.clients where name ilike '%Госпожа%Еля%' or name ilike '%Еля%';
+select id, name, surname from public.clients where id = 25;
 
 -- 2) записать бренд-кит (повторный запуск просто обновит его)
 insert into public.client_brand (client_id, kit, version)
@@ -97,7 +97,7 @@ select id, '{
   }
 }'::jsonb, 1
 from public.clients
-where name ilike '%Госпожа%Еля%'
+where id = 25
 on conflict (client_id) do update set kit = excluded.kit, version = public.client_brand.version + 1, updated_at = now();
 
 -- 3) проверка
