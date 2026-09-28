@@ -19,6 +19,7 @@ import { handleOf } from "@/lib/socialHandles";
 import { notify } from "@/components/NoticeHost";
 import { avatarFromClientSocials } from "@/lib/avatarFromSocial";
 import ClientStatsTab from "@/components/ClientStatsTab";
+import ClientStrategyTab from "@/components/strategy/ClientStrategyTab";
 import { Camera, Music2, Play } from "lucide-react";
 
 // Соцсети клиента в шапке: иконка + хэндл, клик открывает профиль
@@ -66,7 +67,7 @@ export default function ClientDetailPage() {
   const [clientMonths, setClientMonths] = useState<ClientMonth[]>([]);
   const [onbProgress, setOnbProgress] = useState<OnboardingProgress | null>(null);
   const [tab, setTab] = useState("scripts");
-  const [ctab, setCtab] = useState<"work" | "set" | "stats">("work");
+  const [ctab, setCtab] = useState<"work" | "set" | "stats" | "strategy">("work");
   const [menuOpen, setMenuOpen] = useState(false);
   const isMobile = useIsMobile();
   const [editing, setEditing] = useState(false);
@@ -359,10 +360,12 @@ export default function ClientDetailPage() {
       <div className="v2-segc">
         <button className={ctab === "work" ? "on" : ""} onClick={() => setCtab("work")}>Работа</button>
         <button className={ctab === "stats" ? "on" : ""} onClick={() => setCtab("stats")}>Статистика</button>
+        <button className={ctab === "strategy" ? "on" : ""} onClick={() => setCtab("strategy")}>Стратегия</button>
         <button className={ctab === "set" ? "on" : ""} onClick={() => setCtab("set")}>Настройки</button>
       </div>
 
       {ctab === "stats" && <ClientStatsTab clientId={clientId} hasMetricool={!!c.metricool_blog_id} />}
+      {ctab === "strategy" && <ClientStrategyTab clientId={clientId} clientName={[c.name, c.surname].filter(Boolean).join(" ")} />}
 
       {ctab === "set" && (
         <div className="v2-form">
