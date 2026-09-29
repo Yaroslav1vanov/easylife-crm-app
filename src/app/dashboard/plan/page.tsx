@@ -347,7 +347,7 @@ function PlanInner() {
       {editing && (
         <ScriptModal script={editing} client={client}
           onClose={() => { setEditing(null); loadScripts(); }}
-          onUpdate={async (id, patch) => { await db.updateScript(supabase, id, patch); setEditing(e => e && e.id === id ? { ...e, ...patch } : e); }}
+          onUpdate={async (id, patch) => { const r = await db.updateScript(supabase, id, patch); if (!r?.error) setEditing(e => e && e.id === id ? { ...e, ...patch } : e); }}
           onDelete={canEdit ? async (id) => { await db.deleteScript(supabase, id); setEditing(null); loadScripts(); } : undefined}
           canEdit={canEdit} canEditReadyAt={role === "owner" || role === "admin"}
           monthOptions={months.map(m => m.month_number)} />

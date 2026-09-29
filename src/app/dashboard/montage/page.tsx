@@ -119,6 +119,7 @@ export default function MontagePage() {
       if (!patch.ready_at && cur && !cur.ready_at) patch = { ...patch, ready_at: todayIso };
     }
     const res = await db.updateScript(supabase, id, patch);
+    if (res?.error) return; // сообщение об ошибке уже показано
     const final = res?.patch || patch;
     setAllScripts(arr => arr.map(s => s.id === id ? { ...s, ...final } : s));
     patchScriptInStore(id, final);

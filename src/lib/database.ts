@@ -314,6 +314,11 @@ const db = {
       if (cur && !cur.ready_at) merged.ready_at = new Date().toISOString().slice(0, 10);
     }
     const { error } = await sb.from("scripts").update(merged).eq("id", id);
+    // Раньше ошибка записи молча терялась, а на экране текст выглядел сохранённым
+    // (так 3 недели пропадали описания к рилсам — в базе не было колонки).
+    if (error && typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("crm:notice", { detail: { text: `Не сохранилось: ${error.message}`, kind: "error" } }));
+    }
     return { error, patch: merged as Partial<Script> };
   },
   async addMonthScripts(sb: SupabaseClient, clientId: number) {

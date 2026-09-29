@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Client, Script } from "@/lib/database";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import { ExternalLink, X, Trash2, Eye, Heart, MessageCircle, RefreshCw, Swords } from "lucide-react";
@@ -55,6 +55,17 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
   const [pubDate, setPubDate] = useState(s.pub_date || "");
   const [readyAt, setReadyAt] = useState(s.ready_at || "");
   const [confirmDel, setConfirmDel] = useState(false);
+
+  /* Поля сохраняются, когда теряют фокус. Но при закрытии по Escape фокус не «теряется»,
+     а в Контент-плане список перечитывался раньше, чем запись доходила до базы, —
+     и описание к рилсу «исчезало». Поэтому все записи идут через save(), а закрытие
+     сначала досохраняет изменённые поля и дожидается ответа базы. */
+  const pending = useRef<Promise<unknown>[]>([]);
+  const save = (patch: Partial<Script>) => {
+    const p = Promise.resolve(onUpdate(s.id, patch));
+    pending.current.push(p);
+    return p;
+  };
   const [duelBusy, setDuelBusy] = useState(false);
   const [upBusy, setUpBusy] = useState(false);
 
@@ -67,7 +78,7 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
       if (!r.ok) { alert("R2: " + (j?.error || "ошибка подписи")); setUpBusy(false); return; }
       const put = await fetch(j.uploadUrl, { method: "PUT", body: file, headers: file.type ? { "content-type": file.type } : {} });
       if (!put.ok) { alert(`Загрузка не удалась (${put.status}). Проверь CORS бакета.`); setUpBusy(false); return; }
-      setVideoUrl(j.publicUrl); onUpdate(s.id, { video_url: j.publicUrl });
+      setVideoUrl(j.publicUrl); save({ video_url: j.publicUrl });
     } catch (e: any) { alert("Ошибка загрузки: " + String(e)); }
     setUpBusy(false);
   }
@@ -80,7 +91,7 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
       if (!r.ok) { alert("Статистика: " + (j?.error || "ошибка")); }
       else {
         const { ok, ourFound, ourHint, ...patch } = j;
-        onUpdate(s.id, patch);
+        save(patch);
         if (ourHint) alert(ourHint);
       }
     } catch (e: any) { alert(String(e)); }
@@ -93,11 +104,32 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
     setVideoUrl(s.video_url || ""); setPubDate(s.pub_date || ""); setReadyAt(s.ready_at || "");
   }, [s.id]);
 
+  const closing = useRef(false);
+  async function requestClose() {
+    if (closing.current) return;
+    closing.current = true;
+    const diff: Partial<Script> = {};
+    if (!ro) {
+      if (hookText !== (s.hook_text || "")) diff.hook_text = hookText;
+      if (refUrl !== (s.ref_url || "")) diff.ref_url = refUrl;
+      if (refText !== (s.ref_text || "")) diff.ref_text = refText;
+      if (hook !== (s.hook || "")) diff.hook = hook;
+      if (bodyText !== (s.body_text || "")) diff.body_text = bodyText;
+      if (cta !== (s.cta || "")) diff.cta = cta;
+      if (postCaption !== (s.post_caption || "")) diff.post_caption = postCaption;
+    }
+    if (videoUrl !== (s.video_url || "")) diff.video_url = videoUrl;
+    if (pubUrl !== (s.published_url || "")) diff.published_url = pubUrl;
+    if (Object.keys(diff).length) save(diff);
+    await Promise.allSettled(pending.current);
+    onClose();
+  }
+
   useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const h = (e: KeyboardEvent) => { if (e.key === "Escape") requestClose(); };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
-  }, [onClose]);
+  });
 
   const isPublished = s.video_status === "published";
   const scrDue = pubDate ? addDaysIso(pubDate, -SCRIPT_LEAD) : null;
@@ -113,7 +145,7 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
   };
 
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.72)", zIndex: 200, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "40px 20px", overflowY: "auto" }}>
+    <div onClick={requestClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.72)", zIndex: 200, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "40px 20px", overflowY: "auto" }}>
       <div onClick={(e) => e.stopPropagation()} style={{
         background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 18,
         width: "100%", maxWidth: 680, padding: 24, display: "flex", flexDirection: "column", gap: 16,
@@ -128,7 +160,7 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
                 <span title="Перенести сценарий в другой контрактный месяц" style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
                   · месяц:
                   <select value={s.month_number}
-                    onChange={(e) => { const n = Number(e.target.value); if (n !== s.month_number) onUpdate(s.id, { month_number: n }); }}
+                    onChange={(e) => { const n = Number(e.target.value); if (n !== s.month_number) save({ month_number: n }); }}
                     style={{ background: "var(--inset2)", border: "1px solid var(--brd)", color: "var(--cy)", borderRadius: 6, padding: "2px 6px", fontSize: 10, fontWeight: 800, fontFamily: "monospace", cursor: "pointer", outline: "none" }}>
                     {monthOptions.map(m => <option key={m} value={m}>M{m}</option>)}
                   </select>
@@ -139,12 +171,12 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
             </div>
             <input
               value={hookText} onChange={(e) => setHookText(e.target.value)} readOnly={ro}
-              onBlur={() => { if (!ro && hookText !== (s.hook_text || "")) onUpdate(s.id, { hook_text: hookText }); }}
+              onBlur={() => { if (!ro && hookText !== (s.hook_text || "")) save({ hook_text: hookText }); }}
               placeholder="Тема / хук сценария…"
               style={{ width: "100%", background: "transparent", border: "none", outline: "none", color: "var(--t1)", fontSize: 19, fontWeight: 800, fontFamily: "'Unbounded', sans-serif", letterSpacing: -0.3 }}
             />
           </div>
-          <button onClick={onClose} style={{ flexShrink: 0, width: 34, height: 34, borderRadius: 9, background: "var(--track)", border: "1px solid var(--brd)", color: "var(--t2)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <button onClick={requestClose} style={{ flexShrink: 0, width: 34, height: 34, borderRadius: 9, background: "var(--track)", border: "1px solid var(--brd)", color: "var(--t2)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <X size={16} />
           </button>
         </div>
@@ -154,13 +186,13 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
           <div data-tour="sm-date">
             {label(ro ? "📅 Публикация (только чтение)" : "📅 Публикация")}
             <input type="date" value={pubDate} onChange={(e) => setPubDate(e.target.value)} readOnly={ro} disabled={ro}
-              onBlur={() => { if (!ro && pubDate !== (s.pub_date || "")) onUpdate(s.id, { pub_date: pubDate || null }); }}
+              onBlur={() => { if (!ro && pubDate !== (s.pub_date || "")) save({ pub_date: pubDate || null }); }}
               style={{ ...ta, fontSize: 12, width: 150, opacity: ro ? 0.6 : 1 }} />
           </div>
           <div data-tour="sm-ready">
             {label(roReady ? "✂️ Смонтировано (фиксируется авто)" : "✂️ Смонтировано (дата сдачи)")}
             <input type="date" value={readyAt} onChange={(e) => setReadyAt(e.target.value)} readOnly={roReady} disabled={roReady}
-              onBlur={() => { if (!roReady && readyAt !== (s.ready_at || "")) onUpdate(s.id, { ready_at: readyAt || null }); }}
+              onBlur={() => { if (!roReady && readyAt !== (s.ready_at || "")) save({ ready_at: readyAt || null }); }}
               title={roReady
                 ? "День сдачи монтажа. Проставляется автоматически при переносе ролика в «Готово к публикации» и не редактируется. Менять может только владелец."
                 : "День сдачи монтажа — по нему начисляется ЗП монтажёру. Ставится авто при переносе в «Готово к публикации», при необходимости поправь вручную."}
@@ -181,7 +213,7 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
           {label("🎬 Референс — ссылка на исходник")}
           <div style={{ display: "flex", gap: 6 }}>
             <input value={refUrl} onChange={(e) => setRefUrl(e.target.value)} readOnly={ro}
-              onBlur={() => { if (!ro && refUrl !== (s.ref_url || "")) onUpdate(s.id, { ref_url: refUrl }); }}
+              onBlur={() => { if (!ro && refUrl !== (s.ref_url || "")) save({ ref_url: refUrl }); }}
               placeholder="https://…" style={{ ...ta, fontSize: 12 }} />
             {s.ref_url && (
               <a href={s.ref_url.startsWith("http") ? s.ref_url : `https://${s.ref_url}`} target="_blank" rel="noopener noreferrer"
@@ -196,7 +228,7 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
         <div>
           {label("📝 Транскрибация референса")}
           <textarea value={refText} onChange={(e) => setRefText(e.target.value)} readOnly={ro}
-            onBlur={() => { if (!ro && refText !== (s.ref_text || "")) onUpdate(s.id, { ref_text: refText }); }}
+            onBlur={() => { if (!ro && refText !== (s.ref_text || "")) save({ ref_text: refText }); }}
             rows={5} placeholder="Расшифровка текста исходного видео…" style={ta} />
         </div>
 
@@ -216,25 +248,25 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
           <div>
             {label("1. Хук (первые секунды)", "var(--cy)")}
             <textarea value={hook} onChange={(e) => setHook(e.target.value)} readOnly={ro}
-              onBlur={() => { if (!ro && hook !== (s.hook || "")) onUpdate(s.id, { hook }); }}
+              onBlur={() => { if (!ro && hook !== (s.hook || "")) save({ hook }); }}
               rows={2} placeholder="Цепляющее начало — ради чего досмотрят…" style={{ ...ta, background: "var(--inset2)" }} />
           </div>
           <div>
             {label("2. Основной текст", "var(--pu)")}
             <textarea value={bodyText} onChange={(e) => setBodyText(e.target.value)} readOnly={ro}
-              onBlur={() => { if (!ro && bodyText !== (s.body_text || "")) onUpdate(s.id, { body_text: bodyText }); }}
+              onBlur={() => { if (!ro && bodyText !== (s.body_text || "")) save({ body_text: bodyText }); }}
               rows={7} placeholder="Тело сценария — мясо/смысл…" style={{ ...ta, background: "var(--inset2)" }} />
           </div>
           <div>
             {label("3. Призыв (CTA)", "var(--gr)")}
             <textarea value={cta} onChange={(e) => setCta(e.target.value)} readOnly={ro}
-              onBlur={() => { if (!ro && cta !== (s.cta || "")) onUpdate(s.id, { cta }); }}
+              onBlur={() => { if (!ro && cta !== (s.cta || "")) save({ cta }); }}
               rows={2} placeholder="Призыв к действию в конце…" style={{ ...ta, background: "var(--inset2)" }} />
           </div>
           <div>
             {label("4. Описание к рилсу", "var(--or)")}
             <textarea value={postCaption} onChange={(e) => setPostCaption(e.target.value)} readOnly={ro}
-              onBlur={() => { if (!ro && postCaption !== (s.post_caption || "")) onUpdate(s.id, { post_caption: postCaption }); }}
+              onBlur={() => { if (!ro && postCaption !== (s.post_caption || "")) save({ post_caption: postCaption }); }}
               rows={4} placeholder="Текст под роликом — то, что пойдёт в подпись поста…" style={{ ...ta, background: "var(--inset2)" }} />
             <div style={{ fontSize: 9.5, color: "var(--t3)", marginTop: 4 }}>Уедет в «Публикации» как основа текста — там его адаптируют под каждую соцсеть.</div>
           </div>
@@ -246,7 +278,7 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
             {label("🎬 Смонтированный ролик — файл от монтажёра", s.video_url ? "var(--gr)" : "var(--or)")}
             <div style={{ display: "flex", gap: 6 }}>
               <input value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)}
-                onBlur={() => { if (videoUrl !== (s.video_url || "")) onUpdate(s.id, { video_url: videoUrl }); }}
+                onBlur={() => { if (videoUrl !== (s.video_url || "")) save({ video_url: videoUrl }); }}
                 placeholder="Загрузи файл справа → или вставь ссылку" style={{ ...ta, fontSize: 12 }} />
               {s.video_url && (
                 <a href={s.video_url.startsWith("http") ? s.video_url : `https://${s.video_url}`} target="_blank" rel="noopener noreferrer"
@@ -271,7 +303,7 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
             {label("🔗 Ссылка на публикацию в соцсети", s.published_url ? "var(--cy)" : "var(--t3)")}
             <div style={{ display: "flex", gap: 6 }}>
               <input value={pubUrl} onChange={(e) => setPubUrl(e.target.value)}
-                onBlur={() => { if (pubUrl !== (s.published_url || "")) onUpdate(s.id, { published_url: pubUrl }); }}
+                onBlur={() => { if (pubUrl !== (s.published_url || "")) save({ published_url: pubUrl }); }}
                 placeholder="https://www.instagram.com/reel/… — берётся из соцсети после выхода" style={{ ...ta, fontSize: 12 }} />
               {s.published_url && (
                 <a href={s.published_url.startsWith("http") ? s.published_url : `https://${s.published_url}`} target="_blank" rel="noopener noreferrer"
@@ -338,7 +370,7 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
               <Trash2 size={13} /> Удалить
             </button>
           ) : <span />}
-          <button onClick={onClose}
+          <button onClick={requestClose}
             style={{ padding: "8px 18px", borderRadius: 9, background: "linear-gradient(135deg, var(--cy), var(--pu))", border: "none", color: "#fff", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>
             Готово
           </button>

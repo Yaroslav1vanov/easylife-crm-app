@@ -295,7 +295,7 @@ export default function TodayView({ role, member, viewAll, clients, clientMonths
       {editing && (
         <ScriptModal script={editing} client={clients.find(c => c.id === editing.client_id)}
           onClose={() => { setEditing(null); onReload(); }}
-          onUpdate={async (id, patch) => { await db.updateScript(supabase, id, patch); setEditing(e => e && e.id === id ? { ...e, ...patch } : e); }}
+          onUpdate={async (id, patch) => { const r = await db.updateScript(supabase, id, patch); if (!r?.error) setEditing(e => e && e.id === id ? { ...e, ...patch } : e); }}
           canEdit={canEdit} canEditReadyAt={role === "owner" || role === "admin"}
           monthOptions={clientMonths.filter(m => m.client_id === editing.client_id && m.status !== "cancelled").map(m => m.month_number).sort((a, b) => a - b)} />
       )}
