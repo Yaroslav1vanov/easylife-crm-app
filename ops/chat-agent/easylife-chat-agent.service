@@ -1,0 +1,15 @@
+[Unit]
+Description=EasyLife CRM — ИИ-исполнитель чата по клиенту (подписка Claude, Opus 5.5)
+After=network-online.target
+
+[Service]
+User=chatagent
+WorkingDirectory=/srv/easylife-chat-agent
+ExecStart=/srv/easylife-chat-agent/.venv/bin/python /srv/easylife-chat-agent/agent.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/srv/easylife-chat-agent/logs/agent.log
+StandardError=append:/srv/easylife-chat-agent/logs/agent.log
+
+[Install]
+WantedBy=multi-user.target
