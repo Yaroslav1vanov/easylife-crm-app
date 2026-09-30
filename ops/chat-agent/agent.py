@@ -126,6 +126,14 @@ Instagram: {client.get('instagram') or '—'} · TikTok: {client.get('tiktok') o
     return ws, out
 
 
+def fresh_token():
+    """Токен подписки читаем из .env на каждую задачу — смена аккаунта Claude без перезапуска."""
+    for l in (HOME / ".env").read_text().splitlines():
+        if l.startswith("CLAUDE_CODE_OAUTH_TOKEN="):
+            return l.split("=", 1)[1].strip()
+    return ENV["CLAUDE_CODE_OAUTH_TOKEN"]
+
+
 def run_claude(ws, mid):
     started = (ws / ".session").exists()
     cmd = ["/usr/bin/claude", "-p",
@@ -139,7 +147,7 @@ def run_claude(ws, mid):
         cmd.insert(1, "-c")   # продолжаем разговор по этому клиенту — ИИ помнит прошлые версии
     env = {"PATH": "/srv/easylife-chat-agent/bin:/srv/easylife-chat-agent/.venv/bin:/usr/local/bin:/usr/bin:/bin",
            "HOME": str(HOME), "LANG": "C.UTF-8",
-           "CLAUDE_CODE_OAUTH_TOKEN": ENV["CLAUDE_CODE_OAUTH_TOKEN"]}   # секрет CRM сюда не передаём
+           "CLAUDE_CODE_OAUTH_TOKEN": fresh_token()}   # секрет CRM сюда не передаём
     p = subprocess.run(cmd, cwd=ws, env=env, capture_output=True, text=True, timeout=TIMEOUT)
     (ws / ".session").write_text(time.strftime("%Y-%m-%d %H:%M"))
     try:
