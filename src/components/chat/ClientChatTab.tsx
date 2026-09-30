@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase-browser";
 import { fileUrl, guessType, when } from "@/components/strategy/files";
-import { Paperclip, Send, X, Sparkles, Loader2, AlertTriangle, CheckCircle2, Download } from "lucide-react";
+import { Paperclip, Send, X, Sparkles, Loader2, AlertTriangle, CheckCircle2, Download, RotateCw, UploadCloud } from "lucide-react";
 
 /* Чат по клиенту. Вся работа по проекту в одном месте: сотрудники пишут задачи
    и кидают исходники, у клиентов с включённым ИИ-чатом отвечает исполнитель на
@@ -15,7 +15,7 @@ type Msg = {
   body: string; attachments: Att[]; ai_status: "queued" | "working" | "done" | "error" | null;
   ai_error: string | null; reply_to: number | null; created_at: string;
 };
-type Pending = { id: string; file: File; pct: number; key?: string; err?: string };
+type Pending = { id: string; file: File; pct: number; status: "uploading" | "done" | "error"; key?: string; err?: string; preview?: string };
 
 const mb = (n: number) => (n >= 1048576 ? `${(n / 1048576).toFixed(n > 104857600 ? 0 : 1)} МБ` : `${Math.max(1, Math.round(n / 1024))} КБ`);
 const isVideo = (a: Att) => a.type.startsWith("video/") || /\.(mp4|mov|webm|m4v)$/i.test(a.name);
@@ -77,36 +77,64 @@ export default function ClientChatTab({ clientId, aiEnabled }: { clientId: numbe
 
   const working = useMemo(() => msgs.some((m) => m.ai_status === "queued" || m.ai_status === "working"), [msgs]);
 
-  function addFiles(list: FileList | null) {
-    if (!list) return;
-    setFiles((f) => [...f, ...Array.from(list).map((file) => ({ id: `${Date.now()}-${file.name}-${Math.random()}`, file, pct: 0 }))]);
+  const [drag, setDrag] = useState(false);
+  const patchFile = (id: string, p: Partial<Pending>) => setFiles((f) => f.map((x) => (x.id === id ? { ...x, ...p } : x)));
+
+  /* Файл начинает заливаться сразу после выбора — видно проценты, и к моменту
+     «Отправить» он уже в хранилище. Исходники аватара бывают по сотне мегабайт. */
+  async function startUpload(p: Pending) {
+    patchFile(p.id, { status: "uploading", pct: 0, err: undefined });
+    try {
+      const r = await fetch("/api/client-files", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId, category: "chat", filename: p.file.name }) });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || "не удалось подготовить загрузку");
+      await putWithProgress(j.uploadUrl, p.file, (pct) => patchFile(p.id, { pct }));
+      patchFile(p.id, { key: j.key, pct: 100, status: "done" });
+    } catch (e: any) {
+      patchFile(p.id, { status: "error", err: e.message || String(e) });
+    }
   }
+
+  function addFiles(list: FileList | File[] | null) {
+    if (!list) return;
+    const added: Pending[] = Array.from(list).map((file) => ({
+      id: `${Date.now()}-${file.name}-${Math.random()}`, file, pct: 0, status: "uploading" as const,
+      preview: file.type.startsWith("image/") || file.type.startsWith("video/") ? URL.createObjectURL(file) : undefined,
+    }));
+    setFiles((f) => [...f, ...added]);
+    added.forEach(startUpload);
+  }
+
+  const uploading = files.filter((f) => f.status === "uploading").length;
+  const failed = files.filter((f) => f.status === "error").length;
+
+  // не дать закрыть вкладку, пока файл заливается
+  useEffect(() => {
+    if (!uploading) return;
+    const h = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", h);
+    return () => window.removeEventListener("beforeunload", h);
+  }, [uploading]);
 
   async function send() {
     const body = text.trim();
     if (!body && !files.length) return;
+    if (uploading || failed) return;
     setSending(true);
-    const atts: Att[] = [];
     try {
-      for (const p of files) {
-        if (p.key) { atts.push({ key: p.key, name: p.file.name, type: p.file.type || guessType(p.file.name), size: p.file.size }); continue; }
-        const r = await fetch("/api/client-files", { method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ clientId, category: "chat", filename: p.file.name }) });
-        const j = await r.json();
-        if (!r.ok) throw new Error(j.error || "не удалось подготовить загрузку");
-        await putWithProgress(j.uploadUrl, p.file, (pct) => setFiles((f) => f.map((x) => (x.id === p.id ? { ...x, pct } : x))));
-        setFiles((f) => f.map((x) => (x.id === p.id ? { ...x, key: j.key, pct: 100 } : x)));
-        atts.push({ key: j.key, name: p.file.name, type: p.file.type || guessType(p.file.name), size: p.file.size });
-      }
+      const atts: Att[] = files.filter((p) => p.key).map((p) => ({
+        key: p.key!, name: p.file.name, type: p.file.type || guessType(p.file.name), size: p.file.size }));
       const { error } = await supabase.from("client_chat_messages").insert({
         client_id: clientId, author_type: "user", author_id: me.id, author_name: me.name,
         body, attachments: atts, ai_status: aiEnabled ? "queued" : null,
       });
       if (error) throw new Error(error.message);
+      files.forEach((p) => p.preview && URL.revokeObjectURL(p.preview));
       setText(""); setFiles([]);
       await load();
     } catch (e: any) {
-      alert(`Не отправилось: ${e.message || e}. Уже загруженные файлы при повторе не заливаются заново.`);
+      alert(`Не отправилось: ${e.message || e}. Файлы уже в хранилище — нажмите «Отправить» ещё раз.`);
     } finally { setSending(false); }
   }
 
@@ -133,14 +161,36 @@ export default function ClientChatTab({ clientId, aiEnabled }: { clientId: numbe
         <div ref={bottom} />
       </div>
 
-      <div className="v2-card" style={{ padding: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+      <div className="v2-card"
+        onDragOver={(e) => { e.preventDefault(); if (!drag) setDrag(true); }}
+        onDragLeave={() => setDrag(false)}
+        onDrop={(e) => { e.preventDefault(); setDrag(false); addFiles(e.dataTransfer.files); }}
+        style={{ padding: 12, display: "flex", flexDirection: "column", gap: 8, outline: drag ? "2px dashed var(--cy)" : "none", outlineOffset: -4 }}>
+        {drag && <div style={{ fontSize: 12.5, color: "var(--cy)", display: "flex", gap: 6, alignItems: "center" }}><UploadCloud size={15} /> Отпустите — файлы начнут загружаться</div>}
         {files.length > 0 && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {files.map((p) => (
-              <span key={p.id} className="v2-chip mut" style={{ gap: 6, padding: "4px 8px" }}>
-                {p.file.name} · {mb(p.file.size)}{sending || p.pct ? ` · ${p.pct}%` : ""}
-                {!sending && <button onClick={() => setFiles((f) => f.filter((x) => x.id !== p.id))} style={{ background: "none", border: 0, color: "var(--t3)", cursor: "pointer", padding: 0 }}><X size={12} /></button>}
-              </span>
+              <div key={p.id} style={{ width: 172, border: `1px solid ${p.status === "error" ? "rgba(255,92,122,.5)" : "var(--brd)"}`, borderRadius: 12, overflow: "hidden", background: "var(--v2-inset)" }}>
+                <div style={{ position: "relative", height: 96, background: "#000", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {p.preview && p.file.type.startsWith("video/") ? <video src={p.preview} muted preload="metadata" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    : p.preview ? <img src={p.preview} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    : <Paperclip size={20} style={{ color: "var(--t3)" }} />}
+                  <button onClick={() => { if (p.preview) URL.revokeObjectURL(p.preview); setFiles((f) => f.filter((x) => x.id !== p.id)); }}
+                    title="Убрать" style={{ position: "absolute", top: 5, right: 5, width: 22, height: 22, borderRadius: 6, border: 0, background: "rgba(0,0,0,.6)", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><X size={12} /></button>
+                </div>
+                <div style={{ padding: "7px 9px", display: "flex", flexDirection: "column", gap: 5 }}>
+                  <div style={{ fontSize: 11.5, color: "var(--t1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={p.file.name}>{p.file.name}</div>
+                  <div style={{ height: 4, borderRadius: 3, background: "var(--track)", overflow: "hidden" }}>
+                    <div style={{ width: `${p.pct}%`, height: "100%", background: p.status === "error" ? "var(--rd)" : p.status === "done" ? "var(--gr)" : "linear-gradient(90deg, var(--cy), var(--pu))", transition: "width .2s" }} />
+                  </div>
+                  <div style={{ fontSize: 10.5, display: "flex", alignItems: "center", gap: 5, color: p.status === "error" ? "var(--rd)" : p.status === "done" ? "var(--gr)" : "var(--t3)" }}>
+                    {p.status === "uploading" && <><Loader2 size={10} className="spin" /> {p.pct}% · {mb(p.file.size)}</>}
+                    {p.status === "done" && <><CheckCircle2 size={10} /> загружено · {mb(p.file.size)}</>}
+                    {p.status === "error" && <><AlertTriangle size={10} /> {p.err}
+                      <button onClick={() => startUpload(p)} style={{ marginLeft: "auto", background: "none", border: 0, color: "var(--cy)", cursor: "pointer", fontSize: 10.5, display: "inline-flex", gap: 3, alignItems: "center" }}><RotateCw size={10} /> ещё раз</button></>}
+                  </div>
+                </div>
+              </div>
             ))}
           </div>
         )}
@@ -153,9 +203,13 @@ export default function ClientChatTab({ clientId, aiEnabled }: { clientId: numbe
             <Paperclip size={14} /> Файлы
             <input type="file" multiple disabled={sending} onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} style={{ display: "none" }} />
           </label>
-          <span style={{ fontSize: 11, color: "var(--t3)" }}>Cmd+Enter — отправить</span>
+          <span style={{ fontSize: 11, color: uploading ? "var(--cy)" : failed ? "var(--rd)" : "var(--t3)" }}>
+            {uploading ? `Загружаю файлы: ${files.length - uploading - failed} из ${files.length} готово — дождитесь, потом «Отправить»`
+              : failed ? "Файл не загрузился — нажмите «ещё раз» или уберите его"
+              : files.length ? `Файлов готово: ${files.length} · Cmd+Enter — отправить` : "Cmd+Enter — отправить · файлы можно перетащить сюда"}
+          </span>
           <div style={{ flex: 1 }} />
-          <button className="v2-act pri" onClick={send} disabled={sending || (!text.trim() && !files.length)} style={{ height: 36 }}>
+          <button className="v2-act pri" onClick={send} disabled={sending || !!uploading || !!failed || (!text.trim() && !files.length)} style={{ height: 36 }}>
             {sending ? <Loader2 size={14} className="spin" /> : <Send size={14} />} {sending ? "Отправляю…" : "Отправить"}
           </button>
         </div>
