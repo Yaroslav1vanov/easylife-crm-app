@@ -17,6 +17,7 @@ API = ENV["CRM_API_URL"].rstrip("/") + "/api/agent/chat"
 HDR = {"x-agent-secret": ENV["AGENT_SECRET"], "content-type": "application/json"}
 TIMEOUT = int(ENV.get("CHAT_TIMEOUT_MIN", "45")) * 60
 WORK = HOME / "work"
+CURRENT = HOME / ".current_job"
 # правила перечитываются на каждую задачу — правка CLAUDE.md работает без перезапуска
 MEDIA = re.compile(r"\.(mp4|mov|webm|m4v|png|jpe?g|webp|gif|pdf|zip|mp3|wav|srt)$", re.I)
 
@@ -138,6 +139,7 @@ def run_claude(ws, mid):
     started = (ws / ".session").exists()
     cmd = ["/usr/bin/claude", "-p",
            f"Прочитай CONTEXT.md и TASK.md и выполни задачу #{mid} по правилам из CLAUDE.md. "
+           f"Если ты уже начинал эту задачу и прервался — продолжи с места остановки, сделанное не переделывай. "
            f"Ответ человеку обязательно запиши в out/{mid}/reply.md.",
            "--output-format", "json",
            "--model", ENV.get("CHAT_MODEL", "claude-opus-5-5"),   # монтаж — только Opus 5.5
@@ -163,6 +165,7 @@ def handle(job):
     msg, cid, mid = job["message"], job["client"]["id"], job["message"]["id"]
     if not api_post(op="claim", id=mid).get("ok"):
         return
+    CURRENT.write_text(str(mid))   # если сервер перезапустится посреди задачи — вернём её в очередь
     log("задача", mid, "клиент", cid)
     t0 = time.time()
     try:
@@ -182,10 +185,28 @@ def handle(job):
     except Exception as e:
         log("ошибка", mid, traceback.format_exc()[-1500:])
         api_post(op="reply", id=mid, body="", status="error", error=f"Сбой исполнителя: {str(e)[:300]}")
+    finally:
+        CURRENT.unlink(missing_ok=True)
+
+
+def resume_interrupted():
+    """Задача прервалась (перезапуск, нехватка памяти) — возвращаем её в очередь.
+    Сессия Claude и файлы в папке клиента сохранились, так что ИИ продолжит с того же места."""
+    if not CURRENT.exists():
+        return
+    mid = int(CURRENT.read_text().strip() or 0)
+    CURRENT.unlink(missing_ok=True)
+    try:
+        if api_post(op="requeue", id=mid).get("ok"):
+            api_post(op="progress", id=mid, body="Сервер прервал задачу на середине (не хватило памяти при сборке). Продолжаю с того же места, всё сделанное сохранилось.")
+            log("вернул в очередь прерванную задачу", mid)
+    except Exception as e:
+        log("не смог вернуть задачу", mid, e)
 
 
 def main():
     log("исполнитель запущен")
+    resume_interrupted()
     while True:
         try:
             for job in api_get(op="queue").get("jobs", []):

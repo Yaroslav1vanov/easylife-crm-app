@@ -16,7 +16,7 @@ import { r2 } from "@/lib/r2";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const STALE_MIN = 90; // задача «в работе» дольше полутора часов — считаем, что исполнитель упал
+const STALE_MIN = 360; // страховка на случай, если сервер лёг совсем; прерванные задачи исполнитель возвращает в очередь сам
 
 function allowed(req: Request) {
   const s = process.env.STRATEGY_AGENT_SECRET;
@@ -33,7 +33,7 @@ export async function GET(req: Request) {
   const { data: stale } = await sb.from("client_chat_messages").select("id")
     .eq("ai_status", "working").lt("created_at", staleBefore);
   for (const s of stale || []) {
-    await sb.from("client_chat_messages").update({ ai_status: "error", ai_error: "Исполнитель не ответил за 1,5 часа. Напишите задачу ещё раз." }).eq("id", s.id);
+    await sb.from("client_chat_messages").update({ ai_status: "error", ai_error: "Исполнитель не ответил за 6 часов. Напишите задачу ещё раз." }).eq("id", s.id);
   }
 
   const { data: queued, error } = await sb.from("client_chat_messages").select("*")
@@ -68,6 +68,13 @@ export async function POST(req: Request) {
   if (b.op === "claim") {
     const { data } = await sb.from("client_chat_messages").update({ ai_status: "working" })
       .eq("id", b.id).eq("ai_status", "queued").select("id");
+    return NextResponse.json({ ok: !!data?.length });
+  }
+
+  // исполнитель перезапустился посреди задачи — возвращаем её в очередь, он доделает с того же места
+  if (b.op === "requeue") {
+    const { data } = await sb.from("client_chat_messages").update({ ai_status: "queued" })
+      .eq("id", b.id).eq("ai_status", "working").select("id");
     return NextResponse.json({ ok: !!data?.length });
   }
 
