@@ -17,7 +17,7 @@ API = ENV["CRM_API_URL"].rstrip("/") + "/api/agent/chat"
 HDR = {"x-agent-secret": ENV["AGENT_SECRET"], "content-type": "application/json"}
 TIMEOUT = int(ENV.get("CHAT_TIMEOUT_MIN", "45")) * 60
 WORK = HOME / "work"
-RULES = (HOME / "CLAUDE.md").read_text()
+# правила перечитываются на каждую задачу — правка CLAUDE.md работает без перезапуска
 MEDIA = re.compile(r"\.(mp4|mov|webm|m4v|png|jpe?g|webp|gif|pdf|zip|mp3|wav|srt)$", re.I)
 
 
@@ -75,7 +75,7 @@ def prepare(job):
     out = ws / "out" / str(mid)
     for d in (files, out):
         d.mkdir(parents=True, exist_ok=True)
-    (ws / "CLAUDE.md").write_text(RULES)
+    (ws / "CLAUDE.md").write_text((HOME / "CLAUDE.md").read_text())
 
     # файлы из переписки: имя «<id сообщения>_<имя файла>», чтобы не путать версии
     def local(m, a):
@@ -128,15 +128,16 @@ Instagram: {client.get('instagram') or '—'} · TikTok: {client.get('tiktok') o
 
 def run_claude(ws, mid):
     started = (ws / ".session").exists()
-    cmd = ["/usr/local/bin/claude", "-p",
+    cmd = ["/usr/bin/claude", "-p",
            f"Прочитай CONTEXT.md и TASK.md и выполни задачу #{mid} по правилам из CLAUDE.md. "
            f"Ответ человеку обязательно запиши в out/{mid}/reply.md.",
            "--output-format", "json",
            "--model", ENV.get("CHAT_MODEL", "claude-opus-5-5"),   # монтаж — только Opus 5.5
+           "--add-dir", str(HOME / "easylife-montage"), str(HOME / "easylife-top-reels"),
            "--allowedTools", "Bash", "Read", "Write", "Edit", "Glob", "Grep"]
     if started:
         cmd.insert(1, "-c")   # продолжаем разговор по этому клиенту — ИИ помнит прошлые версии
-    env = {"PATH": "/srv/easylife-chat-agent/.venv/bin:/usr/local/bin:/usr/bin:/bin",
+    env = {"PATH": "/srv/easylife-chat-agent/bin:/srv/easylife-chat-agent/.venv/bin:/usr/local/bin:/usr/bin:/bin",
            "HOME": str(HOME), "LANG": "C.UTF-8",
            "CLAUDE_CODE_OAUTH_TOKEN": ENV["CLAUDE_CODE_OAUTH_TOKEN"]}   # секрет CRM сюда не передаём
     p = subprocess.run(cmd, cwd=ws, env=env, capture_output=True, text=True, timeout=TIMEOUT)
