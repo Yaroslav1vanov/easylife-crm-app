@@ -42,6 +42,7 @@ export default function ClientChatTab({ clientId, aiEnabled }: { clientId: numbe
   const [text, setText] = useState("");
   const [files, setFiles] = useState<Pending[]>([]);
   const [sending, setSending] = useState(false);
+  const [ahead, setAhead] = useState(0); // задач других клиентов перед нашей в общей очереди ИИ
   const [me, setMe] = useState<{ id: string | null; name: string }>({ id: null, name: "Сотрудник" });
   const bottom = useRef<HTMLDivElement>(null);
   const lastId = useRef(0);
@@ -53,6 +54,13 @@ export default function ClientChatTab({ clientId, aiEnabled }: { clientId: numbe
     const rows = (data || []) as Msg[];
     setMsgs(rows);
     setLoading(false);
+    // ИИ берёт задачи по одной на всех клиентов — показываем, сколько впереди
+    const firstQ = rows.find((m) => m.ai_status === "queued");
+    if (firstQ) {
+      const { count } = await supabase.from("client_chat_messages").select("id", { count: "exact", head: true })
+        .in("ai_status", ["queued", "working"]).lt("id", firstQ.id).neq("client_id", clientId);
+      setAhead(count || 0);
+    } else setAhead(0);
     const newest = rows.length ? rows[rows.length - 1].id : 0;
     if (newest > lastId.current) { lastId.current = newest; setTimeout(() => bottom.current?.scrollIntoView({ behavior: "smooth", block: "end" }), 50); }
   }
@@ -155,7 +163,9 @@ export default function ClientChatTab({ clientId, aiEnabled }: { clientId: numbe
           : msgs.map((m) => <Bubble key={m.id} m={m} mine={m.author_type === "user" && m.author_name === me.name} />)}
         {working && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--pu)" }}>
-            <Loader2 size={14} className="spin" /> ИИ работает над задачей…
+            <Loader2 size={14} className="spin" /> {ahead > 0
+              ? `Задача в очереди: перед ней ${ahead} ${ahead === 1 ? "задача" : ahead < 5 ? "задачи" : "задач"} по другим клиентам. Монтаж занимает 5–20 мин, правка — 2–5 мин.`
+              : "ИИ работает над задачей…"}
           </div>
         )}
         <div ref={bottom} />
@@ -196,7 +206,7 @@ export default function ClientChatTab({ clientId, aiEnabled }: { clientId: numbe
         )}
         <textarea value={text} onChange={(e) => setText(e.target.value)} rows={3}
           onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") send(); }}
-          placeholder={aiEnabled ? "Задача для ИИ: например, «смонтируй этот исходник в нашем стиле, хук в первые 2 секунды, трек спокойный»" : "Сообщение команде"}
+          placeholder={aiEnabled ? "Задача для ИИ: например, «смонтируй этот исходник в стиле клиента» (приложите видео аватара). Правка: «на 12-й секунде другой кадр», «обрежь начало до фразы …»" : "Сообщение команде"}
           style={{ width: "100%", padding: "10px 12px", borderRadius: 10, background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 13.5, fontFamily: "inherit", resize: "vertical", outline: "none" }} />
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <label className="v2-act ghost" style={{ cursor: sending ? "default" : "pointer", height: 34 }}>
