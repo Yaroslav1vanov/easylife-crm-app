@@ -18,6 +18,7 @@ import { createClient } from "@/lib/supabase-server";
 const CATEGORIES = new Set([
   "audit", "strategy", "content_plan", "brief", "other",
   "logo", "font", "portrait", "process", "location", "result", "review", "generated", "story",
+  "chat",   // файлы чата по клиенту: исходники аватара, готовый монтаж, кадры сторис
 ]);
 
 function r2() {

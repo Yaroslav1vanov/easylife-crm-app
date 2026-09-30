@@ -11,6 +11,7 @@ export type Client = {
   uploadpost_profile?: string | null;   // имя профиля в аккаунте клиента
   brand_voice?: string | null; timezone?: string | null; default_post_time?: string | null;
   telegram_topic_id?: number | null;
+  ai_chat?: boolean | null;      // в чате карточки отвечает ИИ-исполнитель
   delivery_day?: number | null;  // день сдачи партии видео клиенту (1=Пн…7=Вс)
   weekly_quota?: number | null;  // роликов в неделю (null = авто из пакета)
   review_day?: number | null;    // день сдачи рефов/сценариев на проверку
