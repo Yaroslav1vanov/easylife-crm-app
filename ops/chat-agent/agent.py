@@ -215,26 +215,25 @@ def fresh_token():
     return ENV["CLAUDE_CODE_OAUTH_TOKEN"]
 
 
-def run_claude(ws, mid, fresh=False):
-    # Новый исходник (в задаче приложено видео) = новый ролик: начинаем разговор с чистого листа, иначе
-    # история всех прошлых роликов клиента тянется в каждую задачу и съедает лимит подписки.
-    # Стиль клиента не теряется — он в STYLE.md, прошлые версии — в files/ и studio/src/crm.
-    started = (ws / ".session").exists() and not fresh
+def run_claude(ws, mid, resume=False):
+    # Каждая задача — с чистого листа. Раньше разговор по клиенту продолжался бесконечно, и к каждой задаче
+    # тянулась вся прошлая история: 01.10 три кадра сторис стоили $9,8 при контексте 276 тыс. токенов.
+    # Память между задачами теперь в файлах: JOURNAL.md (что сделано и где лежит), STYLE.md, files/, studio/src/crm.
+    # Продолжаем тот же разговор только если эту же задачу прервали на середине.
     cmd = ["/usr/bin/claude", "-p",
-           f"Прочитай CONTEXT.md и TASK.md и выполни задачу #{mid} по правилам из CLAUDE.md. "
+           f"Прочитай CONTEXT.md, TASK.md и JOURNAL.md и выполни задачу #{mid} по правилам из CLAUDE.md. "
            f"Если ты уже начинал эту задачу и прервался — продолжи с места остановки, сделанное не переделывай. "
            f"Ответ человеку обязательно запиши в out/{mid}/reply.md.",
            "--output-format", "json",
            "--model", ENV.get("CHAT_MODEL", "claude-opus-5-5"),   # монтаж — только Opus 5.5
            "--add-dir", str(HOME / "easylife-montage"), str(HOME / "easylife-top-reels"),
            "--allowedTools", "Bash", "Read", "Write", "Edit", "Glob", "Grep"]
-    if started:
-        cmd.insert(1, "-c")   # продолжаем разговор по этому клиенту — ИИ помнит прошлые версии
+    if resume:
+        cmd.insert(1, "-c")   # та же задача после обрыва — продолжаем её разговор
     env = {"PATH": "/srv/easylife-chat-agent/bin:/srv/easylife-chat-agent/.venv/bin:/usr/local/bin:/usr/bin:/bin",
            "HOME": str(HOME), "LANG": "C.UTF-8",
            "CLAUDE_CODE_OAUTH_TOKEN": fresh_token()}   # секрет CRM сюда не передаём
     p = subprocess.run(cmd, cwd=ws, env=env, capture_output=True, text=True, timeout=TIMEOUT)
-    (ws / ".session").write_text(time.strftime("%Y-%m-%d %H:%M"))
     try:
         res = json.loads(p.stdout)
     except Exception:
@@ -253,18 +252,23 @@ def handle(job):
     t0 = time.time()
     try:
         ws, out = prepare(job)
-        new_source = any(re.search(r"\.(mp4|mov|webm|m4v)$", a.get("name", ""), re.I) for a in (msg.get("attachments") or []))
-        resumed = (ws / ".resume").exists()      # задачу прервали — продолжаем тот же разговор
-        (ws / ".resume").write_text(str(mid))
+        mark = ws / ".resume"
+        resumed = mark.exists() and mark.read_text().strip() == str(mid)   # эту же задачу прервали на середине
+        mark.write_text(str(mid))
+        before = studio_snapshot()
         try:
-            res = run_claude(ws, mid, fresh=new_source and not resumed)
+            res = run_claude(ws, mid, resume=resumed)
         finally:
-            (ws / ".resume").unlink(missing_ok=True)   # при убийстве процесса сюда не дойдём — метка останется
+            mark.unlink(missing_ok=True)   # при убийстве процесса сюда не дойдём — метка останется
         reply = (out / "reply.md").read_text().strip() if (out / "reply.md").exists() else (res.get("result") or "").strip()
         atts = []
         for f in sorted(out.iterdir()):
             if f.is_file() and f.name != "reply.md" and MEDIA.search(f.name) and f.stat().st_size < 500 * 1048576:
                 atts.append(upload_file(cid, f))
+        try:
+            journal(ws, mid, msg, reply, atts, before)
+        except Exception:
+            log("журнал не записался", traceback.format_exc()[-500:])
         mins = (time.time() - t0) / 60
         cost = res.get("total_cost_usd")
         log("готово", mid, f"{mins:.1f} мин", f"файлов {len(atts)}", f"расход ${cost}" if cost else "")
@@ -276,6 +280,41 @@ def handle(job):
         api_post(op="reply", id=mid, body="", status="error", error=f"Сбой исполнителя: {str(e)[:300]}")
     finally:
         CURRENT.unlink(missing_ok=True)
+
+
+STUDIO = HOME / "easylife-montage" / "studio"
+
+
+def studio_snapshot():
+    """Время изменения рабочих файлов студии — чтобы после задачи записать в журнал, что ИИ создал или правил."""
+    snap = {}
+    for pat in ("src/crm/*.tsx", "public/crm_*"):
+        for f in STUDIO.glob(pat):
+            try:
+                snap[str(f.relative_to(STUDIO))] = f.stat().st_mtime
+            except OSError:
+                pass
+    return snap
+
+
+def journal(ws, mid, msg, reply, atts, before):
+    """Рабочий журнал клиента: по записи на задачу. Каждая задача начинается с чистого листа,
+    и это единственное, откуда ИИ узнаёт, что делал раньше и в каких файлах лежит прошлый ролик."""
+    after = studio_snapshot()
+    touched = sorted(k for k, v in after.items() if before.get(k) != v)
+    j = ws / "JOURNAL.md"
+    if not j.exists():
+        j.write_text("# Рабочий журнал клиента\n\nСвежие записи внизу. Технические заметки ИИ дописывает сам под записью задачи.\n")
+    notes = ws / "out" / str(mid) / "notes.md"     # технические заметки ИИ по задаче (см. CLAUDE.md)
+    L = ["", f"## Задача #{mid} · {time.strftime('%Y-%m-%d %H:%M')} UTC · от {msg.get('author_name') or 'сотрудника'}",
+         f"Просили: {(msg.get('body') or '(без текста)').strip()[:500]}",
+         f"Отдал файлы: {', '.join(a['name'] for a in atts) or 'нет'} (лежат в out/{mid}/)",
+         f"Файлы студии, созданные или изменённые: {', '.join(touched) or 'нет'}"]
+    if notes.exists():
+        L.append("Заметки: " + notes.read_text().strip()[:1500])
+    L.append("Ответил: " + (reply or "").strip()[:700])
+    with open(j, "a") as f:
+        f.write("\n".join(L) + "\n")
 
 
 def resume_interrupted():
