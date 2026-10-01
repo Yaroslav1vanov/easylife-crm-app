@@ -360,7 +360,7 @@ export default function ClientDetailPage() {
         </div>
       </Sheet>
 
-      <div className="v2-segc">
+      <div className="v2-segc" style={{ gridTemplateColumns: isMobile ? "repeat(3, 1fr)" : "repeat(6, 1fr)" }}>
         <button className={ctab === "work" ? "on" : ""} onClick={() => setCtab("work")}>Работа</button>
         <button className={ctab === "plan" ? "on" : ""} onClick={() => setCtab("plan")}>План</button>
         <button className={ctab === "stats" ? "on" : ""} onClick={() => setCtab("stats")}>Статистика</button>

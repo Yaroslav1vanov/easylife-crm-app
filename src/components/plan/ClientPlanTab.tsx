@@ -45,6 +45,7 @@ export default function ClientPlanTab({ client, scripts, monthOptions, canEdit, 
   const isMobile = useIsMobile();
   const tz = client.timezone || DEFAULT_TZ;
   const today = utcToZonedInput(new Date().toISOString(), tz).slice(0, 10);
+  const soon = new Date(Date.parse(`${today}T00:00:00Z`) + 14 * 86400000).toISOString().slice(0, 10); // «пусто» подсвечиваем на 2 недели вперёд
   const [ym, setYm] = useState(today.slice(0, 7));
   const [pubs, setPubs] = useState<Pub[]>([]);
   const [day, setDay] = useState<string | null>(null);
@@ -95,10 +96,10 @@ export default function ClientPlanTab({ client, scripts, monthOptions, canEdit, 
       reels += (x?.reels.length || 0) + (x?.extra.length || 0);
       out += x?.reels.filter((s) => s.video_status === "published").length || 0;
       if (x?.stories.length) storyDays++;
-      if (d >= today && !(x && (x.reels.length || x.stories.length || x.extra.length))) empty++;
+      if (d >= today && d <= soon && !(x && (x.reels.length || x.stories.length || x.extra.length))) empty++;
     }
     return { reels, out, storyDays, empty };
-  }, [monthDays, byDay, today]);
+  }, [monthDays, byDay, today, soon]);
 
   const undated = useMemo(() => scripts.filter((s) => !s.pub_date && s.video_status !== "published").slice(0, 40), [scripts]);
   const title = (s: Script) => (s.hook_text || s.hook || "без заголовка").replace(/\s+/g, " ");
@@ -192,7 +193,7 @@ export default function ClientPlanTab({ client, scripts, monthOptions, canEdit, 
         <div style={{ flex: 1 }} />
         <span className="v2-chip pu"><Film size={11} /> рилсов {sum.reels} · вышло {sum.out}</span>
         <span className="v2-chip" style={{ background: "rgba(236,72,153,.12)", color: "var(--pk)" }}><Smartphone size={11} /> дней со сторис {sum.storyDays}</span>
-        {sum.empty > 0 && <span className="v2-chip or">пустых дней впереди {sum.empty}</span>}
+        {sum.empty > 0 && <span className="v2-chip or">пустых дней за 2 недели: {sum.empty}</span>}
       </div>
 
       <div className="v2-card" style={{ padding: 10, display: "flex", gap: 10, flexWrap: "wrap", fontSize: 11, color: "var(--t3)", alignItems: "center" }}>
@@ -244,7 +245,7 @@ export default function ClientPlanTab({ client, scripts, monthOptions, canEdit, 
                     <span style={{ fontSize: 12, fontWeight: 800, color: d === today ? "var(--pu)" : "var(--t2)" }}>{Number(d.slice(8))}</span>
                     {d === today && <span style={{ fontSize: 9, color: "var(--pu)", marginLeft: 5 }}>сегодня</span>}
                     <div style={{ flex: 1 }} />
-                    {!past && !has && <span style={{ fontSize: 9, color: "var(--or)" }}>пусто</span>}
+                    {!past && !has && d <= soon && <span style={{ fontSize: 9, color: "var(--or)" }}>пусто</span>}
                   </div>
                   {x?.reels.map((s) => <ReelChip key={s.id} s={s} />)}
                   {x?.extra.map((p) => <ExtraChip key={p.id} p={p} />)}
