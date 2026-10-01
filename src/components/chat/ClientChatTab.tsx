@@ -35,12 +35,13 @@ function putWithProgress(url: string, file: File, onPct: (p: number) => void) {
   });
 }
 
-export default function ClientChatTab({ clientId, aiEnabled }: { clientId: number; aiEnabled: boolean }) {
+export default function ClientChatTab({ clientId, aiEnabled, draft }: { clientId: number; aiEnabled: boolean; draft?: string }) {
   const supabase = createClient();
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [loading, setLoading] = useState(true);
   const [missing, setMissing] = useState(false);
-  const [text, setText] = useState("");
+  const [text, setText] = useState(draft || "");
+  useEffect(() => { if (draft) setText(draft); }, [draft]); // заготовка задачи из вкладки «План»
   const [files, setFiles] = useState<Pending[]>([]);
   const [sending, setSending] = useState(false);
   const [pipe, setPipe] = useState<{ video?: PipeAtt; images?: PipeAtt[] } | null>(null); // ролик/кадры из чата → в работу

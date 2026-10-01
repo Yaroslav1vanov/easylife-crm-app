@@ -34,6 +34,8 @@ export default function SendToPipelineModal({ clientId, video, images, onClose }
   const [caption, setCaption] = useState("");
   const [step, setStep] = useState(30);
   const [picked, setPicked] = useState<string[]>((images || []).map((i) => i.key));
+  const [plans, setPlans] = useState<{ id: number; publish_at: string | null; base_text: string | null }[]>([]); // серии из «Плана» без кадров
+  const [planId, setPlanId] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [done, setDone] = useState("");
@@ -46,6 +48,11 @@ export default function SendToPipelineModal({ clientId, video, images, onClose }
       setClient(c);
       const zone = c?.timezone || DEFAULT_TZ;
       setWhen(utcToZonedInput(new Date(Date.now() + 3600000).toISOString(), zone));
+      if (isStory) {
+        const { data } = await supabase.from("publications").select("id, publish_at, base_text, media_urls")
+          .eq("client_id", clientId).eq("content_type", "story").neq("pub_status", "published").order("publish_at");
+        setPlans(((data || []) as any[]).filter((p) => !(p.media_urls && p.media_urls[0])));
+      }
       if (!isStory) {
         const { data } = await supabase.from("scripts").select("*").eq("client_id", clientId)
           .neq("video_status", "published").order("month_number", { ascending: false }).order("order_num");
@@ -72,8 +79,17 @@ export default function SendToPipelineModal({ clientId, video, images, onClose }
           const url = await promote(clientId, keys[i].key, `story${Date.now()}-${i}`);
           frames.push({ media_url: url, publish_at: utc0 ? new Date(Date.parse(utc0) + i * step * 60000).toISOString() : null, note: caption || null });
         }
-        const { error } = await db.createStoryPublications(supabase, clientId, frames);
+        // серия была запланирована заранее — первый кадр встаёт в её карточку, остальные рядом
+        const plan = plans.find((p) => p.id === planId);
+        if (plan) {
+          const f0 = frames.shift()!;
+          const { error: e0 } = await db.updatePublication(supabase, plan.id, { media_urls: [f0.media_url], publish_at: f0.publish_at, pub_status: "queued", base_text: caption || (plan.base_text || "").replace(/ · план.*$/, "") || null } as any);
+          if (e0) throw new Error(e0.message);
+          for (const f of frames) f.note = f.note || (plan.base_text || "").replace(/ · план.*$/, "") || null;
+        }
+        const { error } = frames.length ? await db.createStoryPublications(supabase, clientId, frames) : { error: null as any };
         if (error) throw new Error(error.message);
+        if (plan) frames.unshift({ media_url: "", publish_at: null, note: null });
         setDone(`Сторис в «Публикациях»: ${frames.length} ${frames.length === 1 ? "кадр" : "кадров"}, колонка «В очереди». Проверьте и отправьте в Metricool.`);
       } else if (video && mode === "script") {
         if (!sel) throw new Error("выберите сценарий");
@@ -127,6 +143,16 @@ export default function SendToPipelineModal({ clientId, video, images, onClose }
               })}
             </div>
             <div className="v2-hint">Кадры выйдут по порядку. Нажмите на кадр, чтобы убрать его из серии.</div>
+            {plans.length > 0 && (
+              <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, color: "var(--t3)" }}>Серия из плана
+                <select value={planId ?? ""} style={inp} onChange={(e) => {
+                  const id = e.target.value ? Number(e.target.value) : null; setPlanId(id);
+                  const p = plans.find((x) => x.id === id); if (p?.publish_at) setWhen(utcToZonedInput(p.publish_at, tz));
+                }}>
+                  <option value="">не привязывать — новая серия</option>
+                  {plans.map((p) => <option key={p.id} value={p.id}>{p.publish_at ? utcToZonedInput(p.publish_at, tz).slice(5, 10).split("-").reverse().join(".") : "без даты"} · {(p.base_text || "Сторис").slice(0, 60)}</option>)}
+                </select></label>
+            )}
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, color: "var(--t3)" }}>Первый кадр · {tzShort(tz)}
                 <input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} style={{ ...inp, colorScheme: "dark" }} /></label>

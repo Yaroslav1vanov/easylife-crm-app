@@ -215,8 +215,11 @@ def fresh_token():
     return ENV["CLAUDE_CODE_OAUTH_TOKEN"]
 
 
-def run_claude(ws, mid):
-    started = (ws / ".session").exists()
+def run_claude(ws, mid, fresh=False):
+    # Новый исходник (в задаче приложено видео) = новый ролик: начинаем разговор с чистого листа, иначе
+    # история всех прошлых роликов клиента тянется в каждую задачу и съедает лимит подписки.
+    # Стиль клиента не теряется — он в STYLE.md, прошлые версии — в files/ и studio/src/crm.
+    started = (ws / ".session").exists() and not fresh
     cmd = ["/usr/bin/claude", "-p",
            f"Прочитай CONTEXT.md и TASK.md и выполни задачу #{mid} по правилам из CLAUDE.md. "
            f"Если ты уже начинал эту задачу и прервался — продолжи с места остановки, сделанное не переделывай. "
@@ -250,7 +253,13 @@ def handle(job):
     t0 = time.time()
     try:
         ws, out = prepare(job)
-        res = run_claude(ws, mid)
+        new_source = any(re.search(r"\.(mp4|mov|webm|m4v)$", a.get("name", ""), re.I) for a in (msg.get("attachments") or []))
+        resumed = (ws / ".resume").exists()      # задачу прервали — продолжаем тот же разговор
+        (ws / ".resume").write_text(str(mid))
+        try:
+            res = run_claude(ws, mid, fresh=new_source and not resumed)
+        finally:
+            (ws / ".resume").unlink(missing_ok=True)   # при убийстве процесса сюда не дойдём — метка останется
         reply = (out / "reply.md").read_text().strip() if (out / "reply.md").exists() else (res.get("result") or "").strip()
         atts = []
         for f in sorted(out.iterdir()):

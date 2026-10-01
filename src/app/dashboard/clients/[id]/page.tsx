@@ -21,6 +21,7 @@ import { avatarFromClientSocials } from "@/lib/avatarFromSocial";
 import ClientStatsTab from "@/components/ClientStatsTab";
 import ClientStrategyTab from "@/components/strategy/ClientStrategyTab";
 import ClientChatTab from "@/components/chat/ClientChatTab";
+import ClientPlanTab from "@/components/plan/ClientPlanTab";
 import { Camera, Music2, Play } from "lucide-react";
 
 // Соцсети клиента в шапке: иконка + хэндл, клик открывает профиль
@@ -68,7 +69,8 @@ export default function ClientDetailPage() {
   const [clientMonths, setClientMonths] = useState<ClientMonth[]>([]);
   const [onbProgress, setOnbProgress] = useState<OnboardingProgress | null>(null);
   const [tab, setTab] = useState("scripts");
-  const [ctab, setCtab] = useState<"work" | "set" | "stats" | "strategy" | "chat">("work");
+  const [ctab, setCtab] = useState<"work" | "plan" | "set" | "stats" | "strategy" | "chat">("work");
+  const [chatDraft, setChatDraft] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const isMobile = useIsMobile();
   const [editing, setEditing] = useState(false);
@@ -360,6 +362,7 @@ export default function ClientDetailPage() {
 
       <div className="v2-segc">
         <button className={ctab === "work" ? "on" : ""} onClick={() => setCtab("work")}>Работа</button>
+        <button className={ctab === "plan" ? "on" : ""} onClick={() => setCtab("plan")}>План</button>
         <button className={ctab === "stats" ? "on" : ""} onClick={() => setCtab("stats")}>Статистика</button>
         <button className={ctab === "strategy" ? "on" : ""} onClick={() => setCtab("strategy")}>Стратегия</button>
         <button className={ctab === "chat" ? "on" : ""} onClick={() => setCtab("chat")}>Чат{c.ai_chat ? " · ИИ" : ""}</button>
@@ -367,7 +370,11 @@ export default function ClientDetailPage() {
       </div>
 
       {ctab === "stats" && <ClientStatsTab clientId={clientId} hasMetricool={!!c.metricool_blog_id} />}
-      {ctab === "chat" && <ClientChatTab clientId={clientId} aiEnabled={!!c.ai_chat} />}
+      {ctab === "chat" && <ClientChatTab clientId={clientId} aiEnabled={!!c.ai_chat} draft={chatDraft} />}
+      {ctab === "plan" && <ClientPlanTab client={c} scripts={scripts}
+        monthOptions={clientMonths.filter(m => m.status !== "cancelled").map(m => m.month_number).sort((a, b) => a - b)}
+        canEdit={userRole !== "montager"} canEditReadyAt={userRole === "owner" || userRole === "admin"}
+        onChanged={load} onAskAI={c.ai_chat ? (d) => { setChatDraft(d); setCtab("chat"); } : undefined} />}
       {ctab === "strategy" && <ClientStrategyTab clientId={clientId} clientName={[c.name, c.surname].filter(Boolean).join(" ")} />}
 
       {ctab === "set" && (
