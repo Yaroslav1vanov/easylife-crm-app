@@ -142,7 +142,7 @@ def write_folder(ws, job):
     # --- PLAN.md
     L = ["# Контент-план клиента (из CRM, свежие сверху)", "",
          "Рилсы: дата выхода · сценарий/монтаж · заголовок. Сторис и готовые ролики без сценария — ниже.", ""]
-    for x in job.get("plan") or []:
+    for x in sorted(job.get("plan") or [], key=lambda x: x.get("pub_date") or "0000", reverse=True):
         L.append(f"- [{x.get('pub_date') or 'без даты'}] М{x.get('month_number')} #{x.get('order_num') or '?'} · сценарий: {ST.get(x.get('script_status'), x.get('script_status'))}"
                  f" · видео: {ST.get(x.get('video_status'), x.get('video_status'))} · {x.get('hook_text') or 'без заголовка'}"
                  + (f"\n  текст: {x['body_text']}" if x.get("body_text") else "") + (f"\n  призыв: {x['cta']}" if x.get("cta") else ""))
