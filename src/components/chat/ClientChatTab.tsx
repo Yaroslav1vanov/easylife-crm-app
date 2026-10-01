@@ -2,7 +2,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase-browser";
 import { fileUrl, guessType, when } from "@/components/strategy/files";
-import { Paperclip, Send, X, Sparkles, Loader2, AlertTriangle, CheckCircle2, Download, RotateCw, UploadCloud } from "lucide-react";
+import { Paperclip, Send, X, Sparkles, Loader2, AlertTriangle, CheckCircle2, Download, RotateCw, UploadCloud, ArrowRightCircle, Smartphone } from "lucide-react";
+import SendToPipelineModal, { PipeAtt } from "@/components/chat/SendToPipelineModal";
 
 /* Чат по клиенту. Вся работа по проекту в одном месте: сотрудники пишут задачи
    и кидают исходники, у клиентов с включённым ИИ-чатом отвечает исполнитель на
@@ -42,6 +43,7 @@ export default function ClientChatTab({ clientId, aiEnabled }: { clientId: numbe
   const [text, setText] = useState("");
   const [files, setFiles] = useState<Pending[]>([]);
   const [sending, setSending] = useState(false);
+  const [pipe, setPipe] = useState<{ video?: PipeAtt; images?: PipeAtt[] } | null>(null); // ролик/кадры из чата → в работу
   const [ahead, setAhead] = useState(0); // задач других клиентов перед нашей в общей очереди ИИ
   const [me, setMe] = useState<{ id: string | null; name: string }>({ id: null, name: "Сотрудник" });
   const bottom = useRef<HTMLDivElement>(null);
@@ -153,14 +155,14 @@ export default function ClientChatTab({ clientId, aiEnabled }: { clientId: numbe
       {aiEnabled && (
         <div className="v2-card" style={{ padding: "10px 14px", display: "flex", gap: 10, alignItems: "center", fontSize: 12.5, color: "var(--t2)" }}>
           <Sparkles size={15} style={{ color: "var(--pu)", flexShrink: 0 }} />
-          <span>В этом чате отвечает ИИ. Он видит бренд-кит, контент-стратегию и всю переписку по клиенту. Кидайте исходник и пишите задачу: монтаж, сторис, правки. Ответ — за пару минут, монтаж — дольше.</span>
+          <span>В этом чате отвечает ИИ. Он знает клиента: бренд-кит, стратегию, контент-план, статистику роликов, медиатеку и всю переписку. Можно обсудить, что зашло и какие сторис поставить, или дать задачу: монтаж, серия сторис, правки. Готовый ролик и кадры одной кнопкой уходят в сценарий, публикации или сторис.</span>
         </div>
       )}
 
       <div className="v2-card" style={{ padding: 14, minHeight: 360, maxHeight: "62vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: 12 }}>
         {loading ? <div style={{ color: "var(--t3)", fontSize: 13 }}>Загружаю…</div>
           : !msgs.length ? <div style={{ color: "var(--t3)", fontSize: 13, margin: "auto", textAlign: "center" }}>Сообщений пока нет.<br />{aiEnabled ? "Напишите задачу и приложите исходник — ИИ возьмёт её в работу." : "Здесь команда ведёт работу по клиенту."}</div>
-          : msgs.map((m) => <Bubble key={m.id} m={m} mine={m.author_type === "user" && m.author_name === me.name} />)}
+          : msgs.map((m) => <Bubble key={m.id} m={m} mine={m.author_type === "user" && m.author_name === me.name} onPipe={setPipe} />)}
         {working && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--pu)" }}>
             <Loader2 size={14} className="spin" /> {ahead > 0
@@ -224,13 +226,15 @@ export default function ClientChatTab({ clientId, aiEnabled }: { clientId: numbe
           </button>
         </div>
       </div>
+      {pipe && <SendToPipelineModal clientId={clientId} video={pipe.video} images={pipe.images} onClose={() => setPipe(null)} />}
       <style>{`.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
 }
 
-function Bubble({ m, mine }: { m: Msg; mine: boolean }) {
+function Bubble({ m, mine, onPipe }: { m: Msg; mine: boolean; onPipe: (p: { video?: PipeAtt; images?: PipeAtt[] }) => void }) {
   const ai = m.author_type === "ai";
+  const imgs = ai ? (m.attachments || []).filter(isImage) : [];
   const status = m.author_type === "user" ? m.ai_status : null;
   return (
     <div style={{ alignSelf: mine ? "flex-end" : "flex-start", maxWidth: "min(620px, 92%)", display: "flex", flexDirection: "column", gap: 4 }}>
@@ -260,9 +264,19 @@ function Bubble({ m, mine }: { m: Msg; mine: boolean }) {
                 <a href={fileUrl(a.key)} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: "var(--t3)", display: "inline-flex", gap: 4, alignItems: "center" }}>
                   <Download size={11} /> {a.name} · {mb(a.size)}
                 </a>
+                {ai && isVideo(a) && (
+                  <button className="v2-act ghost" onClick={() => onPipe({ video: { key: a.key, name: a.name } })} style={{ height: 30, fontSize: 12, justifyContent: "center" }}>
+                    <ArrowRightCircle size={13} /> К сценарию / в публикации
+                  </button>
+                )}
               </div>
             ))}
           </div>
+        )}
+        {imgs.length > 0 && (
+          <button className="v2-act ghost" onClick={() => onPipe({ images: imgs.map((a) => ({ key: a.key, name: a.name })) })} style={{ height: 30, fontSize: 12, marginTop: 8 }}>
+            <Smartphone size={13} /> {imgs.length === 1 ? "Кадр — в сторис" : `Все кадры — в сторис (${imgs.length})`}
+          </button>
         )}
       </div>
     </div>

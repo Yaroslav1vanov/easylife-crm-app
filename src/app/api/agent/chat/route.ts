@@ -24,6 +24,37 @@ function allowed(req: Request) {
 }
 const bad = (error: string, status = 400) => NextResponse.json({ error }, { status });
 
+/* «Папка клиента» для ИИ: контент-план, что уже вышло и как зашло, медиатека, документы.
+   С этим ИИ не только монтирует, но и обсуждает сторис и стратегию, зная цифры клиента. */
+async function folder(sb: ReturnType<typeof createAdmin>, cid: number) {
+  const cut = (t: any, n: number) => (t ? String(t).replace(/\s+/g, " ").trim().slice(0, n) : null);
+  const [scripts, pubs, weekly, snaps, assets, docs] = await Promise.all([
+    sb.from("scripts").select("id, month_number, order_num, hook, hook_text, body_text, cta, script_status, video_status, pub_date, published_url, ref_views, our_views, our_likes, our_comments, content_type")
+      .eq("client_id", cid).order("id", { ascending: false }).limit(90),
+    sb.from("publications").select("id, script_id, content_type, publish_at, pub_status, base_text, published_url")
+      .eq("client_id", cid).order("id", { ascending: false }).limit(80),
+    sb.from("client_weekly_stats").select("week_start, week_end, reels_count, views, reach, likes, comments, saves, shares, er, avg_retention, followers_end, followers_gained, top_post")
+      .eq("client_id", cid).order("week_start", { ascending: false }).limit(8),
+    sb.from("reel_snapshots").select("network, post_url, published_at, snapshot_date, age_days, views, reach, likes, comments, saves, shares, avg_watch_sec")
+      .eq("client_id", cid).order("snapshot_date", { ascending: false }).limit(600),
+    sb.from("client_assets").select("id, file_key, category, kind, title, tags, has_face, consent, source, usable")
+      .eq("client_id", cid).order("id", { ascending: false }).limit(200),
+    sb.from("client_documents").select("kind, title, body, file_key, version")
+      .eq("client_id", cid).eq("is_current", true).neq("kind", "strategy"),
+  ]);
+  // по каждому ролику — самый свежий снимок цифр
+  const seen = new Set<string>();
+  const reels = (snaps.data || []).filter((r: any) => (seen.has(r.post_url) ? false : (seen.add(r.post_url), true)));
+  return {
+    plan: (scripts.data || []).map((x: any) => ({ ...x, hook_text: cut(x.hook_text || x.hook, 200), hook: undefined, body_text: cut(x.body_text, 500), cta: cut(x.cta, 160) })),
+    publications: (pubs.data || []).map((x: any) => ({ ...x, base_text: cut(x.base_text, 160) })),
+    weekly: weekly.data || [],
+    reels,
+    assets: assets.data || [],
+    docs: (docs.data || []).map((d: any) => ({ ...d, body: cut(d.body, 6000) })),
+  };
+}
+
 export async function GET(req: Request) {
   if (!allowed(req)) return bad("нет доступа", 403);
   const sb = createAdmin();
@@ -55,7 +86,7 @@ export async function GET(req: Request) {
       await sb.from("client_chat_messages").update({ ai_status: null }).eq("id", m.id);
       continue;
     }
-    jobs.push({ message: m, client, brand_kit: brand?.kit || null, strategy: strategy?.body || null, history: (history || []).reverse() });
+    jobs.push({ message: m, client, brand_kit: brand?.kit || null, strategy: strategy?.body || null, history: (history || []).reverse(), ...(await folder(sb, cid)) });
   }
   return NextResponse.json({ jobs });
 }

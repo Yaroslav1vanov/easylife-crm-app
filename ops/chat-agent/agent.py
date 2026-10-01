@@ -113,6 +113,10 @@ Instagram: {client.get('instagram') or '—'} · TikTok: {client.get('tiktok') o
 ## Переписка по клиенту (последние сообщения, старые сверху)
 {chr(10).join(hist)}
 """)
+    try:
+        write_folder(ws, job)
+    except Exception:
+        log("папка клиента не собралась", traceback.format_exc()[-800:])
     task_att = "".join(f"\n- files/{local(msg, a).name}" for a in (msg.get("attachments") or [])) or "\n- (файлов нет)"
     (ws / "TASK.md").write_text(f"""# Текущая задача — сообщение #{mid} от {msg.get('author_name') or 'сотрудника'}
 
@@ -125,6 +129,82 @@ Instagram: {client.get('instagram') or '—'} · TikTok: {client.get('tiktok') o
 - Готовые файлы (ролик, кадры сторис): out/{mid}/ — всё из этой папки уйдёт в чат
 """)
     return ws, out
+
+
+def n(v):
+    return "—" if v is None else f"{v:,}".replace(",", " ") if isinstance(v, (int, float)) else str(v)
+
+
+def write_folder(ws, job):
+    """Папка клиента для ИИ: контент-план, статистика, медиатека, документы. Обновляется на каждую задачу."""
+    ST = {"notStarted": "не начат", "inProgress": "в работе", "review": "на проверке", "approved": "утверждён",
+          "ready": "готов", "published": "вышел"}
+    # --- PLAN.md
+    L = ["# Контент-план клиента (из CRM, свежие сверху)", "",
+         "Рилсы: дата выхода · сценарий/монтаж · заголовок. Сторис и готовые ролики без сценария — ниже.", ""]
+    for x in job.get("plan") or []:
+        L.append(f"- [{x.get('pub_date') or 'без даты'}] М{x.get('month_number')} #{x.get('order_num') or '?'} · сценарий: {ST.get(x.get('script_status'), x.get('script_status'))}"
+                 f" · видео: {ST.get(x.get('video_status'), x.get('video_status'))} · {x.get('hook_text') or 'без заголовка'}"
+                 + (f"\n  текст: {x['body_text']}" if x.get("body_text") else "") + (f"\n  призыв: {x['cta']}" if x.get("cta") else ""))
+    L += ["", "## Публикации (очередь и вышедшее): рилсы без сценария, карусели, сторис", ""]
+    PS = {"adapting": "готовится", "review": "на проверке", "queued": "в очереди", "scheduled": "запланировано", "published": "вышло", "error": "ошибка"}
+    for x in job.get("publications") or []:
+        L.append(f"- [{(x.get('publish_at') or 'без даты')[:16].replace('T', ' ')}] {x.get('content_type')} · {PS.get(x.get('pub_status'), x.get('pub_status'))}"
+                 + (f" · сценарий id {x['script_id']}" if x.get("script_id") else "") + (f" · {x['base_text']}" if x.get("base_text") else ""))
+    (ws / "PLAN.md").write_text("\n".join(L) + "\n")
+
+    # --- STATS.md
+    L = ["# Статистика клиента (из CRM)", "", "## По неделям (свежие сверху)", ""]
+    for w in job.get("weekly") or []:
+        tp = w.get("top_post") or {}
+        L.append(f"- {w.get('week_start')}…{w.get('week_end')}: роликов {n(w.get('reels_count'))}, просмотры {n(w.get('views'))}, охват {n(w.get('reach'))}, "
+                 f"лайки {n(w.get('likes'))}, комм. {n(w.get('comments'))}, сохр. {n(w.get('saves'))}, репосты {n(w.get('shares'))}, ER {n(w.get('er'))}%, "
+                 f"подписчиков {n(w.get('followers_end'))} ({'+' if (w.get('followers_gained') or 0) >= 0 else ''}{n(w.get('followers_gained'))})"
+                 + (f"\n  лучший: {tp.get('url') or tp.get('post_url') or ''} · {n(tp.get('views'))} просм." if tp else ""))
+    reels = sorted(job.get("reels") or [], key=lambda r: r.get("views") or 0, reverse=True)
+    L += ["", f"## Ролики по просмотрам (последний снимок, всего {len(reels)})", "",
+          "Сопоставляй ссылку с PLAN.md (там заголовки вышедших) — так видно, какие темы и хуки зашли, а какие нет.", ""]
+    for r in reels[:60]:
+        L.append(f"- {n(r.get('views'))} просм. · {r.get('network')} · вышел {r.get('published_at')} (возраст {n(r.get('age_days'))} дн.) · лайки {n(r.get('likes'))}, комм. {n(r.get('comments'))}, "
+                 f"сохр. {n(r.get('saves'))}, репосты {n(r.get('shares'))}, досмотр {n(r.get('avg_watch_sec'))} с · {r.get('post_url')}")
+    duel = [x for x in (job.get("plan") or []) if x.get("our_views")]
+    if duel:
+        L += ["", "## Наш ролик против референса (просмотры)", ""]
+        for x in sorted(duel, key=lambda x: x.get("our_views") or 0, reverse=True)[:40]:
+            L.append(f"- наш {n(x.get('our_views'))} / реф {n(x.get('ref_views'))} · {x.get('hook_text')} · {x.get('published_url') or ''}")
+    if not (job.get("weekly") or reels or duel):
+        L.append("Цифр по этому клиенту в CRM пока нет — не выдумывай их, так и скажи.")
+    (ws / "STATS.md").write_text("\n".join(L) + "\n")
+
+    # --- медиатека: картинки качаем в media/, видео и шрифты — по запросу (ключ в MEDIA.md)
+    media = ws / "media"
+    L = ["# Медиатека клиента", "",
+         "Файлы лежат в media/<категория>/. Категории: portrait — портреты, process — процесс работы, location — место, result — результаты, "
+         "review — отзывы, logo — логотипы, font — шрифты, generated — сделано ИИ, story — готовые сторис.",
+         "**Фото с лицом без согласия (согласие: нет / неизвестно) в ролики и сторис НЕ ставить.** «Нельзя использовать» — не трогать вообще.", ""]
+    for a in job.get("assets") or []:
+        ext = (a["file_key"].rsplit(".", 1)[-1] or "bin").lower()
+        dest = media / a["category"] / f"{a['id']}_{safe(a.get('title') or a['category'])}.{ext}"
+        small = a.get("kind") in ("image", "font") or ext in ("png", "jpg", "jpeg", "webp", "svg", "ttf", "otf", "woff2")
+        if a.get("usable") and small:
+            try:
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                fetch_file(a["file_key"], dest)
+            except Exception as e:
+                log("медиатека: не скачался", a.get("title"), e)
+        consent = {"yes": "есть", "no": "НЕТ", "not_needed": "не нужно", "unknown": "неизвестно"}.get(a.get("consent"), a.get("consent"))
+        L.append(f"- {'media/' + str(dest.relative_to(media)) if dest.exists() else '(не скачан: ' + a.get('kind', '') + ')'} · {a['category']} · {a.get('title') or ''}"
+                 f" · теги: {', '.join(a.get('tags') or []) or '—'} · лицо: {'да' if a.get('has_face') else 'нет'} · согласие: {consent}"
+                 + ("" if a.get("usable") else " · НЕЛЬЗЯ ИСПОЛЬЗОВАТЬ"))
+    if not (job.get("assets") or []):
+        L.append("Медиатека пуста. Для сторис с фото клиента попроси сотрудника загрузить фото во вкладку «Стратегия» → «Медиатека» или в чат.")
+    (ws / "MEDIA.md").write_text("\n".join(L) + "\n")
+
+    # --- документы (аудит, бриф, контент-план текстом)
+    L = ["# Документы клиента (текущие версии)", ""]
+    for d in job.get("docs") or []:
+        L += [f"## {d.get('title')} ({d.get('kind')}, версия {d.get('version')})", "", d.get("body") or "(файл без текста в CRM)", ""]
+    (ws / "DOCS.md").write_text("\n".join(L) + "\n")
 
 
 def fresh_token():
