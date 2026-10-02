@@ -145,7 +145,9 @@ def write_folder(ws, job):
     for x in sorted(job.get("plan") or [], key=lambda x: x.get("pub_date") or "0000", reverse=True):
         L.append(f"- [{x.get('pub_date') or 'без даты'}] М{x.get('month_number')} #{x.get('order_num') or '?'} · сценарий: {ST.get(x.get('script_status'), x.get('script_status'))}"
                  f" · видео: {ST.get(x.get('video_status'), x.get('video_status'))} · {x.get('hook_text') or 'без заголовка'}"
-                 + (f"\n  текст: {x['body_text']}" if x.get("body_text") else "") + (f"\n  призыв: {x['cta']}" if x.get("cta") else ""))
+                 + (f"\n  текст: {x['body_text']}" if x.get("body_text") else "") + (f"\n  призыв: {x['cta']}" if x.get("cta") else "")
+                 + (f"\n  готовый ролик (файл): {x['video_url']}" if x.get("video_url") else "")
+                 + (f"\n  опубликован: {x['published_url']}" if x.get("published_url") else ""))
     L += ["", "## Публикации (очередь и вышедшее): рилсы без сценария, карусели, сторис", ""]
     PS = {"adapting": "готовится", "review": "на проверке", "queued": "в очереди", "scheduled": "запланировано", "published": "вышло", "error": "ошибка"}
     for x in job.get("publications") or []:
