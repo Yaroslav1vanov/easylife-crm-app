@@ -160,6 +160,13 @@ export default function ClientChatTab({ clientId, aiEnabled, draft }: { clientId
         </div>
       )}
 
+      {!aiEnabled && (
+        <div className="v2-card" style={{ padding: "10px 14px", display: "flex", gap: 10, alignItems: "center", fontSize: 12.5, color: "var(--or)", border: "1px solid rgba(255,174,66,.35)" }}>
+          <AlertTriangle size={15} style={{ flexShrink: 0 }} />
+          <span>ИИ в этом чате выключен: сообщения увидит только команда, задачи никто не выполнит. Включить: вкладка «Настройки» → «ИИ-монтажёр в чате».</span>
+        </div>
+      )}
+
       <div className="v2-card" style={{ padding: 14, minHeight: 360, maxHeight: "62vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: 12 }}>
         {loading ? <div style={{ color: "var(--t3)", fontSize: 13 }}>Загружаю…</div>
           : !msgs.length ? <div style={{ color: "var(--t3)", fontSize: 13, margin: "auto", textAlign: "center" }}>Сообщений пока нет.<br />{aiEnabled ? "Напишите задачу и приложите исходник — ИИ возьмёт её в работу." : "Здесь команда ведёт работу по клиенту."}</div>
