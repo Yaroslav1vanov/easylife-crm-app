@@ -72,8 +72,9 @@ type Props = {
     color?: string;
     run: (s: Script) => Promise<void> | void;
   };
-  /** Если задано — в панели массового выбора появится кнопка «📄 Для клиента» (экспорт выбранных). */
-  onBulkExport?: (ids: number[]) => void;
+  /** Если задано — в панели массового выбора появятся кнопки экспорта выбранных:
+   *  «📄 Для клиента» (без референсов) и «🔎 С рефами» (для проверки работы команды). */
+  onBulkExport?: (ids: number[], withRefs: boolean) => void;
   onBulkMoveMonth?: (ids: number[], month: number) => Promise<void>;
   /** Список контрактных месяцев клиента — для переноса сценария в другой месяц из карточки. */
   monthOptionsFor?: (clientId: number) => number[];
@@ -334,10 +335,16 @@ export default function KanbanBoard({ scripts, clients, columns, onUpdate, showC
             Выбрано: <span style={{ color: "var(--cy)" }}>{selected.size}</span>
           </span>
           {onBulkExport && (
-            <button onClick={() => { onBulkExport(Array.from(selected)); }} disabled={selected.size === 0}
-              style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 13px", borderRadius: 9, background: "rgba(66,212,244,0.12)", border: "1px solid var(--brd)", color: "var(--cy)", fontSize: 11, fontWeight: 700, cursor: selected.size === 0 ? "default" : "pointer", opacity: selected.size === 0 ? 0.5 : 1 }}>
-              📄 Для клиента
-            </button>
+            <>
+              <button onClick={() => { onBulkExport(Array.from(selected), false); }} disabled={selected.size === 0} title="Файл для клиента — без ссылок на референсы"
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 13px", borderRadius: 9, background: "rgba(66,212,244,0.12)", border: "1px solid var(--brd)", color: "var(--cy)", fontSize: 11, fontWeight: 700, cursor: selected.size === 0 ? "default" : "pointer", opacity: selected.size === 0 ? 0.5 : 1 }}>
+                📄 Для клиента
+              </button>
+              <button onClick={() => { onBulkExport(Array.from(selected), true); }} disabled={selected.size === 0} title="Для внутренней проверки: рядом с каждым сценарием — референс и его текст"
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 13px", borderRadius: 9, background: "rgba(157,107,255,0.12)", border: "1px solid var(--brd)", color: "var(--pu)", fontSize: 11, fontWeight: 700, cursor: selected.size === 0 ? "default" : "pointer", opacity: selected.size === 0 ? 0.5 : 1 }}>
+                🔎 С рефами
+              </button>
+            </>
           )}
           {onBulkMoveMonth && (() => {
             const ids = Array.from(selected);
