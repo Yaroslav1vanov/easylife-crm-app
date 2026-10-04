@@ -66,6 +66,23 @@ export default function PublicationModal({ pub, client, script, onClose, onUpdat
   const locked = isPublished; // после публикации ничего не правим
   const pastBy = f.publish_at ? Math.round((Date.now() - Date.parse(f.publish_at)) / 60000) : 0;
 
+  /* Обложка у запланированного поста: смотрим, что реально лежит в Metricool, а не пугаем всегда.
+     ok — та же картинка уже в посте; diff — в посте другая/никакой (нужно «Переотправить»). */
+  const [coverMc, setCoverMc] = useState<"checking" | "ok" | "diff" | "unknown" | null>(null);
+  useEffect(() => {
+    const mcId = Object.values(ids).find(v => /^\d+$/.test(v));
+    if (!isScheduled || isCarousel || isStory || service !== "Metricool" || !mcId || !client?.metricool_blog_id) { setCoverMc(null); return; }
+    let live = true;
+    setCoverMc("checking");
+    fetch(`/api/metricool/poststatus?id=${mcId}&blogId=${client.metricool_blog_id}`)
+      .then(r => r.json()).then(j => {
+        if (!live) return;
+        const sent = j?.raw?.videoThumbnailUrl || null;
+        setCoverMc(j?.raw ? ((sent || null) === (f.video_thumbnail_url || null) ? "ok" : "diff") : "unknown");
+      }).catch(() => live && setCoverMc("unknown"));
+    return () => { live = false; };
+  }, [f.metricool_post_id, f.video_thumbnail_url, f.pub_status]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const save = (patch: Partial<Publication>) => { if (locked) return; setF(p => ({ ...p, ...patch })); onUpdate(pub.id, patch); };
   /** Вернуть опубликованный пост в «Готово к публикации», чтобы отправить заново.
    *  Сценарий в «Монтаже» не трогаем: ролик уже сделан и оплачен — переопубликация
@@ -193,9 +210,24 @@ export default function PublicationModal({ pub, client, script, onClose, onUpdat
               </div>
               <div>
                 {lbl("Обложка (необязательно)")}
-                {pub.pub_status === "scheduled" && (
+                {isScheduled && coverMc === "checking" && (
+                  <div className="v2-chip mut" style={{ whiteSpace: "normal", padding: "7px 9px", marginBottom: 8 }}>Проверяю обложку в {service}…</div>
+                )}
+                {isScheduled && coverMc === "ok" && f.video_thumbnail_url && (
+                  <div className="v2-chip gr" style={{ whiteSpace: "normal", padding: "7px 9px", marginBottom: 8 }}>
+                    ✓ Эта обложка уже в посте Metricool — ролик выйдет с ней.
+                  </div>
+                )}
+                {isScheduled && coverMc === "diff" && (
                   <div className="v2-chip or" style={{ whiteSpace: "normal", padding: "7px 9px", marginBottom: 8 }}>
-                    Пост уже лежит в Metricool. Обложку, добавленную сейчас, он не подхватит — нажми «Переотправить» внизу, тогда пост пересоздастся вместе с ней.
+                    {f.video_thumbnail_url
+                      ? "В посте Metricool другая обложка или её нет. Нажми «Переотправить» внизу — пост пересоздастся с этой обложкой."
+                      : "В посте Metricool есть обложка, а здесь её убрали. Чтобы выйти без обложки, нажми «Переотправить»."}
+                  </div>
+                )}
+                {isScheduled && service === "Upload-Post" && (
+                  <div className="v2-chip or" style={{ whiteSpace: "normal", padding: "7px 9px", marginBottom: 8 }}>
+                    Через Upload-Post обложка пока не передаётся — ролик выйдет с кадром по умолчанию.
                   </div>
                 )}
                 {pub.pub_status === "published" && (
