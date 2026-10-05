@@ -35,7 +35,20 @@ function putWithProgress(url: string, file: File, onPct: (p: number) => void) {
   });
 }
 
-export default function ClientChatTab({ clientId, aiEnabled, draft }: { clientId: number; aiEnabled: boolean; draft?: string }) {
+export type ChatThread = "reels" | "stories";
+const THREADS: { id: ChatThread; label: string; hint: string; placeholder: string; empty: string }[] = [
+  { id: "reels", label: "🎬 Рилсы", hint: "Чат по рилсам: монтаж роликов, правки, разбор стиля и что зашло. Готовый ролик одной кнопкой уходит к сценарию или в публикации.",
+    placeholder: "Задача по рилсам: «смонтируй этот исходник в стиле клиента» (приложите видео аватара). Правка: «на 12-й секунде другой кадр», «обрежь начало до фразы …»",
+    empty: "Кидайте исходник аватара и пишите задачу по ролику." },
+  { id: "stories", label: "📱 Сторис", hint: "Чат по сторис: серии сторис, кадры, тексты, план сторис рядом с рилсами. Готовые кадры одной кнопкой уходят в сторис на нужное время.",
+    placeholder: "Задача по сторис: «сделай серию из 5 сторис на запись на консультацию» — приложите фото или кадры, если есть",
+    empty: "Кидайте фото и материалы для сторис и пишите задачу." },
+];
+
+export default function ClientChatTab({ clientId, aiEnabled, draft, initialThread }: { clientId: number; aiEnabled: boolean; draft?: string; initialThread?: ChatThread }) {
+  const [thread, setThread] = useState<ChatThread>(initialThread || "reels");
+  useEffect(() => { if (initialThread) setThread(initialThread); }, [initialThread]);
+  const T = THREADS.find((t) => t.id === thread)!;
   const supabase = createClient();
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,10 +63,13 @@ export default function ClientChatTab({ clientId, aiEnabled, draft }: { clientId
   const bottom = useRef<HTMLDivElement>(null);
   const lastId = useRef(0);
 
+  const threadRef = useRef(thread); threadRef.current = thread;
   async function load() {
+    const asked = thread;
     const { data, error } = await supabase.from("client_chat_messages").select("*")
-      .eq("client_id", clientId).order("id", { ascending: true }).limit(500);
+      .eq("client_id", clientId).eq("thread", thread).order("id", { ascending: true }).limit(500);
     if (error) { if (/does not exist|schema cache/i.test(error.message)) setMissing(true); setLoading(false); return; }
+    if (asked !== threadRef.current) return;   // пока грузили, переключились на другой чат
     const rows = (data || []) as Msg[];
     setMsgs(rows);
     setLoading(false);
@@ -80,11 +96,12 @@ export default function ClientChatTab({ clientId, aiEnabled, draft }: { clientId
       }
       setMe({ id: uid, name });
     })();
+    lastId.current = 0; setLoading(true); setMsgs([]);
     load();
     // пока вкладка открыта — подтягиваем новые сообщения; ИИ отвечает с сервера
     const t = setInterval(() => { if (document.visibilityState === "visible") load(); }, 4000);
     return () => clearInterval(t);
-  }, [clientId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [clientId, thread]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const working = useMemo(() => msgs.some((m) => m.ai_status === "queued" || m.ai_status === "working"), [msgs]);
 
@@ -138,7 +155,7 @@ export default function ClientChatTab({ clientId, aiEnabled, draft }: { clientId
         key: p.key!, name: p.file.name, type: p.file.type || guessType(p.file.name), size: p.file.size }));
       const { error } = await supabase.from("client_chat_messages").insert({
         client_id: clientId, author_type: "user", author_id: me.id, author_name: me.name,
-        body, attachments: atts, ai_status: aiEnabled ? "queued" : null,
+        body, attachments: atts, ai_status: aiEnabled ? "queued" : null, thread,
       });
       if (error) throw new Error(error.message);
       files.forEach((p) => p.preview && URL.revokeObjectURL(p.preview));
@@ -153,10 +170,19 @@ export default function ClientChatTab({ clientId, aiEnabled, draft }: { clientId
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, padding: 4, borderRadius: 12, background: "var(--v2-inset)", border: "1px solid var(--brd)" }}>
+        {THREADS.map((t) => (
+          <button key={t.id} onClick={() => setThread(t.id)} disabled={sending}
+            style={{ padding: "9px 0", borderRadius: 9, border: 0, cursor: "pointer", fontSize: 13.5, fontWeight: 800, fontFamily: "inherit",
+              background: thread === t.id ? "var(--card)" : "transparent", color: thread === t.id ? "var(--t1)" : "var(--t3)",
+              boxShadow: thread === t.id ? "0 0 0 1px var(--brd)" : "none" }}>{t.label}</button>
+        ))}
+      </div>
+
       {aiEnabled && (
         <div className="v2-card" style={{ padding: "10px 14px", display: "flex", gap: 10, alignItems: "center", fontSize: 12.5, color: "var(--t2)" }}>
           <Sparkles size={15} style={{ color: "var(--pu)", flexShrink: 0 }} />
-          <span>В этом чате отвечает ИИ. Он знает клиента: бренд-кит, стратегию, контент-план, статистику роликов, медиатеку и всю переписку. Можно обсудить, что зашло и какие сторис поставить, или дать задачу: монтаж, серия сторис, правки. Готовый ролик и кадры одной кнопкой уходят в сценарий, публикации или сторис.</span>
+          <span>{T.hint} ИИ знает клиента: бренд-кит, стратегию, контент-план, статистику, медиатеку и переписку этого чата.</span>
         </div>
       )}
 
@@ -169,7 +195,7 @@ export default function ClientChatTab({ clientId, aiEnabled, draft }: { clientId
 
       <div className="v2-card" style={{ padding: 14, minHeight: 360, maxHeight: "62vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: 12 }}>
         {loading ? <div style={{ color: "var(--t3)", fontSize: 13 }}>Загружаю…</div>
-          : !msgs.length ? <div style={{ color: "var(--t3)", fontSize: 13, margin: "auto", textAlign: "center" }}>Сообщений пока нет.<br />{aiEnabled ? "Напишите задачу и приложите исходник — ИИ возьмёт её в работу." : "Здесь команда ведёт работу по клиенту."}</div>
+          : !msgs.length ? <div style={{ color: "var(--t3)", fontSize: 13, margin: "auto", textAlign: "center" }}>Сообщений пока нет.<br />{aiEnabled ? T.empty : "Здесь команда ведёт работу по клиенту."}</div>
           : msgs.map((m) => <Bubble key={m.id} m={m} mine={m.author_type === "user" && m.author_name === me.name} onPipe={setPipe} />)}
         {working && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--pu)" }}>
@@ -216,7 +242,7 @@ export default function ClientChatTab({ clientId, aiEnabled, draft }: { clientId
         )}
         <textarea value={text} onChange={(e) => setText(e.target.value)} rows={3}
           onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") send(); }}
-          placeholder={aiEnabled ? "Задача для ИИ: например, «смонтируй этот исходник в стиле клиента» (приложите видео аватара). Правка: «на 12-й секунде другой кадр», «обрежь начало до фразы …»" : "Сообщение команде"}
+          placeholder={aiEnabled ? T.placeholder : "Сообщение команде"}
           style={{ width: "100%", padding: "10px 12px", borderRadius: 10, background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 13.5, fontFamily: "inherit", resize: "vertical", outline: "none" }} />
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <label className="v2-act ghost" style={{ cursor: sending ? "default" : "pointer", height: 34 }}>

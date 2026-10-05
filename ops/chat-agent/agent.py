@@ -17,6 +17,12 @@ API = ENV["CRM_API_URL"].rstrip("/") + "/api/agent/chat"
 HDR = {"x-agent-secret": ENV["AGENT_SECRET"], "content-type": "application/json"}
 TIMEOUT = int(ENV.get("CHAT_TIMEOUT_MIN", "45")) * 60
 WORK = HOME / "work"
+# У клиента два чата с ИИ: по рилсам и по сторис. Переписка не смешивается, папка клиента общая.
+THREAD_RU = {"reels": "рилсы", "stories": "сторис"}
+THREAD_HINT = {
+    "reels": "Задачи этого чата — рилсы: монтаж роликов, правки, разбор стиля роликов.",
+    "stories": "Задачи этого чата — сторис: серии сторис (кадры PNG 1080×1920 или короткие видео), тексты, план сторис. Рилсы здесь не монтируй, если об этом прямо не просят.",
+}
 CURRENT = HOME / ".current_job"
 # правила перечитываются на каждую задачу — правка CLAUDE.md работает без перезапуска
 MEDIA = re.compile(r"\.(mp4|mov|webm|m4v|png|jpe?g|webp|gif|pdf|zip|mp3|wav|srt)$", re.I)
@@ -110,7 +116,7 @@ Instagram: {client.get('instagram') or '—'} · TikTok: {client.get('tiktok') o
 ## Контент-стратегия
 {job.get('strategy') or '— не заполнена —'}
 
-## Переписка по клиенту (последние сообщения, старые сверху)
+## Переписка в этом чате ({THREAD_RU.get(msg.get('thread') or 'reels')}), старые сверху
 {chr(10).join(hist)}
 """)
     try:
@@ -118,7 +124,9 @@ Instagram: {client.get('instagram') or '—'} · TikTok: {client.get('tiktok') o
     except Exception:
         log("папка клиента не собралась", traceback.format_exc()[-800:])
     task_att = "".join(f"\n- files/{local(msg, a).name}" for a in (msg.get("attachments") or [])) or "\n- (файлов нет)"
-    (ws / "TASK.md").write_text(f"""# Текущая задача — сообщение #{mid} от {msg.get('author_name') or 'сотрудника'}
+    (ws / "TASK.md").write_text(f"""# Чат: {THREAD_RU.get(msg.get('thread') or 'reels').upper()}. {THREAD_HINT.get(msg.get('thread') or 'reels')}
+
+# Текущая задача — сообщение #{mid} от {msg.get('author_name') or 'сотрудника'}
 
 {msg['body'] or '(без текста — смотри приложенные файлы)'}
 
@@ -308,7 +316,7 @@ def journal(ws, mid, msg, reply, atts, before):
     if not j.exists():
         j.write_text("# Рабочий журнал клиента\n\nСвежие записи внизу. Технические заметки ИИ дописывает сам под записью задачи.\n")
     notes = ws / "out" / str(mid) / "notes.md"     # технические заметки ИИ по задаче (см. CLAUDE.md)
-    L = ["", f"## Задача #{mid} · {time.strftime('%Y-%m-%d %H:%M')} UTC · от {msg.get('author_name') or 'сотрудника'}",
+    L = ["", f"## [{THREAD_RU.get(msg.get('thread') or 'reels')}] Задача #{mid} · {time.strftime('%Y-%m-%d %H:%M')} UTC · от {msg.get('author_name') or 'сотрудника'}",
          f"Просили: {(msg.get('body') or '(без текста)').strip()[:500]}",
          f"Отдал файлы: {', '.join(a['name'] for a in atts) or 'нет'} (лежат в out/{mid}/)",
          f"Файлы студии, созданные или изменённые: {', '.join(touched) or 'нет'}"]

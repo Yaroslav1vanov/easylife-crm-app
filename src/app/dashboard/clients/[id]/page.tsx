@@ -71,6 +71,7 @@ export default function ClientDetailPage() {
   const [tab, setTab] = useState("scripts");
   const [ctab, setCtab] = useState<"work" | "plan" | "set" | "stats" | "strategy" | "chat">("work");
   const [chatDraft, setChatDraft] = useState("");
+  const [chatThread, setChatThread] = useState<"reels" | "stories" | undefined>(undefined);
   const [menuOpen, setMenuOpen] = useState(false);
   const isMobile = useIsMobile();
   const [editing, setEditing] = useState(false);
@@ -370,11 +371,11 @@ export default function ClientDetailPage() {
       </div>
 
       {ctab === "stats" && <ClientStatsTab clientId={clientId} hasMetricool={!!c.metricool_blog_id} />}
-      {ctab === "chat" && <ClientChatTab clientId={clientId} aiEnabled={!!c.ai_chat} draft={chatDraft} />}
+      {ctab === "chat" && <ClientChatTab clientId={clientId} aiEnabled={!!c.ai_chat} draft={chatDraft} initialThread={chatThread} />}
       {ctab === "plan" && <ClientPlanTab client={c} scripts={scripts}
         monthOptions={clientMonths.filter(m => m.status !== "cancelled").map(m => m.month_number).sort((a, b) => a - b)}
         canEdit={userRole !== "montager"} canEditReadyAt={userRole === "owner" || userRole === "admin"}
-        onChanged={load} onAskAI={c.ai_chat ? (d) => { setChatDraft(d); setCtab("chat"); } : undefined} />}
+        onChanged={load} onAskAI={c.ai_chat ? (d) => { setChatDraft(d); setChatThread("stories"); setCtab("chat"); } : undefined} />}
       {ctab === "strategy" && <ClientStrategyTab clientId={clientId} clientName={[c.name, c.surname].filter(Boolean).join(" ")} />}
 
       {ctab === "set" && (

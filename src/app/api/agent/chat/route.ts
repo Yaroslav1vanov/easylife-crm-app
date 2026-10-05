@@ -79,7 +79,7 @@ export async function GET(req: Request) {
       sb.from("client_brand").select("kit, version").eq("client_id", cid).maybeSingle(),
       sb.from("client_documents").select("title, body, version").eq("client_id", cid).eq("kind", "strategy").eq("is_current", true).maybeSingle(),
       sb.from("client_chat_messages").select("id, author_type, author_name, body, attachments, created_at, ai_status")
-        .eq("client_id", cid).lte("id", m.id).order("id", { ascending: false }).limit(40),
+        .eq("client_id", cid).eq("thread", m.thread || "reels").lte("id", m.id).order("id", { ascending: false }).limit(40),   // переписка только этого чата (рилсы / сторис)
     ]);
     if (!client?.ai_chat) {
       // ИИ у клиента выключили, пока сообщение ждало — снимаем его с очереди
@@ -110,13 +110,13 @@ export async function POST(req: Request) {
   }
 
   if (b.op === "progress" || b.op === "reply") {
-    const { data: m } = await sb.from("client_chat_messages").select("id, client_id").eq("id", b.id).maybeSingle();
+    const { data: m } = await sb.from("client_chat_messages").select("id, client_id, thread").eq("id", b.id).maybeSingle();
     if (!m) return bad("нет такой задачи", 404);
     const atts = Array.isArray(b.attachments) ? b.attachments.filter((a: any) => typeof a?.key === "string" && a.key.startsWith(`strategy/${m.client_id}/chat/`)) : [];
     if ((b.body && String(b.body).trim()) || atts.length) {
       const { error } = await sb.from("client_chat_messages").insert({
         client_id: m.client_id, author_type: "ai", author_name: "ИИ", body: String(b.body || "").slice(0, 20000),
-        attachments: atts, reply_to: m.id,
+        attachments: atts, reply_to: m.id, thread: m.thread || "reels",   // ответ — в тот же чат
       });
       if (error) return bad(error.message, 500);
     }
