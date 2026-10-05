@@ -26,7 +26,10 @@ THREAD_HINT = {
                 "Отвечай текстом с конкретикой по этому клиенту; файлы делай, только если прямо попросили.",
     "stories": "Задачи этого чата — сторис: серии сторис (кадры PNG 1080×1920 или короткие видео), тексты, план сторис. Рилсы здесь не монтируй, если об этом прямо не просят.",
 }
-CURRENT = HOME / ".current_job"
+CURRENT_DIR = HOME / ".current_jobs"     # по файлу на каждую задачу в работе (их может быть несколько)
+CURRENT_DIR.mkdir(exist_ok=True)
+LEGACY_CURRENT = HOME / ".current_job"
+PARALLEL = int(ENV.get("CHAT_PARALLEL", "3"))   # сколько задач РАЗНЫХ клиентов идут одновременно
 # правила перечитываются на каждую задачу — правка CLAUDE.md работает без перезапуска
 MEDIA = re.compile(r"\.(mp4|mov|webm|m4v|png|jpe?g|webp|gif|pdf|zip|mp3|wav|srt)$", re.I)
 
@@ -261,7 +264,8 @@ def handle(job):
     msg, cid, mid = job["message"], job["client"]["id"], job["message"]["id"]
     if not api_post(op="claim", id=mid).get("ok"):
         return
-    CURRENT.write_text(str(mid))   # если сервер перезапустится посреди задачи — вернём её в очередь
+    cur = CURRENT_DIR / str(mid)
+    cur.write_text(str(cid))   # если сервер перезапустится посреди задачи — вернём её в очередь
     log("задача", mid, "клиент", cid)
     t0 = time.time()
     try:
@@ -293,7 +297,7 @@ def handle(job):
         log("ошибка", mid, traceback.format_exc()[-1500:])
         api_post(op="reply", id=mid, body="", status="error", error=f"Сбой исполнителя: {str(e)[:300]}")
     finally:
-        CURRENT.unlink(missing_ok=True)
+        cur.unlink(missing_ok=True)
 
 
 STUDIO = HOME / "easylife-montage" / "studio"
@@ -315,7 +319,7 @@ def journal(ws, mid, msg, reply, atts, before):
     """Рабочий журнал клиента: по записи на задачу. Каждая задача начинается с чистого листа,
     и это единственное, откуда ИИ узнаёт, что делал раньше и в каких файлах лежит прошлый ролик."""
     after = studio_snapshot()
-    touched = sorted(k for k, v in after.items() if before.get(k) != v)
+    touched = sorted(k for k, v in after.items() if before.get(k) != v and re.search(rf"(?<!\d){mid}(?!\d)", k))
     j = ws / "JOURNAL.md"
     if not j.exists():
         j.write_text("# Рабочий журнал клиента\n\nСвежие записи внизу. Технические заметки ИИ дописывает сам под записью задачи.\n")
@@ -334,25 +338,41 @@ def journal(ws, mid, msg, reply, atts, before):
 def resume_interrupted():
     """Задача прервалась (перезапуск, нехватка памяти) — возвращаем её в очередь.
     Сессия Claude и файлы в папке клиента сохранились, так что ИИ продолжит с того же места."""
-    if not CURRENT.exists():
-        return
-    mid = int(CURRENT.read_text().strip() or 0)
-    CURRENT.unlink(missing_ok=True)
-    try:
-        if api_post(op="requeue", id=mid).get("ok"):
-            api_post(op="progress", id=mid, body="Сервер прервал задачу на середине (не хватило памяти при сборке). Продолжаю с того же места, всё сделанное сохранилось.")
-            log("вернул в очередь прерванную задачу", mid)
-    except Exception as e:
-        log("не смог вернуть задачу", mid, e)
+    files = list(CURRENT_DIR.iterdir()) + ([LEGACY_CURRENT] if LEGACY_CURRENT.exists() else [])
+    for f in files:
+        try:
+            mid = int(f.name) if f.parent == CURRENT_DIR else int(f.read_text().strip() or 0)
+        except ValueError:
+            f.unlink(missing_ok=True); continue
+        f.unlink(missing_ok=True)
+        try:
+            if mid and api_post(op="requeue", id=mid).get("ok"):
+                api_post(op="progress", id=mid, body="Сервер прервал задачу на середине (перезапуск или нехватка памяти). Продолжаю с того же места, всё сделанное сохранилось.")
+                log("вернул в очередь прерванную задачу", mid)
+        except Exception as e:
+            log("не смог вернуть задачу", mid, e)
 
 
 def main():
-    log("исполнитель запущен")
+    """Задачи разных клиентов идут параллельно (до PARALLEL), по одному клиенту — строго по очереди:
+    у клиента общая папка и журнал, две задачи в ней мешали бы друг другу."""
+    from concurrent.futures import ThreadPoolExecutor
+    log("исполнитель запущен, параллельно до", PARALLEL)
     resume_interrupted()
+    pool = ThreadPoolExecutor(max_workers=PARALLEL)
+    busy = {}   # client_id -> future
     while True:
         try:
-            for job in api_get(op="queue").get("jobs", []):
-                handle(job)
+            for cid in [c for c, fut in busy.items() if fut.done()]:
+                busy.pop(cid)
+            if len(busy) < PARALLEL:
+                for job in api_get(op="queue").get("jobs", []):
+                    cid = job["client"]["id"]
+                    if cid in busy:
+                        continue
+                    busy[cid] = pool.submit(handle, job)
+                    if len(busy) >= PARALLEL:
+                        break
         except Exception as e:
             log("очередь недоступна:", e)
         time.sleep(10)

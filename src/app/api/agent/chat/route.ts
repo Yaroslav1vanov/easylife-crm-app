@@ -68,7 +68,7 @@ export async function GET(req: Request) {
   }
 
   const { data: queued, error } = await sb.from("client_chat_messages").select("*")
-    .eq("ai_status", "queued").order("id").limit(3);
+    .eq("ai_status", "queued").order("id").limit(12);
   if (error) return bad(error.message, 500);
 
   const jobs = [];
