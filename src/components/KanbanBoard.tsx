@@ -6,7 +6,7 @@ import ScriptModal, { fmtDateShort, addDaysIso } from "@/components/ScriptModal"
 import ConfirmDialog from "@/components/ConfirmDialog";
 import Sheet, { SheetOption } from "@/components/Sheet";
 import { useIsMobile } from "@/lib/useMedia";
-import { ExternalLink, Calendar as CalendarIcon, Plus, CheckSquare, Trash2, Undo2, X, type LucideIcon, CalendarDays } from "lucide-react";
+import { ExternalLink, Calendar as CalendarIcon, Plus, CheckSquare, Trash2, Undo2, X, type LucideIcon, CalendarDays, Search } from "lucide-react";
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
 function todayIsoLocal() { const d = new Date(); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; }
@@ -138,10 +138,16 @@ export default function KanbanBoard({ scripts, clients, columns, onUpdate, showC
   }
 
   // Распределение по колонкам
+  // фильтр доски по словам: хук, текст, призыв, описание, расшифровка рефа, имя клиента
+  const [find, setFind] = useState("");
+  const findTerm = find.trim().toLowerCase();
+  const textOf = (s: Script) => [s.hook_text, s.hook, s.body_text, s.cta, s.post_caption, s.description, s.ref_text, s.transcription,
+    showClient ? (clients.find(c => c.id === s.client_id)?.name || "") : ""].join(" ").toLowerCase();
   const byColumn = useMemo(() => {
     const out: Record<string, Script[]> = {};
     for (const col of columns) out[col.id] = [];
     for (const s of scripts) {
+      if (findTerm && !textOf(s).includes(findTerm)) continue;
       const col = columns.find(c => c.matches(s));
       if (col) out[col.id].push(s);
     }
@@ -151,7 +157,7 @@ export default function KanbanBoard({ scripts, clients, columns, onUpdate, showC
       for (const col of columns) out[col.id].sort((a, b) => dueOf(a).localeCompare(dueOf(b)));
     }
     return out;
-  }, [scripts, columns, hasDeadline, deadlineLeadDays]);
+  }, [scripts, columns, hasDeadline, deadlineLeadDays, findTerm]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const openScript = openId != null ? scripts.find(s => s.id === openId) || null : null;
 
@@ -174,14 +180,23 @@ export default function KanbanBoard({ scripts, clients, columns, onUpdate, showC
 
   return (
     <>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
+        <div style={{ position: "relative", flex: "1 1 260px", maxWidth: 380 }}>
+          <Search size={14} style={{ position: "absolute", left: 10, top: 9, color: "var(--t3)" }} />
+          <input value={find} onChange={e => setFind(e.target.value)} placeholder="Найти на доске: слово из хука, текста, описания…"
+            style={{ width: "100%", padding: "7px 28px 7px 30px", borderRadius: 9, border: `1px solid ${findTerm ? "var(--cy)" : "var(--brd)"}`, background: "var(--inp)", color: "var(--t1)", fontSize: 12.5, outline: "none", fontFamily: "inherit" }} />
+          {find && <button onClick={() => setFind("")} title="Очистить" style={{ position: "absolute", right: 6, top: 5, background: "none", border: 0, color: "var(--t3)", cursor: "pointer", fontSize: 15 }}>×</button>}
+        </div>
+        {findTerm && <span style={{ fontSize: 11.5, color: "var(--t3)" }}>найдено: {Object.values(byColumn).reduce((n, a) => n + a.length, 0)}</span>}
       {selectable && (
-        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginLeft: "auto" }}>
           <button onClick={() => selectMode ? exitSelect() : setSelectMode(true)}
             style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 9, border: `1px solid ${selectMode ? "var(--cy)" : "var(--brd)"}`, background: selectMode ? "rgba(66,212,244,0.12)" : "transparent", color: selectMode ? "var(--cy)" : "var(--t2)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
             <CheckSquare size={13} /> {selectMode ? "Отменить выбор" : "Выбрать несколько"}
           </button>
         </div>
       )}
+      </div>
       {isMobile ? (() => {
         const col = columns.find(c => c.id === mobCol) || columns[0];
         const itemsAll = byColumn[col.id] || [];

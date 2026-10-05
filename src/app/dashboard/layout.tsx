@@ -5,6 +5,7 @@ import { RoleProvider } from "@/components/RoleContext";
 import RoleGuard from "@/components/RoleGuard";
 import NoticeHost from "@/components/NoticeHost";
 import ConnectionGuard from "@/components/ConnectionGuard";
+import GlobalSearch from "@/components/GlobalSearch";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const sb = createClient();
@@ -38,6 +39,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <RoleGuard role={userRole} />
       <NoticeHost />
       <ConnectionGuard />
+      <GlobalSearch />
       <div className="flex min-h-screen" style={{ background: "var(--bg)" }}>
         <Sidebar userRole={userRole} />
         {/* Desktop: margin-left for sidebar. Mobile: margin-top for top bar */}

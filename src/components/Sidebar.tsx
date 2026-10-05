@@ -6,12 +6,13 @@ import { useTheme } from "@/components/ThemeProvider";
 import { sectionAllowed, isOwner, seesOverview } from "@/components/RoleContext";
 import Avatar from "@/components/Avatar";
 import AlertsBell from "@/components/AlertsBell";
+import { openGlobalSearch } from "@/components/GlobalSearch";
 import Sheet from "@/components/Sheet";
 import { useIsMobile } from "@/lib/useMedia";
 import {
   LayoutDashboard, Users, FileText, Scissors, Send, Calendar, Rocket, Flame,
   HandshakeIcon, BarChart3, Mic, Coins, ClipboardList, BookOpen, Settings, LogOut, Moon, Sun, Wallet,
-  CalendarCheck, CalendarDays, MoreHorizontal, Target, ListChecks, type LucideIcon,
+  CalendarCheck, CalendarDays, MoreHorizontal, Search, Target, ListChecks, type LucideIcon,
 } from "lucide-react";
 
 function BrandMark({ size = 26 }: { size?: number }) {
@@ -189,6 +190,7 @@ export function Sidebar({ userRole }: { userRole: string }) {
           </button>
         </nav>
         <Sheet open={moreOpen} onClose={() => setMoreOpen(false)} title="Разделы" sub={me ? `${me.name} · ${ROLE_LABEL[userRole] || userRole}` : undefined}>
+          <button className="v2-opt" onClick={() => { setMoreOpen(false); openGlobalSearch(); }} style={{ marginBottom: 10 }}><Search size={16} /> Поиск по сценариям и роликам</button>
           {GROUPS.map(g => {
             const items = g.items.filter(it => allowed(it.id) && !inTabs.has(it.id));
             if (!items.length) return null;
@@ -224,6 +226,11 @@ export function Sidebar({ userRole }: { userRole: string }) {
           <AlertsBell role={userRole} align="left" />
         </div>
       </div>
+      <button onClick={openGlobalSearch} title="Поиск по сценариям и роликам (Cmd + K)"
+        style={{ margin: "10px 12px 2px", display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 9, border: "1px solid var(--brd)",
+          background: "var(--inp)", color: "var(--t3)", fontSize: 12.5, cursor: "pointer", fontFamily: "inherit" }}>
+        <Search size={14} /> Поиск <span style={{ marginLeft: "auto", fontSize: 10.5, border: "1px solid var(--brd)", borderRadius: 5, padding: "1px 5px" }}>⌘K</span>
+      </button>
       <NavGroups compact />
       <UserBlock compact />
     </aside>
