@@ -143,7 +143,7 @@ export default function MediaSection({ clientId }: { clientId: number }) {
         <input ref={input} type="file" hidden multiple accept="image/*,video/*,.ttf,.otf,.woff,.woff2,.svg" onChange={onFiles} />
         <button className="v2-act" style={{ ...btn(false), marginLeft: "auto" }} disabled={asking || !unsortedCount} onClick={askAI}
           title="ИИ посмотрит новые файлы, подпишет и разложит по темам">
-          {asking ? "Отправляю…" : unsortedCount ? `✨ Разобрать с ИИ · ${unsortedCount}` : "✓ Всё разобрано ИИ"}
+          {asking ? "Отправляю…" : unsortedCount ? `✨ Разобрать с ИИ · ${unsortedCount}` : items.length ? "✓ Всё разобрано ИИ" : "✨ Разобрать с ИИ"}
         </button>
       </div>
 
