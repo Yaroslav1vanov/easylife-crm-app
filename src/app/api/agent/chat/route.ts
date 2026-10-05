@@ -38,7 +38,7 @@ async function folder(sb: ReturnType<typeof createAdmin>, cid: number) {
     sb.from("reel_snapshots").select("network, post_url, published_at, snapshot_date, age_days, views, reach, likes, comments, saves, shares, avg_watch_sec")
       .eq("client_id", cid).order("snapshot_date", { ascending: false }).limit(600),
     sb.from("client_assets").select("id, file_key, category, kind, title, tags, has_face, consent, source, usable")
-      .eq("client_id", cid).order("id", { ascending: false }).limit(200),
+      .eq("client_id", cid).order("id", { ascending: false }).limit(500),
     sb.from("client_documents").select("kind, title, body, file_key, version")
       .eq("client_id", cid).eq("is_current", true).neq("kind", "strategy"),
   ]);
@@ -102,6 +102,26 @@ export async function POST(req: Request) {
     const { data } = await sb.from("client_chat_messages").update({ ai_status: "working" })
       .eq("id", b.id).eq("ai_status", "queued").select("id");
     return NextResponse.json({ ok: !!data?.length });
+  }
+
+  // ИИ разобрал медиатеку клиента: подписи, темы (теги «тема:…») и категории файлов — обратно в CRM.
+  // Только файлы клиента той задачи, в рамках которой ИИ работал.
+  if (b.op === "asset_update") {
+    const { data: m } = await sb.from("client_chat_messages").select("id, client_id").eq("id", b.id).maybeSingle();
+    if (!m) return bad("нет такой задачи", 404);
+    const CATS = new Set(["logo", "font", "portrait", "process", "location", "result", "review", "generated", "story", "other"]);
+    let updated = 0;
+    for (const a of (Array.isArray(b.assets) ? b.assets : []).slice(0, 500)) {
+      const patch: any = {};
+      if (typeof a?.title === "string" && a.title.trim()) patch.title = a.title.trim().slice(0, 200);
+      if (Array.isArray(a?.tags)) patch.tags = a.tags.filter((t: any) => typeof t === "string" && t.trim()).map((t: string) => t.trim().slice(0, 60)).slice(0, 20);
+      if (typeof a?.category === "string" && CATS.has(a.category)) patch.category = a.category;
+      if (a?.has_face === true) patch.has_face = true;   // ИИ может только ПОМЕТИТЬ лицо (снять пометку — человек)
+      if (!Object.keys(patch).length || !Number(a?.asset_id)) continue;
+      const { data } = await sb.from("client_assets").update(patch).eq("id", Number(a.asset_id)).eq("client_id", m.client_id).select("id");
+      updated += data?.length || 0;
+    }
+    return NextResponse.json({ ok: true, updated });
   }
 
   // исполнитель перезапустился посреди задачи — возвращаем её в очередь, он доделает с того же места

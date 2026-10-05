@@ -193,28 +193,33 @@ def write_folder(ws, job):
         L.append("Цифр по этому клиенту в CRM пока нет — не выдумывай их, так и скажи.")
     (ws / "STATS.md").write_text("\n".join(L) + "\n")
 
-    # --- медиатека: картинки качаем в media/, видео и шрифты — по запросу (ключ в MEDIA.md)
-    media = ws / "media"
-    L = ["# Медиатека клиента", "",
-         "Файлы лежат в media/<категория>/. Категории: portrait — портреты, process — процесс работы, location — место, result — результаты, "
-         "review — отзывы, logo — логотипы, font — шрифты, generated — сделано ИИ, story — готовые сторис.",
-         "**Фото с лицом без согласия (согласие: нет / неизвестно) в ролики и сторис НЕ ставить.** «Нельзя использовать» — не трогать вообще.", ""]
+    # --- медиатека: ВСЕ файлы (и видео) лежат в media/files/<id>.<ext> — путь не меняется, когда ИИ
+    #     переименовывает файл или меняет тему; разбор и «папки» по темам — в LIBRARY.md (ведёт ИИ).
+    media = ws / "media" / "files"
+    media.mkdir(parents=True, exist_ok=True)
+    L = ["# Медиатека клиента (из CRM)", "",
+         "Все файлы: media/files/<id>.<расширение>. Разбор (что на файле, тема, лучшие моменты) — в LIBRARY.md, его ведёшь ты.",
+         "Тема файла в CRM — тег «тема:…», разобранный файл — тег «разобрано».",
+         "**Фото/видео с лицом без согласия (согласие: нет / неизвестно) в ролики и сторис НЕ ставить.** «Нельзя использовать» — не трогать вообще.", ""]
     for a in job.get("assets") or []:
         ext = (a["file_key"].rsplit(".", 1)[-1] or "bin").lower()
-        dest = media / a["category"] / f"{a['id']}_{safe(a.get('title') or a['category'])}.{ext}"
-        small = a.get("kind") in ("image", "font") or ext in ("png", "jpg", "jpeg", "webp", "svg", "ttf", "otf", "woff2")
-        if a.get("usable") and small:
+        dest = media / f"{a['id']}.{ext}"
+        if a.get("usable") and a.get("kind") in ("image", "video", "font"):
             try:
-                dest.parent.mkdir(parents=True, exist_ok=True)
                 fetch_file(a["file_key"], dest)
             except Exception as e:
-                log("медиатека: не скачался", a.get("title"), e)
+                log("медиатека: не скачался", a.get("id"), e)
+        tags = a.get("tags") or []
         consent = {"yes": "есть", "no": "НЕТ", "not_needed": "не нужно", "unknown": "неизвестно"}.get(a.get("consent"), a.get("consent"))
-        L.append(f"- {'media/' + str(dest.relative_to(media)) if dest.exists() else '(не скачан: ' + a.get('kind', '') + ')'} · {a['category']} · {a.get('title') or ''}"
-                 f" · теги: {', '.join(a.get('tags') or []) or '—'} · лицо: {'да' if a.get('has_face') else 'нет'} · согласие: {consent}"
+        L.append(f"- [id {a['id']}] {('media/files/' + dest.name) if dest.exists() else '(не скачан)'} · {a.get('kind')} · {a['category']} · {a.get('title') or ''}"
+                 f" · теги: {', '.join(tags) or '—'} · {'разобран' if 'разобрано' in [t.lower() for t in tags] else 'НЕ РАЗОБРАН'}"
+                 f" · лицо: {'да' if a.get('has_face') else 'нет'} · согласие: {consent}"
                  + ("" if a.get("usable") else " · НЕЛЬЗЯ ИСПОЛЬЗОВАТЬ"))
     if not (job.get("assets") or []):
-        L.append("Медиатека пуста. Для сторис с фото клиента попроси сотрудника загрузить фото во вкладку «Стратегия» → «Медиатека» или в чат.")
+        L.append("Медиатека пуста. Попроси сотрудника загрузить видео и фото клиента: карточка → «Стратегия» → «Медиатека».")
+    lib = ws / "LIBRARY.md"
+    if not lib.exists():
+        lib.write_text("# Библиотека клиента — разбор медиатеки\n\nВедёт ИИ. По теме (процедура/услуга/место) — список файлов: что на нём, длительность, лучшие моменты с таймкодами, куда годится (рилс/сторис).\n")
     (ws / "MEDIA.md").write_text("\n".join(L) + "\n")
 
     # --- документы (аудит, бриф, контент-план текстом)
@@ -283,6 +288,13 @@ def handle(job):
         for f in sorted(out.iterdir()):
             if f.is_file() and f.name != "reply.md" and MEDIA.search(f.name) and f.stat().st_size < 500 * 1048576:
                 atts.append(upload_file(cid, f))
+        upd = out / "assets.json"          # ИИ разобрал медиатеку → подписи и темы в CRM
+        if upd.exists():
+            try:
+                r = api_post(op="asset_update", id=mid, assets=json.loads(upd.read_text()))
+                log("медиатека: обновлено в CRM", r.get("updated"))
+            except Exception as e:
+                log("медиатека: не обновилась", e)
         try:
             journal(ws, mid, msg, reply, atts, before)
         except Exception:
