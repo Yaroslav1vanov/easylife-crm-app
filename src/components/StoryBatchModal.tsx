@@ -115,8 +115,9 @@ export default function StoryBatchModal({ clients, defaultClientId, onClose, onC
           <div>
             {lbl("Интервал между кадрами")}
             <select value={interval} onChange={e => setInterval(Number(e.target.value))} style={inp}>
-              {[[1, "1 минута — сразу подряд"], [5, "5 минут"], [15, "15 минут"], [30, "30 минут"], [60, "1 час"], [120, "2 часа"], [180, "3 часа"], [360, "6 часов"], [720, "12 часов"], [1440, "раз в день"]].map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              {[[5, "5 минут"], [10, "10 минут"], [15, "15 минут"], [30, "30 минут"], [60, "1 час"], [120, "2 часа"], [180, "3 часа"], [360, "6 часов"], [720, "12 часов"], [1440, "раз в день"]].map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select>
+            <div className="v2-hint" style={{ marginTop: 5 }}>Меньше 5 минут нельзя: Metricool выкладывает сторис с задержкой 1–3 минуты, и при частом шаге кадры перемешиваются (05.10 вышли в порядке 3-2-1-4-5).</div>
             <div className="v2-hint" style={{ marginTop: 5 }}>{frames.length > 1 && startUtc ? `последний кадр: ${fmtInTz(timeOf(frames.length - 1), tz)}` : "время каждого кадра потом можно поменять в его карточке"}</div>
           </div>
         </div>

@@ -380,7 +380,7 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
                           {c && <Avatar name={`${c.name} ${c.surname || ""}`} src={c.avatar_url} size={22} />}
                           <div style={{ minWidth: 0, flex: 1 }}>
                             <div style={{ fontSize: 10, fontWeight: 700, color: "var(--t1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c?.name} {c?.surname || ""}</div>
-                            <div style={{ fontSize: 8, color: "var(--t3)", fontFamily: "monospace" }}>{isStory ? "сторис" : isCar ? "карусель" : `#${sc?.order_num ?? "?"}`} · {fmtInTz(p.publish_at, c?.timezone || DEFAULT_TZ)}</div>
+                            <div style={{ fontSize: 8, color: "var(--t3)", fontFamily: "monospace" }}>{isStory ? "сторис" : isCar ? "карусель" : `#${sc?.order_num ?? "?"}`} · {fmtInTz(p.publish_at, c?.timezone || DEFAULT_TZ)} {tzShort(c?.timezone || DEFAULT_TZ)}</div>
                           </div>
                           {isStory
                             ? <span title="Сторис" style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 8, fontWeight: 800, color: "var(--pk)", background: "rgba(236,72,153,0.14)", padding: "2px 5px", borderRadius: 5, flexShrink: 0 }}><Smartphone size={9} />сторис</span>

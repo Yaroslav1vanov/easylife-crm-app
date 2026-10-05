@@ -142,7 +142,7 @@ export default function SendToPipelineModal({ clientId, video, images, onClose }
                 );
               })}
             </div>
-            <div className="v2-hint">Кадры выйдут по порядку. Нажмите на кадр, чтобы убрать его из серии.</div>
+            <div className="v2-hint">Кадры выйдут по порядку. Нажмите на кадр, чтобы убрать его из серии. Шаг — не меньше 5 минут, иначе Metricool может перемешать кадры.</div>
             {plans.length > 0 && (
               <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, color: "var(--t3)" }}>Серия из плана
                 <select value={planId ?? ""} style={inp} onChange={(e) => {
@@ -157,7 +157,7 @@ export default function SendToPipelineModal({ clientId, video, images, onClose }
               <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, color: "var(--t3)" }}>Первый кадр · {tzShort(tz)}
                 <input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} style={{ ...inp, colorScheme: "dark" }} /></label>
               <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, color: "var(--t3)" }}>Между кадрами, мин
-                <input type="number" min={0} value={step} onChange={(e) => setStep(Math.max(0, Number(e.target.value) || 0))} style={{ ...inp, width: 110 }} /></label>
+                <input type="number" min={5} value={step} onChange={(e) => setStep(Math.max(5, Number(e.target.value) || 5))} style={{ ...inp, width: 110 }} /></label>
             </div>
             <div className="v2-hint">сейчас у клиента {nowInTz(tz)}</div>
             <input value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Заметка для команды: цель серии, какую наклейку добавить вручную" style={inp} />
