@@ -133,6 +133,20 @@ export default function PublicationModal({ pub, client, script, onClose, onUpdat
     setPubBusy(false);
     if (res.ok) onClose();
   }
+  /** Запланированный пост: меняем время в CRM и пересоздаём пост в сервисе публикации. */
+  async function reschedule(v: string | null, input: HTMLInputElement) {
+    if (!v || v === f.publish_at) return;
+    if (!confirm(`Перенести публикацию на ${fmtInTz(v, tz)} (${tzShort(tz)})? Пост в ${service} пересоздастся на новое время.`)) {
+      input.value = utcToZonedInput(f.publish_at, tz); return;
+    }
+    setPubBusy(true);
+    const r = await fetch(`/api/publications/${pub.id}/reschedule`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ publish_at: v }) });
+    const j = await r.json().catch(() => ({}));
+    setPubBusy(false);
+    if (!r.ok || j.error) { alert("Не получилось: " + (j.error || r.status)); input.value = utcToZonedInput(f.publish_at, tz); return; }
+    const patch: Partial<Publication> = { publish_at: v, ...(j.ids ? { metricool_post_id: Object.entries(j.ids).map(([k, x]) => `${k}:${x}`).join(",") } : {}) };
+    setF(p => ({ ...p, ...patch })); onUpdate(pub.id, patch);
+  }
   async function checkStatus() { setStatusBusy(true); const r = await onCheckStatus(pub.id); setStatuses(r?.items || []); setStatusBusy(false); }
 
   const planIso = script?.pub_date ? zonedInputToUtc(`${script.pub_date}T${(client?.default_post_time || "12:00").slice(0, 5)}`, tz) : null;
@@ -261,9 +275,10 @@ export default function PublicationModal({ pub, client, script, onClose, onUpdat
           <div className="pub-when">
             <div>
               {lbl(`Время публикации · ${tzShort(tz)}`)}
-              <input type="datetime-local" key={f.publish_at || "none"} defaultValue={utcToZonedInput(f.publish_at, tz)} disabled={locked || isScheduled}
-                onBlur={e => save({ publish_at: e.target.value ? zonedInputToUtc(e.target.value, tz) : null })}
-                style={{ ...ta, padding: "9px 10px", colorScheme: "dark", opacity: locked || isScheduled ? .6 : 1 }} />
+              <input type="datetime-local" key={f.publish_at || "none"} defaultValue={utcToZonedInput(f.publish_at, tz)} disabled={locked || pubBusy}
+                onBlur={e => { const v = e.target.value ? zonedInputToUtc(e.target.value, tz) : null; if (isScheduled) reschedule(v, e.target); else save({ publish_at: v }); }}
+                style={{ ...ta, padding: "9px 10px", colorScheme: "dark", opacity: locked ? .6 : 1 }} />
+              {isScheduled && <div className="v2-hint" style={{ marginTop: 5 }}>Пост уже в {service}. Новое время — и он пересоздастся на это время.</div>}
               <div className="v2-hint" style={{ marginTop: 5 }}>сейчас у клиента {nowInTz(tz)}{f.publish_at ? ` · выйдет ${fmtInTz(f.publish_at, tz)}` : ""}</div>
               {f.publish_at && pastBy > 10 && !isPublished && <div className="v2-chip rd" style={{ marginTop: 6 }}><AlertTriangle size={11} /> время уже прошло{isScheduled ? "" : " — Metricool опубликует сразу"}</div>}
               {!locked && !isScheduled && planIso && planIso !== f.publish_at && (
