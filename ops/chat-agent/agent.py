@@ -18,9 +18,12 @@ HDR = {"x-agent-secret": ENV["AGENT_SECRET"], "content-type": "application/json"
 TIMEOUT = int(ENV.get("CHAT_TIMEOUT_MIN", "45")) * 60
 WORK = HOME / "work"
 # У клиента два чата с ИИ: по рилсам и по сторис. Переписка не смешивается, папка клиента общая.
-THREAD_RU = {"reels": "рилсы", "stories": "сторис"}
+THREAD_RU = {"reels": "рилсы", "stories": "сторис", "strategy": "стратегия"}
 THREAD_HINT = {
     "reels": "Задачи этого чата — рилсы: монтаж роликов, правки, разбор стиля роликов.",
+    "strategy": "Это чат по проекту в целом. Ты видишь переписку всех трёх чатов (метки [рилсы]/[сторис]/[стратегия]), PLAN.md и STATS.md. "
+                "Задача — думать и советовать: что зашло, что выкладывать, какие сторис поставить рядом с рилсами, чего не хватает в плане. "
+                "Отвечай текстом с конкретикой по этому клиенту; файлы делай, только если прямо попросили.",
     "stories": "Задачи этого чата — сторис: серии сторис (кадры PNG 1080×1920 или короткие видео), тексты, план сторис. Рилсы здесь не монтируй, если об этом прямо не просят.",
 }
 CURRENT = HOME / ".current_job"
@@ -99,7 +102,8 @@ def prepare(job):
     for m in job["history"]:
         who = "ИИ (ты)" if m["author_type"] == "ai" else (m.get("author_name") or "Сотрудник")
         att = "".join(f"\n    📎 files/{local(m, a).name}" for a in (m.get("attachments") or []))
-        hist.append(f"[{m['created_at'][:16].replace('T', ' ')}] #{m['id']} {who}: {m['body']}{att}")
+        tag = f"[{THREAD_RU.get(m.get('thread') or 'reels')}] " if (msg.get('thread') == 'strategy') else ""
+        hist.append(f"{tag}[{m['created_at'][:16].replace('T', ' ')}] #{m['id']} {who}: {m['body']}{att}")
 
     (ws / "CONTEXT.md").write_text(f"""# Клиент: {name} (карточка {cid})
 Ниша: {client.get('niche') or '—'} · Продукт: {client.get('product') or '—'}

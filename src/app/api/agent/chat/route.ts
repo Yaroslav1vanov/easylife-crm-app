@@ -78,8 +78,10 @@ export async function GET(req: Request) {
       sb.from("clients").select("id, name, surname, niche, product, instagram, tiktok, youtube, brand_voice, timezone, ai_chat").eq("id", cid).maybeSingle(),
       sb.from("client_brand").select("kit, version").eq("client_id", cid).maybeSingle(),
       sb.from("client_documents").select("title, body, version").eq("client_id", cid).eq("kind", "strategy").eq("is_current", true).maybeSingle(),
-      sb.from("client_chat_messages").select("id, author_type, author_name, body, attachments, created_at, ai_status")
-        .eq("client_id", cid).eq("thread", m.thread || "reels").lte("id", m.id).order("id", { ascending: false }).limit(40),   // переписка только этого чата (рилсы / сторис)
+      sb.from("client_chat_messages").select("id, author_type, author_name, body, attachments, created_at, ai_status, thread")
+        // рилсы и сторис — только своя переписка; «Стратегия» видит все три чата клиента
+        .eq("client_id", cid).in("thread", m.thread === "strategy" ? ["reels", "stories", "strategy"] : [m.thread || "reels"])
+        .lte("id", m.id).order("id", { ascending: false }).limit(m.thread === "strategy" ? 80 : 40),
     ]);
     if (!client?.ai_chat) {
       // ИИ у клиента выключили, пока сообщение ждало — снимаем его с очереди

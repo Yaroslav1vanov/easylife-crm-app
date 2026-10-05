@@ -12,3 +12,7 @@ create index if not exists client_chat_messages_thread_idx
 
 -- Проверка
 select thread, count(*) from public.client_chat_messages group by thread;
+
+-- 05.10 позже: третий чат «Стратегия» (видит рилсы, сторис, план и статистику клиента)
+alter table public.client_chat_messages drop constraint if exists client_chat_messages_thread_check;
+alter table public.client_chat_messages add constraint client_chat_messages_thread_check check (thread in ('reels', 'stories', 'strategy'));

@@ -35,7 +35,7 @@ function putWithProgress(url: string, file: File, onPct: (p: number) => void) {
   });
 }
 
-export type ChatThread = "reels" | "stories";
+export type ChatThread = "reels" | "stories" | "strategy";
 const THREADS: { id: ChatThread; label: string; hint: string; placeholder: string; empty: string }[] = [
   { id: "reels", label: "🎬 Рилсы", hint: "Чат по рилсам: монтаж роликов, правки, разбор стиля и что зашло. Готовый ролик одной кнопкой уходит к сценарию или в публикации.",
     placeholder: "Задача по рилсам: «смонтируй этот исходник в стиле клиента» (приложите видео аватара). Правка: «на 12-й секунде другой кадр», «обрежь начало до фразы …»",
@@ -43,6 +43,9 @@ const THREADS: { id: ChatThread; label: string; hint: string; placeholder: strin
   { id: "stories", label: "📱 Сторис", hint: "Чат по сторис: серии сторис, кадры, тексты, план сторис рядом с рилсами. Готовые кадры одной кнопкой уходят в сторис на нужное время.",
     placeholder: "Задача по сторис: «сделай серию из 5 сторис на запись на консультацию» — приложите фото или кадры, если есть",
     empty: "Кидайте фото и материалы для сторис и пишите задачу." },
+  { id: "strategy", label: "🧭 Стратегия", hint: "Чат по проекту в целом: ИИ видит переписку и рилсов, и сторис, контент-план и статистику. Спрашивайте, что зашло, какие сторис поставить под рилсы этой недели, что поменять в контенте.",
+    placeholder: "Вопрос по стратегии: «что зашло за месяц и почему?», «предложи сторис на неделю под наши рилсы», «чего не хватает в контент-плане?»",
+    empty: "Задайте вопрос по контенту клиента — ИИ разберёт план, статистику и обе переписки." },
 ];
 
 export default function ClientChatTab({ clientId, aiEnabled, draft, initialThread }: { clientId: number; aiEnabled: boolean; draft?: string; initialThread?: ChatThread }) {
@@ -170,7 +173,7 @@ export default function ClientChatTab({ clientId, aiEnabled, draft, initialThrea
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, padding: 4, borderRadius: 12, background: "var(--v2-inset)", border: "1px solid var(--brd)" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 4, padding: 4, borderRadius: 12, background: "var(--v2-inset)", border: "1px solid var(--brd)" }}>
         {THREADS.map((t) => (
           <button key={t.id} onClick={() => setThread(t.id)} disabled={sending}
             style={{ padding: "9px 0", borderRadius: 9, border: 0, cursor: "pointer", fontSize: 13.5, fontWeight: 800, fontFamily: "inherit",
