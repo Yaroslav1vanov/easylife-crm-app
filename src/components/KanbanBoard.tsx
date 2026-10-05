@@ -195,7 +195,7 @@ export default function KanbanBoard({ scripts, clients, columns, onUpdate, showC
             </div>
             {showAdd && (
               <button onClick={handleAdd} disabled={adding} className="v2-act ghost" style={{ width: "100%", marginBottom: 8, borderStyle: "dashed", color: col.color }}>
-                <Plus size={13} strokeWidth={2.4} /> {adding ? "Создаю..." : "Добавить сценарий"}
+                <Plus size={13} strokeWidth={2.4} /> {adding ? "Создаю..." : "Создать сценарий"}
               </button>
             )}
             {slotItems.length > 0 && (
@@ -272,7 +272,7 @@ export default function KanbanBoard({ scripts, clients, columns, onUpdate, showC
                       background: "rgba(157,107,255,0.08)", border: `1px dashed ${col.color}`,
                       color: col.color, fontSize: 11, fontWeight: 700, cursor: "pointer",
                     }}>
-                    <Plus size={13} strokeWidth={2.4} /> {adding ? "Создаю..." : "Добавить сценарий"}
+                    <Plus size={13} strokeWidth={2.4} /> {adding ? "Создаю..." : "Создать сценарий"}
                   </button>
                 )}
 {slotItems.length > 0 && (

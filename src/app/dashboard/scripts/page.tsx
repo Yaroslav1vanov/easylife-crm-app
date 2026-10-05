@@ -224,6 +224,25 @@ export default function ScriptsPage() {
   const closeModal = () => setOpenId(null);
   const openSample = () => { if (tourSampleId != null) setOpenId(tourSampleId); };
   // Контрактные месяцы клиента (для переноса сценария в другой месяц)
+  /* «Идея» с нуля: свой сценарий без референса. Клиент выбран в фильтре — создаём сразу, иначе спрашиваем.
+     Месяц — текущий контрактный месяц клиента (или выбранный в фильтре «Месяц»). */
+  const [pickClient, setPickClient] = useState(false);
+  function monthFor(cid: number) {
+    if (monthFilter !== "all") return monthFilter;
+    const today = new Date().toISOString().slice(0, 10);
+    const ms = clientMonths.filter(m => m.client_id === cid && m.status !== "cancelled");
+    const cur = ms.find(m => m.start_date <= today && today <= m.end_date) || [...ms].sort((a, b) => b.month_number - a.month_number)[0];
+    return cur?.month_number || 1;
+  }
+  async function createIdea(cid: number) {
+    setPickClient(false);
+    const { data, error } = await db.createScript(supabase, cid, monthFor(cid));
+    if (error || !data) { alert("Не получилось создать сценарий: " + (error?.message || "")); return; }
+    setAllScripts(a => [...a, data as Script]);
+    setOpenId((data as Script).id);   // сразу открываем — записать идею
+  }
+  const addIdea = () => (clientFilter !== "all" ? createIdea(clientFilter) : setPickClient(true));
+
   const monthsOf = (cid: number) => clientMonths.filter(m => m.client_id === cid && m.status !== "cancelled").map(m => m.month_number).sort((a, b) => a - b);
   const scriptTour: TourStep[] = [
     { title: "Раздел «Сценарии»", text: "Тут пишем сценарии и ведём их по колонкам от идеи до согласования с клиентом. Проведу по шагам — где что и как.", action: closeModal },
@@ -444,6 +463,7 @@ export default function ScriptsPage() {
       {/* KANBAN (доска — как сейчас) */}
       <div data-tour="scripts-board" style={{ fontSize: 13, fontWeight: 800, marginBottom: 10, color: "var(--t2)" }}>Доска сценариев</div>
       <KanbanBoard scripts={kanbanScripts} clients={clients} columns={SCRIPT_COLUMNS} onUpdate={updateScript} showClient emptyHint="Пусто"
+        onAddCard={addIdea}
         deadlineLeadDays={SCRIPT_LEAD}
         deadlineDone={(s) => s.script_status === "approved"}
         deadlineShow={(s) => s.script_status === "inProgress" || s.script_status === "review"}
@@ -455,6 +475,20 @@ export default function ScriptsPage() {
 
       {openScript && (
         <ScriptModal script={openScript} client={clientById[openScript.client_id]} onClose={() => setOpenId(null)} onUpdate={updateScript} canEditReadyAt={canEditReadyAt} monthOptions={monthsOf(openScript.client_id)} />
+      )}
+      {pickClient && (
+        <div onClick={() => setPickClient(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.55)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} className="v2-card" style={{ width: "min(420px, 100%)", maxHeight: "80vh", overflowY: "auto", padding: 16, display: "flex", flexDirection: "column", gap: 8 }}>
+            <b style={{ fontSize: 15 }}>Новая идея — для какого клиента?</b>
+            <div style={{ fontSize: 12.5, color: "var(--t3)", marginBottom: 4 }}>Сценарий появится в «Идее», сразу откроется карточка — запишите свою идею, реф не обязателен.</div>
+            {clients.filter(c => inScope(c.id) && c.stage === "active").map(c => (
+              <button key={c.id} className="v2-act ghost" style={{ justifyContent: "flex-start", height: 38 }} onClick={() => createIdea(c.id)}>
+                {c.name} {c.surname || ""}
+              </button>
+            ))}
+            <button className="v2-act ghost" style={{ marginTop: 6 }} onClick={() => setPickClient(false)}>Отмена</button>
+          </div>
+        </div>
       )}
       <Tour steps={scriptTour} open={tourOpen} onClose={() => { setTourOpen(false); setOpenId(null); }} />
     </div>
