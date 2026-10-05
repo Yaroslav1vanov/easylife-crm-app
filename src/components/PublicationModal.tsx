@@ -279,7 +279,7 @@ export default function PublicationModal({ pub, client, script, onClose, onUpdat
                 onBlur={e => { const v = e.target.value ? zonedInputToUtc(e.target.value, tz) : null; if (isScheduled) reschedule(v, e.target); else save({ publish_at: v }); }}
                 style={{ ...ta, padding: "9px 10px", colorScheme: "dark", opacity: locked ? .6 : 1 }} />
               {isScheduled && <div className="v2-hint" style={{ marginTop: 5 }}>Пост уже в {service}. Новое время — и он пересоздастся на это время.</div>}
-              <div className="v2-hint" style={{ marginTop: 5 }}>сейчас у клиента {nowInTz(tz)}{f.publish_at ? ` · выйдет ${fmtInTz(f.publish_at, tz)}` : ""}</div>
+              <div className="v2-hint" style={{ marginTop: 5 }}>сейчас {tzShort(tz)}: {nowInTz(tz)}{f.publish_at ? ` · выйдет ${fmtInTz(f.publish_at, tz)} ${tzShort(tz)}` : ""}</div>
               {f.publish_at && pastBy > 10 && !isPublished && <div className="v2-chip rd" style={{ marginTop: 6 }}><AlertTriangle size={11} /> время уже прошло{isScheduled ? "" : " — Metricool опубликует сразу"}</div>}
               {!locked && !isScheduled && planIso && planIso !== f.publish_at && (
                 <button className="v2-act ghost" style={{ marginTop: 8, height: 30 }} onClick={() => save({ publish_at: planIso })}>По контент-плану: {fmtInTz(planIso, tz)}</button>

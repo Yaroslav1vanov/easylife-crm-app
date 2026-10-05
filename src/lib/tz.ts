@@ -3,20 +3,26 @@
 
 export const DEFAULT_TZ = "America/New_York"; // US Eastern (Нью-Йорк, Майами)
 
-export const CLIENT_TIMEZONES: { tz: string; label: string }[] = [
-  { tz: "America/New_York", label: "US Eastern · Нью-Йорк, Майами" },
-  { tz: "America/Chicago", label: "US Central · Чикаго, Хьюстон" },
-  { tz: "America/Denver", label: "US Mountain · Денвер" },
-  { tz: "America/Los_Angeles", label: "US Pacific · Лос-Анджелес" },
-  { tz: "Europe/Kyiv", label: "Киев" },
-  { tz: "Asia/Bangkok", label: "Бангкок" },
+/* Пояса подписаны городами, а не «US Eastern»: время в CRM читается как «6:00 PM по Нью-Йорку».
+   label — для выпадающего списка, short — для подписи рядом со временем. */
+export const CLIENT_TIMEZONES: { tz: string; label: string; short: string }[] = [
+  { tz: "America/New_York", label: "Нью-Йорк, Майами (восточное время США)", short: "по Нью-Йорку" },
+  { tz: "America/Chicago", label: "Чикаго, Хьюстон, Даллас (центральное время США)", short: "по Чикаго" },
+  { tz: "America/Denver", label: "Денвер (горное время США)", short: "по Денверу" },
+  { tz: "America/Los_Angeles", label: "Лос-Анджелес, Сан-Франциско (тихоокеанское время США)", short: "по Лос-Анджелесу" },
+  { tz: "Europe/Kyiv", label: "Киев", short: "по Киеву" },
+  { tz: "Europe/Sofia", label: "София, Варна (Болгария)", short: "по Софии" },
+  { tz: "Asia/Dubai", label: "Дубай", short: "по Дубаю" },
+  { tz: "Asia/Bangkok", label: "Бангкок, Пхукет", short: "по Бангкоку" },
+  { tz: "Asia/Makassar", label: "Бали", short: "по Бали" },
 ];
 
 export function tzLabel(tz: string | null | undefined) {
   return CLIENT_TIMEZONES.find(t => t.tz === tz)?.label || tz || DEFAULT_TZ;
 }
+/** «по Нью-Йорку» — ставится сразу после времени: «6:00 PM по Нью-Йорку». */
 export function tzShort(tz: string | null | undefined) {
-  return (tzLabel(tz).split("·")[0] || "").trim() || tz || "";
+  return CLIENT_TIMEZONES.find(t => t.tz === (tz || DEFAULT_TZ))?.short || `(${tz})`;
 }
 
 // Смещение пояса (wallclock − UTC) в мс на конкретный момент (учитывает DST).

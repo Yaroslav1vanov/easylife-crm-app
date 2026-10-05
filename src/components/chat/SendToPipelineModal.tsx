@@ -159,7 +159,7 @@ export default function SendToPipelineModal({ clientId, video, images, onClose }
               <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, color: "var(--t3)" }}>Между кадрами, мин
                 <input type="number" min={5} value={step} onChange={(e) => setStep(Math.max(5, Number(e.target.value) || 5))} style={{ ...inp, width: 110 }} /></label>
             </div>
-            <div className="v2-hint">сейчас у клиента {nowInTz(tz)}</div>
+            <div className="v2-hint">сейчас {tzShort(tz)}: {nowInTz(tz)}</div>
             <input value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Заметка для команды: цель серии, какую наклейку добавить вручную" style={inp} />
           </>
         ) : (
@@ -193,7 +193,7 @@ export default function SendToPipelineModal({ clientId, video, images, onClose }
               <>
                 <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, color: "var(--t3)" }}>Когда публикуем · {tzShort(tz)}
                   <input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} style={{ ...inp, colorScheme: "dark", width: 230 }} /></label>
-                <div className="v2-hint">сейчас у клиента {nowInTz(tz)}</div>
+                <div className="v2-hint">сейчас {tzShort(tz)}: {nowInTz(tz)}</div>
                 <textarea value={caption} onChange={(e) => setCaption(e.target.value)} rows={4} placeholder="Описание к ролику (можно добавить позже в «Публикациях»)" style={{ ...inp, resize: "vertical" }} />
               </>
             )}

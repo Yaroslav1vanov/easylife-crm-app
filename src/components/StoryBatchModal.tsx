@@ -109,7 +109,7 @@ export default function StoryBatchModal({ clients, defaultClientId, onClose, onC
           <div>
             {lbl(`Первый кадр · ${tzShort(tz)}`)}
             <input type="datetime-local" value={start} onChange={e => setStart(e.target.value)} style={inp} />
-            <div className="v2-hint" style={{ marginTop: 5 }}>сейчас у клиента {nowInTz(tz)}</div>
+            <div className="v2-hint" style={{ marginTop: 5 }}>сейчас {tzShort(tz)}: {nowInTz(tz)}</div>
             {past && <div className="v2-chip rd" style={{ marginTop: 6 }}>время уже прошло — выберите будущее</div>}
           </div>
           <div>

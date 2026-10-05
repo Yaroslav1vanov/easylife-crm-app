@@ -177,7 +177,7 @@ export default function ReadyVideoModal({ clients, defaultClientId, onClose, onC
           <div>
             {lbl(`Первый ролик · ${tzShort(tz)}`)}
             <input type="datetime-local" value={start} onChange={e => setStart(e.target.value)} style={inp} />
-            <div className="v2-hint" style={{ marginTop: 5 }}>сейчас у клиента {nowInTz(tz)}</div>
+            <div className="v2-hint" style={{ marginTop: 5 }}>сейчас {tzShort(tz)}: {nowInTz(tz)}</div>
           </div>
           <div>
             {lbl("Если роликов несколько")}
@@ -250,7 +250,7 @@ export default function ReadyVideoModal({ clients, defaultClientId, onClose, onC
               <button className="v2-act ghost" onClick={addLink} disabled={!/^https?:\/\//i.test(link.trim())} style={{ height: 34 }}>Добавить</button>
             </div>
           </div>
-          <div className="v2-hint" style={{ marginTop: 6 }}>сейчас у клиента {nowInTz(tz)}{past ? " · есть время в прошлом — поправь" : ""}</div>
+          <div className="v2-hint" style={{ marginTop: 6 }}>сейчас {tzShort(tz)}: {nowInTz(tz)}{past ? " · есть время в прошлом — поправь" : ""}</div>
         </div>
 
         <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--t1)", cursor: "pointer" }}>

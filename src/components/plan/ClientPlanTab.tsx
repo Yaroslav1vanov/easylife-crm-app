@@ -203,7 +203,7 @@ export default function ClientPlanTab({ client, scripts, monthOptions, canEdit, 
         <span style={{ display: "inline-flex", gap: 5, alignItems: "center" }}><i style={{ width: 9, height: 9, borderRadius: 2, border: "1px dashed var(--pk)", display: "inline-block" }} />план без кадров</span>
         <span style={{ display: "inline-flex", gap: 5, alignItems: "center" }}><i style={{ width: 9, height: 9, borderRadius: 2, background: "var(--pk)", display: "inline-block" }} />кадры готовы</span>
         <div style={{ flex: 1 }} />
-        <span>{canEdit ? "перетащите, чтобы перенести на другой день · " : ""}время клиента, {tzShort(tz)}</span>
+        <span>{canEdit ? "перетащите, чтобы перенести на другой день · " : ""}время {tzShort(tz)}</span>
       </div>
 
       {isMobile ? (

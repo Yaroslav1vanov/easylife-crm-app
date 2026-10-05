@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
 import db, { Client, Script, TeamMember, ClientMonth, Publication } from "@/lib/database";
-import { utcToZonedInput, fmtInTz, DEFAULT_TZ } from "@/lib/tz";
+import { utcToZonedInput, fmtInTz, DEFAULT_TZ, tzShort } from "@/lib/tz";
 import Avatar from "@/components/Avatar";
 import Tour, { TourButton, type TourStep } from "@/components/Tour";
 import { myClients } from "@/lib/scope";
@@ -432,7 +432,7 @@ export default function PublicationsPage() {
                               const col = err ? "#ff5c7a" : done ? "#34a853" : "#ec4899";
                               return (
                                 <div key={`st${cid}`} onClick={() => router.push(`/dashboard/metricool?open=${list[0].id}`)}
-                                  title={`Сторис · ${c?.name} · ${list.map(p => fmtInTz(p.publish_at, c?.timezone || DEFAULT_TZ)).join(", ")}`}
+                                  title={`Сторис · ${c?.name} · ${list.map(p => fmtInTz(p.publish_at, c?.timezone || DEFAULT_TZ)).join(", ")} ${tzShort(c?.timezone || DEFAULT_TZ)}`}
                                   style={{ display: "flex", alignItems: "center", gap: 5, padding: "3px 5px", borderRadius: 6, background: `${col}1c`, border: `1px solid ${col}40`, cursor: "pointer" }}>
                                   <span style={{ fontSize: 10, flexShrink: 0 }}>📱</span>
                                   <Avatar name={c ? `${c.name} ${c.surname || ""}` : "?"} src={c?.avatar_url} size={14} />
