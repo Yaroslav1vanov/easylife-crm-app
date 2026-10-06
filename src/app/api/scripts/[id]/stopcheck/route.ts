@@ -62,7 +62,10 @@ ${filled.map(f => `[${f}] ${FIELDS[f]}:\n${String((s as any)[f]).trim()}`).join(
       body: JSON.stringify({ model, max_tokens: 2000, system: SYSTEM(rules), messages: [{ role: "user", content: user }] }),
     });
     const j = await r.json();
-    if (!r.ok) throw new Error(j?.error?.message || `Anthropic ${r.status}`);
+    if (!r.ok) {
+      const m = j?.error?.message || `Anthropic ${r.status}`;
+      throw new Error(/credit balance is too low/i.test(m) ? "На балансе Anthropic API закончились деньги — пополните в console.anthropic.com → Plans & Billing" : m);
+    }
     text = (j.content || []).filter((b: any) => b.type === "text").map((b: any) => b.text).join("").trim();
   } catch (e: any) { return NextResponse.json({ error: e?.message || String(e) }, { status: 502 }); }
 
