@@ -365,12 +365,67 @@ def resume_interrupted():
             log("не смог вернуть задачу", mid, e)
 
 
+# ---------------- Быстрая очередь: ИИ-кнопки CRM (стоп-слова, адаптация, подписи, отчёты) ----------------
+QUICK_API = ENV["CRM_API_URL"].rstrip("/") + "/api/agent/quick"
+
+
+def quick_model(m):
+    """Модель из настроек CRM (claude-opus-5, claude-sonnet-5…) → псевдоним Claude Code (последняя версия семейства)."""
+    m = (m or "").lower()
+    return "haiku" if "haiku" in m else "sonnet" if "sonnet" in m else "opus"
+
+
+def quick_run(job):
+    """Одна короткая задача: без инструментов и без сессии — просто ответ модели по подписке."""
+    jid = job["id"]
+    try:
+        if not requests.post(QUICK_API, headers=HDR, json={"op": "claim", "id": jid}, timeout=30).json().get("ok"):
+            return
+        t0 = time.time()
+        cmd = ["/usr/bin/claude", "-p", "--model", quick_model(job.get("model")), "--tools", "", "--no-session-persistence",
+               "--setting-sources", "", "--output-format", "json"]
+        if job.get("system"):
+            cmd += ["--system-prompt", job["system"]]
+        env = {"PATH": "/usr/bin:/bin", "HOME": str(HOME), "LANG": "C.UTF-8", "CLAUDE_CODE_OAUTH_TOKEN": fresh_token()}
+        quick_dir = HOME / "quick"
+        quick_dir.mkdir(exist_ok=True)
+        p = subprocess.run(cmd, input=job["prompt"], cwd=quick_dir, env=env, capture_output=True, text=True, timeout=180)
+        res = json.loads(p.stdout) if p.stdout.strip().startswith("{") else {}
+        text = (res.get("result") or "").strip()
+        if p.returncode != 0 or res.get("is_error") or not text:
+            raise RuntimeError((res.get("result") or p.stderr or p.stdout or "пустой ответ")[-500:])
+        requests.post(QUICK_API, headers=HDR, json={"op": "done", "id": jid, "result": text}, timeout=60)
+        log("кнопка ИИ", job.get("kind"), jid, f"{time.time() - t0:.0f} с", f"${res.get('total_cost_usd')}")
+    except Exception as e:
+        log("кнопка ИИ: ошибка", jid, str(e)[:300])
+        try:
+            requests.post(QUICK_API, headers=HDR, json={"op": "error", "id": jid, "error": f"Сервер ИИ: {str(e)[:300]}"}, timeout=30)
+        except Exception:
+            pass
+
+
+def quick_loop():
+    """Отдельный поток: короткие задачи не ждут, пока идут монтажи (до 4 одновременно)."""
+    from concurrent.futures import ThreadPoolExecutor
+    pool = ThreadPoolExecutor(max_workers=4)
+    while True:
+        try:
+            r = requests.get(QUICK_API, headers=HDR, params={"op": "queue"}, timeout=30)
+            for job in (r.json().get("jobs") or []) if r.ok else []:
+                pool.submit(quick_run, job)
+        except Exception as e:
+            log("быстрая очередь недоступна:", e)
+        time.sleep(2)
+
+
 def main():
     """Задачи разных клиентов идут параллельно (до PARALLEL), по одному клиенту — строго по очереди:
     у клиента общая папка и журнал, две задачи в ней мешали бы друг другу."""
     from concurrent.futures import ThreadPoolExecutor
     log("исполнитель запущен, параллельно до", PARALLEL)
     resume_interrupted()
+    import threading
+    threading.Thread(target=quick_loop, daemon=True).start()
     pool = ThreadPoolExecutor(max_workers=PARALLEL)
     busy = {}   # client_id -> future
     while True:
