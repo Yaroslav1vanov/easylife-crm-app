@@ -112,6 +112,8 @@ export type Publication = {
   client_id: number;
   content_type: ContentType;
   media_urls: string[] | null;
+  ig_trial?: boolean;              // пробный рилс Instagram (Trial Reel): сначала только не-подписчикам
+  ig_trial_share?: boolean;        // зашёл за 72 часа — Instagram сам покажет подписчикам
   video_url: string | null;        // файл смонтированного ролика (R2)
   published_url?: string | null;   // ссылка на вышедший пост в соцсети
   video_thumbnail_url: string | null;

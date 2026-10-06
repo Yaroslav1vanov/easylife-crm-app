@@ -146,7 +146,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       const raw = isStory ? "" : (textFor(ch) || pub.base_text || ""); // у сторис подписи нет; base_text — заметка команды
       const body: any = { text: network === "threads" ? fit(raw, 500) : raw, providers: [{ network }], publicationDate: { dateTime, timezone: tz }, draft: false, autoPublish: true, media };
       if (!isCarousel && !isStory && pub.video_thumbnail_url) body.videoThumbnailUrl = pub.video_thumbnail_url;
-      if (network === "instagram") body.instagramData = { type: isStory ? "STORY" : isCarousel ? "POST" : "REEL" };
+      if (network === "instagram") body.instagramData = (!isStory && !isCarousel && pub.ig_trial)
+        // пробный рилс: видят только не-подписчики; shareTrialAutomatically — показать всем, если зайдёт за 72 часа
+        ? { type: "TRIAL_REEL", shareTrialAutomatically: pub.ig_trial_share !== false }
+        : { type: isStory ? "STORY" : isCarousel ? "POST" : "REEL" };
       if (network === "youtube") body.youtubeData = { title: ytTitle, type: "SHORT", tags: pub.yt_tags || [], madeForKids: false, privacy: "public" };
       if (network === "tiktok") body.tiktokData = { privacyOption: "PUBLIC_TO_EVERYONE", disableComment: false, disableDuet: false, disableStitch: false, commercialContentThirdParty: false, commercialContentOwnBrand: false };
       try {

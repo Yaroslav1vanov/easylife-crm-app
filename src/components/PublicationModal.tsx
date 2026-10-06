@@ -295,6 +295,22 @@ export default function PublicationModal({ pub, client, script, onClose, onUpdat
                 ); })}
               </div>
               <div className="v2-hint" style={{ marginTop: 6 }}>{channels.length ? `Уйдёт в: ${channels.map(x => CHANNELS.find(c => c.id === x)?.short).join(" · ")}` : "Ни одна соцсеть не выбрана"}{isScheduled ? " · чтобы поменять, переотправь" : ""}</div>
+              {!isStory && !isCarousel && channels.includes("ig") && service === "Metricool" && (
+                <div style={{ marginTop: 10, padding: "9px 11px", borderRadius: 10, border: `1px solid ${f.ig_trial ? "var(--pu)" : "var(--brd)"}`, background: f.ig_trial ? "var(--pud)" : "transparent" }}>
+                  <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13, fontWeight: 700, cursor: locked || isScheduled ? "default" : "pointer" }}>
+                    <input type="checkbox" checked={!!f.ig_trial} disabled={locked || isScheduled} onChange={e => save({ ig_trial: e.target.checked })} />
+                    Пробный рилс в Instagram
+                  </label>
+                  <div className="v2-hint" style={{ marginTop: 4 }}>Сначала ролик увидят только те, кто НЕ подписан — проверить тему без риска для аккаунта. TikTok, YouTube и Threads выйдут как обычно.</div>
+                  {f.ig_trial && (
+                    <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 12.5, marginTop: 7, cursor: locked || isScheduled ? "default" : "pointer" }}>
+                      <input type="checkbox" checked={f.ig_trial_share !== false} disabled={locked || isScheduled} onChange={e => save({ ig_trial_share: e.target.checked })} />
+                      Показать подписчикам автоматически, если хорошо зайдёт за 72 часа
+                    </label>
+                  )}
+                  {isScheduled && <div className="v2-hint" style={{ marginTop: 4 }}>Чтобы поменять — «Переотправить».</div>}
+                </div>
+              )}
             </div>
           </div>
         </Step>
