@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { Client, Script } from "@/lib/database";
+import { Client, Script, stopHash } from "@/lib/database";
 import Avatar from "@/components/Avatar";
 import ScriptModal, { fmtDateShort, addDaysIso } from "@/components/ScriptModal";
 import ConfirmDialog from "@/components/ConfirmDialog";
@@ -481,6 +481,13 @@ function KanbanCardPreview({ script: s, client: c, color, dragging, moving, show
       )}
       <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 10.5, color: "var(--t3)", flexWrap: "wrap" }}>
         {s.ref_url && <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}><ExternalLink size={9} /> реф</span>}
+        {s.stopcheck && (() => {
+          // значок проверки на стоп-слова: ок / сколько предупреждений / текст менялся после проверки
+          const n = s.stopcheck.issues?.length || 0, hi = s.stopcheck.issues?.some(i => i.severity === "high");
+          const stale = s.stopcheck.hash !== stopHash(s);
+          return <span title={stale ? "Текст менялся после проверки на стоп-слова — проверьте снова" : n ? `Стоп-слова: ${n}` : "Проверено: рисков нет"}
+            style={{ fontWeight: 800, color: stale ? "var(--t3)" : n ? (hi ? "var(--rd)" : "var(--or)") : "var(--gr)" }}>{stale ? "🛡 ?" : n ? `⚠ ${n}` : "🛡 ок"}</span>;
+        })()}
         {s.ref_text && <span>📝 транскр.</span>}
         {s.body_text && <span style={{ color: color }}>✨ сценарий</span>}
         {s.video_url && <span style={{ color: "var(--gr)" }}>▶ видео</span>}

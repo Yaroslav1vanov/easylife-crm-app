@@ -1,8 +1,8 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { Client, Script } from "@/lib/database";
+import { Client, Script, StopCheck, StopIssue, stopHash } from "@/lib/database";
 import ConfirmDialog from "@/components/ConfirmDialog";
-import { ExternalLink, X, Trash2, Eye, Heart, MessageCircle, RefreshCw, Swords } from "lucide-react";
+import { ExternalLink, X, Trash2, Eye, Heart, MessageCircle, RefreshCw, Swords, ShieldCheck, ShieldAlert, Loader2 } from "lucide-react";
 
 const fmtNum = (n: number | null | undefined) => n == null ? "—" : n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(1) + "K" : String(n);
 
@@ -104,6 +104,43 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
     setVideoUrl(s.video_url || ""); setPubDate(s.pub_date || ""); setReadyAt(s.ready_at || "");
   }, [s.id]);
 
+  /* ---- Проверка на стоп-слова Instagram: только предупреждения, переписывает тимлид сам ---- */
+  const [stop, setStop] = useState<StopCheck | null>(s.stopcheck || null);
+  const [stopBusy, setStopBusy] = useState(false);
+  const [stopErr, setStopErr] = useState("");
+  useEffect(() => { setStop(s.stopcheck || null); setStopErr(""); }, [s.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const refs = { hook_text: useRef<HTMLInputElement>(null), hook: useRef<HTMLTextAreaElement>(null), body_text: useRef<HTMLTextAreaElement>(null),
+    cta: useRef<HTMLTextAreaElement>(null), post_caption: useRef<HTMLTextAreaElement>(null) };
+  const stopStale = !!stop && stop.hash !== stopHash({ hook_text: hookText, hook, body_text: bodyText, cta, post_caption: postCaption });
+  async function runStopCheck() {
+    setStopBusy(true); setStopErr("");
+    // сначала сохраняем то, что набрано, — проверяем актуальный текст
+    const diff: Partial<Script> = {};
+    if (!ro) {
+      if (hookText !== (s.hook_text || "")) diff.hook_text = hookText;
+      if (hook !== (s.hook || "")) diff.hook = hook;
+      if (bodyText !== (s.body_text || "")) diff.body_text = bodyText;
+      if (cta !== (s.cta || "")) diff.cta = cta;
+      if (postCaption !== (s.post_caption || "")) diff.post_caption = postCaption;
+    }
+    if (Object.keys(diff).length) save(diff);
+    await Promise.allSettled(pending.current);
+    const r = await fetch(`/api/scripts/${s.id}/stopcheck`, { method: "POST" });
+    const j = await r.json().catch(() => ({}));
+    setStopBusy(false);
+    if (!r.ok || !j.stopcheck) { setStopErr(j.error || `ошибка ${r.status}`); return; }
+    setStop(j.stopcheck);
+    onUpdate(s.id, { stopcheck: j.stopcheck, stopcheck_at: j.stopcheck_at });
+  }
+  /** Показать фразу в тексте: фокус на поле и выделение цитаты. */
+  function showIssue(i: StopIssue) {
+    const el = refs[i.field]?.current; if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    const at = el.value.toLowerCase().indexOf(i.quote.toLowerCase());
+    setTimeout(() => { el.focus(); if (at >= 0) el.setSelectionRange(at, at + i.quote.length); }, 250);
+  }
+  const FIELD_RU: Record<string, string> = { hook_text: "тема", hook: "хук", body_text: "текст", cta: "призыв", post_caption: "описание" };
+
   const closing = useRef(false);
   async function requestClose() {
     if (closing.current) return;
@@ -169,7 +206,7 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
                 <span>· M{s.month_number}</span>
               )}
             </div>
-            <input
+            <input ref={refs.hook_text}
               value={hookText} onChange={(e) => setHookText(e.target.value)} readOnly={ro}
               onBlur={() => { if (!ro && hookText !== (s.hook_text || "")) save({ hook_text: hookText }); }}
               placeholder="Тема / хук сценария…"
@@ -244,28 +281,56 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
         <div data-tour="sm-parts" style={{ padding: 14, borderRadius: 12, background: "rgba(157,107,255,0.05)", border: "1px solid var(--brd)", display: "flex", flexDirection: "column", gap: 12 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
             <span style={{ fontSize: 11, fontWeight: 800, color: "var(--pu)", textTransform: "uppercase", letterSpacing: 0.5 }}>✨ Наш сценарий</span>
+            <button onClick={runStopCheck} disabled={stopBusy} title="ИИ подсветит фразы, из-за которых Instagram может занизить показы. Ничего не меняет — решаете вы."
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 11px", borderRadius: 8, border: "1px solid var(--brd)", background: "var(--card)", color: "var(--t1)", fontSize: 11.5, fontWeight: 700, cursor: stopBusy ? "default" : "pointer" }}>
+              {stopBusy ? <Loader2 size={13} className="spin" /> : <ShieldCheck size={13} />} {stopBusy ? "Проверяю…" : stop ? "Проверить снова" : "Проверить на стоп-слова"}
+            </button>
           </div>
+          {stopErr && <div style={{ fontSize: 12, color: "var(--rd)" }}>Проверка не прошла: {stopErr}</div>}
+          {stop && !stopBusy && (
+            <div style={{ padding: 11, borderRadius: 10, border: `1px solid ${stop.issues.length ? (stop.issues.some(i => i.severity === "high") ? "rgba(220,38,38,.4)" : "rgba(234,88,12,.4)") : "rgba(22,163,74,.35)"}`, background: "var(--card)", display: "flex", flexDirection: "column", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, fontWeight: 700, color: stop.issues.length ? "var(--t1)" : "var(--gr)" }}>
+                {stop.issues.length ? <ShieldAlert size={15} style={{ color: stop.issues.some(i => i.severity === "high") ? "var(--rd)" : "var(--or)" }} /> : <ShieldCheck size={15} />}
+                {stop.issues.length ? `Стоп-слова: ${stop.issues.length} ${stop.issues.length === 1 ? "предупреждение" : stop.issues.length < 5 ? "предупреждения" : "предупреждений"}` : "Рисков для показов не найдено"}
+                {stopStale && <span style={{ marginLeft: "auto", fontSize: 10.5, fontWeight: 700, color: "var(--or)" }}>текст изменён после проверки</span>}
+              </div>
+              {stop.summary && <div style={{ fontSize: 12, color: "var(--t2)", lineHeight: 1.45 }}>{stop.summary}</div>}
+              {stop.issues.map((i, n) => (
+                <button key={n} onClick={() => showIssue(i)} title="Показать в тексте"
+                  style={{ textAlign: "left", padding: "8px 10px", borderRadius: 8, border: 0, cursor: "pointer", background: i.severity === "high" ? "rgba(220,38,38,.07)" : "rgba(234,88,12,.07)", borderLeft: `3px solid ${i.severity === "high" ? "var(--rd)" : "var(--or)"}`, fontFamily: "inherit" }}>
+                  <div style={{ fontSize: 12.5, color: "var(--t1)" }}>
+                    <span style={{ fontWeight: 800, color: i.severity === "high" ? "var(--rd)" : "var(--or)" }}>{i.severity === "high" ? "Высокий риск" : "Спорно"}</span>
+                    <span style={{ color: "var(--t3)" }}> · {FIELD_RU[i.field] || i.field}{i.category ? ` · ${i.category}` : ""}</span>
+                  </div>
+                  <div style={{ fontSize: 12.5, marginTop: 3, color: "var(--t1)" }}>«<mark style={{ background: i.severity === "high" ? "rgba(220,38,38,.18)" : "rgba(234,88,12,.18)", color: "inherit", padding: "0 2px", borderRadius: 3 }}>{i.quote}</mark>»</div>
+                  <div style={{ fontSize: 11.5, color: "var(--t2)", marginTop: 3 }}>{i.why}</div>
+                </button>
+              ))}
+              {!!stop.checklist?.length && <div style={{ fontSize: 11.5, color: "var(--t3)" }}>Проверить в ролике: {stop.checklist.join(" · ")}</div>}
+              {stop.issues.length > 0 && <div style={{ fontSize: 10.5, color: "var(--t3)" }}>Это предупреждения — переписать фразу или оставить, решаете вы. Клик по пункту выделит фразу в тексте.</div>}
+            </div>
+          )}
           <div>
             {label("1. Хук (первые секунды)", "var(--cy)")}
-            <textarea value={hook} onChange={(e) => setHook(e.target.value)} readOnly={ro}
+            <textarea ref={refs.hook} value={hook} onChange={(e) => setHook(e.target.value)} readOnly={ro}
               onBlur={() => { if (!ro && hook !== (s.hook || "")) save({ hook }); }}
               rows={2} placeholder="Цепляющее начало — ради чего досмотрят…" style={{ ...ta, background: "var(--inset2)" }} />
           </div>
           <div>
             {label("2. Основной текст", "var(--pu)")}
-            <textarea value={bodyText} onChange={(e) => setBodyText(e.target.value)} readOnly={ro}
+            <textarea ref={refs.body_text} value={bodyText} onChange={(e) => setBodyText(e.target.value)} readOnly={ro}
               onBlur={() => { if (!ro && bodyText !== (s.body_text || "")) save({ body_text: bodyText }); }}
               rows={7} placeholder="Тело сценария — мясо/смысл…" style={{ ...ta, background: "var(--inset2)" }} />
           </div>
           <div>
             {label("3. Призыв (CTA)", "var(--gr)")}
-            <textarea value={cta} onChange={(e) => setCta(e.target.value)} readOnly={ro}
+            <textarea ref={refs.cta} value={cta} onChange={(e) => setCta(e.target.value)} readOnly={ro}
               onBlur={() => { if (!ro && cta !== (s.cta || "")) save({ cta }); }}
               rows={2} placeholder="Призыв к действию в конце…" style={{ ...ta, background: "var(--inset2)" }} />
           </div>
           <div>
             {label("4. Описание к рилсу", "var(--or)")}
-            <textarea value={postCaption} onChange={(e) => setPostCaption(e.target.value)} readOnly={ro}
+            <textarea ref={refs.post_caption} value={postCaption} onChange={(e) => setPostCaption(e.target.value)} readOnly={ro}
               onBlur={() => { if (!ro && postCaption !== (s.post_caption || "")) save({ post_caption: postCaption }); }}
               rows={4} placeholder="Текст под роликом — то, что пойдёт в подпись поста…" style={{ ...ta, background: "var(--inset2)" }} />
             <div style={{ fontSize: 9.5, color: "var(--t3)", marginTop: 4 }}>Уедет в «Публикации» как основа текста — там его адаптируют под каждую соцсеть.</div>

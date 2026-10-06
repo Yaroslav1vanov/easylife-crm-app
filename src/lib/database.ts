@@ -26,12 +26,22 @@ export type Client = {
   sheet_url?: string | null;
   montager?: TeamMember; teamlead?: TeamMember;
 };
+export type StopIssue = { field: "hook" | "hook_text" | "body_text" | "cta" | "post_caption"; quote: string; severity: "high" | "medium"; category: string; why: string };
+export type StopCheck = { level: "ok" | "low" | "medium" | "high"; summary: string; issues: StopIssue[]; checklist?: string[]; hash: string };
+/** Отпечаток текстов сценария — понять, менялся ли он после проверки. */
+export function stopHash(s: { hook?: string | null; hook_text?: string | null; body_text?: string | null; cta?: string | null; post_caption?: string | null }) {
+  const t = [s.hook_text, s.hook, s.body_text, s.cta, s.post_caption].map(x => (x || "").trim()).join("\u0001");
+  let h = 0; for (let i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) | 0;
+  return String(h);
+}
 export type Script = {
   id: number; client_id: number; month_number: number; order_num: number; hook: string;
   ref_url: string; ref_text?: string | null; transcription: string; hook_text: string; body_text: string; cta: string;
   description: string; script_status: string; video_status: string; pub_date: string | null;
   ready_at: string | null; video_url?: string | null; published_url?: string | null; content_type?: string | null;
   post_caption?: string | null;   // описание к рилсу — пишется вместе со сценарием
+  // проверка на стоп-слова Instagram (ИИ, по кнопке): результат и время
+  stopcheck?: StopCheck | null; stopcheck_at?: string | null;
   // «Дуэль» статистики: исходник (реф) vs наше опубликованное видео
   ref_views?: number | null; ref_likes?: number | null; ref_comments?: number | null;
   our_views?: number | null; our_likes?: number | null; our_comments?: number | null; our_stats_at?: string | null;
@@ -253,7 +263,7 @@ const db = {
    *  Для мест, где нужны только статусы и даты: уведомления, счётчики. В 5–6 раз легче полной выборки. */
   async getScriptsLite(sb: SupabaseClient, clientIds: number[]) {
     if (clientIds.length === 0) return [] as Script[];
-    const cols = "id, client_id, month_number, order_num, hook, hook_text, script_status, video_status, pub_date, ready_at";
+    const cols = "id, client_id, month_number, order_num, hook, hook_text, script_status, video_status, pub_date, ready_at, stopcheck, stopcheck_at";
     const all: Script[] = [];
     for (let from = 0; ; from += 1000) {
       const { data, error } = await sb.from("scripts").select(cols).in("client_id", clientIds)

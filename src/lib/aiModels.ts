@@ -4,13 +4,14 @@ import { SupabaseClient } from "@supabase/supabase-js";
    Приоритет: таблица app_settings (меняется в «Настройках») → переменная окружения → дефолт.
    Таблица может отсутствовать (миграция не прогнана) — тогда тихо падаем на env/дефолт. */
 
-export type AiFeature = "adapter" | "script" | "analyze" | "report";
+export type AiFeature = "adapter" | "script" | "analyze" | "report" | "stopcheck";
 
 export const AI_FEATURES: { key: AiFeature; label: string; hint: string; env: string; def: string }[] = [
   { key: "adapter", label: "Подписи под соцсети", hint: "Публикации → «Сгенерить тексты»", env: "ADAPTER_MODEL", def: "claude-sonnet-5" },
   { key: "script", label: "Адаптация сценариев", hint: "Сценарии → «Адаптировать»", env: "SCRIPT_MODEL", def: "claude-opus-5" },
   { key: "analyze", label: "Разбор референсов", hint: "Референсы → «Разобрать»", env: "ANALYZE_MODEL", def: "claude-opus-5" },
   { key: "report", label: "Отчёт клиенту", hint: "Карточка клиента → «Отчёт»", env: "REPORT_MODEL", def: "claude-opus-5" },
+  { key: "stopcheck", label: "Проверка на стоп-слова", hint: "Сценарий → «Проверить на стоп-слова»", env: "STOPCHECK_MODEL", def: "claude-sonnet-5" },
 ];
 
 export const AI_MODEL_OPTIONS: { id: string; label: string; note: string }[] = [

@@ -351,3 +351,7 @@ select option { background: var(--side); color: var(--t1); }
 .v2-soc a.yt:hover { border-color: #ef4444; color: #ef4444; background: rgba(239,68,68,.1); }
 .v2-soc button.add { border-style: dashed; color: var(--t3); }
 .v2-soc button.add:hover { border-color: var(--pu); color: var(--pu); }
+
+/* вращение иконки загрузки (Loader2) */
+.spin { animation: crm-spin 1s linear infinite; }
+@keyframes crm-spin { to { transform: rotate(360deg); } }
