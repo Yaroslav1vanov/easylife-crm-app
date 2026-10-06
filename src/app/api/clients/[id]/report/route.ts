@@ -1,11 +1,12 @@
 import { createClient } from "@/lib/supabase-server";
 import { getModel } from "@/lib/aiModels";
+import { askClaude } from "@/lib/claude";
 import { buildReportHtml } from "@/lib/reportTemplate";
 import { requireUser } from "@/lib/apiGuard";
 
 // Генерирует клиентский месячный отчёт (HTML) из данных Metricool.
 // GET /api/clients/{id}/report?month=YYYY-MM
-export const maxDuration = 60;
+export const maxDuration = 180;
 
 const RU_MONTHS = ["январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"];
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -74,8 +75,6 @@ async function aiNarrative(c: any, cur: any, prev: any, monthLabel: string): Pro
       "Расширить каналы: YouTube Shorts как новый источник охвата",
     ],
   };
-  const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) return fallback;
   const model = await getModel(createClient(), "report");
   const facts = `Клиент: ${[c.name, c.surname].filter(Boolean).join(" ")} · ниша: ${c.niche || "—"}
 Месяц: ${monthLabel}
@@ -88,14 +87,7 @@ ER: ${cur.engagement_rate ?? "—"}%${prev?.engagement_rate != null ? ` (про�
   const sys = `Ты — аккаунт-менеджер агентства EasyLife AI (контент без съёмок на AI-аватаре). Пишешь короткие деловые формулировки для месячного отчёта клиенту: без воды, конкретика с цифрами, уверенно, на «вы» опускаем — просто факты. Верни ТОЛЬКО валидный JSON.`;
   const user = `Цифры за месяц:\n${facts}\n\nВерни JSON:\n{"worked":["3 пункта «что сработало» с цифрами"],"plan":["3 пункта плана на следующий месяц"]}`;
   try {
-    const r = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
-      body: JSON.stringify({ model, max_tokens: 700, system: sys, messages: [{ role: "user", content: user }] }),
-    });
-    const j = await r.json();
-    if (!r.ok) return fallback;
-    const text = (j.content || []).filter((x: any) => x.type === "text").map((x: any) => x.text).join("").trim();
+    const text = await askClaude(createClient(), { kind: "report", model, system: sys, user, maxTokens: 700 });
     const a = text.indexOf("{"), z = text.lastIndexOf("}");
     const parsed = JSON.parse(text.slice(a, z + 1));
     return {

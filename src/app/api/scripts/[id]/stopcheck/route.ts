@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
 import { requireUser } from "@/lib/apiGuard";
 import { getModel } from "@/lib/aiModels";
+import { askClaude } from "@/lib/claude";
 import { getSetting } from "@/lib/appSettings";
 import { DEFAULT_IG_RULES, IG_RULES_KEY } from "@/lib/igRules";
 import { stopHash, type StopIssue } from "@/lib/database";
@@ -9,7 +10,7 @@ import { stopHash, type StopIssue } from "@/lib/database";
 /* Проверка сценария на стоп-слова Instagram (по кнопке в карточке сценария).
    Только ПРЕДУПРЕЖДАЕТ: какие фразы рискуют занизить показы и почему. Замены не предлагает —
    хук должен оставаться цепляющим, решение переписать или оставить принимает тимлид. */
-export const maxDuration = 60;
+export const maxDuration = 180;
 
 const FIELDS: Record<StopIssue["field"], string> = { hook_text: "Тема", hook: "Хук", body_text: "Основной текст", cta: "Призыв", post_caption: "Описание к ролику" };
 
@@ -29,8 +30,6 @@ ${rules}
 
 export async function POST(_req: Request, { params }: { params: { id: string } }) {
   const denied = await requireUser(); if (denied) return denied;
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return NextResponse.json({ error: "ANTHROPIC_API_KEY не задан" }, { status: 400 });
   const id = Number(params.id);
   const sb = createClient();
   const { data: s } = await sb.from("scripts").select("id, client_id, hook, hook_text, body_text, cta, post_caption").eq("id", id).maybeSingle();
@@ -55,19 +54,8 @@ ${filled.map(f => `[${f}] ${FIELDS[f]}:\n${String((s as any)[f]).trim()}`).join(
 }`;
 
   let text = "";
-  try {
-    const r = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
-      body: JSON.stringify({ model, max_tokens: 2000, system: SYSTEM(rules), messages: [{ role: "user", content: user }] }),
-    });
-    const j = await r.json();
-    if (!r.ok) {
-      const m = j?.error?.message || `Anthropic ${r.status}`;
-      throw new Error(/credit balance is too low/i.test(m) ? "На балансе Anthropic API закончились деньги — пополните в console.anthropic.com → Plans & Billing" : m);
-    }
-    text = (j.content || []).filter((b: any) => b.type === "text").map((b: any) => b.text).join("").trim();
-  } catch (e: any) { return NextResponse.json({ error: e?.message || String(e) }, { status: 502 }); }
+  try { text = await askClaude(sb, { kind: "stopcheck", clientId: s.client_id, model, system: SYSTEM(rules), user, maxTokens: 2000 }); }
+  catch (e: any) { return NextResponse.json({ error: e?.message || String(e) }, { status: 502 }); }
 
   let p: any;
   try { const a = text.indexOf("{"), b = text.lastIndexOf("}"); p = JSON.parse(text.slice(a, b + 1)); }

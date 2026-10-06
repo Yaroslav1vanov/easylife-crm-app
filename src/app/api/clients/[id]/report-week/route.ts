@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase-server";
 import { getModel } from "@/lib/aiModels";
+import { askClaude } from "@/lib/claude";
 import { buildWeeklyHtml, type PlanItem, type WeekReel, type WeekTotals } from "@/lib/weeklyReport";
 import { accountWeekDelta, addDays, fetchNetworkPosts, followersDelta, inlineImage, lastSyncs, median, mondayOf, reelFields } from "@/lib/weeklyStats";
 import { requireUser } from "@/lib/apiGuard";
@@ -8,7 +9,7 @@ import { requireUser } from "@/lib/apiGuard";
    GET /api/clients/{id}/report-week?week=YYYY-MM-DD (понедельник) | ?from&to | ?lang=ru|en | ?download=1
    По умолчанию — прошлая полная неделя (пн–вс): в пятницу это неделя, закончившаяся в воскресенье.
    Картинки зашиваются в файл, чтобы отчёт можно было просто отправить клиенту. */
-export const maxDuration = 120;
+export const maxDuration = 240;
 export const dynamic = "force-dynamic";
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
@@ -175,8 +176,6 @@ async function aiNarrative(sb: any, x: {
     cards: [] as { tone: "g" | "y" | "r"; title: string; text: string }[],
     plan: [] as string[],
   };
-  const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) return fallback;
 
   const model = await getModel(sb, "report");
   const list = x.reels.slice(0, 12).map(r =>
@@ -203,14 +202,7 @@ ${list}`;
 }
 tone: g — что сработало, y — на что обратить внимание, r — проблема. Нужно 3 карточки.${ru ? "" : " Write all text in English."}`;
   try {
-    const r = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
-      body: JSON.stringify({ model, max_tokens: 1600, system: sys, messages: [{ role: "user", content: user }] }),
-    });
-    if (!r.ok) return fallback;
-    const j = await r.json();
-    const text = (j.content || []).filter((b: any) => b.type === "text").map((b: any) => b.text).join("").trim();
+    const text = await askClaude(sb, { kind: "report_week", model, system: sys, user, maxTokens: 1600 });
     const a = text.indexOf("{"), z = text.lastIndexOf("}");
     const p = JSON.parse(text.slice(a, z + 1));
     const arr = (v: any, n: number) => (Array.isArray(v) ? v.filter((s: any) => typeof s === "string" && s.trim()).slice(0, n) : []);

@@ -6,6 +6,7 @@ import { useIsOwner } from "@/components/RoleContext";
 import { AI_FEATURES, AI_MODEL_OPTIONS, type AiFeature } from "@/lib/aiModels";
 import { PROMPT_FIELDS, PROMPT_KEYS } from "@/lib/adapterPrompts";
 import { DEFAULT_IG_RULES, IG_RULES_KEY } from "@/lib/igRules";
+import { AI_VIA_KEY } from "@/lib/aiVia";
 import { Sun, Moon, Sparkles } from "lucide-react";
 
 export default function SettingsPage() {
@@ -24,7 +25,7 @@ export default function SettingsPage() {
     const m: any = {}, pr: Record<string, string> = {};
     for (const r of data || []) {
       if (String(r.key).startsWith("ai_model.")) m[String(r.key).replace("ai_model.", "")] = r.value;
-      if (String(r.key).startsWith("prompt.") || r.key === IG_RULES_KEY) pr[String(r.key)] = r.value || "";
+      if (String(r.key).startsWith("prompt.") || r.key === IG_RULES_KEY || r.key === AI_VIA_KEY) pr[String(r.key)] = r.value || "";
     }
     setModels(m); setPrompts(pr);
   })(); }, []);
@@ -104,6 +105,18 @@ export default function SettingsPage() {
             </div>
           );
         })}
+      </div>
+
+      <div className="v2-fg" style={{ marginTop: 14 }}>
+        <h4>ИИ-кнопки работают через</h4>
+        <div className="v2-hint" style={{ marginBottom: 10 }}>Стоп-слова, «Адаптировать», «Сгенерить тексты», разбор референсов, отчёты. Сервер — наша подписка Claude (та же, что у чатов с ИИ), без оплаты за каждый запрос; ответ на 5–15 секунд дольше. API-ключ — платный баланс Anthropic.</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          {([["server", "Сервер (подписка Claude)"], ["api", "API-ключ Anthropic"]] as const).map(([v, l]) => {
+            const on = (prompts[AI_VIA_KEY] || "server") === v;
+            return <button key={v} className={`v2-act ${on ? "pri" : "ghost"}`} disabled={!isOwner} style={{ height: 34 }} onClick={() => savePrompt(AI_VIA_KEY, v)}>{on ? "✓ " : ""}{l}</button>;
+          })}
+          {promptSaved === AI_VIA_KEY && <span className="v2-chip gr">✓ сохранено</span>}
+        </div>
       </div>
 
       <div className="v2-fg" style={{ marginTop: 14 }}>

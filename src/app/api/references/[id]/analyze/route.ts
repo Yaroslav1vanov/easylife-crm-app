@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase-server";
 
 // «Оценка вирусности» = РАЗБОР ДОНОРА (шаг 2 методологии): вскрыть, какой элемент тащил ролик.
 import { getModel } from "@/lib/aiModels";
+import { askClaude } from "@/lib/claude";
 import { requireUser } from "@/lib/apiGuard";
 
 const SYSTEM = `Ты — эксперт по виральности коротких видео (Reels/TikTok/Shorts). Работаешь по методологии «инженерия внимания».
@@ -16,11 +17,12 @@ CTA: ключевое слово в комментах, зашитое в лог
 
 ВАЖНО: донор УЖЕ виральный. Твоя задача не «хорош ли он», а понять, КАКОЙ ЭЛЕМЕНТ ЕГО ТАЩИЛ — чтобы при адаптации под клиента этот рычаг НЕ потеряли. Будь конкретным и жёстким, без воды.`;
 
+// ИИ может отвечать через сервер (подписка) — даём до 3 минут
+export const maxDuration = 180;
+
 export async function POST(_req: Request, { params }: { params: { id: string } }) {
   const denied = await requireUser(); if (denied) return denied;
   const MODEL = await getModel(createClient(), "analyze");
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return NextResponse.json({ error: "ANTHROPIC_API_KEY не задан" }, { status: 400 });
   const id = Number(params.id);
   if (!id) return NextResponse.json({ error: "bad id" }, { status: 400 });
 
@@ -59,16 +61,8 @@ ${ref.transcript}
 🔧 ЧТО ДОКРУТИТЬ (слабые места донора): 1–3 пункта`;
 
   let text = "";
-  try {
-    const r = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
-      body: JSON.stringify({ model: MODEL, max_tokens: 1500, system: SYSTEM, messages: [{ role: "user", content: user }] }),
-    });
-    const j = await r.json();
-    if (!r.ok) throw new Error(j?.error?.message || `Anthropic ${r.status}`);
-    text = (j.content || []).filter((b: any) => b.type === "text").map((b: any) => b.text).join("").trim();
-  } catch (e: any) { return NextResponse.json({ error: e?.message || String(e) }, { status: 502 }); }
+  try { text = await askClaude(createClient(), { kind: "ref_analyze", model: MODEL, system: SYSTEM, user, maxTokens: 1500 }); }
+  catch (e: any) { return NextResponse.json({ error: e?.message || String(e) }, { status: 502 }); }
 
   const patch = { analysis: text, analyzed_at: new Date().toISOString() };
   const { error } = await sb.from("reference_videos").update(patch).eq("id", id);

@@ -3,16 +3,18 @@ import { createClient } from "@/lib/supabase-server";
 
 // AI-адаптатор: из base_text + brand_voice клиента генерит тексты под выбранные соцсети.
 import { getModel } from "@/lib/aiModels";
+import { askClaude } from "@/lib/claude";
 import { getSetting } from "@/lib/appSettings";
 import { PROMPT_KEYS, DEFAULT_ADAPTER_SYSTEM, DEFAULT_ADAPTER_NETWORK } from "@/lib/adapterPrompts";
 import { requireUser } from "@/lib/apiGuard";
 
 
+// ИИ может отвечать через сервер (подписка) — даём до 3 минут
+export const maxDuration = 180;
+
 export async function POST(_req: Request, { params }: { params: { id: string } }) {
   const denied = await requireUser(); if (denied) return denied;
   const MODEL = await getModel(createClient(), "adapter");
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return NextResponse.json({ error: "ANTHROPIC_API_KEY не задан в окружении" }, { status: 400 });
 
   const id = Number(params.id);
   if (!id) return NextResponse.json({ error: "bad id" }, { status: 400 });
@@ -71,14 +73,7 @@ ${limitText}
 
   let text = "";
   try {
-    const r = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
-      body: JSON.stringify({ model: MODEL, max_tokens: 2000, system, messages: [{ role: "user", content: user }] }),
-    });
-    const j = await r.json();
-    if (!r.ok) throw new Error(j?.error?.message || `Anthropic ${r.status}`);
-    text = (j.content || []).filter((b: any) => b.type === "text").map((b: any) => b.text).join("").trim();
+    text = await askClaude(sb, { kind: "pub_adapt", model: MODEL, system, user, maxTokens: 2000 });
   } catch (e: any) {
     await sb.from("publications").update({ pub_status: "error", error_message: `AI: ${e?.message || e}` }).eq("id", id);
     return NextResponse.json({ error: e?.message || String(e) }, { status: 502 });
