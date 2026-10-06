@@ -1,0 +1,14 @@
+[Unit]
+Description=Локальный сервер Telegram Bot API (файлы до 2 ГБ для бота загрузки исходников)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=chatagent
+EnvironmentFile=/etc/telegram-bot-api.env
+ExecStart=/usr/local/bin/telegram-bot-api --local --http-ip-address=127.0.0.1 --http-port=8081 --dir=/srv/tg-bot-api --temp-dir=/srv/tg-bot-api/tmp
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

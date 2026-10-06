@@ -1,0 +1,14 @@
+[Unit]
+Description=EasyLife CRM: Telegram-бот загрузки исходников в медиатеку
+After=network-online.target telegram-bot-api.service
+Wants=network-online.target
+
+[Service]
+User=chatagent
+WorkingDirectory=/srv/easylife-tg-bot
+ExecStart=/srv/easylife-chat-agent/.venv/bin/python /srv/easylife-tg-bot/tgbot.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
