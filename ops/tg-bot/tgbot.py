@@ -55,6 +55,7 @@ def load_state():
     s.setdefault("allowed", {})   # id → имя
     s.setdefault("client", {})    # id сотрудника → id клиента
     s.setdefault("topic", {})     # id сотрудника → папка (тема), в которую идут файлы
+    s.setdefault("last", {})      # id сотрудника → последняя пачка {cid, ids, topics, at} — чтобы переложить в другую папку
     return s
 
 
@@ -144,6 +145,17 @@ def set_client(uid, chat_id, cid):
                   "Пересылайте посты с видео и фото (из канала можно выделить до 100 сразу). Сменить клиента — /client.")
 
 
+def move_offer(uid, cid, topic):
+    """Последняя пачка лежит не в той папке → (текст, кнопка) «переложить в topic»."""
+    last = STATE["last"].get(str(uid))
+    if not last or last["cid"] != cid or time.time() - last["at"] > 12 * 3600 or last["topics"] == [topic]:
+        return None
+    n = len(last["ids"])
+    where = ", ".join(last["topics"])
+    return (f"Последняя пачка — {n} файлов — сейчас в «{esc(where)}». Переложить её в «{esc(topic)}»?",
+            {"inline_keyboard": [[{"text": f"📁 Переложить {n} → {topic}"[:60], "callback_data": f"m:{cid}"}]]})
+
+
 def set_topic(uid, chat_id, topic):
     cid = STATE["client"].get(str(uid))
     if not cid:
@@ -158,6 +170,10 @@ def set_topic(uid, chat_id, topic):
     save_state()
     text = f"📁 Папка <b>{esc(topic)}</b> · {esc(client_name(cid))}\nВсё, что пришлёте дальше, ляжет сюда. Другая папка — напишите <code>папка Название</code>, снять — <code>без папки</code>."
     kb = None
+    move = move_offer(uid, cid, topic)
+    if move:
+        text += "\n\n" + move[0]
+        return send(chat_id, text, reply_markup=move[1])
     try:
         n = crm_post(op="untopiced", client_id=cid, hours=24).get("count", 0)
         if n:
@@ -206,7 +222,7 @@ def batch(chat_id, cid):
         b = batches.get((chat_id, cid))
         if not b:
             b = batches[(chat_id, cid)] = {"video": 0, "image": 0, "other": 0, "dup": 0, "err": [], "pending": 0,
-                                            "msg": None, "last": time.time(), "shown": "", "topics": set()}
+                                            "msg": None, "last": time.time(), "shown": "", "topics": set(), "ids": []}
         return b
 
 
@@ -276,10 +292,11 @@ def upload_one(chat_id, cid, m, info, b, topic=None):
                 if attempt == 2:
                     raise
                 time.sleep(5)
-        crm_post(op="add", client_id=cid, key=up["key"], kind=kind, title=title_of(m, filename), uid=unique_id, topic=topic)
-        if topic:
-            with lock:
-                b["topics"].add(topic)
+        r = crm_post(op="add", client_id=cid, key=up["key"], kind=kind, title=title_of(m, filename), uid=unique_id, topic=topic)
+        with lock:
+            b["topics"].add(topic or "без папки")
+            if r.get("id"):
+                b["ids"].append(r["id"])
         try:
             local.unlink()   # копия уже в хранилище CRM — на сервере не держим
         except Exception:
@@ -309,7 +326,7 @@ def summary(cid, b, final):
     parts = [f"{n} {w}" for n, w in ((b["video"], "видео"), (b["image"], "фото"), (b["other"], "других файлов")) if n]
     head = f"{'✅ Готово' if final else '⏳ Загружаю'} — медиатека <b>{esc(client_name(cid))}</b>"
     lines = [head]
-    if b["topics"]:
+    if b["topics"] - {"без папки"}:
         lines.append("📁 Папка: " + ", ".join(sorted(b["topics"])))
     lines.append("Загружено: " + (", ".join(parts) if parts else "пока ничего"))
     if not final:
@@ -339,6 +356,9 @@ def reporter():
                 b["shown"] = text
                 if final:
                     batches.pop((chat_id, cid), None)
+                    if b["ids"]:
+                        STATE["last"][str(chat_id)] = {"cid": cid, "ids": b["ids"][-500:], "topics": sorted(b["topics"]), "at": time.time()}
+                        save_state()
             if final:
                 kb = {"inline_keyboard": [[{"text": "✨ Разобрать с ИИ", "callback_data": f"s:{cid}"}]]} if (b["video"] or b["image"]) else None
                 edit(chat_id, b["msg"], text, **({"reply_markup": kb} if kb else {}))
@@ -402,6 +422,13 @@ def on_message(m):
         return
     if media_of(m):
         return on_media(m, uid, chat_id)
+    if any(w in low for w in ("предыдущ", "прошл", "последн", "переложи", "перенеси", "перекинь", "переведи")):
+        cid, topic = STATE["client"].get(str(uid)), STATE["topic"].get(str(uid))
+        move = move_offer(uid, cid, topic) if cid and topic else None
+        if move:
+            return send(chat_id, move[0], reply_markup=move[1])
+        if not topic:
+            return send(chat_id, "Сначала напишите, в какую папку: <code>папка Название</code>.")
     if text:
         # «лакура» → выбрать клиента по имени
         hits = [c for c in clients() if text.lower() in c["name"].lower()]
@@ -425,6 +452,19 @@ def on_callback(q):
         return
     if data.startswith("c:"):
         return set_client(uid, chat_id, int(data[2:]))
+    if data.startswith("m:"):
+        cid = int(data[2:])
+        topic, last = STATE["topic"].get(str(uid)), STATE["last"].get(str(uid))
+        if not topic or not last or last["cid"] != cid:
+            return send(chat_id, "Не нашёл, что перекладывать — напишите <code>папка Название</code> ещё раз.")
+        try:
+            r = crm_post(op="retopic", client_id=cid, ids=last["ids"], topic=topic)
+            last["topics"] = [topic]
+            save_state()
+            send(chat_id, f"📁 Готово: {r.get('updated', 0)} файлов теперь в папке «{esc(topic)}».")
+        except Exception as e:
+            send(chat_id, f"Не получилось: {esc(e)}")
+        return
     if data.startswith("t:"):
         cid = int(data[2:])
         topic = STATE["topic"].get(str(uid))
