@@ -13,7 +13,8 @@ import { r2 } from "@/lib/r2";
    POST { op: "untopiced", client_id, hours }        → { count }   файлы из Telegram без папки за последние N часов
    POST { op: "set_topic", client_id, topic, hours } → { updated } положить их в папку
    POST { op: "retopic", client_id, ids, topic }     → { updated } переложить эти файлы в другую папку
-   POST { op: "recent", client_id, limit }           → { assets }  последние файлы из Telegram (для проверки)
+   POST { op: "recent", client_id, limit, origin? }  → { assets }  последние файлы из Telegram (или другого источника)
+   POST { op: "describe", client_id, items }         → { updated } подписи/категории/темы файлов разового импорта
    POST { op: "sort", client_id, by }                → { ok }   отправить ИИ разобрать новые файлы      */
 export const dynamic = "force-dynamic";
 
@@ -115,9 +116,32 @@ export async function POST(req: Request) {
     return NextResponse.json({ updated });
   }
 
+  // разметка файлов не из задачи чата (разовый импорт): подпись, категория, тема, теги, лицо — с теми же правилами, что разбор ИИ
+  if (b.op === "describe") {
+    const CATS = new Set(["logo", "font", "portrait", "process", "location", "result", "review", "generated", "story", "other"]);
+    let updated = 0;
+    for (const it of (Array.isArray(b.items) ? b.items : []).slice(0, 1000)) {
+      const id = Number(it?.id);
+      if (!id) continue;
+      const { data: cur } = await sb.from("client_assets").select("tags").eq("id", id).eq("client_id", cid).maybeSingle();
+      if (!cur) continue;
+      const patch: any = {};
+      if (typeof it.title === "string" && it.title.trim()) patch.title = it.title.trim().slice(0, 200);
+      if (typeof it.category === "string" && CATS.has(it.category)) patch.category = it.category;
+      if (it.has_face === true) patch.has_face = true;
+      const topic = cleanTopic(it.topic);
+      const extra = (Array.isArray(it.tags) ? it.tags : []).map(cleanTopic).filter(Boolean);
+      patch.tags = Array.from(new Set([...(cur.tags || []).filter((t: string) => !(topic && t.toLowerCase().startsWith("тема:"))),
+        ...(topic ? [`тема:${topic}`] : []), ...extra])).slice(0, 24);
+      const { data } = await sb.from("client_assets").update(patch).eq("id", id).eq("client_id", cid).select("id");
+      updated += data?.length || 0;
+    }
+    return NextResponse.json({ updated });
+  }
+
   if (b.op === "recent") {
-    const { data } = await sb.from("client_assets").select("id, title, tags, created_at").eq("client_id", cid).contains("tags", [TG_TAG])
-      .order("created_at", { ascending: false }).limit(Math.min(Number(b.limit) || 50, 300));
+    const { data } = await sb.from("client_assets").select("id, title, tags, created_at, file_key").eq("client_id", cid).contains("tags", [cleanTopic(b.origin) || TG_TAG])
+      .order("created_at", { ascending: false }).limit(Math.min(Number(b.limit) || 50, 1000));
     return NextResponse.json({ assets: data || [] });
   }
 
