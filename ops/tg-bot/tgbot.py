@@ -241,7 +241,15 @@ def upload_one(chat_id, cid, m, info, b, topic=None):
             return
         if size and size > MAX_MB * 1024 * 1024:
             raise RuntimeError(f"файл {size // 1024 // 1024} МБ — больше {MAX_MB} МБ")
-        f = tg("getFile", timeout=1800, file_id=file_id)   # локальный сервер в этот момент сам скачивает файл
+        for attempt in range(4):   # локальный сервер в этот момент сам скачивает файл; большие видео Telegram иногда отдаёт со сбоем
+            try:
+                f = tg("getFile", timeout=1800, file_id=file_id)
+                break
+            except RuntimeError as e:
+                if attempt == 3 or "temporarily unavailable" not in str(e):
+                    raise
+                log("getFile retry", filename, attempt + 1)
+                time.sleep(20 * (attempt + 1))
         path = f.get("file_path") or ""
         local = None
         if LOCAL and path.startswith("/"):
