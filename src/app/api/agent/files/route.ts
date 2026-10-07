@@ -12,6 +12,8 @@ import { r2 } from "@/lib/r2";
    POST { op: "add", client_id, key, kind, title, uid, topic? } → { ok, id }   записать файл в медиатеку (topic → тег «тема:…»)
    POST { op: "untopiced", client_id, hours }        → { count }   файлы из Telegram без папки за последние N часов
    POST { op: "set_topic", client_id, topic, hours } → { updated } положить их в папку
+   POST { op: "retopic", client_id, ids, topic }     → { updated } переложить эти файлы в другую папку
+   POST { op: "recent", client_id, limit }           → { assets }  последние файлы из Telegram (для проверки)
    POST { op: "sort", client_id, by }                → { ok }   отправить ИИ разобрать новые файлы      */
 export const dynamic = "force-dynamic";
 
@@ -93,6 +95,27 @@ export async function POST(req: Request) {
       updated += res.reduce((n, r) => n + (r.data?.length || 0), 0);
     }
     return NextResponse.json({ updated });
+  }
+
+  if (b.op === "retopic") {
+    const topic = cleanTopic(b.topic);
+    const ids = (Array.isArray(b.ids) ? b.ids : []).map(Number).filter(Boolean).slice(0, 500);
+    if (!topic || !ids.length) return bad("нет папки или файлов");
+    const { data: rows } = await sb.from("client_assets").select("id, tags").eq("client_id", cid).in("id", ids);
+    let updated = 0;
+    for (let i = 0; i < (rows || []).length; i += 25) {
+      const res = await Promise.all(rows!.slice(i, i + 25).map(a =>
+        sb.from("client_assets").update({ tags: [...(a.tags || []).filter((t: string) => !t.toLowerCase().startsWith("тема:")), `тема:${topic}`] })
+          .eq("id", a.id).select("id")));
+      updated += res.reduce((n, r) => n + (r.data?.length || 0), 0);
+    }
+    return NextResponse.json({ updated });
+  }
+
+  if (b.op === "recent") {
+    const { data } = await sb.from("client_assets").select("id, title, tags, created_at").eq("client_id", cid).contains("tags", [TG_TAG])
+      .order("created_at", { ascending: false }).limit(Math.min(Number(b.limit) || 50, 300));
+    return NextResponse.json({ assets: data || [] });
   }
 
   // то же, что кнопка «Разобрать с ИИ» в медиатеке: задача в чат «Стратегия» клиента
