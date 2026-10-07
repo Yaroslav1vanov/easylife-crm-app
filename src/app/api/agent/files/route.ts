@@ -9,7 +9,9 @@ import { r2 } from "@/lib/r2";
    GET  ?op=clients                                  → { clients: [{ id, name }] }   клиенты с включённым ИИ
    POST { op: "check", client_id, uid }              → { exists }   этот файл из Telegram уже загружали
    POST { op: "upload", client_id, filename }        → { uploadUrl, key }
-   POST { op: "add", client_id, key, kind, title, uid } → { ok, id }   записать файл в медиатеку
+   POST { op: "add", client_id, key, kind, title, uid, topic? } → { ok, id }   записать файл в медиатеку (topic → тег «тема:…»)
+   POST { op: "untopiced", client_id, hours }        → { count }   файлы из Telegram без папки за последние N часов
+   POST { op: "set_topic", client_id, topic, hours } → { updated } положить их в папку
    POST { op: "sort", client_id, by }                → { ok }   отправить ИИ разобрать новые файлы      */
 export const dynamic = "force-dynamic";
 
@@ -22,6 +24,16 @@ function allowed(req: Request) {
 }
 const bad = (error: string, status = 400) => NextResponse.json({ error }, { status });
 const uidTag = (uid: unknown) => `tg:${String(uid || "").replace(/[^\w-]/g, "").slice(0, 64)}`;
+const cleanTopic = (t: unknown) => String(t || "").replace(/\s+/g, " ").trim().slice(0, 50);
+const hasTopic = (tags: string[] | null) => (tags || []).some(t => t.toLowerCase().startsWith("тема:"));
+
+/** Файлы из Telegram этого клиента без папки, загруженные за последние N часов. */
+async function untopiced(sb: ReturnType<typeof createAdmin>, cid: number, hours: number) {
+  const since = new Date(Date.now() - Math.min(Math.max(hours || 24, 1), 24 * 7) * 3600_000).toISOString();
+  const { data } = await sb.from("client_assets").select("id, tags").eq("client_id", cid).contains("tags", [TG_TAG])
+    .gte("created_at", since).limit(2000);
+  return (data || []).filter(a => !hasTopic(a.tags));
+}
 
 export async function GET(req: Request) {
   if (!allowed(req)) return bad("нет доступа", 403);
@@ -59,11 +71,28 @@ export async function POST(req: Request) {
     const { data, error } = await sb.from("client_assets").insert({
       client_id: cid, file_key: key, category: "other", kind: KINDS.has(b.kind) ? b.kind : "other",
       title: String(b.title || "").trim().slice(0, 200) || null,
-      tags: [TG_TAG, ...(b.uid ? [uidTag(b.uid)] : [])],
+      tags: [TG_TAG, ...(b.uid ? [uidTag(b.uid)] : []), ...(cleanTopic(b.topic) ? [`тема:${cleanTopic(b.topic)}`] : [])],
       source: "client",   // исходники клиента; лица и согласие отметит ИИ при разборе и проверит команда
     }).select("id").single();
     if (error) return bad(error.message, 500);
     return NextResponse.json({ ok: true, id: data.id });
+  }
+
+  if (b.op === "untopiced") {
+    return NextResponse.json({ count: (await untopiced(sb, cid, Number(b.hours))).length });
+  }
+
+  if (b.op === "set_topic") {
+    const topic = cleanTopic(b.topic);
+    if (!topic) return bad("нет названия папки");
+    const rows = await untopiced(sb, cid, Number(b.hours));
+    let updated = 0;
+    for (let i = 0; i < rows.length; i += 25) {
+      const res = await Promise.all(rows.slice(i, i + 25).map(a =>
+        sb.from("client_assets").update({ tags: [...(a.tags || []), `тема:${topic}`] }).eq("id", a.id).select("id")));
+      updated += res.reduce((n, r) => n + (r.data?.length || 0), 0);
+    }
+    return NextResponse.json({ updated });
   }
 
   // то же, что кнопка «Разобрать с ИИ» в медиатеке: задача в чат «Стратегия» клиента

@@ -118,6 +118,15 @@ export async function POST(req: Request) {
       if (typeof a?.category === "string" && CATS.has(a.category)) patch.category = a.category;
       if (a?.has_face === true) patch.has_face = true;   // ИИ может только ПОМЕТИТЬ лицо (снять пометку — человек)
       if (!Object.keys(patch).length || !Number(a?.asset_id)) continue;
+      if (patch.tags) {
+        // тема, которую команда поставила при загрузке (папка в Telegram-боте), и служебные теги остаются
+        const { data: cur } = await sb.from("client_assets").select("tags").eq("id", Number(a.asset_id)).eq("client_id", m.client_id).maybeSingle();
+        const old: string[] = cur?.tags || [];
+        const keepTopic = old.find(t => t.toLowerCase().startsWith("тема:"));
+        const keep = old.filter(t => t === "из Telegram" || t.startsWith("tg:") || t === keepTopic);
+        const fresh = (patch.tags as string[]).filter(t => !(keepTopic && t.toLowerCase().startsWith("тема:")));
+        patch.tags = Array.from(new Set([...keep, ...fresh])).slice(0, 24);
+      }
       const { data } = await sb.from("client_assets").update(patch).eq("id", Number(a.asset_id)).eq("client_id", m.client_id).select("id");
       updated += data?.length || 0;
     }

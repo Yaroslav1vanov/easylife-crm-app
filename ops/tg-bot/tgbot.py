@@ -54,6 +54,7 @@ def load_state():
         s = {}
     s.setdefault("allowed", {})   # id → имя
     s.setdefault("client", {})    # id сотрудника → id клиента
+    s.setdefault("topic", {})     # id сотрудника → папка (тема), в которую идут файлы
     return s
 
 
@@ -135,9 +136,36 @@ def ask_client(chat_id):
 
 def set_client(uid, chat_id, cid):
     STATE["client"][str(uid)] = cid
+    STATE["topic"].pop(str(uid), None)
     save_state()
-    send(chat_id, f"Клиент: <b>{esc(client_name(cid))}</b>.\n\nПересылайте сюда посты с видео и фото из канала (можно выделить до 100 сразу). "
-                  f"Сменить клиента — /client.")
+    send(chat_id, f"Клиент: <b>{esc(client_name(cid))}</b>.\n\n"
+                  "Если файлы про одну процедуру/тему — сначала напишите <code>папка BBL</code> (своё название), "
+                  "и всё, что пришлёте дальше, ляжет в эту папку.\n\n"
+                  "Пересылайте посты с видео и фото (из канала можно выделить до 100 сразу). Сменить клиента — /client.")
+
+
+def set_topic(uid, chat_id, topic):
+    cid = STATE["client"].get(str(uid))
+    if not cid:
+        send(chat_id, "Сначала выберите клиента 👇")
+        return ask_client(chat_id)
+    topic = " ".join(topic.split())[:50]
+    if not topic or topic.lower() in ("-", "без папки", "нет"):
+        STATE["topic"].pop(str(uid), None)
+        save_state()
+        return send(chat_id, f"Папка снята: файлы {esc(client_name(cid))} пойдут без папки, ИИ разложит сам.")
+    STATE["topic"][str(uid)] = topic
+    save_state()
+    text = f"📁 Папка <b>{esc(topic)}</b> · {esc(client_name(cid))}\nВсё, что пришлёте дальше, ляжет сюда. Другая папка — напишите <code>папка Название</code>, снять — <code>без папки</code>."
+    kb = None
+    try:
+        n = crm_post(op="untopiced", client_id=cid, hours=24).get("count", 0)
+        if n:
+            text += f"\n\nЗа последние сутки загружено без папки: {n}. Положить их тоже в «{esc(topic)}»?"
+            kb = {"inline_keyboard": [[{"text": f"📁 Да, {n} файлов → {topic}"[:60], "callback_data": f"t:{cid}"}]]}
+    except Exception as e:
+        log("untopiced", e)
+    send(chat_id, text, **({"reply_markup": kb} if kb else {}))
 
 
 # ── разбор входящего файла ────────────────────────────────────────────────────
@@ -178,7 +206,7 @@ def batch(chat_id, cid):
         b = batches.get((chat_id, cid))
         if not b:
             b = batches[(chat_id, cid)] = {"video": 0, "image": 0, "other": 0, "dup": 0, "err": [], "pending": 0,
-                                            "msg": None, "last": time.time(), "shown": ""}
+                                            "msg": None, "last": time.time(), "shown": "", "topics": set()}
         return b
 
 
@@ -201,10 +229,10 @@ def on_media(m, uid, chat_id):
         r = send(chat_id, f"Загружаю в медиатеку <b>{esc(client_name(cid))}</b>…")
         with lock:
             b["msg"] = r["message_id"] if r else None
-    jobs.put((chat_id, cid, m, info, b))
+    jobs.put((chat_id, cid, m, info, b, STATE["topic"].get(str(uid))))
 
 
-def upload_one(chat_id, cid, m, info, b):
+def upload_one(chat_id, cid, m, info, b, topic=None):
     file_id, unique_id, kind, filename, size = info
     try:
         if crm_post(op="check", client_id=cid, uid=unique_id).get("exists"):
@@ -240,7 +268,10 @@ def upload_one(chat_id, cid, m, info, b):
                 if attempt == 2:
                     raise
                 time.sleep(5)
-        crm_post(op="add", client_id=cid, key=up["key"], kind=kind, title=title_of(m, filename), uid=unique_id)
+        crm_post(op="add", client_id=cid, key=up["key"], kind=kind, title=title_of(m, filename), uid=unique_id, topic=topic)
+        if topic:
+            with lock:
+                b["topics"].add(topic)
         try:
             local.unlink()   # копия уже в хранилище CRM — на сервере не держим
         except Exception:
@@ -259,9 +290,9 @@ def upload_one(chat_id, cid, m, info, b):
 
 def worker():
     while True:
-        chat_id, cid, m, info, b = jobs.get()
+        chat_id, cid, m, info, b, topic = jobs.get()
         try:
-            upload_one(chat_id, cid, m, info, b)
+            upload_one(chat_id, cid, m, info, b, topic)
         except Exception:
             traceback.print_exc()
 
@@ -269,7 +300,10 @@ def worker():
 def summary(cid, b, final):
     parts = [f"{n} {w}" for n, w in ((b["video"], "видео"), (b["image"], "фото"), (b["other"], "других файлов")) if n]
     head = f"{'✅ Готово' if final else '⏳ Загружаю'} — медиатека <b>{esc(client_name(cid))}</b>"
-    lines = [head, "Загружено: " + (", ".join(parts) if parts else "пока ничего")]
+    lines = [head]
+    if b["topics"]:
+        lines.append("📁 Папка: " + ", ".join(sorted(b["topics"])))
+    lines.append("Загружено: " + (", ".join(parts) if parts else "пока ничего"))
     if not final:
         lines.append(f"В очереди: {b['pending']}")
     if b["dup"]:
@@ -307,8 +341,10 @@ def reporter():
 # ── команды ───────────────────────────────────────────────────────────────────
 HELP = ("Я загружаю исходники в медиатеку клиента в CRM.\n\n"
         "1. /client — выбрать клиента\n"
-        "2. Переслать сюда посты с видео и фото (из канала можно выделить до 100 и переслать разом)\n"
-        "3. Дождаться ✅ и нажать «Разобрать с ИИ»\n\n"
+        "2. Если файлы про одну процедуру — написать <code>папка BBL</code> (своё название)\n"
+        "3. Переслать сюда посты с видео и фото (из канала можно выделить до 100 и переслать разом)\n"
+        "4. Дождаться ✅ и нажать «Разобрать с ИИ»\n\n"
+        "Новая процедура — снова <code>папка Название</code>. Снять папку — <code>без папки</code>.\n"
         f"Файлы до {MAX_MB} МБ. Повторно присланные файлы пропускаю.")
 
 
@@ -340,6 +376,17 @@ def on_message(m):
         return send(chat_id, "Допущены:\n" + "\n".join(rows))
     if text.startswith("/client"):
         return ask_client(chat_id)
+    low = text.lower()
+    if text.startswith("/folder"):
+        arg = text[len("/folder"):].strip()
+        if not arg:
+            cur = STATE["topic"].get(str(uid))
+            return send(chat_id, (f"Сейчас папка: <b>{esc(cur)}</b>." if cur else "Папка не выбрана.") + " Напишите <code>папка Название</code>.")
+        return set_topic(uid, chat_id, arg)
+    if low.startswith("папка ") or low.startswith("папка:"):
+        return set_topic(uid, chat_id, text[6:].lstrip(": "))
+    if low in ("без папки", "папка -"):
+        return set_topic(uid, chat_id, "-")
     if text.startswith("/start") or text.startswith("/help"):
         send(chat_id, HELP)
         if not STATE["client"].get(str(uid)):
@@ -370,6 +417,17 @@ def on_callback(q):
         return
     if data.startswith("c:"):
         return set_client(uid, chat_id, int(data[2:]))
+    if data.startswith("t:"):
+        cid = int(data[2:])
+        topic = STATE["topic"].get(str(uid))
+        if not topic or STATE["client"].get(str(uid)) != cid:
+            return send(chat_id, "Папка уже сменилась — напишите <code>папка Название</code> ещё раз.")
+        try:
+            r = crm_post(op="set_topic", client_id=cid, topic=topic, hours=24)
+            send(chat_id, f"📁 Готово: {r.get('updated', 0)} файлов теперь в папке «{esc(topic)}».")
+        except Exception as e:
+            send(chat_id, f"Не получилось: {esc(e)}")
+        return
     if data.startswith("s:"):
         cid = int(data[2:])
         try:
@@ -386,6 +444,7 @@ def main():
     log("start", "local" if LOCAL else "cloud", f"max {MAX_MB} MB", "admins", sorted(ADMINS))
     try:
         tg("setMyCommands", commands=[{"command": "client", "description": "Выбрать клиента"},
+                                      {"command": "folder", "description": "Папка (процедура) для следующих файлов"},
                                       {"command": "help", "description": "Как пользоваться"}])
     except Exception as e:
         log("setMyCommands", e)
