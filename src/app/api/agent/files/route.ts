@@ -73,7 +73,10 @@ export async function POST(req: Request) {
     const { data, error } = await sb.from("client_assets").insert({
       client_id: cid, file_key: key, category: "other", kind: KINDS.has(b.kind) ? b.kind : "other",
       title: String(b.title || "").trim().slice(0, 200) || null,
-      tags: [TG_TAG, ...(b.uid ? [uidTag(b.uid)] : []), ...(cleanTopic(b.topic) ? [`тема:${cleanTopic(b.topic)}`] : [])],
+      // origin — откуда файл: по умолчанию Telegram-бот, для разовых импортов (фотосессия) — своё название
+      tags: [cleanTopic(b.origin) || TG_TAG, ...(b.uid ? [uidTag(b.uid)] : []), ...(cleanTopic(b.topic) ? [`тема:${cleanTopic(b.topic)}`] : []),
+        ...(Array.isArray(b.tags) ? b.tags.map(cleanTopic).filter(Boolean).slice(0, 5) : [])],
+      ...(b.has_face === true ? { has_face: true } : {}),
       source: "client",   // исходники клиента; лица и согласие отметит ИИ при разборе и проверит команда
     }).select("id").single();
     if (error) return bad(error.message, 500);
