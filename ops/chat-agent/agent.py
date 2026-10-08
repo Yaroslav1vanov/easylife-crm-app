@@ -31,7 +31,7 @@ CURRENT_DIR.mkdir(exist_ok=True)
 LEGACY_CURRENT = HOME / ".current_job"
 PARALLEL = int(ENV.get("CHAT_PARALLEL", "3"))   # сколько задач РАЗНЫХ клиентов идут одновременно
 # правила перечитываются на каждую задачу — правка CLAUDE.md работает без перезапуска
-MEDIA = re.compile(r"\.(mp4|mov|webm|m4v|png|jpe?g|webp|gif|pdf|zip|mp3|wav|srt)$", re.I)
+MEDIA = re.compile(r"\.(mp4|mov|webm|m4v|png|jpe?g|webp|gif|pdf|zip|mp3|wav|srt|html?|docx|xlsx|pptx|csv|txt|md)$", re.I)
 
 
 def log(*a):
@@ -73,7 +73,11 @@ def upload_file(client_id, path):
     ctype = {".mp4": "video/mp4", ".mov": "video/quicktime", ".webm": "video/webm", ".png": "image/png",
              ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp", ".gif": "image/gif",
              ".pdf": "application/pdf", ".zip": "application/zip", ".mp3": "audio/mpeg", ".wav": "audio/wav",
-             ".srt": "text/plain; charset=utf-8"}.get(path.suffix.lower(), "application/octet-stream")
+             ".srt": "text/plain; charset=utf-8", ".html": "text/html; charset=utf-8", ".htm": "text/html; charset=utf-8",
+             ".txt": "text/plain; charset=utf-8", ".md": "text/markdown; charset=utf-8", ".csv": "text/csv; charset=utf-8",
+             ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+             ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+             ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation"}.get(path.suffix.lower(), "application/octet-stream")
     with open(path, "rb") as f:
         r = requests.put(j["uploadUrl"], data=f, headers={"Content-Type": ctype}, timeout=1800)
     r.raise_for_status()

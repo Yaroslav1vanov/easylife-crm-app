@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase-browser";
 import { fileUrl, guessType, when } from "@/components/strategy/files";
-import { Paperclip, Send, X, Sparkles, Loader2, AlertTriangle, CheckCircle2, Download, RotateCw, UploadCloud, ArrowRightCircle, Smartphone, CornerUpLeft } from "lucide-react";
+import { Paperclip, Send, X, Sparkles, Loader2, AlertTriangle, CheckCircle2, Download, RotateCw, UploadCloud, ArrowRightCircle, Smartphone, CornerUpLeft, ExternalLink } from "lucide-react";
 import SendToPipelineModal, { PipeAtt } from "@/components/chat/SendToPipelineModal";
 
 /* Чат по клиенту. Вся работа по проекту в одном месте: сотрудники пишут задачи
@@ -293,6 +293,33 @@ export default function ClientChatTab({ clientId, aiEnabled, draft, initialThrea
   );
 }
 
+/* Документ, архив, гайд из чата — заметной карточкой, а не мелкой ссылкой:
+   тип файла, имя, размер и кнопки. HTML и PDF открываются прямо в браузере. */
+const FILE_KIND: [RegExp, string, string][] = [
+  [/\.html?$/i, "HTML", "#42d4f4"], [/\.pdf$/i, "PDF", "#ff5c7a"], [/\.zip$/i, "ZIP", "#ffae42"],
+  [/\.(docx?|txt|md)$/i, "DOC", "#9d6bff"], [/\.(xlsx?|csv)$/i, "XLS", "#34d399"], [/\.pptx?$/i, "PPT", "#ff8a4c"],
+  [/\.(mp3|wav|m4a)$/i, "AUDIO", "#a8e063"], [/\.srt$/i, "SRT", "#9d6bff"],
+];
+function FileCard({ a }: { a: Att }) {
+  const [, label, color] = FILE_KIND.find(([re]) => re.test(a.name)) || [null, (a.name.split(".").pop() || "файл").toUpperCase().slice(0, 5), "var(--t2)"];
+  const viewable = /\.(html?|pdf|txt|md|mp3|wav)$/i.test(a.name);
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 12, minWidth: 260, maxWidth: 420,
+      background: "var(--card)", border: `1px solid ${color}55` }}>
+      <div style={{ width: 46, height: 52, borderRadius: 9, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
+        background: `${color}22`, color, fontSize: 11.5, fontWeight: 900, letterSpacing: 0.4 }}>{label}</div>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ fontSize: 13.5, fontWeight: 800, color: "var(--t1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={a.name}>{a.name}</div>
+        <div style={{ fontSize: 11.5, color: "var(--t3)", marginTop: 2 }}>{mb(a.size)}</div>
+        <div style={{ display: "flex", gap: 6, marginTop: 7 }}>
+          {viewable && <a href={fileUrl(a.key)} target="_blank" rel="noreferrer" className="v2-act" style={{ height: 28, fontSize: 12 }}><ExternalLink size={12} /> Открыть</a>}
+          <a href={fileUrl(a.key)} download={a.name} target="_blank" rel="noreferrer" className="v2-act ghost" style={{ height: 28, fontSize: 12 }}><Download size={12} /> Скачать</a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** Короткая выжимка сообщения для цитаты: текст или имена файлов. */
 function snippet(m: Msg) {
   const t = (m.body || "").replace(/\s+/g, " ").trim();
@@ -340,9 +367,11 @@ function Bubble({ m, mine, onPipe, quoted, onReply, onJump }: { m: Msg; mine: bo
                 {isVideo(a) ? <video src={fileUrl(a.key)} controls preload="metadata" style={{ width: 220, maxHeight: 390, borderRadius: 10, background: "#000" }} />
                   : isImage(a) ? <a href={fileUrl(a.key)} target="_blank" rel="noreferrer"><img src={fileUrl(a.key)} alt={a.name} style={{ width: 160, borderRadius: 10, display: "block" }} /></a>
                   : null}
-                <a href={fileUrl(a.key)} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: "var(--t3)", display: "inline-flex", gap: 4, alignItems: "center" }}>
-                  <Download size={11} /> {a.name} · {mb(a.size)}
-                </a>
+                {isVideo(a) || isImage(a) ? (
+                  <a href={fileUrl(a.key)} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: "var(--t3)", display: "inline-flex", gap: 4, alignItems: "center" }}>
+                    <Download size={11} /> {a.name} · {mb(a.size)}
+                  </a>
+                ) : <FileCard a={a} />}
                 {ai && isVideo(a) && (
                   <button className="v2-act ghost" onClick={() => onPipe({ video: { key: a.key, name: a.name } })} style={{ height: 30, fontSize: 12, justifyContent: "center" }}>
                     <ArrowRightCircle size={13} /> К сценарию / в публикации
