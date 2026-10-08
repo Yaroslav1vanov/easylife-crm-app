@@ -16,6 +16,7 @@ type Msg = {
   body: string; attachments: Att[]; ai_status: "queued" | "working" | "done" | "error" | null;
   ai_error: string | null; reply_to: number | null; created_at: string;
   quote_id?: number | null;   // «Ответить» на конкретное сообщение — ИИ получит его целиком
+  script_id?: number | null;  // задача пришла кнопкой из карточки сценария
 };
 type Pending = { id: string; file: File; pct: number; status: "uploading" | "done" | "error"; key?: string; err?: string; preview?: string };
 
@@ -61,7 +62,7 @@ export default function ClientChatTab({ clientId, aiEnabled, draft, initialThrea
   useEffect(() => { if (draft) setText(draft); }, [draft]); // заготовка задачи из вкладки «План»
   const [files, setFiles] = useState<Pending[]>([]);
   const [sending, setSending] = useState(false);
-  const [pipe, setPipe] = useState<{ video?: PipeAtt; images?: PipeAtt[] } | null>(null); // ролик/кадры из чата → в работу
+  const [pipe, setPipe] = useState<{ video?: PipeAtt; images?: PipeAtt[]; scriptId?: number | null } | null>(null); // ролик/кадры из чата → в работу
   const [replyTo, setReplyTo] = useState<Msg | null>(null); // на какое сообщение отвечаем
   const input = useRef<HTMLTextAreaElement>(null);
   const byId = useMemo(() => new Map(msgs.map((m) => [m.id, m])), [msgs]);
@@ -212,7 +213,9 @@ export default function ClientChatTab({ clientId, aiEnabled, draft, initialThrea
       <div className="v2-card" style={{ padding: 14, minHeight: 360, maxHeight: "62vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: 12 }}>
         {loading ? <div style={{ color: "var(--t3)", fontSize: 13 }}>Загружаю…</div>
           : !msgs.length ? <div style={{ color: "var(--t3)", fontSize: 13, margin: "auto", textAlign: "center" }}>Сообщений пока нет.<br />{aiEnabled ? T.empty : "Здесь команда ведёт работу по клиенту."}</div>
-          : msgs.map((m) => <Bubble key={m.id} m={m} mine={m.author_type === "user" && m.author_name === me.name} onPipe={setPipe}
+          : msgs.map((m) => <Bubble key={m.id} m={m} mine={m.author_type === "user" && m.author_name === me.name}
+              // сценарий, над которым шла работа к этому моменту чата («Уникализировать в чате ИИ»)
+              onPipe={(p) => setPipe({ ...p, scriptId: [...msgs].reverse().find((x) => x.id <= m.id && x.script_id)?.script_id ?? null })}
               quoted={m.quote_id ? byId.get(m.quote_id) || null : null} onReply={startReply} onJump={jumpTo} />)}
         {working && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--pu)" }}>
@@ -287,7 +290,7 @@ export default function ClientChatTab({ clientId, aiEnabled, draft, initialThrea
           </button>
         </div>
       </div>
-      {pipe && <SendToPipelineModal clientId={clientId} video={pipe.video} images={pipe.images} onClose={() => setPipe(null)} />}
+      {pipe && <SendToPipelineModal clientId={clientId} video={pipe.video} images={pipe.images} scriptHint={pipe.scriptId} onClose={() => setPipe(null)} />}
       <style>{`.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}.chat-msg .chat-reply{opacity:.35;transition:opacity .15s}.chat-msg:hover .chat-reply{opacity:1}@media(hover:none){.chat-msg .chat-reply{opacity:1}}`}</style>
     </div>
   );

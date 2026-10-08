@@ -20,8 +20,18 @@ async function promote(clientId: number, key: string, label: string): Promise<st
 
 const inp: React.CSSProperties = { padding: "8px 10px", borderRadius: 9, background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 13, fontFamily: "inherit", outline: "none" };
 
-export default function SendToPipelineModal({ clientId, video, images, onClose }: {
+/** Где сценарий в работе: монтаж → согласован → пишется → идея (для подписи и порядка в списке). */
+function stageOf(s: Script): [number, string] {
+  if (s.script_status === "approved" && s.video_status && s.video_status !== "notStarted") return [0, s.video_status === "ready" ? "готов к публикации" : "в монтаже"];
+  if (s.script_status === "approved") return [1, "согласован"];
+  if (s.script_status === "inProgress" || s.script_status === "review") return [2, "в работе"];
+  return [3, "идея"];
+}
+
+export default function SendToPipelineModal({ clientId, video, images, onClose, scriptHint }: {
   clientId: number; video?: PipeAtt | null; images?: PipeAtt[]; onClose: () => void;
+  /** сценарий, над которым шла работа в чате («Уникализировать в чате ИИ») — выбираем его сразу */
+  scriptHint?: number | null;
 }) {
   const supabase = createClient();
   const isStory = !video && !!images?.length;
@@ -56,15 +66,23 @@ export default function SendToPipelineModal({ clientId, video, images, onClose }
       if (!isStory) {
         const { data } = await supabase.from("scripts").select("*").eq("client_id", clientId)
           .neq("video_status", "published").order("month_number", { ascending: false }).order("order_num");
-        const rows = ((data || []) as Script[]).filter((s) => s.script_status === "approved" || s.video_status !== "notStarted");
+        // все неопубликованные сценарии с текстом (пустые слоты плана не показываем): сначала монтаж, потом согласованные, в работе, идеи
+        const rows = ((data || []) as Script[])
+          .filter((s) => (s.hook_text || s.hook || s.body_text || "").trim())
+          .sort((a, b) => stageOf(a)[0] - stageOf(b)[0]);
         setScripts(rows);
-        const first = rows.find((s) => !s.video_url) || rows[0];
+        const first = rows.find((s) => s.id === scriptHint) || rows.find((s) => !s.video_url) || rows[0];
         if (first) setScriptId(first.id); else setMode("ready");
       }
     })();
   }, [clientId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const sel = useMemo(() => scripts.find((s) => s.id === scriptId) || null, [scripts, scriptId]);
+  const [q, setQ] = useState("");
+  const shown = useMemo(() => {
+    const t = q.trim().toLowerCase();
+    return t ? scripts.filter((s) => `${s.hook_text || ""} ${s.hook || ""} ${s.body_text || ""} #${s.order_num}`.toLowerCase().includes(t)) : scripts;
+  }, [scripts, q]);
   const title = (s: Script) => (s.hook_text || s.hook || "без названия").replace(/\s+/g, " ").slice(0, 70);
 
   async function go() {
@@ -94,7 +112,12 @@ export default function SendToPipelineModal({ clientId, video, images, onClose }
       } else if (video && mode === "script") {
         if (!sel) throw new Error("выберите сценарий");
         const url = await promote(clientId, video.key, String(sel.id));
-        const patch: Partial<Script> = markReady ? { video_url: url, video_status: "ready" } : { video_url: url };
+        // ролик готов → сценарий по факту согласован; у идеи без номера сначала выдаём номер (как при «Взято в работу»)
+        if (!sel.order_num) await db.updateScript(supabase, sel.id, { script_status: "inProgress" });
+        const patch: Partial<Script> = {
+          video_url: url, script_status: "approved",
+          video_status: markReady ? "ready" : (!sel.video_status || sel.video_status === "notStarted" ? "inProgress" : sel.video_status),
+        };
         const res = await db.updateScript(supabase, sel.id, patch);
         if (res?.error) throw new Error(res.error.message || "сценарий не сохранился");
         if (markReady) { try { await db.ensurePublicationForScript(supabase, { ...sel, ...patch } as Script, client || undefined); } catch {} }
@@ -171,13 +194,18 @@ export default function SendToPipelineModal({ clientId, video, images, onClose }
             {mode === "script" ? (
               scripts.length ? (
                 <>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 300, overflowY: "auto" }}>
-                    {scripts.map((s) => (
+                  {scripts.length > 6 && (
+                    <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Найти среди ${scripts.length} сценариев: слово из хука или номер`} style={inp} />
+                  )}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 320, overflowY: "auto" }}>
+                    {!shown.length && <div style={{ fontSize: 12.5, color: "var(--t3)", padding: 6 }}>Ничего не нашлось</div>}
+                    {shown.map((s) => (
                       <button key={s.id} onClick={() => setScriptId(s.id)}
                         style={{ textAlign: "left", padding: "9px 11px", borderRadius: 10, cursor: "pointer", background: s.id === scriptId ? "rgba(66,212,244,.10)" : "var(--v2-inset)", border: `1px solid ${s.id === scriptId ? "var(--cy)" : "var(--brd)"}`, color: "var(--t1)", fontFamily: "inherit" }}>
                         <div style={{ fontSize: 13 }}>{s.order_num ? `#${s.order_num} · ` : ""}{title(s)}</div>
                         <div style={{ fontSize: 11, color: "var(--t3)", marginTop: 2 }}>
-                          М{s.month_number}{s.pub_date ? ` · выход ${s.pub_date.slice(8, 10)}.${s.pub_date.slice(5, 7)}` : " · даты нет"}
+                          <span style={{ color: stageOf(s)[0] === 0 ? "var(--cy)" : stageOf(s)[0] === 3 ? "var(--t3)" : "var(--pu)", fontWeight: 700 }}>{stageOf(s)[1]}</span>
+                          {s.id === scriptHint ? " · из этого чата" : ""} · М{s.month_number}{s.pub_date ? ` · выход ${s.pub_date.slice(8, 10)}.${s.pub_date.slice(5, 7)}` : " · даты нет"}
                           {s.video_url ? " · ролик уже есть — заменится" : ""}
                         </div>
                       </button>
@@ -188,7 +216,7 @@ export default function SendToPipelineModal({ clientId, video, images, onClose }
                   </label>
                   {markReady && <div className="v2-hint">Сегодня проставится как дата сдачи монтажа, ролик появится в «Публикациях».</div>}
                 </>
-              ) : <div style={{ fontSize: 13, color: "var(--t3)" }}>У клиента нет утверждённых сценариев без опубликованного ролика. Отправьте ролик в публикации без сценария.</div>
+              ) : <div style={{ fontSize: 13, color: "var(--t3)" }}>У клиента нет сценариев с текстом без опубликованного ролика. Отправьте ролик в публикации без сценария.</div>
             ) : (
               <>
                 <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, color: "var(--t3)" }}>Когда публикуем · {tzShort(tz)}
