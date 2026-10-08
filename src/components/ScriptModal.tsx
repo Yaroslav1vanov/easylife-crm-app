@@ -1,8 +1,9 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Client, Script, StopCheck, StopIssue, stopHash } from "@/lib/database";
 import ConfirmDialog from "@/components/ConfirmDialog";
-import { ExternalLink, X, Trash2, Eye, Heart, MessageCircle, RefreshCw, Swords, ShieldCheck, ShieldAlert, Loader2 } from "lucide-react";
+import { ExternalLink, X, Trash2, Eye, Heart, MessageCircle, RefreshCw, Swords, ShieldCheck, ShieldAlert, Loader2, Sparkles } from "lucide-react";
 
 const fmtNum = (n: number | null | undefined) => n == null ? "—" : n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(1) + "K" : String(n);
 
@@ -140,6 +141,33 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
     setTimeout(() => { el.focus(); if (at >= 0) el.setSelectionRange(at, at + i.quote.length); }, 250);
   }
   const FIELD_RU: Record<string, string> = { hook_text: "тема", hook: "хук", body_text: "текст", cta: "призыв", post_caption: "описание" };
+
+  /* «Уникализировать в чате ИИ»: задача в чат «Рилсы» клиента, привязанная к этому сценарию.
+     Сначала сохраняем набранное — ИИ должен видеть актуальные ссылку, расшифровку и текст. */
+  const router = useRouter();
+  const [chatBusy, setChatBusy] = useState(false);
+  const [chatErr, setChatErr] = useState("");
+  async function sendToChat() {
+    setChatBusy(true); setChatErr("");
+    const diff: Partial<Script> = {};
+    if (!ro) {
+      if (hookText !== (s.hook_text || "")) diff.hook_text = hookText;
+      if (refUrl !== (s.ref_url || "")) diff.ref_url = refUrl;
+      if (refText !== (s.ref_text || "")) diff.ref_text = refText;
+      if (hook !== (s.hook || "")) diff.hook = hook;
+      if (bodyText !== (s.body_text || "")) diff.body_text = bodyText;
+      if (cta !== (s.cta || "")) diff.cta = cta;
+      if (postCaption !== (s.post_caption || "")) diff.post_caption = postCaption;
+    }
+    if (Object.keys(diff).length) save(diff);
+    await Promise.allSettled(pending.current);
+    const r = await fetch(`/api/scripts/${s.id}/to-chat`, { method: "POST" });
+    const j = await r.json().catch(() => ({}));
+    setChatBusy(false);
+    if (!r.ok) { setChatErr(j.error || `ошибка ${r.status}`); return; }
+    onClose();
+    router.push(`/dashboard/clients/${j.client_id}?ctab=chat&thread=reels`);
+  }
 
   const closing = useRef(false);
   async function requestClose() {
@@ -281,11 +309,20 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
         <div data-tour="sm-parts" style={{ padding: 14, borderRadius: 12, background: "rgba(157,107,255,0.05)", border: "1px solid var(--brd)", display: "flex", flexDirection: "column", gap: 12 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
             <span style={{ fontSize: 11, fontWeight: 800, color: "var(--pu)", textTransform: "uppercase", letterSpacing: 0.5 }}>✨ Наш сценарий</span>
+            <span style={{ display: "inline-flex", gap: 6, flexWrap: "wrap" }}>
+            {!ro && (
+              <button onClick={sendToChat} disabled={chatBusy} title="Задача уйдёт в «Чат · ИИ» → «Рилсы» клиента: ИИ посмотрит референс и расшифровку и предложит версию под клиента. В сценарий запишет, когда скажете «записывай»."
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 11px", borderRadius: 8, border: "1px solid rgba(157,107,255,.45)", background: "rgba(157,107,255,.12)", color: "var(--t1)", fontSize: 11.5, fontWeight: 700, cursor: chatBusy ? "default" : "pointer" }}>
+                {chatBusy ? <Loader2 size={13} className="spin" /> : <Sparkles size={13} />} {chatBusy ? "Отправляю…" : "Уникализировать в чате ИИ"}
+              </button>
+            )}
             <button onClick={runStopCheck} disabled={stopBusy} title="ИИ подсветит фразы, из-за которых Instagram может занизить показы. Ничего не меняет — решаете вы."
               style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 11px", borderRadius: 8, border: "1px solid var(--brd)", background: "var(--card)", color: "var(--t1)", fontSize: 11.5, fontWeight: 700, cursor: stopBusy ? "default" : "pointer" }}>
               {stopBusy ? <Loader2 size={13} className="spin" /> : <ShieldCheck size={13} />} {stopBusy ? "Проверяю…" : stop ? "Проверить снова" : "Проверить на стоп-слова"}
             </button>
+            </span>
           </div>
+          {chatErr && <div style={{ fontSize: 12, color: "var(--rd)" }}>Не отправилось в чат: {chatErr}</div>}
           {stopErr && <div style={{ fontSize: 12, color: "var(--rd)" }}>Проверка не прошла: {stopErr}</div>}
           {stop && !stopBusy && (
             <div style={{ padding: 11, borderRadius: 10, border: `1px solid ${stop.issues.length ? (stop.issues.some(i => i.severity === "high") ? "rgba(220,38,38,.4)" : "rgba(234,88,12,.4)") : "rgba(22,163,74,.35)"}`, background: "var(--card)", display: "flex", flexDirection: "column", gap: 8 }}>

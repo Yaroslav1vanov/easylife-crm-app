@@ -130,6 +130,10 @@ Instagram: {client.get('instagram') or '—'} · TikTok: {client.get('tiktok') o
         write_folder(ws, job)
     except Exception:
         log("папка клиента не собралась", traceback.format_exc()[-800:])
+    try:
+        write_script(ws, job.get("script"))
+    except Exception:
+        log("сценарий не собрался", traceback.format_exc()[-800:])
     task_att = "".join(f"\n- files/{local(msg, a).name}" for a in (msg.get("attachments") or [])) or "\n- (файлов нет)"
     (ws / "TASK.md").write_text(f"""# Чат: {THREAD_RU.get(msg.get('thread') or 'reels').upper()}. {THREAD_HINT.get(msg.get('thread') or 'reels')}
 
@@ -142,8 +146,70 @@ Instagram: {client.get('instagram') or '—'} · TikTok: {client.get('tiktok') o
 ## Куда класть результат
 - Ответ человеку: out/{mid}/reply.md
 - Готовые файлы (ролик, кадры сторис): out/{mid}/ — всё из этой папки уйдёт в чат
-""")
+{SCRIPT_HINT.format(mid=mid) if job.get("script") else ""}""")
     return ws, out
+
+
+SCRIPT_HINT = """
+## Сценарий, над которым идёт работа — SCRIPT.md
+В этом чате работают над конкретным сценарием из CRM: его текст, референс (ссылка, расшифровка, цифры, разбор) и путь к скачанному видео-референсу — в SCRIPT.md.
+Записать согласованный текст в сценарий — ТОЛЬКО когда человек прямо сказал («записывай», «вноси в сценарий», «сохрани»):
+out/{mid}/script.json → {{"hook_text": "тема", "hook": "хук", "body_text": "основной текст", "cta": "призыв", "post_caption": "описание к ролику"}}
+(только те поля, что меняются; прежний текст CRM вернёт в журнал).
+"""
+
+
+def write_script(ws, sc):
+    """SCRIPT.md: сценарий из CRM + референс; видео-референс скачиваем один раз в refs/."""
+    f = ws / "SCRIPT.md"
+    if not sc:
+        f.unlink(missing_ok=True)
+        return
+    ref = sc.get("reference") or {}
+    url = (sc.get("ref_url") or ref.get("url") or "").strip()
+    video = None
+    if url:
+        refs = ws / "refs"
+        refs.mkdir(exist_ok=True)
+        have = sorted(refs.glob(f"script_{sc['id']}.*"))
+        video = have[0] if have else None
+        if not video:
+            try:
+                subprocess.run([str(HOME / ".venv/bin/yt-dlp"), "-q", "--no-playlist", "-f", "mp4/best", "-o", str(refs / f"script_{sc['id']}.%(ext)s"), url],
+                               timeout=240, check=True, capture_output=True)
+                have = sorted(refs.glob(f"script_{sc['id']}.*"))
+                video = have[0] if have else None
+            except Exception as e:
+                log("референс не скачался", sc["id"], url, str(e)[:200])
+    transcript = (sc.get("ref_text") or sc.get("transcription") or ref.get("transcript") or "").strip()
+    nums = " · ".join(f"{k} {n(v)}" for k, v in (("просмотры", sc.get("ref_views") or ref.get("views")), ("лайки", sc.get("ref_likes") or ref.get("likes")),
+                                                 ("комментарии", sc.get("ref_comments") or ref.get("comments"))) if v)
+    f.write_text(f"""# Сценарий из CRM: #{sc.get('order_num') or '—'} (id {sc['id']}), месяц M{sc.get('month_number')}
+Статус: сценарий {sc.get('script_status')} · монтаж {sc.get('video_status')}{' · ролик уже смонтирован: ' + sc['video_url'] if sc.get('video_url') else ''}
+
+## Наш текст сейчас
+- Тема: {sc.get('hook_text') or '—'}
+- Хук: {sc.get('hook') or '—'}
+- Основной текст:
+{sc.get('body_text') or '—'}
+- Призыв: {sc.get('cta') or '—'}
+- Описание к ролику:
+{sc.get('post_caption') or '—'}
+
+## Референс
+Ссылка: {url or '— нет —'}{(' · автор ' + ref['author']) if ref.get('author') else ''}
+Цифры: {nums or '—'}
+Видео: {('refs/' + video.name + ' — смотри кадры и звук сам') if video else ('не скачалось — работай по расшифровке' if url else '—')}
+
+### Расшифровка референса
+{transcript or '— нет —'}
+
+### Подпись под референсом
+{(ref.get('caption') or '—')[:3000]}
+
+### Разбор (что тащило ролик)
+{sc.get('description') or ref.get('analysis') or '—'}
+""")
 
 
 def n(v):
@@ -288,6 +354,17 @@ def handle(job):
         for f in sorted(out.iterdir()):
             if f.is_file() and f.name != "reply.md" and MEDIA.search(f.name) and f.stat().st_size < 500 * 1048576:
                 atts.append(upload_file(cid, f))
+        sj = out / "script.json"          # человек сказал «записывай» → текст в сценарий CRM
+        if sj.exists() and job.get("script"):
+            try:
+                r = api_post(op="script_update", id=mid, script_id=job["script"]["id"], fields=json.loads(sj.read_text()))
+                names = {"hook_text": "тема", "hook": "хук", "body_text": "текст", "cta": "призыв", "post_caption": "описание"}
+                reply = (reply or "Готово.") + "\n\n📝 Записал в сценарий: " + ", ".join(names.get(k, k) for k in r.get("updated", []))
+                with open(ws / "JOURNAL.md", "a") as jf:   # прежний текст — чтобы можно было вернуть
+                    jf.write(f"\n### Прежний текст сценария {job['script']['id']} до записи в задаче #{mid}\n```json\n{json.dumps(r.get('previous'), ensure_ascii=False, indent=1)}\n```\n")
+            except Exception as e:
+                log("сценарий не записался", e)
+                reply = (reply or "") + f"\n\n⚠ В сценарий не записалось: {str(e)[:200]}"
         upd = out / "assets.json"          # ИИ разобрал медиатеку → подписи и темы в CRM
         if upd.exists():
             try:

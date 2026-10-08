@@ -11,7 +11,8 @@ import { r2 } from "@/lib/r2";
                                           → ответ ИИ в чат + закрыть задачу
    POST {op:"progress", id, body}         → промежуточное сообщение ИИ (вопрос, «начал монтаж»)
    POST {op:"upload", client_id, filename} → ссылка, чтобы залить готовый файл
-   POST {op:"download", key}              → ссылка, чтобы скачать файл из чата */
+   POST {op:"download", key}              → ссылка, чтобы скачать файл из чата
+   POST {op:"script_update", id, script_id, fields} → записать согласованный текст в сценарий */
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -55,6 +56,16 @@ async function folder(sb: ReturnType<typeof createAdmin>, cid: number) {
   };
 }
 
+/** Сценарий + его референс (ссылка, расшифровка, цифры, разбор) — для уникализации и монтажа. */
+async function scriptContext(sb: ReturnType<typeof createAdmin>, sid: number, cid: number) {
+  const { data: s } = await sb.from("scripts").select("id, client_id, month_number, order_num, hook_text, hook, body_text, cta, post_caption, description, ref_url, ref_text, transcription, ref_views, ref_likes, ref_comments, script_status, video_status, video_url")
+    .eq("id", sid).eq("client_id", cid).maybeSingle();
+  if (!s) return null;
+  const { data: refs } = await sb.from("reference_videos").select("url, platform, author, caption, transcript, views, likes, comments, analysis, note")
+    .eq("script_id", sid).order("id", { ascending: false }).limit(1);
+  return { ...s, reference: refs?.[0] || null };
+}
+
 export async function GET(req: Request) {
   if (!allowed(req)) return bad("нет доступа", 403);
   const sb = createAdmin();
@@ -78,7 +89,7 @@ export async function GET(req: Request) {
       sb.from("clients").select("id, name, surname, niche, product, instagram, tiktok, youtube, brand_voice, timezone, ai_chat").eq("id", cid).maybeSingle(),
       sb.from("client_brand").select("kit, version").eq("client_id", cid).maybeSingle(),
       sb.from("client_documents").select("title, body, version").eq("client_id", cid).eq("kind", "strategy").eq("is_current", true).maybeSingle(),
-      sb.from("client_chat_messages").select("id, author_type, author_name, body, attachments, created_at, ai_status, thread")
+      sb.from("client_chat_messages").select("id, author_type, author_name, body, attachments, created_at, ai_status, thread, script_id")
         // рилсы и сторис — только своя переписка; «Стратегия» видит все три чата клиента
         .eq("client_id", cid).in("thread", m.thread === "strategy" ? ["reels", "stories", "strategy"] : [m.thread || "reels"])
         .lte("id", m.id).order("id", { ascending: false }).limit(m.thread === "strategy" ? 80 : 40),
@@ -88,7 +99,11 @@ export async function GET(req: Request) {
       await sb.from("client_chat_messages").update({ ai_status: null }).eq("id", m.id);
       continue;
     }
-    jobs.push({ message: m, client, brand_kit: brand?.kit || null, strategy: strategy?.body || null, history: (history || []).reverse(), ...(await folder(sb, cid)) });
+    // сценарий, над которым идёт работа: из этого сообщения или последний, привязанный в этом чате
+    // («Уникализировать в чате ИИ» в карточке сценария) — так «записывай» и монтаж понимают, о каком ролике речь
+    const sid = m.script_id || (history || []).find((h: any) => h.script_id)?.script_id || null;
+    const script = sid ? await scriptContext(sb, sid, cid) : null;
+    jobs.push({ message: m, client, brand_kit: brand?.kit || null, strategy: strategy?.body || null, history: (history || []).reverse(), script, ...(await folder(sb, cid)) });
   }
   return NextResponse.json({ jobs });
 }
@@ -131,6 +146,24 @@ export async function POST(req: Request) {
       updated += data?.length || 0;
     }
     return NextResponse.json({ ok: true, updated });
+  }
+
+  // ИИ записывает согласованный текст в сценарий (человек сказал «записывай»). Только сценарий клиента этой задачи,
+  // только текстовые поля; прежний текст ИИ кладёт в журнал, так что его можно вернуть.
+  if (b.op === "script_update") {
+    const { data: m } = await sb.from("client_chat_messages").select("id, client_id").eq("id", b.id).maybeSingle();
+    if (!m) return bad("нет такой задачи", 404);
+    const sid = Number(b.script_id);
+    const { data: s } = await sb.from("scripts").select("id, client_id, hook_text, hook, body_text, cta, post_caption").eq("id", sid).maybeSingle();
+    if (!s || s.client_id !== m.client_id) return bad("сценарий не этого клиента");
+    const patch: any = {};
+    for (const k of ["hook_text", "hook", "body_text", "cta", "post_caption"]) {
+      if (typeof b.fields?.[k] === "string" && b.fields[k].trim()) patch[k] = b.fields[k].trim().slice(0, 20000);
+    }
+    if (!Object.keys(patch).length) return bad("нечего записывать");
+    const { error } = await sb.from("scripts").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", sid);
+    if (error) return bad(error.message, 500);
+    return NextResponse.json({ ok: true, updated: Object.keys(patch), previous: Object.fromEntries(Object.keys(patch).map(k => [k, (s as any)[k]])) });
   }
 
   // исполнитель перезапустился посреди задачи — возвращаем её в очередь, он доделает с того же места

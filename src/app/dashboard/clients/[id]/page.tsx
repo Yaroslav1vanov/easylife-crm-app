@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
 import db, { Client, Script, ChecklistTask, TeamMember, ClientMonth, OnboardingProgress } from "@/lib/database";
 import AvatarUploader from "@/components/AvatarUploader";
@@ -72,6 +72,12 @@ export default function ClientDetailPage() {
   const [ctab, setCtab] = useState<"work" | "plan" | "set" | "stats" | "strategy" | "chat">("work");
   const [chatDraft, setChatDraft] = useState("");
   const [chatThread, setChatThread] = useState<"reels" | "stories" | undefined>(undefined);
+  // ссылка вида ?ctab=chat&thread=reels — например, после «Уникализировать в чате ИИ» в карточке сценария
+  const search = useSearchParams();
+  useEffect(() => {
+    const t = search.get("ctab");
+    if (t === "chat") { setCtab("chat"); const th = search.get("thread"); if (th === "reels" || th === "stories") setChatThread(th); }
+  }, [search]);
   const [menuOpen, setMenuOpen] = useState(false);
   const isMobile = useIsMobile();
   const [editing, setEditing] = useState(false);
