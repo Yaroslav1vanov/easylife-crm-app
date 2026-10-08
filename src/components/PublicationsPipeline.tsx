@@ -425,6 +425,7 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
           onRegenerate={regenerate}
           onPublish={publishToMetricool}
           onCheckStatus={checkStatus}
+          onRemoved={(id) => { setPubs(arr => arr.filter(p => p.id !== id)); setOpenId(null); }}
         />
       )}
       {readyOpen && <ReadyVideoModal clients={clients} defaultClientId={clientFilter === "all" ? null : clientFilter} onClose={() => setReadyOpen(false)} onCreate={createReadyVideos} />}

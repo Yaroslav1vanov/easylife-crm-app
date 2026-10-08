@@ -34,8 +34,10 @@ const STATUS_META: Record<string, { l: string; cls: string }> = {
   scheduled: { l: "Запланировано", cls: "cy" }, published: { l: "Опубликовано", cls: "gr" }, error: { l: "Ошибка", cls: "rd" },
 };
 
-export default function PublicationModal({ pub, client, script, onClose, onUpdate, onRegenerate, onPublish, onCheckStatus }: {
+export default function PublicationModal({ pub, client, script, onClose, onUpdate, onRegenerate, onPublish, onCheckStatus, onRemoved }: {
   pub: Publication; client?: Client; script?: Script;
+  /** публикацию удалили (вместе с постом в Metricool) — убрать из списка */
+  onRemoved?: (id: number) => void;
   onClose: () => void; onUpdate: (id: number, patch: Partial<Publication>) => void;
   onRegenerate: (id: number) => void;
   onPublish: (id: number, opts?: PublishOpts) => Promise<{ ok: boolean; code?: string; error?: string }>;
@@ -109,9 +111,27 @@ export default function PublicationModal({ pub, client, script, onClose, onUpdat
     if (!put.ok) { alert(`Загрузка не удалась (${put.status}). Проверь CORS бакета.`); return null; }
     return j.publicUrl as string;
   }
-  async function uploadVideo(file: File) { setUpBusy(true); try { const u = await r2Upload(file); if (u) { setPreviewErr(false); save({ video_url: u }); } } catch (e: any) { alert(String(e)); } setUpBusy(false); }
+  /** Пост уже стоит в Metricool: новый файл → пост пересоздаётся с ним на то же время (иначе в CRM один файл, а выйдет старый). */
+  async function replaceScheduled(file: File, kind: "story" | "video") {
+    const what = kind === "story" ? "кадр сторис" : "видео";
+    if (!confirm(`Заменить ${what}? Пост в ${service} пересоздастся с новым файлом на то же время — ${fmtInTz(f.publish_at, tz)} (${tzShort(tz)}).`)) return;
+    setUpBusy(true);
+    try {
+      const u = await r2Upload(file, kind === "story" && !file.type.startsWith("video/") ? "image" : undefined);
+      if (!u) return;
+      const body = kind === "story" ? { media_urls: [u] } : { video_url: u };
+      const r = await fetch(`/api/publications/${pub.id}/media`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || j.error) { alert("Не получилось заменить: " + (j.error || r.status)); return; }
+      const patch: Partial<Publication> = { ...body, ...(j.ids ? { metricool_post_id: Object.entries(j.ids).map(([k, x]) => `${k}:${x}`).join(",") } : {}) };
+      setPreviewErr(false); setF(p => ({ ...p, ...patch })); onUpdate(pub.id, patch);
+    } catch (e: any) { alert(String(e)); }
+    finally { setUpBusy(false); }
+  }
+  async function uploadVideo(file: File) { if (isScheduled) return replaceScheduled(file, "video"); setUpBusy(true); try { const u = await r2Upload(file); if (u) { setPreviewErr(false); save({ video_url: u }); } } catch (e: any) { alert(String(e)); } setUpBusy(false); }
   async function uploadCover(file: File) { setUpBusy(true); try { const u = await r2Upload(file, "image"); if (u) save({ video_thumbnail_url: u }); } catch (e: any) { alert(String(e)); } setUpBusy(false); }
   async function uploadStoryFrame(file: File) {
+    if (isScheduled) return replaceScheduled(file, "story");
     setUpBusy(true);
     try { const u = await r2Upload(file, file.type.startsWith("video/") ? undefined : "image"); if (u) { setPreviewErr(false); save({ media_urls: [u] }); } }
     catch (e: any) { alert(String(e)); }
@@ -125,6 +145,20 @@ export default function PublicationModal({ pub, client, script, onClose, onUpdat
   }
   const moveSlide = (i: number, d: -1 | 1) => { const a = [...(f.media_urls || [])]; const j = i + d; if (j < 0 || j >= a.length) return; [a[i], a[j]] = [a[j], a[i]]; save({ media_urls: a }); };
 
+  /** Удалить: сначала пост в Metricool (чтобы не вышел), потом карточку в CRM. */
+  const [rmBusy, setRmBusy] = useState(false);
+  async function remove() {
+    const what = isStory ? "сторис" : isCarousel ? "карусель" : "публикацию";
+    if (!confirm(isScheduled ? `Удалить ${what}? Запланированный пост в ${service} удалится и не выйдет, карточка исчезнет из CRM.` : `Удалить ${what} из CRM?`)) return;
+    setRmBusy(true);
+    const r = await fetch(`/api/publications/${pub.id}/remove`, { method: "POST" });
+    const j = await r.json().catch(() => ({}));
+    setRmBusy(false);
+    if (!r.ok || j.error) { alert("Не удалилось: " + (j.error || r.status)); return; }
+    if (j.note) alert(j.note);
+    if (j.deleted) onRemoved?.(pub.id); else { const patch: Partial<Publication> = { pub_status: "queued", metricool_post_id: null }; setF(p => ({ ...p, ...patch })); onUpdate(pub.id, patch); }
+    onClose();
+  }
   async function publish(opts?: PublishOpts) {
     if (opts?.force && !confirm("Переотправить? Старые посты в Metricool будут удалены и созданы заново. Если что-то уже вышло в соцсети — оно останется опубликованным.")) return;
     setPubBusy(true);
@@ -191,7 +225,7 @@ export default function PublicationModal({ pub, client, script, onClose, onUpdat
               </div>
               <div style={{ flex: 1, minWidth: 220 }}>
                 <div className="v2-hint" style={{ marginBottom: 10, lineHeight: 1.55 }}>Картинка или вертикальное видео 1080×1920, видео до 60 сек. Один файл = одна сторис. Стикеры (ссылка, опрос, вопрос, музыка) через API не ставятся — если нужны, выкладывайте такую сторис вручную с телефона.</div>
-                {!locked && !isScheduled && <label className="v2-act pri" style={{ cursor: "pointer" }}>{upBusy ? "Загружаю…" : storyUrl ? "⬆ Заменить кадр" : "⬆ Загрузить кадр"}<input type="file" accept="image/*,video/*" disabled={upBusy} onChange={e => { const file = e.target.files?.[0]; if (file) uploadStoryFrame(file); e.target.value = ""; }} style={{ display: "none" }} /></label>}
+                {!locked && <label className="v2-act pri" style={{ cursor: "pointer" }}>{upBusy ? "Загружаю…" : storyUrl ? "⬆ Заменить кадр" : "⬆ Загрузить кадр"}<input type="file" accept="image/*,video/*" disabled={upBusy} onChange={e => { const file = e.target.files?.[0]; if (file) uploadStoryFrame(file); e.target.value = ""; }} style={{ display: "none" }} /></label>}
               </div>
             </div>
           ) : isCarousel ? (
@@ -365,6 +399,7 @@ export default function PublicationModal({ pub, client, script, onClose, onUpdat
             </div>
           )}
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            {!isPublished && <button className="v2-act ghost" onClick={remove} disabled={rmBusy || pubBusy} title={isScheduled ? `Удалить пост в ${service} и карточку в CRM` : "Удалить карточку"} style={{ color: "var(--rd)" }}><Trash2 size={13} /> {rmBusy ? "Удаляю…" : "Удалить"}</button>}
             <span style={{ fontSize: 11, color: "var(--t3)", flex: 1, minWidth: 120 }}>{isPublished ? "Опубликовано, правки закрыты" : isScheduled ? "Запланировано. Повторная отправка не создаст дубли" : f.ai_model ? `AI: ${f.ai_model}` : ""}</span>
             {isPublished ? (<>
                 <span className="v2-act gr" style={{ cursor: "default" }}><Check size={14} /> Опубликовано</span>
