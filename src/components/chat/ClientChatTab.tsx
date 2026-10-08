@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase-browser";
 import { fileUrl, guessType, when } from "@/components/strategy/files";
-import { Paperclip, Send, X, Sparkles, Loader2, AlertTriangle, CheckCircle2, Download, RotateCw, UploadCloud, ArrowRightCircle, Smartphone } from "lucide-react";
+import { Paperclip, Send, X, Sparkles, Loader2, AlertTriangle, CheckCircle2, Download, RotateCw, UploadCloud, ArrowRightCircle, Smartphone, CornerUpLeft } from "lucide-react";
 import SendToPipelineModal, { PipeAtt } from "@/components/chat/SendToPipelineModal";
 
 /* Чат по клиенту. Вся работа по проекту в одном месте: сотрудники пишут задачи
@@ -15,6 +15,7 @@ type Msg = {
   id: number; client_id: number; author_type: "user" | "ai" | "system"; author_name: string | null;
   body: string; attachments: Att[]; ai_status: "queued" | "working" | "done" | "error" | null;
   ai_error: string | null; reply_to: number | null; created_at: string;
+  quote_id?: number | null;   // «Ответить» на конкретное сообщение — ИИ получит его целиком
 };
 type Pending = { id: string; file: File; pct: number; status: "uploading" | "done" | "error"; key?: string; err?: string; preview?: string };
 
@@ -61,6 +62,17 @@ export default function ClientChatTab({ clientId, aiEnabled, draft, initialThrea
   const [files, setFiles] = useState<Pending[]>([]);
   const [sending, setSending] = useState(false);
   const [pipe, setPipe] = useState<{ video?: PipeAtt; images?: PipeAtt[] } | null>(null); // ролик/кадры из чата → в работу
+  const [replyTo, setReplyTo] = useState<Msg | null>(null); // на какое сообщение отвечаем
+  const input = useRef<HTMLTextAreaElement>(null);
+  const byId = useMemo(() => new Map(msgs.map((m) => [m.id, m])), [msgs]);
+  function startReply(m: Msg) { setReplyTo(m); setTimeout(() => input.current?.focus(), 30); }
+  function jumpTo(id: number) {
+    const el = document.getElementById(`msg-${id}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.style.transition = "box-shadow .3s"; el.style.boxShadow = "0 0 0 2px var(--cy)";
+    setTimeout(() => { el.style.boxShadow = "none"; }, 1600);
+  }
   const [ahead, setAhead] = useState(0); // задач других клиентов перед нашей в общей очереди ИИ
   const [me, setMe] = useState<{ id: string | null; name: string }>({ id: null, name: "Сотрудник" });
   const bottom = useRef<HTMLDivElement>(null);
@@ -99,7 +111,7 @@ export default function ClientChatTab({ clientId, aiEnabled, draft, initialThrea
       }
       setMe({ id: uid, name });
     })();
-    lastId.current = 0; setLoading(true); setMsgs([]);
+    lastId.current = 0; setLoading(true); setMsgs([]); setReplyTo(null);
     load();
     // пока вкладка открыта — подтягиваем новые сообщения; ИИ отвечает с сервера
     const t = setInterval(() => { if (document.visibilityState === "visible") load(); }, 4000);
@@ -159,10 +171,11 @@ export default function ClientChatTab({ clientId, aiEnabled, draft, initialThrea
       const { error } = await supabase.from("client_chat_messages").insert({
         client_id: clientId, author_type: "user", author_id: me.id, author_name: me.name,
         body, attachments: atts, ai_status: aiEnabled ? "queued" : null, thread,
+        ...(replyTo ? { quote_id: replyTo.id } : {}),
       });
       if (error) throw new Error(error.message);
       files.forEach((p) => p.preview && URL.revokeObjectURL(p.preview));
-      setText(""); setFiles([]);
+      setText(""); setFiles([]); setReplyTo(null);
       await load();
     } catch (e: any) {
       alert(`Не отправилось: ${e.message || e}. Файлы уже в хранилище — нажмите «Отправить» ещё раз.`);
@@ -199,7 +212,8 @@ export default function ClientChatTab({ clientId, aiEnabled, draft, initialThrea
       <div className="v2-card" style={{ padding: 14, minHeight: 360, maxHeight: "62vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: 12 }}>
         {loading ? <div style={{ color: "var(--t3)", fontSize: 13 }}>Загружаю…</div>
           : !msgs.length ? <div style={{ color: "var(--t3)", fontSize: 13, margin: "auto", textAlign: "center" }}>Сообщений пока нет.<br />{aiEnabled ? T.empty : "Здесь команда ведёт работу по клиенту."}</div>
-          : msgs.map((m) => <Bubble key={m.id} m={m} mine={m.author_type === "user" && m.author_name === me.name} onPipe={setPipe} />)}
+          : msgs.map((m) => <Bubble key={m.id} m={m} mine={m.author_type === "user" && m.author_name === me.name} onPipe={setPipe}
+              quoted={m.quote_id ? byId.get(m.quote_id) || null : null} onReply={startReply} onJump={jumpTo} />)}
         {working && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--pu)" }}>
             <Loader2 size={14} className="spin" /> {ahead > 0
@@ -243,9 +257,19 @@ export default function ClientChatTab({ clientId, aiEnabled, draft, initialThrea
             ))}
           </div>
         )}
-        <textarea value={text} onChange={(e) => setText(e.target.value)} rows={3}
+        {replyTo && (
+          <div style={{ display: "flex", gap: 8, alignItems: "flex-start", padding: "8px 10px", borderRadius: 10, background: "var(--v2-inset)", borderLeft: "3px solid var(--cy)" }}>
+            <CornerUpLeft size={14} style={{ color: "var(--cy)", flexShrink: 0, marginTop: 2 }} />
+            <button onClick={() => jumpTo(replyTo.id)} style={{ flex: 1, minWidth: 0, textAlign: "left", background: "none", border: 0, padding: 0, cursor: "pointer", fontFamily: "inherit" }}>
+              <div style={{ fontSize: 11.5, fontWeight: 800, color: "var(--cy)" }}>Ответ на сообщение {replyTo.author_type === "ai" ? "ИИ" : replyTo.author_name || "сотрудника"} · {when(replyTo.created_at)}</div>
+              <div style={{ fontSize: 12.5, color: "var(--t2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{snippet(replyTo)}</div>
+            </button>
+            <button onClick={() => setReplyTo(null)} title="Не отвечать на это сообщение" style={{ background: "none", border: 0, color: "var(--t3)", cursor: "pointer", padding: 2 }}><X size={14} /></button>
+          </div>
+        )}
+        <textarea ref={input} value={text} onChange={(e) => setText(e.target.value)} rows={3}
           onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") send(); }}
-          placeholder={aiEnabled ? T.placeholder : "Сообщение команде"}
+          placeholder={replyTo ? "Что поправить или обсудить в этом сообщении…" : aiEnabled ? T.placeholder : "Сообщение команде"}
           style={{ width: "100%", padding: "10px 12px", borderRadius: 10, background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 13.5, fontFamily: "inherit", resize: "vertical", outline: "none" }} />
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <label className="v2-act ghost" style={{ cursor: sending ? "default" : "pointer", height: 34 }}>
@@ -264,17 +288,24 @@ export default function ClientChatTab({ clientId, aiEnabled, draft, initialThrea
         </div>
       </div>
       {pipe && <SendToPipelineModal clientId={clientId} video={pipe.video} images={pipe.images} onClose={() => setPipe(null)} />}
-      <style>{`.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+      <style>{`.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}.chat-msg .chat-reply{opacity:.35;transition:opacity .15s}.chat-msg:hover .chat-reply{opacity:1}@media(hover:none){.chat-msg .chat-reply{opacity:1}}`}</style>
     </div>
   );
 }
 
-function Bubble({ m, mine, onPipe }: { m: Msg; mine: boolean; onPipe: (p: { video?: PipeAtt; images?: PipeAtt[] }) => void }) {
+/** Короткая выжимка сообщения для цитаты: текст или имена файлов. */
+function snippet(m: Msg) {
+  const t = (m.body || "").replace(/\s+/g, " ").trim();
+  return t ? t.slice(0, 160) : (m.attachments || []).map((a) => a.name).join(", ") || "сообщение";
+}
+
+function Bubble({ m, mine, onPipe, quoted, onReply, onJump }: { m: Msg; mine: boolean; onPipe: (p: { video?: PipeAtt; images?: PipeAtt[] }) => void;
+  quoted: Msg | null; onReply: (m: Msg) => void; onJump: (id: number) => void }) {
   const ai = m.author_type === "ai";
   const imgs = ai ? (m.attachments || []).filter(isImage) : [];
   const status = m.author_type === "user" ? m.ai_status : null;
   return (
-    <div style={{ alignSelf: mine ? "flex-end" : "flex-start", maxWidth: "min(620px, 92%)", display: "flex", flexDirection: "column", gap: 4 }}>
+    <div id={`msg-${m.id}`} className="chat-msg" style={{ alignSelf: mine ? "flex-end" : "flex-start", maxWidth: "min(620px, 92%)", display: "flex", flexDirection: "column", gap: 4, borderRadius: 14 }}>
       <div style={{ fontSize: 11, color: "var(--t3)", display: "flex", gap: 6, alignItems: "center", justifyContent: mine ? "flex-end" : "flex-start" }}>
         {ai && <Sparkles size={11} style={{ color: "var(--pu)" }} />}
         <b style={{ color: ai ? "var(--pu)" : "var(--t2)" }}>{ai ? "ИИ" : m.author_name || "Сотрудник"}</b>
@@ -283,12 +314,23 @@ function Bubble({ m, mine, onPipe }: { m: Msg; mine: boolean; onPipe: (p: { vide
         {status === "working" && <span className="v2-chip pu" style={{ padding: "1px 6px" }}><Loader2 size={10} className="spin" /> ИИ работает</span>}
         {status === "done" && <CheckCircle2 size={12} style={{ color: "var(--gr)" }} />}
         {status === "error" && <span className="v2-chip rd" style={{ padding: "1px 6px" }}><AlertTriangle size={10} /> ошибка</span>}
+        <button className="chat-reply" onClick={() => onReply(m)} title="Ответить на это сообщение — ИИ поймёт, о чём речь"
+          style={{ background: "none", border: 0, color: "var(--cy)", cursor: "pointer", fontSize: 11, fontWeight: 700, display: "inline-flex", gap: 3, alignItems: "center", padding: "0 2px", fontFamily: "inherit" }}>
+          <CornerUpLeft size={11} /> Ответить
+        </button>
       </div>
       <div style={{
         padding: "10px 13px", borderRadius: 14, fontSize: 13.5, lineHeight: 1.55, whiteSpace: "pre-wrap", wordBreak: "break-word",
         background: ai ? "rgba(157,107,255,.10)" : mine ? "rgba(66,212,244,.10)" : "var(--v2-inset)",
         border: `1px solid ${ai ? "rgba(157,107,255,.3)" : "var(--brd)"}`, color: "var(--t1)",
       }}>
+        {m.quote_id && (
+          <button onClick={() => onJump(m.quote_id!)} title="Показать сообщение, на которое ответ"
+            style={{ display: "block", width: "100%", textAlign: "left", marginBottom: 7, padding: "5px 9px", borderRadius: 8, border: 0, borderLeft: "3px solid var(--cy)", background: "rgba(0,0,0,.18)", cursor: "pointer", fontFamily: "inherit" }}>
+            <div style={{ fontSize: 11, fontWeight: 800, color: "var(--cy)" }}>↩ {quoted ? (quoted.author_type === "ai" ? "ИИ" : quoted.author_name || "Сотрудник") : "сообщение"}</div>
+            <div style={{ fontSize: 12, color: "var(--t2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{quoted ? snippet(quoted) : "выше в переписке"}</div>
+          </button>
+        )}
         {m.body}
         {status === "error" && m.ai_error && <div style={{ marginTop: 6, fontSize: 12, color: "var(--rd)" }}>{m.ai_error}</div>}
         {m.attachments?.length > 0 && (

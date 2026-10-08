@@ -89,7 +89,7 @@ export async function GET(req: Request) {
       sb.from("clients").select("id, name, surname, niche, product, instagram, tiktok, youtube, brand_voice, timezone, ai_chat").eq("id", cid).maybeSingle(),
       sb.from("client_brand").select("kit, version").eq("client_id", cid).maybeSingle(),
       sb.from("client_documents").select("title, body, version").eq("client_id", cid).eq("kind", "strategy").eq("is_current", true).maybeSingle(),
-      sb.from("client_chat_messages").select("id, author_type, author_name, body, attachments, created_at, ai_status, thread, script_id")
+      sb.from("client_chat_messages").select("id, author_type, author_name, body, attachments, created_at, ai_status, thread, script_id, quote_id")
         // рилсы и сторис — только своя переписка; «Стратегия» видит все три чата клиента
         .eq("client_id", cid).in("thread", m.thread === "strategy" ? ["reels", "stories", "strategy"] : [m.thread || "reels"])
         .lte("id", m.id).order("id", { ascending: false }).limit(m.thread === "strategy" ? 80 : 40),
@@ -101,9 +101,21 @@ export async function GET(req: Request) {
     }
     // сценарий, над которым идёт работа: из этого сообщения или последний, привязанный в этом чате
     // («Уникализировать в чате ИИ» в карточке сценария) — так «записывай» и монтаж понимают, о каком ролике речь
-    const sid = m.script_id || (history || []).find((h: any) => h.script_id)?.script_id || null;
+    // «Ответить» на конкретное сообщение: отдаём его целиком (оно могло уйти за окно последних 40)
+    let quoted: any = null;
+    if (m.quote_id) {
+      const { data: q } = await sb.from("client_chat_messages").select("id, author_type, author_name, body, attachments, created_at, thread, script_id, reply_to")
+        .eq("id", m.quote_id).eq("client_id", cid).maybeSingle();
+      if (q) {
+        // ответ ИИ сам не привязан к сценарию — берём сценарий из задачи, на которую он отвечал
+        let qsid = q.script_id;
+        if (!qsid && q.reply_to) qsid = (await sb.from("client_chat_messages").select("script_id").eq("id", q.reply_to).maybeSingle()).data?.script_id || null;
+        quoted = { ...q, script_id: qsid };
+      }
+    }
+    const sid = m.script_id || quoted?.script_id || (history || []).find((h: any) => h.script_id)?.script_id || null;
     const script = sid ? await scriptContext(sb, sid, cid) : null;
-    jobs.push({ message: m, client, brand_kit: brand?.kit || null, strategy: strategy?.body || null, history: (history || []).reverse(), script, ...(await folder(sb, cid)) });
+    jobs.push({ message: m, client, brand_kit: brand?.kit || null, strategy: strategy?.body || null, history: (history || []).reverse(), script, quoted, ...(await folder(sb, cid)) });
   }
   return NextResponse.json({ jobs });
 }

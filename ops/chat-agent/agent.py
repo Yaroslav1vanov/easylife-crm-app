@@ -93,7 +93,8 @@ def prepare(job):
     # файлы из переписки: имя «<id сообщения>_<имя файла>», чтобы не путать версии
     def local(m, a):
         return files / f"{m['id']}_{safe(a['name'])}"
-    for m in job["history"]:
+    quoted = job.get("quoted")
+    for m in job["history"] + ([quoted] if quoted else []):
         for a in m.get("attachments") or []:
             try:
                 fetch_file(a["key"], local(m, a))
@@ -106,7 +107,8 @@ def prepare(job):
         who = "ИИ (ты)" if m["author_type"] == "ai" else (m.get("author_name") or "Сотрудник")
         att = "".join(f"\n    📎 files/{local(m, a).name}" for a in (m.get("attachments") or []))
         tag = f"[{THREAD_RU.get(m.get('thread') or 'reels')}] " if (msg.get('thread') == 'strategy') else ""
-        hist.append(f"{tag}[{m['created_at'][:16].replace('T', ' ')}] #{m['id']} {who}: {m['body']}{att}")
+        re_ = f" (ответ на #{m['quote_id']})" if m.get("quote_id") else ""
+        hist.append(f"{tag}[{m['created_at'][:16].replace('T', ' ')}] #{m['id']} {who}{re_}: {m['body']}{att}")
 
     (ws / "CONTEXT.md").write_text(f"""# Клиент: {name} (карточка {cid})
 Ниша: {client.get('niche') or '—'} · Продукт: {client.get('product') or '—'}
@@ -135,12 +137,20 @@ Instagram: {client.get('instagram') or '—'} · TikTok: {client.get('tiktok') o
     except Exception:
         log("сценарий не собрался", traceback.format_exc()[-800:])
     task_att = "".join(f"\n- files/{local(msg, a).name}" for a in (msg.get("attachments") or [])) or "\n- (файлов нет)"
+    quote_block = ""
+    if quoted:
+        qwho = "ИИ (твой ответ)" if quoted["author_type"] == "ai" else (quoted.get("author_name") or "сотрудник")
+        qatt = "".join(f"\n- files/{local(quoted, a).name}" for a in (quoted.get("attachments") or []))
+        quote_block = (f"\n## Человек ОТВЕЧАЕТ на сообщение #{quoted['id']} ({qwho}, {quoted['created_at'][:16].replace('T', ' ')})\n"
+                       f"Задача относится именно к нему — правь/обсуждай то, что в нём, а не последнее сообщение чата.\n"
+                       f"Если это твой ответ с файлом — переделывай этот файл/вариант.\n\n> " + (quoted.get("body") or "(без текста)")[:8000].replace("\n", "\n> ")
+                       + (f"\n\nФайлы того сообщения:{qatt}" if qatt else "") + "\n")
     (ws / "TASK.md").write_text(f"""# Чат: {THREAD_RU.get(msg.get('thread') or 'reels').upper()}. {THREAD_HINT.get(msg.get('thread') or 'reels')}
 
 # Текущая задача — сообщение #{mid} от {msg.get('author_name') or 'сотрудника'}
 
 {msg['body'] or '(без текста — смотри приложенные файлы)'}
-
+{quote_block}
 ## Приложено к этому сообщению{task_att}
 
 ## Куда класть результат
