@@ -89,6 +89,7 @@ export default function ClientDetailPage() {
   const [monthInit, setMonthInit] = useState(false);
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState("");
+  const [myTeamId, setMyTeamId] = useState<number | null>(null);
   const router = useRouter();
   const supabase = createClient();
 
@@ -115,6 +116,10 @@ export default function ClientDetailPage() {
       }
     }
     if (profile) setUserRole(profile.role);
+    const meTm = profile ? tm.find((t: any) => t.profile_id === profile.id) : null;
+    setMyTeamId(meTm?.id ?? null);
+    // монтажёр приходит в карточку монтировать через ИИ — сразу открываем «Чат · ИИ»
+    if (profile?.role === "montager" && c?.ai_chat && !new URLSearchParams(window.location.search).get("ctab")) setCtab((t) => (t === "work" ? "chat" : t));
     setOnbProgress(onb);
     setLoading(false);
   }
@@ -194,6 +199,11 @@ export default function ClientDetailPage() {
 
   if (loading) return <div style={{ color: "var(--t2)", padding: 40, textAlign: "center" }}>Загрузка...</div>;
   if (!client) return <div style={{ color: "var(--rd)", padding: 40 }}>Клиент не найден</div>;
+
+  // монтажёр видит только своих клиентов (основной или доп. монтажёр) и без управления клиентом
+  const isMont = userRole === "montager";
+  if (isMont && !(client.montager_id === myTeamId || (client.extra_montager_ids || []).includes(myTeamId as number)))
+    return <div style={{ color: "var(--t2)", padding: 40, textAlign: "center" }}>Этот клиент не закреплён за вами. Ваши клиенты — в разделе «Клиенты».</div>;
 
   const c = client;
   const todayIso = new Date().toISOString().slice(0, 10);
@@ -345,14 +355,14 @@ export default function ClientDetailPage() {
                 </a>
               );
             })}
-            {SOCIALS.every(({ key }) => !(c as any)[key]) && (
+            {!isMont && SOCIALS.every(({ key }) => !(c as any)[key]) && (
               <button className="add" onClick={() => { setEditData({ name: c.name, surname: c.surname, niche: c.niche, phone: c.phone, product: c.product, avg_check: c.avg_check, package: c.package, montager_id: c.montager_id, teamlead_id: c.teamlead_id, stage: c.stage, instagram: c.instagram, tiktok: c.tiktok, youtube: c.youtube, birthday: c.birthday || "" }); setEditing(true); }}>
                 + добавить соцсети
               </button>
             )}
           </div>
         </div>
-        <button className="v2-iconbtn" onClick={() => setMenuOpen(true)} aria-label="Действия" style={{ fontSize: 18, lineHeight: 1 }}>⋯</button>
+        {!isMont && <button className="v2-iconbtn" onClick={() => setMenuOpen(true)} aria-label="Действия" style={{ fontSize: 18, lineHeight: 1 }}>⋯</button>}
       </div>
 
       <Sheet open={menuOpen} onClose={() => setMenuOpen(false)} title={`${c.name} ${c.surname || ""}`} sub="действия по клиенту">
@@ -367,13 +377,13 @@ export default function ClientDetailPage() {
         </div>
       </Sheet>
 
-      <div className="v2-segc" style={{ gridTemplateColumns: isMobile ? "repeat(3, 1fr)" : "repeat(6, 1fr)" }}>
+      <div className="v2-segc" style={{ gridTemplateColumns: isMobile ? "repeat(3, 1fr)" : `repeat(${isMont ? 5 : 6}, 1fr)` }}>
         <button className={ctab === "work" ? "on" : ""} onClick={() => setCtab("work")}>Работа</button>
         <button className={ctab === "plan" ? "on" : ""} onClick={() => setCtab("plan")}>План</button>
         <button className={ctab === "stats" ? "on" : ""} onClick={() => setCtab("stats")}>Статистика</button>
         <button className={ctab === "strategy" ? "on" : ""} onClick={() => setCtab("strategy")}>Стратегия</button>
         <button className={ctab === "chat" ? "on" : ""} onClick={() => setCtab("chat")}>Чат{c.ai_chat ? " · ИИ" : ""}</button>
-        <button className={ctab === "set" ? "on" : ""} onClick={() => setCtab("set")}>Настройки</button>
+        {!isMont && <button className={ctab === "set" ? "on" : ""} onClick={() => setCtab("set")}>Настройки</button>}
       </div>
 
       {ctab === "stats" && <ClientStatsTab clientId={clientId} hasMetricool={!!c.metricool_blog_id} />}
@@ -384,7 +394,7 @@ export default function ClientDetailPage() {
         onChanged={load} onAskAI={c.ai_chat ? (d) => { setChatDraft(d); setChatThread("stories"); setCtab("chat"); } : undefined} />}
       {ctab === "strategy" && <ClientStrategyTab clientId={clientId} clientName={[c.name, c.surname].filter(Boolean).join(" ")} />}
 
-      {ctab === "set" && (
+      {ctab === "set" && !isMont && (
         <div className="v2-form">
           <div className="v2-fg">
             <h4>Контракт</h4>

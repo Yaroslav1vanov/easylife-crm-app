@@ -23,7 +23,7 @@ export function useCanEditReadyAt(): boolean {
   return r === "owner" || r === "admin";
 }
 // Разделы, доступные роли (для сайдбара и гварда маршрутов).
-const MONTAGER_SECTIONS = ["dashboard", "today", "plan", "montage", "references", "transcribe", "motivation", "guide"];
+const MONTAGER_SECTIONS = ["dashboard", "today", "plan", "montage", "references", "transcribe", "motivation", "guide", "clients"];   // clients — только свои: карточка и «Чат · ИИ» для монтажа
 export const ALLOWED_SECTIONS: Record<string, string[] | "all"> = {
   owner: "all", admin: "all", assistant: "all", teamlead: "all",
   montager: MONTAGER_SECTIONS,

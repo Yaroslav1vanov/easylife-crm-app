@@ -391,7 +391,7 @@ export default function ClientsPage() {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <TourButton onClick={() => setTourOpen(true)} />
-          <button type="button" data-tour="cl-add" onClick={() => setShowAdd(true)}>+ Клиент</button>
+          {role !== "montager" && <button type="button" data-tour="cl-add" onClick={() => setShowAdd(true)}>+ Клиент</button>}
         </div>
       </div>
 
