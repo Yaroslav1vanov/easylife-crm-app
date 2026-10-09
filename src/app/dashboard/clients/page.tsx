@@ -105,7 +105,8 @@ function ClientCard({
   accent: string;
   isOnboarding: boolean;
   onOpen: () => void;
-  onSetStage: (stage: "active" | "paused" | "churned") => void;
+  /** нет — монтажёр: статус клиента не меняет */
+  onSetStage?: (stage: "active" | "paused" | "churned") => void;
 }) {
   const tot = useMemo(() => totalMetrics(snapshots), [snapshots]);
   const plan = production.month?.package || client.package || production.total || 0;
@@ -201,7 +202,7 @@ function ClientCard({
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-        <select
+        {onSetStage && <select
           value={client.stage || "active"}
           onChange={(e) => onSetStage(e.target.value as "active" | "paused" | "churned")}
           title="Статус клиента"
@@ -210,7 +211,7 @@ function ClientCard({
           <option value="active">🟢 В работе</option>
           <option value="paused">⏸ На паузе</option>
           <option value="churned">📦 Архив</option>
-        </select>
+        </select>}
         {(client as any).metricool_blog_id != null && (
           <a href={`/api/metricool/open?blogId=${(client as any).metricool_blog_id}`} target="_blank" rel="noreferrer"
             style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 10px", borderRadius: 8, background: "rgba(66,212,244,0.12)", border: "1px solid var(--brd)", color: "var(--cy)", fontSize: 11, fontWeight: 700, textDecoration: "none" }}>
@@ -260,6 +261,8 @@ export default function ClientsPage() {
       const { data: { session } } = await supabase.auth.getSession();
       const meNow = session?.user?.id ? tm.find(t => t.profile_id === session.user.id) || null : null;
       cls = myClients(role, meNow, c);          // тимлид видит только своих клиентов
+      // монтажёру — только клиенты в работе: на паузе и в архиве ему монтировать нечего
+      if (role === "montager") cls = cls.filter(x => x.stage !== "paused" && x.stage !== "churned");
       setClients(cls);
       setTeam(tm);
       if (c.length === 0) {
@@ -460,7 +463,7 @@ export default function ClientsPage() {
       )}
 
       {/* Вкладки по статусу */}
-      <div data-tour="cl-tabs" style={{ display: "flex", gap: 8, marginBottom: 18, flexWrap: "wrap" }}>
+      {role !== "montager" && <div data-tour="cl-tabs" style={{ display: "flex", gap: 8, marginBottom: 18, flexWrap: "wrap" }}>
         {statusTabs.map(t => {
           const active = statusTab === t.key;
           return (
@@ -477,7 +480,7 @@ export default function ClientsPage() {
             </button>
           );
         })}
-      </div>
+      </div>}
 
       {showAdd && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.72)" }}>
@@ -551,7 +554,7 @@ export default function ClientsPage() {
                 accent={clientAccents[index % clientAccents.length]}
                 isOnboarding={(onbMap[client.id]?.pending_tasks ?? 0) > 0}
                 onOpen={() => router.push(`/dashboard/clients/${client.id}`)}
-                onSetStage={(stage) => setStage(client.id, stage)}
+                onSetStage={role === "montager" ? undefined : (stage) => setStage(client.id, stage)}
               />
             </div>
           ))}

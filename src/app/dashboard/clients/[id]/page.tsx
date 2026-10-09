@@ -204,6 +204,8 @@ export default function ClientDetailPage() {
   const isMont = userRole === "montager";
   if (isMont && !(client.montager_id === myTeamId || (client.extra_montager_ids || []).includes(myTeamId as number)))
     return <div style={{ color: "var(--t2)", padding: 40, textAlign: "center" }}>Этот клиент не закреплён за вами. Ваши клиенты — в разделе «Клиенты».</div>;
+  if (isMont && (client.stage === "paused" || client.stage === "churned"))
+    return <div style={{ color: "var(--t2)", padding: 40, textAlign: "center" }}>Клиент сейчас {client.stage === "paused" ? "на паузе" : "в архиве"} — работы по нему нет.</div>;
 
   const c = client;
   const todayIso = new Date().toISOString().slice(0, 10);
