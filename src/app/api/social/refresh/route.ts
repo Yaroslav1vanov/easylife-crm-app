@@ -13,13 +13,13 @@ import { requireUserOrCron } from "@/lib/apiGuard";
      engagement_rate = (лайки+комменты+шеры+сохранения)/просмотры ×100
      + история подписчиков (metricsHistory) пишется задним числом,
        чтобы «рост за 30 дней» появился сразу.
-   Источник 2 (запасной): Metricool — только для платформ, которых
-   в Viralmaxing нет, и только если у клиента привязан бренд.
+   Источник 2: Metricool — официальные данные подключённых аккаунтов (просмотры, подписчики);
+   без ключа Viralmaxing — основной. Только для клиентов с привязанным брендом.
    GET ?dry=1 — посчитать, не писать. Ответ содержит unmatched —
    кого стоит добавить в отслеживание Viralmaxing.
    ============================================================ */
 
-export const maxDuration = 60;
+export const maxDuration = 300; // ~12 брендов × 3 сети × 2 запроса к Metricool
 const VMX = "https://api.viralmaxing.com/api";
 const MC = "https://app.metricool.com/api";
 const VM_PLAT: Record<string, Plat> = { instagram: "ig", tiktok: "tt", youtube: "yt" };
@@ -111,53 +111,87 @@ export async function GET(req: Request) {
     } catch (e: any) { errors.push({ stage: "viralmaxing", error: String(e?.message || e) }); }
   }
 
-  /* ---------- Metricool (запасной) ---------- */
+  /* ---------- Metricool: официальные данные подключённых аккаунтов (основной источник без Viralmaxing) ----------
+     Instagram: просмотры = сумма views рилсов и постов, вышедших за 30 дней; подписчики = ряд followers.
+     TikTok:    просмотры = сумма viewCount видео за 30 дней; подписчики = followers_count.
+     YouTube:   просмотры = дневные просмотры канала за 30 дней; подписчики = totalSubscribers.
+     Берём только сети, реально подключённые к бренду; если у клиента задан список platforms — только их
+     (один бренд на две карточки клиента, как у Панченко). История подписчиков пишется задним числом. */
+  const followerHistory: { client_id: number; platform: Plat; snapshot_date: string; followers: number }[] = [];
   if (mcUser && mcToken) {
     const auth = `userToken=${encodeURIComponent(mcToken)}&userId=${encodeURIComponent(mcUser)}`;
     const headers = { "X-Mc-Auth": mcToken };
     const mcGet = async (path: string) => {
-      try { const r = await fetch(`${MC}${path}${path.includes("?") ? "&" : "?"}${auth}`, { headers, cache: "no-store" }); if (!r.ok) return null; return await r.json().catch(() => null); } catch { return null; }
+      const r = await fetch(`${MC}${path}${path.includes("?") ? "&" : "?"}${auth}`, { headers, cache: "no-store" });
+      if (!r.ok) throw new Error(`Metricool ${r.status} ${path.split("?")[0]}`);
+      return await r.json();
     };
-    const ci = (o: any, ...keys: string[]) => { if (!o || typeof o !== "object") return null; const low: Record<string, any> = {}; for (const k of Object.keys(o)) low[k.toLowerCase()] = o[k]; for (const k of keys) { const v = low[k.toLowerCase()]; if (v != null && v !== "") return v; } return null; };
     const listOf = (j: any): any[] => (Array.isArray(j?.data) ? j.data : Array.isArray(j) ? j : []);
-    const sumField = (arr: any[], ...keys: string[]) => { let s = 0, has = false; for (const it of arr) { const v = ci(it, ...keys); if (v != null) { s += Number(v) || 0; has = true; } } return has ? Math.round(s) : null; };
-    const compact = (d: Date) => ymd(d).replace(/-/g, "");
-    const range = `from=${ymd(from30)}T00:00:00&to=${snapDate}T23:59:59&timezone=Europe/Kyiv`;
+    const series = (j: any): { d: string; v: number }[] => {
+      const vals: any[] = Array.isArray(j?.data?.[0]?.values) ? j.data[0].values : [];
+      return vals.map(x => ({ d: String(x.dateTime || "").slice(0, 10), v: Number(x.value) })).filter(x => x.d && !isNaN(x.v)).sort((a, b) => (a.d < b.d ? -1 : 1));
+    };
+    const sum = (arr: any[], key: string) => arr.reduce((s, x) => s + (Number(x?.[key]) || 0), 0);
+
+    // какие сети реально подключены к каждому бренду
+    const brandNets = new Map<string, Set<Plat>>();
+    try {
+      for (const b of listOf(await mcGet(`/admin/simpleProfiles`))) {
+        const nets = new Set<Plat>();
+        if (b.instagram) nets.add("ig");
+        if (b.tiktok) nets.add("tt");
+        if (b.youtube || b.youtubeChannelName) nets.add("yt");
+        brandNets.set(String(b.blogId ?? b.id), nets);
+      }
+    } catch (e: any) { errors.push({ stage: "metricool brands", error: String(e?.message || e) }); }
 
     for (const c of clients) {
       if (!c.metricool_blog_id) continue;
       const blogId = c.metricool_blog_id;
-      const plats = ((c.platforms || []) as string[]).filter(p => MC_NET[p as Plat]) as Plat[];
+      const connected = brandNets.get(String(blogId));
+      if (!connected) { errors.push({ client_id: c.id, client: c.name, error: `бренда ${blogId} нет в Metricool — привяжите заново` }); continue; }
+      const wanted = ((c.platforms || []) as string[]).filter(p => MC_NET[p as Plat]) as Plat[];
+      const plats = (wanted.length ? wanted : (["ig", "tt", "yt"] as Plat[])).filter(p => connected.has(p));
+      const range = `from=${ymd(from30)}T00:00:00&to=${snapDate}T23:59:59&blogId=${blogId}`;
       for (const p of plats) {
         if (covered.has(`${c.id}:${p}`)) continue;
         try {
-          let followers: number | null = null, reach: number | null = null, er: number | null = null;
+          let followers: number | null = null, views: number | null = null, er: number | null = null, hist: { d: string; v: number }[] = [];
           if (p === "ig") {
-            const v = await mcGet(`/stats/values/INSTAGRAM?start=${compact(from30)}&end=${compact(today)}&blogId=${blogId}`);
-            followers = int(ci(v, "Followers", "followers"));
-            if (followers == null) {
-              const tl = listOf(await mcGet(`/stats/timeline/Followers?start=${compact(from30)}&end=${compact(today)}&blogId=${blogId}`));
-              const last = tl[tl.length - 1];
-              const val = last ? (Array.isArray(last) ? Number(last[1]) : Number(ci(last, "value", "followers", "Followers", "y"))) : NaN;
-              followers = isNaN(val) || val === 0 ? null : Math.round(val);
-            }
-            const all = [...listOf(await mcGet(`/v2/analytics/posts/instagram?${range}&blogId=${blogId}`)), ...listOf(await mcGet(`/v2/analytics/reels/instagram?${range}&blogId=${blogId}`))];
-            reach = sumField(all, "reach");
-            const inter = sumField(all, "interactions");
-            er = reach && inter != null ? Math.round((inter / reach) * 10000) / 100 : null;
+            const items = [...listOf(await mcGet(`/v2/analytics/reels/instagram?${range}`)), ...listOf(await mcGet(`/v2/analytics/posts/instagram?${range}`))];
+            views = items.length ? sum(items, "views") : 0;
+            const inter = sum(items, "interactions");
+            er = views ? Math.round((inter / views) * 10000) / 100 : null;
+            hist = series(await mcGet(`/v2/analytics/timelines?network=instagram&subject=account&metric=followers&${range}`));
           } else if (p === "tt") {
-            reach = sumField(listOf(await mcGet(`/v2/analytics/posts/tiktok?${range}&blogId=${blogId}`)), "viewCount", "views");
+            const vids = listOf(await mcGet(`/v2/analytics/posts/tiktok?${range}`));
+            views = vids.length ? sum(vids, "viewCount") : 0;
+            const inter = sum(vids, "likeCount") + sum(vids, "commentCount") + sum(vids, "shareCount");
+            er = views ? Math.round((inter / views) * 10000) / 100 : null;
+            hist = series(await mcGet(`/v2/analytics/timelines?network=tiktok&subject=account&metric=followers_count&${range}`));
           } else {
-            reach = sumField(listOf(await mcGet(`/stats/youtube/videos?start=${compact(from30)}&end=${compact(today)}&blogId=${blogId}`)), "views", "viewCount");
+            views = series(await mcGet(`/v2/analytics/timelines?network=youtube&subject=account&metric=views&scope=all&${range}`)).reduce((s, x) => s + x.v, 0);
+            hist = series(await mcGet(`/v2/analytics/timelines?network=youtube&subject=account&metric=totalSubscribers&${range}`));
           }
-          if (followers == null && reach == null) continue; // Metricool пуст — не затираем
-          rowsOut.push({ client_id: c.id, client: c.name, platform: p, snapshot_date: snapDate, followers, reach_30d: reach, engagement_rate: er, source: "metricool" });
-        } catch (e: any) { errors.push({ client_id: c.id, platform: p, error: String(e?.message || e) }); }
+          hist = hist.filter(x => x.v > 0);
+          if (hist.length) {
+            followers = Math.round(hist[hist.length - 1].v);
+            for (const h of hist) if (h.d < snapDate) followerHistory.push({ client_id: c.id, platform: p, snapshot_date: h.d, followers: Math.round(h.v) });
+          }
+          if (followers == null && !views) continue; // Metricool пуст — не затираем прошлые цифры
+          rowsOut.push({ client_id: c.id, client: c.name, platform: p, snapshot_date: snapDate, followers, reach_30d: views, engagement_rate: er, source: "metricool" });
+          covered.add(`${c.id}:${p}`);
+        } catch (e: any) { errors.push({ client_id: c.id, client: c.name, platform: p, error: String(e?.message || e) }); }
       }
+    }
+    // клиенты вне Metricool и вне Viralmaxing — чтобы было видно, кого подключить
+    for (const c of clients) {
+      if (c.stage !== "active") continue;
+      if (!c.metricool_blog_id && !["ig", "tt", "yt"].some(p => covered.has(`${c.id}:${p}`))) unmatched.push({ client_id: c.id, client: c.name, note: "нет бренда Metricool" });
     }
   }
 
-  if (dry) return NextResponse.json({ ok: true, dry: true, rows: rowsOut, avatars: Array.from(avatarFor.entries()), unmatched, noHandle, errors });
+  if (dry) return NextResponse.json({ ok: true, dry: true, rows: rowsOut, history: followerHistory.length, avatars: Array.from(avatarFor.entries()), unmatched, noHandle, errors });
 
   let avatarsSet = 0;
   for (const [cid, url2] of Array.from(avatarFor.entries())) { const { error } = await sb.from("clients").update({ avatar_url: url2 }).eq("id", cid); if (!error) avatarsSet++; }
@@ -169,10 +203,15 @@ export async function GET(req: Request) {
     );
     if (error) errors.push({ client_id: row.client_id, platform: row.platform, error: error.message }); else written++;
   }
+  let history = 0;
+  for (let i = 0; i < followerHistory.length; i += 200) {
+    const { error } = await sb.from("social_snapshots").upsert(followerHistory.slice(i, i + 200), { onConflict: "client_id,platform,snapshot_date" });
+    if (error) errors.push({ stage: "история подписчиков", error: error.message }); else history += Math.min(200, followerHistory.length - i);
+  }
   return NextResponse.json({
-    ok: true, written, avatarsSet, snapDate,
+    ok: true, written, history, avatarsSet, snapDate,
     viralmaxing: rowsOut.filter(r => r.source === "viralmaxing").map(r => ({ client: r.client, platform: r.platform, followers: r.followers, views30: r.reach_30d, er: r.engagement_rate, posts: r.posts })),
-    metricool: rowsOut.filter(r => r.source === "metricool").map(r => ({ client: r.client, platform: r.platform, followers: r.followers, reach30: r.reach_30d })),
+    metricool: rowsOut.filter(r => r.source === "metricool").map(r => ({ client: r.client, platform: r.platform, followers: r.followers, views30: r.reach_30d, er: r.engagement_rate })),
     unmatched, noHandle, errors,
   });
 }
