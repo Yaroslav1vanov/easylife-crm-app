@@ -19,6 +19,7 @@ import { handleOf } from "@/lib/socialHandles";
 import { notify } from "@/components/NoticeHost";
 import { avatarFromClientSocials } from "@/lib/avatarFromSocial";
 import ClientStatsTab from "@/components/ClientStatsTab";
+import PlanFactTab from "@/components/stats/PlanFactTab";
 import ClientStrategyTab from "@/components/strategy/ClientStrategyTab";
 import ClientChatTab from "@/components/chat/ClientChatTab";
 import ClientPlanTab from "@/components/plan/ClientPlanTab";
@@ -90,6 +91,7 @@ export default function ClientDetailPage() {
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState("");
   const [myTeamId, setMyTeamId] = useState<number | null>(null);
+  const [statsView, setStatsView] = useState<"stats" | "planfact">("stats");
   const router = useRouter();
   const supabase = createClient();
 
@@ -388,7 +390,15 @@ export default function ClientDetailPage() {
         {!isMont && <button className={ctab === "set" ? "on" : ""} onClick={() => setCtab("set")}>Настройки</button>}
       </div>
 
-      {ctab === "stats" && <ClientStatsTab clientId={clientId} hasMetricool={!!c.metricool_blog_id} />}
+      {ctab === "stats" && !isMont && (
+        <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+          {([["stats", "Аналитика"], ["planfact", "План / факт"]] as const).map(([k, l]) => (
+            <button key={k} onClick={() => setStatsView(k)} className={`v2-act ${statsView === k ? "pri" : "ghost"}`} style={{ height: 34 }}>{l}</button>
+          ))}
+        </div>
+      )}
+      {ctab === "stats" && (statsView === "stats" || isMont) && <ClientStatsTab clientId={clientId} hasMetricool={!!c.metricool_blog_id} />}
+      {ctab === "stats" && statsView === "planfact" && !isMont && <PlanFactTab clientId={clientId} />}
       {ctab === "chat" && <ClientChatTab clientId={clientId} aiEnabled={!!c.ai_chat} draft={chatDraft} initialThread={chatThread} />}
       {ctab === "plan" && <ClientPlanTab client={c} scripts={scripts}
         monthOptions={clientMonths.filter(m => m.status !== "cancelled").map(m => m.month_number).sort((a, b) => a - b)}
