@@ -6,6 +6,7 @@ import { useIsOwner } from "@/components/RoleContext";
 import { AI_FEATURES, AI_MODEL_OPTIONS, type AiFeature } from "@/lib/aiModels";
 import { PROMPT_FIELDS, PROMPT_KEYS } from "@/lib/adapterPrompts";
 import { DEFAULT_IG_RULES, IG_RULES_KEY } from "@/lib/igRules";
+import { DEFAULT_FORECAST_BENCHMARKS, FORECAST_BENCHMARKS_KEY } from "@/lib/forecast";
 import { AI_VIA_KEY } from "@/lib/aiVia";
 import { Sun, Moon, Sparkles } from "lucide-react";
 
@@ -25,7 +26,7 @@ export default function SettingsPage() {
     const m: any = {}, pr: Record<string, string> = {};
     for (const r of data || []) {
       if (String(r.key).startsWith("ai_model.")) m[String(r.key).replace("ai_model.", "")] = r.value;
-      if (String(r.key).startsWith("prompt.") || r.key === IG_RULES_KEY || r.key === AI_VIA_KEY) pr[String(r.key)] = r.value || "";
+      if (String(r.key).startsWith("prompt.") || r.key === IG_RULES_KEY || r.key === AI_VIA_KEY || r.key === FORECAST_BENCHMARKS_KEY) pr[String(r.key)] = r.value || "";
     }
     setModels(m); setPrompts(pr);
   })(); }, []);
@@ -131,6 +132,21 @@ export default function SettingsPage() {
         <div className="v2-hint" style={{ margin: "6px 0 10px" }}>По этим правилам ИИ проверяет сценарий кнопкой «Проверить на стоп-слова». Нашли новое слово или правило — допишите сюда, проверка сразу его учтёт.</div>
         {!tableMissing && <textarea key={`ig-${prompts[IG_RULES_KEY] ? 1 : 0}`} defaultValue={prompts[IG_RULES_KEY] || DEFAULT_IG_RULES} rows={14} disabled={!isOwner}
           onBlur={e => { const v = e.target.value.trim(); const cur = prompts[IG_RULES_KEY] || DEFAULT_IG_RULES; if (v !== cur.trim()) savePrompt(IG_RULES_KEY, v === DEFAULT_IG_RULES.trim() ? "" : v); }}
+          style={{ width: "100%", padding: "10px 12px", borderRadius: 9, background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 12.5, outline: "none", resize: "vertical", fontFamily: "inherit", lineHeight: 1.5 }} />}
+      </div>
+
+      <div className="v2-fg" style={{ marginTop: 14 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <h4 style={{ margin: 0 }}>Наши цифры для прогноза</h4>
+          <span style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "center" }}>
+            {promptSaved === FORECAST_BENCHMARKS_KEY && <span className="v2-chip gr">✓ сохранено</span>}
+            {prompts[FORECAST_BENCHMARKS_KEY] ? <span className="v2-chip pu">свои цифры</span> : <span className="v2-chip mut">стартовые</span>}
+            {prompts[FORECAST_BENCHMARKS_KEY] && isOwner && <button className="v2-act ghost" style={{ height: 28 }} onClick={() => savePrompt(FORECAST_BENCHMARKS_KEY, "")}>Вернуть стартовые</button>}
+          </span>
+        </div>
+        <div className="v2-hint" style={{ margin: "6px 0 10px" }}>Реальные конверсии наших проектов. ИИ берёт их как потолок для прогноза клиенту: базовый сценарий никогда не выше лучшего факта отсюда. Появился новый кейс с цифрами — допишите, следующий прогноз его учтёт.</div>
+        {!tableMissing && <textarea key={`fc-${prompts[FORECAST_BENCHMARKS_KEY] ? 1 : 0}`} defaultValue={prompts[FORECAST_BENCHMARKS_KEY] || DEFAULT_FORECAST_BENCHMARKS} rows={16} disabled={!isOwner}
+          onBlur={e => { const v = e.target.value.trim(); const cur = prompts[FORECAST_BENCHMARKS_KEY] || DEFAULT_FORECAST_BENCHMARKS; if (v !== cur.trim()) savePrompt(FORECAST_BENCHMARKS_KEY, v === DEFAULT_FORECAST_BENCHMARKS.trim() ? "" : v); }}
           style={{ width: "100%", padding: "10px 12px", borderRadius: 9, background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 12.5, outline: "none", resize: "vertical", fontFamily: "inherit", lineHeight: 1.5 }} />}
       </div>
     </div>

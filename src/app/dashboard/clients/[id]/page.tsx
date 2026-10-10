@@ -394,7 +394,7 @@ export default function ClientDetailPage() {
         monthOptions={clientMonths.filter(m => m.status !== "cancelled").map(m => m.month_number).sort((a, b) => a - b)}
         canEdit={userRole !== "montager"} canEditReadyAt={userRole === "owner" || userRole === "admin"}
         onChanged={load} onAskAI={c.ai_chat ? (d) => { setChatDraft(d); setChatThread("stories"); setCtab("chat"); } : undefined} />}
-      {ctab === "strategy" && <ClientStrategyTab clientId={clientId} clientName={[c.name, c.surname].filter(Boolean).join(" ")} />}
+      {ctab === "strategy" && <ClientStrategyTab clientId={clientId} clientName={[c.name, c.surname].filter(Boolean).join(" ")} canPlan={!isMont} />}
 
       {ctab === "set" && !isMont && (
         <div className="v2-form">

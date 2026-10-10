@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createAdmin } from "@/lib/supabase-admin";
 import { r2 } from "@/lib/r2";
+import { metricoolProfile } from "@/lib/metricoolProfile";
+import { DEFAULT_FORECAST_BENCHMARKS, FORECAST_BENCHMARKS_KEY, unpackingToText } from "@/lib/forecast";
 
 /* Канал для ИИ-исполнителя чата по клиенту (работает на нашем сервере).
    Только по секрету x-agent-secret, работает служебным ключом.
@@ -12,7 +14,8 @@ import { r2 } from "@/lib/r2";
    POST {op:"progress", id, body}         → промежуточное сообщение ИИ (вопрос, «начал монтаж»)
    POST {op:"upload", client_id, filename} → ссылка, чтобы залить готовый файл
    POST {op:"download", key}              → ссылка, чтобы скачать файл из чата
-   POST {op:"script_update", id, script_id, fields} → записать согласованный текст в сценарий */
+   POST {op:"script_update", id, script_id, fields} → записать согласованный текст в сценарий
+   POST {op:"doc_save", id, kind:"forecast", title, file_key, data, body} → прогноз новой версией документа клиента */
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -115,7 +118,23 @@ export async function GET(req: Request) {
     }
     const sid = m.script_id || quoted?.script_id || (history || []).find((h: any) => h.script_id)?.script_id || null;
     const script = sid ? await scriptContext(sb, sid, cid) : null;
-    jobs.push({ message: m, client, brand_kit: brand?.kit || null, strategy: strategy?.body || null, history: (history || []).reverse(), script, quoted, ...(await folder(sb, cid)) });
+    // чат «Стратегия»: для прогноза — распаковка, «Наши цифры» и свежий снимок профиля из Metricool
+    let planning: any = null;
+    if (m.thread === "strategy") {
+      const [{ data: unp }, { data: bench }, { data: cm }] = await Promise.all([
+        sb.from("client_documents").select("version, data, created_at, author_name").eq("client_id", cid).eq("kind", "unpacking").eq("is_current", true).maybeSingle(),
+        sb.from("app_settings").select("value").eq("key", FORECAST_BENCHMARKS_KEY).maybeSingle(),
+        sb.from("clients").select("metricool_blog_id, package").eq("id", cid).maybeSingle(),
+      ]);
+      let profile = "Бренд Metricool у клиента не привязан — цифр профиля нет. Не выдумывай их: опирайся на STATS.md, если там что-то есть, и пиши «нет данных».";
+      if (cm?.metricool_blog_id) { try { profile = await metricoolProfile(cm.metricool_blog_id); } catch (e: any) { profile = `Снимок профиля не собрался: ${e?.message || e}`; } }
+      planning = {
+        unpacking: unp ? `# Распаковка (версия ${unp.version}, ${String(unp.created_at).slice(0, 10)}, ${unp.author_name || "—"})\n\n${unpackingToText(unp.data || {})}` : "# Распаковка\n\nРаспаковки нет — все поля пустые. Перечисли, что нужно спросить у клиента, и считай с пометкой «допущение».",
+        benchmarks: (bench?.value || "").trim() || DEFAULT_FORECAST_BENCHMARKS,
+        profile, package: cm?.package ?? null,
+      };
+    }
+    jobs.push({ message: m, client, brand_kit: brand?.kit || null, strategy: strategy?.body || null, history: (history || []).reverse(), script, quoted, planning, ...(await folder(sb, cid)) });
   }
   return NextResponse.json({ jobs });
 }
@@ -176,6 +195,26 @@ export async function POST(req: Request) {
     const { error } = await sb.from("scripts").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", sid);
     if (error) return bad(error.message, 500);
     return NextResponse.json({ ok: true, updated: Object.keys(patch), previous: Object.fromEntries(Object.keys(patch).map(k => [k, (s as any)[k]])) });
+  }
+
+  // ИИ сделал прогноз: forecast.html (+ PDF) уже в хранилище — сохраняем новой версией документа клиента
+  if (b.op === "doc_save") {
+    const { data: m } = await sb.from("client_chat_messages").select("id, client_id").eq("id", b.id).maybeSingle();
+    if (!m) return bad("нет такой задачи", 404);
+    if (b.kind !== "forecast") return bad("можно сохранять только прогноз");
+    const key = String(b.file_key || "");
+    if (!key.startsWith(`strategy/${m.client_id}/`) || key.includes("..")) return bad("чужой файл");
+    const { data: last } = await sb.from("client_documents").select("version").eq("client_id", m.client_id).eq("kind", "forecast").order("version", { ascending: false }).limit(1);
+    const version = ((last?.[0]?.version as number) || 0) + 1;
+    await sb.from("client_documents").update({ is_current: false }).eq("client_id", m.client_id).eq("kind", "forecast");
+    const { error } = await sb.from("client_documents").insert({
+      client_id: m.client_id, kind: "forecast", version, is_current: true, status: "draft",
+      title: String(b.title || `Прогноз · версия ${version}`).slice(0, 200), file_key: key,
+      data: b.data && typeof b.data === "object" ? b.data : null, body: typeof b.body === "string" ? b.body.slice(0, 20000) : null,
+      author_name: "ИИ", note: `задача чата #${m.id}`,
+    });
+    if (error) return bad(error.message, 500);
+    return NextResponse.json({ ok: true, version });
   }
 
   // исполнитель перезапустился посреди задачи — возвращаем её в очередь, он доделает с того же места

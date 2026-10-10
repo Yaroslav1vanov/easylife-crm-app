@@ -140,6 +140,18 @@ Instagram: {client.get('instagram') or '—'} · TikTok: {client.get('tiktok') o
         write_script(ws, job.get("script"))
     except Exception:
         log("сценарий не собрался", traceback.format_exc()[-800:])
+    # чат «Стратегия»: распаковка, «Наши цифры», снимок профиля и методика прогноза
+    pl = job.get("planning")
+    for name, key in (("UNPACKING.md", "unpacking"), ("BENCHMARKS.md", "benchmarks"), ("PROFILE.md", "profile")):
+        f = ws / name
+        if pl and pl.get(key):
+            f.write_text(pl[key])
+        else:
+            f.unlink(missing_ok=True)
+    if pl and (HOME / "FORECAST.md").exists():
+        (ws / "FORECAST.md").write_text((HOME / "FORECAST.md").read_text())
+    else:
+        (ws / "FORECAST.md").unlink(missing_ok=True)
     task_att = "".join(f"\n- files/{local(msg, a).name}" for a in (msg.get("attachments") or [])) or "\n- (файлов нет)"
     quote_block = ""
     if quoted:
@@ -160,7 +172,7 @@ Instagram: {client.get('instagram') or '—'} · TikTok: {client.get('tiktok') o
 ## Куда класть результат
 - Ответ человеку: out/{mid}/reply.md
 - Готовые файлы (ролик, кадры сторис): out/{mid}/ — всё из этой папки уйдёт в чат
-{SCRIPT_HINT.format(mid=mid) if job.get("script") else ""}""")
+{SCRIPT_HINT.format(mid=mid) if job.get("script") else ""}{FORECAST_HINT.format(mid=mid, pkg=(pl or {}).get("package") or "не указан") if pl else ""}""")
     return ws, out
 
 
@@ -170,6 +182,13 @@ SCRIPT_HINT = """
 Записать согласованный текст в сценарий — ТОЛЬКО когда человек прямо сказал («записывай», «вноси в сценарий», «сохрани»):
 out/{mid}/script.json → {{"hook_text": "тема", "hook": "хук", "body_text": "основной текст", "cta": "призыв", "post_caption": "описание к ролику"}}
 (только те поля, что меняются; прежний текст CRM вернёт в журнал).
+"""
+
+
+FORECAST_HINT = """
+## Прогноз (если просят прогноз-стратегию)
+Методика — FORECAST.md. Данные: UNPACKING.md, PROFILE.md, BENCHMARKS.md, DOCS.md (аудит). Пакет в карточке клиента: {pkg} роликов в месяц.
+Результат: out/{mid}/forecast.html + out/{mid}/forecast.json + out/{mid}/reply.md. PDF и сохранение во вкладку «Стратегия» → «Прогноз» сделает исполнитель.
 """
 
 
@@ -364,6 +383,12 @@ def handle(job):
         finally:
             mark.unlink(missing_ok=True)   # при убийстве процесса сюда не дойдём — метка останется
         reply = (out / "reply.md").read_text().strip() if (out / "reply.md").exists() else (res.get("result") or "").strip()
+        fh = out / "forecast.html"   # прогноз → PDF для клиента (тот же документ, по слайду на страницу)
+        if fh.exists() and not (out / "forecast.pdf").exists():
+            try:
+                subprocess.run(["node", str(HOME / "bin" / "html2pdf.mjs"), str(fh), str(out / "forecast.pdf")], timeout=180, check=True, capture_output=True)
+            except Exception as e:
+                log("прогноз: PDF не собрался", str(e)[:300])
         atts = []
         for f in sorted(out.iterdir()):
             if f.is_file() and f.name != "reply.md" and MEDIA.search(f.name) and f.stat().st_size < 500 * 1048576:
@@ -379,6 +404,19 @@ def handle(job):
             except Exception as e:
                 log("сценарий не записался", e)
                 reply = (reply or "") + f"\n\n⚠ В сценарий не записалось: {str(e)[:200]}"
+        if fh.exists():                    # прогноз → новая версия во вкладке «Стратегия» → «Прогноз»
+            try:
+                keys = {a["name"]: a["key"] for a in atts}
+                fj = out / "forecast.json"
+                data = json.loads(fj.read_text()) if fj.exists() else {}
+                if keys.get("forecast.pdf"):
+                    data["pdf_key"] = keys["forecast.pdf"]
+                title = str(data.get("title") or f"Прогноз · {job['client'].get('name') or ''}").strip()
+                r = api_post(op="doc_save", id=mid, kind="forecast", title=title, file_key=keys["forecast.html"], data=data)
+                reply = (reply or "Готово.") + f"\n\nПрогноз сохранён: вкладка «Стратегия» → «Прогноз», версия {r.get('version')}, статус «черновик»."
+            except Exception as e:
+                log("прогноз не сохранился", e)
+                reply = (reply or "") + f"\n\n⚠ Прогноз не сохранился во вкладку «Прогноз»: {str(e)[:200]}. Файл есть выше в чате."
         upd = out / "assets.json"          # ИИ разобрал медиатеку → подписи и темы в CRM
         if upd.exists():
             try:
