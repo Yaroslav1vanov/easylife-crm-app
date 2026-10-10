@@ -1,14 +1,17 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
 import { requireUser } from "@/lib/apiGuard";
+import { linkPublishedReels } from "@/lib/linkReels";
 
 /* «План / факт» клиента за контрактный месяц.
    GET ?month=N (без — текущий месяц по датам) →
      months  — все контрактные месяцы клиента; month — выбранный (даты);
      plan    — план тимлида на месяц (client_plans);
-     daily   — просмотры по дням (аналитика: IG и YouTube по аккаунту, TikTok по видео);
+     monthReels — ролики, реально вышедшие в соцсетях за месяц, с просмотрами (аналитика); заодно
+               ссылки на них проставляются в карточки сценариев (linkPublishedReels);
+     daily   — ВСЕ просмотры аккаунта по дням (старые ролики, посты, сторис) — только для контекста;
      followers — подписчики по дням (сумма сетей) из social_snapshots;
-     reels   — вышедшие ролики по дням (опубликованные сценарии + публикации без сценария);
+     reels   — вышедшие ролики по дням (по аналитике; без бренда — по CRM);
      weeks   — ручной факт тимлида по неделям (кодовые слова, заявки, консультации, продажи);
      forecast — месяцы из актуального прогноза (для «Взять из прогноза»). */
 export const dynamic = "force-dynamic";
@@ -48,7 +51,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   const cid = Number(params.id);
   const sb = createClient();
   const [{ data: client }, { data: months }] = await Promise.all([
-    sb.from("clients").select("id, metricool_blog_id, package").eq("id", cid).maybeSingle(),
+    sb.from("clients").select("id, metricool_blog_id, package, timezone, platforms").eq("id", cid).maybeSingle(),
     sb.from("client_months").select("month_number, start_date, end_date, package, status").eq("client_id", cid).neq("status", "cancelled").order("month_number"),
   ]);
   if (!client) return NextResponse.json({ error: "клиент не найден" }, { status: 404 });
@@ -80,13 +83,24 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     last[s.platform] = s.followers;
     followers[s.snapshot_date] = Object.values(last).reduce((a, b) => a + b, 0);
   }
+  // ролики месяца — по факту в соцсетях; один ролик в Instagram и TikTok считается одним роликом
+  let monthReels: any[] = [];
+  try { monthReels = (await linkPublishedReels(sb, client as any)).reels.filter(r => r.date >= from && r.date <= to); } catch {}
   const reels: Record<string, number> = {};
-  for (const s of scr || []) if (s.pub_date) reels[s.pub_date.slice(0, 10)] = (reels[s.pub_date.slice(0, 10)] || 0) + 1;
-  for (const p of pubs || []) if (p.publish_at) reels[p.publish_at.slice(0, 10)] = (reels[p.publish_at.slice(0, 10)] || 0) + 1;
+  if (monthReels.length) {
+    const perNet: Record<string, Record<string, number>> = {};
+    for (const r of monthReels) { (perNet[r.net] ||= {})[r.date] = ((perNet[r.net] ||= {})[r.date] || 0) + 1; }
+    const main = perNet.instagram ? "instagram" : Object.keys(perNet).sort((a, b) => Object.keys(perNet[b]).length - Object.keys(perNet[a]).length)[0];
+    Object.assign(reels, perNet[main]);
+  } else {
+    for (const s of scr || []) if (s.pub_date) reels[s.pub_date.slice(0, 10)] = (reels[s.pub_date.slice(0, 10)] || 0) + 1;
+    for (const p of pubs || []) if (p.publish_at) reels[p.publish_at.slice(0, 10)] = (reels[p.publish_at.slice(0, 10)] || 0) + 1;
+  }
 
   return NextResponse.json({
     months, month, today, plan: plan || null, weeks: weeks || [],
-    daily: views.byDate, viewsNote: views.note, followers, reels,
+    daily: views.byDate, viewsNote: views.note, followers, reels, monthReels,
+    reelsSource: monthReels.length ? "соцсети" : "CRM",
     forecast: fc?.data?.months ? { version: fc.version, status: fc.status, months: fc.data.months } : null,
     packageSize: month.package || client.package || null,
   });

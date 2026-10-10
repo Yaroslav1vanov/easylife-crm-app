@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
 import { fetchClipStats } from "@/lib/scrape";
 import { requireUser } from "@/lib/apiGuard";
+import { linkPublishedReels } from "@/lib/linkReels";
 
 // Обновляет «дуэль»: свежая статистика исходника (ref_url) и нашего видео (video_url).
 export async function POST(_req: Request, { params }: { params: { id: string } }) {
@@ -12,10 +13,20 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
   if (!id) return NextResponse.json({ error: "bad id" }, { status: 400 });
 
   const sb = createClient();
-  const { data: s } = await sb.from("scripts").select("id, ref_url, video_url, published_url").eq("id", id).maybeSingle();
+  let { data: s } = await sb.from("scripts").select("id, client_id, ref_url, video_url, published_url").eq("id", id).maybeSingle();
   if (!s) return NextResponse.json({ error: "сценарий не найден" }, { status: 404 });
+  // ссылки на вышедший ролик ещё нет — ищем его среди реальных постов клиента (аналитика)
+  if (!s.published_url) {
+    const { data: c } = await sb.from("clients").select("id, metricool_blog_id, timezone, platforms").eq("id", s.client_id).maybeSingle();
+    if (c?.metricool_blog_id) {
+      try { await linkPublishedReels(sb, c as any); } catch {}
+      const { data: again } = await sb.from("scripts").select("id, client_id, ref_url, video_url, published_url").eq("id", id).maybeSingle();
+      if (again) s = again;
+    }
+  }
 
   const patch: any = {};
+  if (s.published_url) patch.published_url = s.published_url;   // могла найтись только что — пусть карточка её покажет
   // исходник
   if (s.ref_url) {
     const src = await fetchClipStats(s.ref_url, key);

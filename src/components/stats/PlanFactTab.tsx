@@ -12,7 +12,7 @@ import { notify } from "@/components/NoticeHost";
 type Metric = "reels" | "views" | "followers" | "codewords" | "leads" | "calls" | "sales";
 const METRICS: { k: Metric; label: string; auto: boolean; hint: string }[] = [
   { k: "reels", label: "Роликов", auto: true, hint: "вышло роликов" },
-  { k: "views", label: "Просмотры", auto: true, hint: "все сети, по дням" },
+  { k: "views", label: "Просмотры", auto: true, hint: "роликов этого месяца" },
   { k: "followers", label: "Новые подписчики", auto: true, hint: "прирост за месяц" },
   { k: "codewords", label: "Кодовые слова", auto: false, hint: "входы в директ" },
   { k: "leads", label: "Заявки / переписки", auto: false, hint: "дошли до диалога" },
@@ -26,6 +26,7 @@ type Data = {
   months: { month_number: number; start_date: string; end_date: string }[]; month: { month_number: number; start_date: string; end_date: string };
   today: string; plan: { metrics: Plan; source: string; updated_by: string | null; updated_at: string } | null; weeks: Week[];
   daily: Record<string, number>; viewsNote: string; followers: Record<string, number>; reels: Record<string, number>;
+  monthReels: { date: string; net: string; url: string | null; title: string; views: number }[]; reelsSource: string;
   forecast: { version: number; status: string | null; months: any[] } | null;
 };
 
@@ -77,7 +78,8 @@ export default function PlanFactTab({ clientId }: { clientId: number }) {
     const fStart = fDates.find(x => x >= addDays(start, -3)), fEnd = fDates.filter(x => x <= last).pop();
     const fact: Record<Metric, number | null> = {
       reels: days.filter(x => x <= last).reduce((s, x) => s + (d.reels[x] || 0), 0),
-      views: views.reduce((s: number, v) => s + (v || 0), 0),
+      // просмотры роликов, вышедших в этом месяце (а не всего аккаунта со старыми роликами и сторис)
+      views: d.monthReels.length ? d.monthReels.reduce((s, r) => s + (r.views || 0), 0) : views.reduce((s: number, v) => s + (v || 0), 0),
       followers: fStart && fEnd ? d.followers[fEnd] - d.followers[fStart] : null,
       codewords: null, leads: null, calls: null, sales: null,
     };
@@ -91,7 +93,10 @@ export default function PlanFactTab({ clientId }: { clientId: number }) {
     // самое слабое звено: конверсии факта против плана
     const steps: { k: Metric; ratio: number }[] = [];
     const rate = (a: number | null | undefined, b: number | null | undefined) => (a != null && b ? a / b : null);
-    const pace = (k: Metric) => (plan[k] && elapsed ? (fact[k] ?? 0) / ((plan[k] as number) * elapsed / total) : null);
+    // просмотры зависят от того, сколько роликов вышло, поэтому их «план на сегодня» = план на ролик × вышло роликов
+    const perReel = plan.views && plan.reels ? (plan.views as number) / (plan.reels as number) : null;
+    const dueOf = (k: Metric) => (k === "views" && perReel && fact.reels ? perReel * (fact.reels as number) : plan[k] ? (plan[k] as number) * elapsed / total : null);
+    const pace = (k: Metric) => { const due = dueOf(k); return due && elapsed ? (fact[k] ?? 0) / due : null; };
     const pv = pace("views"); if (pv != null) steps.push({ k: "views", ratio: pv });
     const pairs: [Metric, Metric][] = [["views", "codewords"], ["codewords", "leads"], ["leads", "calls"], ["calls", "sales"]];
     for (const [a, b] of pairs) {
@@ -99,7 +104,10 @@ export default function PlanFactTab({ clientId }: { clientId: number }) {
       if (pr && fr != null && (fact[a] || 0) > 0) steps.push({ k: b, ratio: fr / pr });
     }
     const weakest = steps.filter(s => s.ratio < 0.7).sort((a, b) => a.ratio - b.ratio)[0] || null;
-    return { start, end, total, elapsed, days, views, fact, plan, weeks, weakest, last };
+    const paceEnd = (k: Metric) => k === "views" && perReel && fact.reels
+      ? (fact.views as number) / (fact.reels as number) * ((plan.reels as number) || 0)
+      : fact[k] != null && elapsed ? (fact[k] as number) / elapsed * total : null;
+    return { start, end, total, elapsed, days, views, fact, plan, weeks, weakest, last, perReel, dueOf, paceEnd };
   }, [d]);
 
   async function me() {
@@ -140,7 +148,7 @@ export default function PlanFactTab({ clientId }: { clientId: number }) {
   }
   async function askAI() {
     if (!d || !calc) return;
-    const lines = METRICS.map(m => `${m.label}: план ${fmt(calc.plan[m.k])}, факт ${fmt(calc.fact[m.k])}${calc.plan[m.k] && calc.elapsed ? `, темп к концу месяца ${fmt((calc.fact[m.k] ?? 0) / calc.elapsed * calc.total)}` : ""}`);
+    const lines = METRICS.map(m => `${m.label}: план ${fmt(calc.plan[m.k])}, факт ${fmt(calc.fact[m.k])}${calc.plan[m.k] && calc.paceEnd(m.k) != null ? `, темп к концу месяца ${fmt(calc.paceEnd(m.k))}` : ""}`);
     const body = `📊 План / факт, месяц M${d.month.month_number} (${ddmm(calc.start)}–${ddmm(calc.end)}, прошло ${calc.elapsed} из ${calc.total} дней):\n${lines.join("\n")}\n`
       + `${calc.weakest ? `Слабее всего: ${METRICS.find(m => m.k === calc.weakest!.k)?.label}.\n` : ""}`
       + "Сравни план и факт, найди звено, которое проседает сильнее всего, и предложи 1–2 конкретных изменения по этому клиенту (темы, первые секунды, призыв, ответ в директе). Опирайся на STATS.md и PLAN.md.";
@@ -203,9 +211,9 @@ export default function PlanFactTab({ clientId }: { clientId: number }) {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 10 }}>
         {METRICS.map(m => {
           const plan = calc.plan[m.k], fact = calc.fact[m.k];
-          const due = plan && calc.total ? plan * calc.elapsed / calc.total : null;   // сколько должно быть к сегодняшнему дню
+          const due = calc.dueOf(m.k);   // сколько должно быть к сегодняшнему дню
           const p = due && fact != null ? fact / due : null;
-          const pace = fact != null && calc.elapsed ? fact / calc.elapsed * calc.total : null;
+          const pace = calc.paceEnd(m.k);
           return (
             <div key={m.k} className="v2-card" style={{ padding: 12, borderColor: calc.weakest?.k === m.k ? "var(--rd)" : undefined }}>
               <div style={{ fontSize: 10.5, fontWeight: 800, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 0.5 }}>{m.label}</div>
@@ -217,7 +225,7 @@ export default function PlanFactTab({ clientId }: { clientId: number }) {
                 {plan ? (p != null ? `${Math.round(p * 100)}% от плана на сегодня` : m.auto ? "нет данных" : "не внесено") : "плана нет"}
               </div>
               {plan && pace != null && <div style={{ fontSize: 11, color: "var(--t3)", marginTop: 2 }}>темп к концу месяца: {fmt(pace)}</div>}
-              <div style={{ fontSize: 10.5, color: "var(--t3)", marginTop: 4 }}>{m.auto ? "авто · " : "вносит тимлид · "}{m.hint}</div>
+              <div style={{ fontSize: 10.5, color: "var(--t3)", marginTop: 4 }}>{m.auto ? "авто · " : "вносит тимлид · "}{m.hint}{m.k === "reels" ? ` · по ${d.reelsSource}` : ""}</div>
             </div>
           );
         })}
@@ -232,7 +240,8 @@ export default function PlanFactTab({ clientId }: { clientId: number }) {
       )}
 
       {/* просмотры по дням */}
-      <ViewsChart days={calc.days} views={calc.views} planDay={calc.plan.views ? calc.plan.views / calc.total : null} reels={d.reels} note={d.viewsNote} />
+      <ReelsChart reels={d.monthReels} perReel={calc.perReel} />
+      <ViewsChart days={calc.days} views={calc.views} planDay={null} reels={d.reels} note={d.viewsNote} />
 
       {/* по неделям */}
       <div className="v2-card" style={{ padding: 14, overflowX: "auto" }}>
@@ -250,7 +259,7 @@ export default function PlanFactTab({ clientId }: { clientId: number }) {
               const inDays = (x: string) => x >= w.start && x <= w.end && x <= calc.last;
               const auto: Partial<Record<Metric, number | null>> = {
                 reels: Object.entries(d.reels).filter(([x]) => inDays(x)).reduce((s, [, v]) => s + v, 0),
-                views: calc.days.reduce((s, x, i) => s + (inDays(x) ? calc.views[i] || 0 : 0), 0),
+                views: d.monthReels.length ? d.monthReels.filter(r => inDays(r.date)).reduce((s, r) => s + r.views, 0) : calc.days.reduce((s, x, i) => s + (inDays(x) ? calc.views[i] || 0 : 0), 0),
                 followers: (() => { const ks = Object.keys(d.followers).sort(); const a = ks.filter(x => x < w.start).pop() ?? ks.find(x => x >= w.start); const b = ks.filter(x => x <= w.end && x <= calc.last).pop(); return a && b && b >= w.start ? d.followers[b] - d.followers[a] : null; })(),
               };
               const row = d.weeks.find(x => x.week_start === w.start);
@@ -284,6 +293,35 @@ export default function PlanFactTab({ clientId }: { clientId: number }) {
   );
 }
 
+/** Ролики этого месяца: столбик = просмотры ролика, пунктир = сколько нужно на ролик по плану. Клик — открыть ролик. */
+function ReelsChart({ reels, perReel }: { reels: { date: string; net: string; url: string | null; title: string; views: number }[]; perReel: number | null }) {
+  const list = [...reels].sort((a, b) => (a.date < b.date ? -1 : 1));
+  const NET: Record<string, string> = { instagram: "IG", tiktok: "TT", youtube: "YT", facebook: "FB" };
+  const max = Math.max(1, ...list.map(r => r.views), (perReel || 0) * 1.25);
+  return (
+    <div className="v2-card" style={{ padding: 14 }}>
+      <div className="flex items-center gap-3 flex-wrap">
+        <b style={{ fontSize: 13.5 }}>Ролики этого месяца</b>
+        <span style={{ fontSize: 12, color: "var(--t3)" }}>столбик — просмотры ролика{perReel ? `, пунктир — нужно на ролик по плану (${fmt(perReel)})` : ""}; клик — открыть ролик</span>
+      </div>
+      {!list.length ? <div style={{ fontSize: 12.5, color: "var(--t3)", marginTop: 10 }}>В этом месяце роликов в соцсетях пока нет (или к бренду аналитики не подключены сети).</div> : (
+        <div style={{ position: "relative", display: "flex", alignItems: "flex-end", gap: 8, height: 190, marginTop: 12, padding: "0 4px", overflowX: "auto" }}>
+          {perReel ? <div style={{ position: "absolute", left: 0, right: 0, bottom: 40 + (perReel / max) * 140, borderTop: "2px dashed var(--or)", pointerEvents: "none" }} /> : null}
+          {list.map((r, i) => (
+            <a key={i} href={r.url || undefined} target="_blank" rel="noreferrer" title={`${r.date} · ${NET[r.net] || r.net} · ${fmt(r.views)} просмотров
+${r.title.slice(0, 140)}`}
+              style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, minWidth: 46, textDecoration: "none" }}>
+              <span style={{ fontSize: 10.5, color: "var(--t2)", fontWeight: 700 }}>{fmt(r.views)}</span>
+              <div style={{ width: 34, height: Math.max(3, (r.views / max) * 140), borderRadius: 6, background: perReel && r.views >= perReel ? "var(--gr)" : "var(--pu)" }} />
+              <span style={{ fontSize: 10, color: "var(--t3)" }}>{r.date.slice(8, 10)}.{r.date.slice(5, 7)} {NET[r.net] || ""}</span>
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** Просмотры по дням: столбики факта, пунктир — план на день, точки — дни выхода роликов. */
 function ViewsChart({ days, views, planDay, reels, note }: { days: string[]; views: (number | null)[]; planDay: number | null; reels: Record<string, number>; note: string }) {
   const W = 900, H = 200, P = 26;
@@ -298,8 +336,8 @@ function ViewsChart({ days, views, planDay, reels, note }: { days: string[]; vie
   return (
     <div className="v2-card" style={{ padding: 14 }}>
       <div className="flex items-center gap-3 flex-wrap">
-        <b style={{ fontSize: 13.5 }}>Просмотры по дням</b>
-        <span style={{ fontSize: 12, color: "var(--t3)" }}>столбики — факт, пунктир — план на день, точка — вышел ролик{note ? ` · ${note}` : ""}</span>
+        <b style={{ fontSize: 13.5 }}>Все просмотры аккаунта по дням</b>
+        <span style={{ fontSize: 12, color: "var(--t3)" }}>для контекста: сюда входят и старые ролики, посты, сторис; точка — вышел новый ролик{note ? ` · ${note}` : ""}</span>
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", marginTop: 8 }}>
         {days.map((dd, i) => {

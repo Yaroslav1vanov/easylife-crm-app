@@ -92,6 +92,7 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
       if (!r.ok) { alert("Статистика: " + (j?.error || "ошибка")); }
       else {
         const { ok, ourFound, ourHint, ...patch } = j;
+        if (patch.published_url) setPubUrl(patch.published_url);
         save(patch);
         if (ourHint) alert(ourHint);
       }

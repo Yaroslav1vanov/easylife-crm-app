@@ -3,6 +3,7 @@ import { createAdmin } from "@/lib/supabase-admin";
 import { handleOf, type Plat } from "@/lib/socialHandles";
 import { vmxMcp, vmxMyAccounts, vmxAvatarUrl } from "@/lib/viralmaxing";
 import { requireUserOrCron } from "@/lib/apiGuard";
+import { linkPublishedReels } from "@/lib/linkReels";
 
 /* ============================================================
    Соц-статистика клиентов → social_snapshots.
@@ -40,7 +41,7 @@ export async function GET(req: Request) {
 
   const sb = createAdmin();
   const { data: clients } = await sb.from("clients")
-    .select("id, name, surname, stage, platforms, instagram, tiktok, youtube, metricool_blog_id, avatar_url")
+    .select("id, name, surname, stage, platforms, instagram, tiktok, youtube, metricool_blog_id, avatar_url, timezone")
     .neq("stage", "churned");
   if (!clients?.length) return NextResponse.json({ ok: true, written: 0, note: "нет клиентов" });
 
@@ -191,6 +192,15 @@ export async function GET(req: Request) {
     }
   }
 
+  // вышедшие ролики → ссылка и цифры в карточки сценариев (раз в сутки по всем клиентам с брендом)
+  let reelsLinked = 0;
+  if (!dry) {
+    for (const c of clients) {
+      if (!c.metricool_blog_id || c.stage !== "active") continue;
+      try { reelsLinked += (await linkPublishedReels(sb, c as any)).linked; } catch (e: any) { errors.push({ client_id: c.id, stage: "ссылки на ролики", error: String(e?.message || e) }); }
+    }
+  }
+
   if (dry) return NextResponse.json({ ok: true, dry: true, rows: rowsOut, history: followerHistory.length, avatars: Array.from(avatarFor.entries()), unmatched, noHandle, errors });
 
   let avatarsSet = 0;
@@ -209,7 +219,7 @@ export async function GET(req: Request) {
     if (error) errors.push({ stage: "история подписчиков", error: error.message }); else history += Math.min(200, followerHistory.length - i);
   }
   return NextResponse.json({
-    ok: true, written, history, avatarsSet, snapDate,
+    ok: true, written, history, reelsLinked, avatarsSet, snapDate,
     viralmaxing: rowsOut.filter(r => r.source === "viralmaxing").map(r => ({ client: r.client, platform: r.platform, followers: r.followers, views30: r.reach_30d, er: r.engagement_rate, posts: r.posts })),
     metricool: rowsOut.filter(r => r.source === "metricool").map(r => ({ client: r.client, platform: r.platform, followers: r.followers, views30: r.reach_30d, er: r.engagement_rate })),
     unmatched, noHandle, errors,
