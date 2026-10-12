@@ -8,6 +8,12 @@ import { ChevronDown, ChevronLeft, ChevronRight, Search } from "lucide-react";
    и стрелки «предыдущий / следующий», чтобы листать клиентов по очереди. */
 type C = { id: number; name: string; surname?: string | null; avatar_url?: string | null };
 
+/* Поиск без учёта алфавита: «лакура» находит LACCURA, «andrey» — Андрея.
+   Кириллицу переводим в латиницу и сводим похожие звуки (c/k/q, cc → k, y/i, w/v, ph/f). */
+const RU: Record<string, string> = { а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ё: "e", ж: "zh", з: "z", и: "i", й: "i", к: "k", л: "l", м: "m", н: "n", о: "o", п: "p", р: "r", с: "s", т: "t", у: "u", ф: "f", х: "h", ц: "ts", ч: "ch", ш: "sh", щ: "sch", ъ: "", ы: "y", ь: "", э: "e", ю: "yu", я: "ya", і: "i", ї: "i", є: "e", ґ: "g" };
+const skel = (s: string) => s.toLowerCase().split("").map(ch => RU[ch] ?? ch).join("")
+  .replace(/ph/g, "f").replace(/ck|cc|c|q/g, "k").replace(/w/g, "v").replace(/[yj]/g, "i").replace(/[^a-z0-9]/g, "").replace(/(.)\1+/g, "$1");
+
 export default function ClientPicker({ clients, value, onChange }: { clients: C[]; value: number | null; onChange: (id: number) => void }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
@@ -18,7 +24,9 @@ export default function ClientPicker({ clients, value, onChange }: { clients: C[
   const full = (c: C) => `${c.name} ${c.surname || ""}`.trim();
   const list = useMemo(() => {
     const t = q.trim().toLowerCase();
-    return t ? clients.filter(c => full(c).toLowerCase().includes(t)) : clients;
+    if (!t) return clients;
+    const k = skel(t);
+    return clients.filter(c => full(c).toLowerCase().includes(t) || (k && skel(full(c)).includes(k)));
   }, [clients, q]);
 
   useEffect(() => {
