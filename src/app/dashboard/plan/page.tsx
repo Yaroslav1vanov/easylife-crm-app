@@ -3,7 +3,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
 import db, { Client, ClientMonth, Script, TeamMember, CalendarTarget } from "@/lib/database";
-import Avatar from "@/components/Avatar";
+import ClientPicker from "@/components/ClientPicker";
 import Sheet, { SheetOption } from "@/components/Sheet";
 import ScriptModal, { fmtDateShort, addDaysIso, SCRIPT_LEAD, VIDEO_LEAD } from "@/components/ScriptModal";
 import { spreadDates } from "@/components/PublicationScheduler";
@@ -204,13 +204,7 @@ function PlanInner() {
         {canEdit && month && <button className="v2-act pri" onClick={() => { setDistCount(String(plan || mScripts.length || 20)); setDistOpen(true); }}><Wand2 size={14} /> Распределить по месяцу</button>}
       </div>
 
-      <div className="v2-chips">
-        {clientList.map(c => (
-          <button key={c.id} className={c.id === client.id ? "on" : ""} onClick={() => { setClientId(c.id); setMNum(null); }}>
-            <Avatar name={`${c.name} ${c.surname || ""}`} src={c.avatar_url} size={22} />{c.name}{isMine(c) ? "" : ""}
-          </button>
-        ))}
-      </div>
+      <ClientPicker clients={clientList} value={client.id} onChange={(id) => { setClientId(id); setMNum(null); }} />
 
       {months.length > 1 && (
         <div className="v2-toolbar">
