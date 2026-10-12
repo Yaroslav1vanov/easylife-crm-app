@@ -150,6 +150,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         // пробный рилс: видят только не-подписчики; shareTrialAutomatically — показать всем, если зайдёт за 72 часа
         ? { type: "TRIAL_REEL", shareTrialAutomatically: pub.ig_trial_share !== false }
         : { type: isStory ? "STORY" : isCarousel ? "POST" : "REEL" };
+      // соавторы (Collab): пост появится и в их ленте, когда они примут приглашение
+      if (network === "instagram" && !isStory && Array.isArray(pub.ig_collaborators) && pub.ig_collaborators.length)
+        body.instagramData = { ...body.instagramData, collaborators: pub.ig_collaborators.slice(0, 3).map((u: string) => ({ username: u })) };
       if (network === "youtube") body.youtubeData = { title: ytTitle, type: "SHORT", tags: pub.yt_tags || [], madeForKids: false, privacy: "public" };
       if (network === "tiktok") body.tiktokData = { privacyOption: "PUBLIC_TO_EVERYONE", disableComment: false, disableDuet: false, disableStitch: false, commercialContentThirdParty: false, commercialContentOwnBrand: false };
       try {

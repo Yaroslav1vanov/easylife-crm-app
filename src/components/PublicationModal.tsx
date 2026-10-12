@@ -329,6 +329,15 @@ export default function PublicationModal({ pub, client, script, onClose, onUpdat
                 ); })}
               </div>
               <div className="v2-hint" style={{ marginTop: 6 }}>{channels.length ? `Уйдёт в: ${channels.map(x => CHANNELS.find(c => c.id === x)?.short).join(" · ")}` : "Ни одна соцсеть не выбрана"}{isScheduled ? " · чтобы поменять, переотправь" : ""}</div>
+              {!isStory && channels.includes("ig") && service === "Metricool" && (
+                <div style={{ marginTop: 10 }}>
+                  <div className="v2-hint" style={{ marginBottom: 4 }}>Соавторы в Instagram (Collab) — до 3 ников через запятую. Пост появится и в их ленте, когда они примут приглашение.</div>
+                  <input key={`collab-${f.id}`} defaultValue={(f.ig_collaborators || []).join(", ")} disabled={locked || isScheduled} placeholder="@nick1, @nick2"
+                    onBlur={e => { const v = e.target.value.split(/[,\s]+/).map(x => x.trim().replace(/^@/, "").replace(/^https?:\/\/(www\.)?instagram\.com\//, "").replace(/\/.*$/, "")).filter(Boolean).slice(0, 3); save({ ig_collaborators: v.length ? v : null }); }}
+                    style={{ width: "100%", padding: "8px 10px", borderRadius: 9, background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 13, outline: "none" }} />
+                  {isScheduled && <div className="v2-hint" style={{ marginTop: 4 }}>Чтобы поменять — «Переотправить».</div>}
+                </div>
+              )}
               {!isStory && !isCarousel && channels.includes("ig") && service === "Metricool" && (
                 <div style={{ marginTop: 10, padding: "9px 11px", borderRadius: 10, border: `1px solid ${f.ig_trial ? "var(--pu)" : "var(--brd)"}`, background: f.ig_trial ? "var(--pud)" : "transparent" }}>
                   <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13, fontWeight: 700, cursor: locked || isScheduled ? "default" : "pointer" }}>
