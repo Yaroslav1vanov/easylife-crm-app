@@ -31,7 +31,7 @@ const curYm = () => { const d = new Date(); return `${d.getFullYear()}-${String(
 type Reel = {
   date: string; net: string; title: string; ourTitle: string | null; url: string | null; image: string | null;
   views: number; reach: number | null; likes: number | null; comments: number | null; saves: number | null;
-  shares: number | null; er: number | null; retention: number | null; duration: number | null; x: number; isOurs: boolean;
+  shares: number | null; er: number | null; retention: number | null; duration: number | null; skip?: number | null; x: number; isOurs: boolean;
 };
 
 export default function ClientStatsTab({ clientId, hasMetricool }: { clientId: number; hasMetricool: boolean }) {
@@ -239,7 +239,7 @@ export default function ClientStatsTab({ clientId, hasMetricool }: { clientId: n
                         ) : (
                           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
                             <thead><tr style={{ color: "var(--t3)", fontSize: 9.5, textTransform: "uppercase", letterSpacing: .4 }}>
-                              {["Дата", "Ролик", "Просмотры", "Охват", "Лайки", "Комм.", "Сохр.", "Репосты", "ER", "Досмотр"].map(h => (
+                              {["Дата", "Ролик", "Просмотры", "Охват", "Лайки", "Комм.", "Сохр.", "Репосты", "ER", "Досмотр", "Пролистали"].map(h => (
                                 <th key={h} style={{ textAlign: h === "Дата" || h === "Ролик" ? "left" : "right", padding: "8px 12px", fontWeight: 800 }}>{h}</th>
                               ))}
                             </tr></thead>
@@ -265,7 +265,8 @@ export default function ClientStatsTab({ clientId, hasMetricool }: { clientId: n
                                   <td style={{ padding: "8px 12px", textAlign: "right" }}>{fmt(r.saves)}</td>
                                   <td style={{ padding: "8px 12px", textAlign: "right" }}>{fmt(r.shares)}</td>
                                   <td style={{ padding: "8px 12px", textAlign: "right" }}>{r.er != null ? `${String(r.er).replace(".", ",")}%` : "—"}</td>
-                                  <td style={{ padding: "8px 12px", textAlign: "right" }}>{r.retention != null ? `${r.retention}%` : "—"}</td>
+                                  <td style={{ padding: "8px 12px", textAlign: "right" }} title="Средняя доля ролика, которую смотрят">{r.retention != null ? `${r.retention}%` : "—"}</td>
+                                  <td style={{ padding: "8px 12px", textAlign: "right", color: r.skip != null && r.skip >= 50 ? "var(--rd)" : undefined }} title="Сколько зрителей пролистали ролик в первые секунды (Instagram). Высокое — слабый хук">{r.skip != null ? `${String(Math.round(r.skip)).replace(".", ",")}%` : "—"}</td>
                                 </tr>
                               ))}
                             </tbody>

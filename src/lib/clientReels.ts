@@ -9,7 +9,7 @@ export type ClientReel = {
   url: string | null; image: string | null;
   views: number; reach: number | null; likes: number | null; comments: number | null;
   saves: number | null; shares: number | null; er: number | null; retention: number | null;
-  duration: number | null; x: number; isOurs: boolean;
+  duration: number | null; skip: number | null; x: number; isOurs: boolean;
 };
 
 const code = (u: string | null | undefined) => {
@@ -53,7 +53,7 @@ export async function clientReels(
         url: f.url, image: f.image,
         views: f.views, reach: f.reach, likes: f.likes, comments: f.comments, saves: f.saved, shares: f.shares,
         er: base ? Math.round((((f.likes || 0) + (f.comments || 0) + (f.saved || 0) + (f.shares || 0)) / base) * 1000) / 10 : null,
-        retention: f.ret, duration: f.dur,
+        retention: f.ret, duration: f.dur, skip: f.skip,
         x: Math.round((f.views / norm) * 100) / 100,
         isOurs: !!sc,
       };

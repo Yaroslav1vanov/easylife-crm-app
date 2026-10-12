@@ -4,6 +4,7 @@ import { handleOf, type Plat } from "@/lib/socialHandles";
 import { vmxMcp, vmxMyAccounts, vmxAvatarUrl } from "@/lib/viralmaxing";
 import { requireUserOrCron } from "@/lib/apiGuard";
 import { linkPublishedReels } from "@/lib/linkReels";
+import { syncViewBreakdown } from "@/lib/viewBreakdown";
 
 /* ============================================================
    Соц-статистика клиентов → social_snapshots.
@@ -198,6 +199,9 @@ export async function GET(req: Request) {
     for (const c of clients) {
       if (!c.metricool_blog_id || c.stage !== "active") continue;
       try { reelsLinked += (await linkPublishedReels(sb, c as any)).linked; } catch (e: any) { errors.push({ client_id: c.id, stage: "ссылки на ролики", error: String(e?.message || e) }); }
+      // кто смотрит (подписчики / новые) и что (рилсы / сторис / посты) — за последние 35 дней
+      const to = new Date().toISOString().slice(0, 10), from = new Date(Date.now() - 35 * 864e5).toISOString().slice(0, 10);
+      try { await syncViewBreakdown(sb, c.id, c.metricool_blog_id, from, to); } catch (e: any) { errors.push({ client_id: c.id, stage: "разбивка просмотров", error: String(e?.message || e) }); }
     }
   }
 

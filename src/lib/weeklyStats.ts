@@ -21,6 +21,7 @@ const F = {
   watch: ["averageWatchTime", "averageViewDuration", "avgWatchTime"],
   dur: ["durationSeconds", "duration", "videoDuration"],
   skip: ["reelsSkipRate"],
+  full: ["fullVideoWatchedRate"],
   date: ["publishedAt", "createTime", "publicationDate", "created", "timestamp"],
 };
 
@@ -57,6 +58,7 @@ export function reelFields(p: any) {
     watch,
     dur,
     skip: num(pick(p, ...F.skip)),
+    full: num(pick(p, ...F.full)),
     ret: dur && watch ? Math.round((watch / dur) * 100) : null,
   };
 }

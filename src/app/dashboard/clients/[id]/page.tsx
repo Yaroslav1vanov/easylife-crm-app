@@ -20,6 +20,7 @@ import { notify } from "@/components/NoticeHost";
 import { avatarFromClientSocials } from "@/lib/avatarFromSocial";
 import ClientStatsTab from "@/components/ClientStatsTab";
 import PlanFactTab from "@/components/stats/PlanFactTab";
+import ViewsBreakdown from "@/components/stats/ViewsBreakdown";
 import ClientStrategyTab from "@/components/strategy/ClientStrategyTab";
 import ClientChatTab from "@/components/chat/ClientChatTab";
 import ClientPlanTab from "@/components/plan/ClientPlanTab";
@@ -403,6 +404,7 @@ export default function ClientDetailPage() {
           ))}
         </div>
       )}
+      {ctab === "stats" && statsView === "stats" && !isMont && !!c.metricool_blog_id && <ViewsBreakdown clientId={clientId} />}
       {ctab === "stats" && (statsView === "stats" || isMont) && <ClientStatsTab clientId={clientId} hasMetricool={!!c.metricool_blog_id} />}
       {ctab === "stats" && statsView === "planfact" && !isMont && <PlanFactTab clientId={clientId} />}
       {ctab === "chat" && <ClientChatTab clientId={clientId} aiEnabled={!!c.ai_chat} draft={chatDraft} initialThread={chatThread} />}

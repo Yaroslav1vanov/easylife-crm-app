@@ -35,6 +35,8 @@ export async function GET(req: Request) {
         age_days: f.date ? Math.round((Date.parse(today) - Date.parse(f.date)) / 86400000) : null,
         views: f.views, reach: f.reach, likes: f.likes, comments: f.comments, saves: f.saved,
         shares: f.shares, avg_watch_sec: f.watch,
+        // удержание: длительность, доля пролистываний в первые секунды (IG), полный досмотр (TikTok)
+        duration_sec: f.dur, skip_rate: f.skip, full_watch_rate: f.full,
       };
     }).filter(r => r.published_at);
     // один ключ (клиент + ссылка + день) не должен встречаться в пачке дважды, иначе Postgres отклонит весь upsert

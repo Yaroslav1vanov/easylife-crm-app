@@ -453,8 +453,14 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
               <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
                 <Col title="Исходник (реф)" url={s.ref_url} v={rV} l={s.ref_likes ?? null} cm={s.ref_comments ?? null} accent="#9d6bff" />
                 <div style={{ alignSelf: "center", fontSize: 18, color: "var(--t3)", fontWeight: 800 }}>→</div>
-                <Col title="Наше видео" url={s.video_url} v={oV} l={s.our_likes ?? null} cm={s.our_comments ?? null} accent="#42d4f4" />
+                <Col title="Наше видео" url={s.published_url || s.video_url} v={oV} l={s.our_likes ?? null} cm={s.our_comments ?? null} accent="#42d4f4" />
               </div>
+              {(s.our_retention_pct != null || s.our_skip_rate != null) && (
+                <div style={{ marginTop: 10, display: "flex", justifyContent: "center", gap: 14, flexWrap: "wrap", fontSize: 12, color: "var(--t2)" }}>
+                  {s.our_retention_pct != null && <span title="Средняя доля ролика, которую досматривают">досмотр <b style={{ color: "var(--t1)" }}>{Math.round(s.our_retention_pct)}%</b></span>}
+                  {s.our_skip_rate != null && <span title="Сколько зрителей пролистали ролик в первые секунды. Высокое — слабый хук">пролистали в начале <b style={{ color: s.our_skip_rate >= 50 ? "var(--rd)" : "var(--t1)" }}>{Math.round(s.our_skip_rate)}%</b></span>}
+                </div>
+              )}
               {verdict && (
                 <div style={{ marginTop: 12, textAlign: "center", padding: "7px", borderRadius: 8, background: `${verdict.c}18`, color: verdict.c, fontSize: 12, fontWeight: 800 }}>
                   {verdict.t} · наше = {Math.round((ratio as number) * 100)}% от исходника
