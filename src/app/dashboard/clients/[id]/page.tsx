@@ -359,6 +359,12 @@ export default function ClientDetailPage() {
                 </a>
               );
             })}
+            {!isMont && SOCIALS.some(({ key }) => (c as any)[key]) && (
+              <button className="add" title="Поменять аккаунт или добавить TikTok / YouTube Shorts"
+                onClick={() => { setEditData({ name: c.name, surname: c.surname, niche: c.niche, phone: c.phone, product: c.product, avg_check: c.avg_check, package: c.package, montager_id: c.montager_id, teamlead_id: c.teamlead_id, stage: c.stage, instagram: c.instagram, tiktok: c.tiktok, youtube: c.youtube, birthday: c.birthday || "" }); setEditing(true); }}>
+                ✎ {SOCIALS.every(({ key }) => (c as any)[key]) ? "изменить соцсети" : "изменить / добавить соцсети"}
+              </button>
+            )}
             {!isMont && SOCIALS.every(({ key }) => !(c as any)[key]) && (
               <button className="add" onClick={() => { setEditData({ name: c.name, surname: c.surname, niche: c.niche, phone: c.phone, product: c.product, avg_check: c.avg_check, package: c.package, montager_id: c.montager_id, teamlead_id: c.teamlead_id, stage: c.stage, instagram: c.instagram, tiktok: c.tiktok, youtube: c.youtube, birthday: c.birthday || "" }); setEditing(true); }}>
                 + добавить соцсети
