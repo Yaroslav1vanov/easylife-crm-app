@@ -47,6 +47,9 @@ export default function PublicationScheduler({ clientId, month, scripts, onClose
   const noDate = scripts.filter(s => !s.pub_date);
   const isEmptySlot = (s: Script) =>
     !((s.hook_text || "").trim() || (s.body_text || "").trim() || (s.hook || "").trim().replace(/^Сценарий #\d+$/, ""));
+  // Удалять можно только заглушку: без текста И никто не брал в работу. Опубликованный ролик без текста
+  // (тексты лежали вне CRM) — НЕ пустой слот: 12.10 так стёрли 24 опубликованных сценария.
+  const isPlaceholder = (s: Script) => isEmptySlot(s) && (!s.script_status || s.script_status === "notStarted") && (!s.video_status || s.video_status === "notStarted");
 
   // Календарная сетка: недели, покрывающие контрактный месяц целиком
   const weeks = useMemo(() => {
@@ -236,11 +239,11 @@ export default function PublicationScheduler({ clientId, month, scripts, onClose
                       <span style={{ flex: 1, fontSize: 9.5, fontWeight: 700, color: c.fg, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {empty ? "слот" : (s.hook_text || s.hook || `#${s.order_num}`)}
                       </span>
-                      <button onClick={() => empty ? removeSlot(s.id) : clearDate(s.id)}
-                        title={empty ? "Удалить слот" : "Снять дату"}
+                      {s.video_status !== "published" && <button onClick={() => isPlaceholder(s) ? removeSlot(s.id) : clearDate(s.id)}
+                        title={isPlaceholder(s) ? "Удалить пустой слот" : "Снять дату (сценарий останется)"}
                         style={{ background: "transparent", border: "none", color: c.fg, cursor: "pointer", padding: 0, lineHeight: 1, opacity: 0.7 }}>
                         <X size={9} />
-                      </button>
+                      </button>}
                     </div>
                   );
                 })}

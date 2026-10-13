@@ -414,8 +414,13 @@ export default function PublicationsPage() {
                                 <span style={{ fontSize: 10, flexShrink: 0 }}>{tIcon}</span>
                                 <Avatar name={c ? `${c.name} ${c.surname || ""}` : "?"} src={c?.avatar_url} size={14} />
                                 <span style={{ fontSize: 9, color: "var(--t1)", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{empty ? "слот" : c?.name}</span>
-                                <button onClick={(e) => { e.stopPropagation(); if (empty || confirm("Удалить эту публикацию из плана?")) deleteSlot(s.id); }}
-                                  title="Удалить" style={{ flexShrink: 0, width: 14, height: 14, borderRadius: 4, background: "transparent", border: "none", color: "var(--t3)", cursor: "pointer", fontSize: 11, lineHeight: 1, padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
+                                {s.video_status !== "published" && <button onClick={(e) => {
+                                    e.stopPropagation();
+                                    // Крестик в календаре удаляет только пустой слот. Сценарий с текстом или в работе — снимаем с даты, сам сценарий остаётся.
+                                    if (empty) deleteSlot(s.id);
+                                    else if (confirm("Снять с этой даты? Сценарий останется в CRM без даты.")) updateScript(s.id, { pub_date: null });
+                                  }}
+                                  title={empty ? "Удалить пустой слот" : "Снять с даты"} style={{ flexShrink: 0, width: 14, height: 14, borderRadius: 4, background: "transparent", border: "none", color: "var(--t3)", cursor: "pointer", fontSize: 11, lineHeight: 1, padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>}
                               </div>
                             );
                           })}

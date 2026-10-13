@@ -409,7 +409,7 @@ export default function KanbanBoard({ scripts, clients, columns, onUpdate, showC
       <ConfirmDialog
         open={bulkConfirm}
         title={`Удалить ${selected.size} ${selected.size === 1 ? "сценарий" : selected.size < 5 ? "сценария" : "сценариев"}?`}
-        text="Выбранные карточки будут удалены безвозвратно."
+        text="Карточки попадут в Корзину (раздел «Ещё» → «Корзина»), оттуда их можно вернуть в течение 30 дней."
         onCancel={() => setBulkConfirm(false)}
         onConfirm={bulkDelete}
       />
