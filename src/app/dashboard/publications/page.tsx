@@ -304,7 +304,7 @@ export default function PublicationsPage() {
         <FilterDropdown label="Клиент" open={menuOpen === "client"} onToggle={() => setMenuOpen(menuOpen === "client" ? null : "client")}
           value={clientFilter === "all" ? "Все" : (clientById[clientFilter]?.name || "—")}>
           <button onClick={() => { setClientFilter("all"); setMenuOpen(null); }} className="nav-item" style={{ fontSize: 11, padding: "7px 10px" }}>Все клиенты</button>
-          {clients.map(c => (
+          {clients.filter(c => c.stage === "active").map(c => (
             <button key={c.id} onClick={() => { setClientFilter(c.id); setMenuOpen(null); }} className="nav-item" style={{ fontSize: 11, padding: "7px 10px", gap: 8 }}>
               <Avatar name={c.name} src={c.avatar_url} size={20} /> {c.name} {c.surname || ""}
             </button>
@@ -639,7 +639,7 @@ function AutoDistributeModal({ clients, allScripts, defaultStart, onClose, onApp
           <select value={clientId} onChange={(e) => setClientId(e.target.value ? parseInt(e.target.value, 10) : "")}
             style={{ width: "100%", padding: "9px 11px", borderRadius: 9, background: "var(--bg)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 13, cursor: "pointer" }}>
             <option value="">— выбери клиента —</option>
-            {clients.map(c => <option key={c.id} value={c.id}>{c.name} {c.surname || ""}</option>)}
+            {clients.filter(c => c.stage === "active").map(c => <option key={c.id} value={c.id}>{c.name} {c.surname || ""}</option>)}
           </select>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>

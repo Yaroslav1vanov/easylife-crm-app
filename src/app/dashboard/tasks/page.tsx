@@ -163,7 +163,7 @@ export default function ClientTasksPage() {
         <button className={tab === "done" ? "on" : ""} onClick={() => setTab("done")}>Закрытые · {tasks.filter(t => t.status !== "open").length}</button>
         <select value={String(clientFilter)} onChange={e => setClientFilter(e.target.value === "all" ? "all" : Number(e.target.value))} className="ct-sel">
           <option value="all">Все клиенты</option>
-          {clients.map(c => <option key={c.id} value={c.id}>{c.name} {c.surname || ""}</option>)}
+          {clients.filter(c => c.stage === "active").map(c => <option key={c.id} value={c.id}>{c.name} {c.surname || ""}</option>)}
         </select>
       </div>
 

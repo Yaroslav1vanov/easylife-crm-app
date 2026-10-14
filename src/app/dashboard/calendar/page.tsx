@@ -203,7 +203,7 @@ export default function CalendarPage() {
           </div>
           <Drop label="Клиент" kind="client" value={clientFilter === "all" ? "Все" : cname(clientFilter)}>
             <button onClick={() => { setClientFilter("all"); setMenu(null); }} className="nav-item" style={{ fontSize: 11, padding: "7px 10px" }}>Все клиенты</button>
-            {clients.map(c => <button key={c.id} onClick={() => { setClientFilter(c.id); setMenu(null); }} className="nav-item" style={{ fontSize: 11, padding: "7px 10px" }}>{c.name} {c.surname || ""}</button>)}
+            {clients.filter(c => c.stage === "active").map(c => <button key={c.id} onClick={() => { setClientFilter(c.id); setMenu(null); }} className="nav-item" style={{ fontSize: 11, padding: "7px 10px" }}>{c.name} {c.surname || ""}</button>)}
           </Drop>
           <Drop label="Тип" kind="type" value={typeFilter === "all" ? "Все" : KIND_META[typeFilter].label}>
             <button onClick={() => { setTypeFilter("all"); setMenu(null); }} className="nav-item" style={{ fontSize: 11, padding: "7px 10px" }}>Все типы</button>
