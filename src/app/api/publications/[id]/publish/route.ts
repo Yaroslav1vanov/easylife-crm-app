@@ -87,7 +87,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   }
 
   const tz = client?.timezone || "America/New_York";
-  const dateTime = tzIso(pub.publish_at, tz);
+  // Время прошло и подтвердили «опубликовать сейчас» — шлём «через 2 минуты»: прошедшую дату Metricool отклоняет (400)
+  const past = Date.parse(pub.publish_at) < Date.now() + 60 * 1000;
+  const dateTime = tzIso(past ? new Date(Date.now() + 2 * 60 * 1000).toISOString() : pub.publish_at, tz);
   const allow = isStory ? ["ig"] : isCarousel ? ["ig", "threads"] : ["ig", "tt", "yt", "threads"];
   const channels: string[] = (pub.target_channels?.length ? pub.target_channels : client?.platforms?.length ? client.platforms : allow).filter((ch: string) => allow.includes(ch));
   const targetsAll = channels.filter(ch => NET[ch]);
@@ -157,8 +159,11 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       if (network === "tiktok") body.tiktokData = { privacyOption: "PUBLIC_TO_EVERYONE", disableComment: false, disableDuet: false, disableStitch: false, commercialContentThirdParty: false, commercialContentOwnBrand: false };
       try {
         const r = await fetch(mc(`/v2/scheduler/posts`), { method: "POST", headers: hdr, body: JSON.stringify(body) });
-        const j = await r.json().catch(() => ({}));
-        return { ch, ok: r.ok, status: r.status, id: j?.id ?? j?.data?.id ?? null, msg: j?.message || j?.error || null };
+        const txt = await r.text().catch(() => "");
+        let j: any = {}; try { j = JSON.parse(txt); } catch {}
+        // причина отказа: у Metricool она бывает в message / error / detail / errors — без неё в CRM видно только «400»
+        const why = j?.message || j?.error || j?.detail || j?.title || (j?.errors ? JSON.stringify(j.errors) : "") || (!r.ok ? txt : "");
+        return { ch, ok: r.ok, status: r.status, id: j?.id ?? j?.data?.id ?? null, msg: why ? `${r.status} ${String(why).replace(/\s+/g, " ").slice(0, 300)}` : null };
       } catch (e: any) { return { ch, ok: false, status: 0, id: null, msg: String(e) }; }
     }));
 
