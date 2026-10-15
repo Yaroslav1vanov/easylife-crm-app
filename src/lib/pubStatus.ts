@@ -66,6 +66,9 @@ async function checkMetricool(postIds: string, blogId: number): Promise<PubCheck
     } catch { /* сеть недоступна — проверим в следующий раз */ }
   }
   if (!items.length) return null;
+  // YouTube вышел, но не принял обложку — Metricool отдаёт ERROR с текстом «was published with some warnings».
+  // Ролик опубликован, это не ошибка (иначе карточка висит в «Ошибке», хотя видео в сети).
+  for (const i of items) if (String(i.status || "").toUpperCase() === "ERROR" && /published with (some )?warnings/i.test(i.error || "")) i.status = "PUBLISHED";
   const up = (s: string | null) => String(s || "").toUpperCase();
   const urls: Record<string, string> = {};
   for (const i of items) if (i.url) urls[i.ch] = i.url;

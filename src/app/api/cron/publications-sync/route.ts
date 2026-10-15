@@ -18,10 +18,16 @@ export async function GET(req: Request) {
 
   // даём сервису 15 минут на саму публикацию, раньше не дёргаем
   const cutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString();
-  const { data: pubs } = await sb.from("publications")
+  const { data: pubs0 } = await sb.from("publications")
     .select("id, client_id, script_id, metricool_post_id, publish_at, published_urls")
     .eq("pub_status", "scheduled").lt("publish_at", cutoff).not("metricool_post_id", "is", null)
     .limit(80);
+  // «Ошибки» последней недели перепроверяем: Metricool мог дописать статус позже (или это было предупреждение, а не сбой)
+  const { data: errs } = await sb.from("publications")
+    .select("id, client_id, script_id, metricool_post_id, publish_at, published_urls")
+    .eq("pub_status", "error").gt("publish_at", new Date(Date.now() - 7 * 864e5).toISOString()).not("metricool_post_id", "is", null)
+    .limit(40);
+  const pubs = [...(pubs0 || []), ...(errs || []).map(e => ({ ...e, _wasError: true }))];
   if (!pubs?.length) return NextResponse.json({ ok: true, checked: 0 });
 
   const { data: clients } = await sb.from("clients").select("id, metricool_blog_id").in("id", Array.from(new Set(pubs.map(p => p.client_id))));
@@ -33,7 +39,8 @@ export async function GET(req: Request) {
     if (!r) { pending++; continue; }
     const patch: any = {};
     if (Object.keys(r.urls).length) patch.published_urls = { ...(p.published_urls || {}), ...r.urls };
-    if (r.allPublished) { patch.pub_status = "published"; published++; }
+    if (r.allPublished) { patch.pub_status = "published"; patch.error_message = null; published++; }
+    else if ((p as any)._wasError) { pending++; }
     else if (r.anyError) { patch.pub_status = "error"; patch.error_message = r.errorText; failed++; }
     else pending++;
     if (Object.keys(patch).length) await sb.from("publications").update(patch).eq("id", p.id);

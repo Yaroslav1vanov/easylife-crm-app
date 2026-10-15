@@ -22,7 +22,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 
   const patch: any = {};
   if (Object.keys(r.urls).length) patch.published_urls = { ...(pub.published_urls || {}), ...r.urls };
-  if (r.allPublished && pub.pub_status !== "published") patch.pub_status = "published";
+  if (r.allPublished && pub.pub_status !== "published") { patch.pub_status = "published"; patch.error_message = null; }
   if (r.anyError && pub.pub_status === "scheduled") { patch.pub_status = "error"; patch.error_message = r.errorText; }
   if (Object.keys(patch).length) await sb.from("publications").update(patch).eq("id", id);
   if (r.allPublished && pub.script_id) {
