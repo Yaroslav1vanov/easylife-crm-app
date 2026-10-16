@@ -18,7 +18,7 @@ const F = {
   url: ["url", "shareUrl", "watchUrl", "permalink", "link"],
   title: ["content", "videoDescription", "title", "text", "caption", "description"],
   image: ["imageUrl", "coverImageUrl", "thumbnailUrl", "picture", "image"],
-  watch: ["averageWatchTime", "averageViewDuration", "avgWatchTime"],
+  watch: ["averageWatchTime", "averageViewDuration", "averageTimeWatched", "avgWatchTime"],   // IG · YouTube · TikTok
   dur: ["durationSeconds", "duration", "videoDuration"],
   skip: ["reelsSkipRate"],
   full: ["fullVideoWatchedRate"],
