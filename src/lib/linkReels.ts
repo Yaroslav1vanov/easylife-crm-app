@@ -51,7 +51,8 @@ export async function linkPublishedReels(
     // уже привязан — освежаем цифры
     if (s.published_url) {
       const r = byCode.get(code(s.published_url));
-      if (r && (r.views !== s.our_views || s.our_retention_pct == null)) { await sb.from("scripts").update(stats(r)).eq("id", s.id); updated++; }
+      const fixStatus = r && s.video_status !== "published" ? { video_status: "published" } : {};   // ссылка есть, а статус «готов»
+      if (r && (r.views !== s.our_views || s.our_retention_pct == null || fixStatus.video_status)) { await sb.from("scripts").update({ ...stats(r), ...fixStatus }).eq("id", s.id); updated++; }
       continue;
     }
     // ролик могли выложить с телефона тимлида — сценарий тогда так и стоит «готов» или «в монтаже»
