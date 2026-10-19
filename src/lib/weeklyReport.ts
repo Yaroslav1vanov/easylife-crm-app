@@ -245,7 +245,7 @@ ${(() => {
 })()}
 <div class="grid">
   ${kpi(t.views, a.cur.views, a.prev.views, true)}
-  <div class="kpi"><div class="l">${t.reels}</div><div class="v">${a.cur.n}</div><div class="d ${a.cur.n >= a.prev.n ? "up" : "down"}">${t.was}: ${a.prev.n}${a.ourVideos != null ? ` · ${t.ours}: ${a.ourVideos}` : ""}</div>${netLine(a.cur.byNet)}</div>
+  <div class="kpi"><div class="l">${t.reels}</div><div class="v">${a.cur.n}</div><div class="d ${a.cur.n >= a.prev.n ? "up" : "down"}">${t.was}: ${a.prev.n}</div>${netLine(a.cur.byNet)}</div>
   ${kpi(t.reach, a.cur.reach, a.prev.reach)}
   ${kpi(t.likes, a.cur.likes, a.prev.likes)}
   ${kpi(t.comments, a.cur.comments, a.prev.comments)}

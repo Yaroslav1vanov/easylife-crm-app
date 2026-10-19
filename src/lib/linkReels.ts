@@ -54,7 +54,8 @@ export async function linkPublishedReels(
       if (r && (r.views !== s.our_views || s.our_retention_pct == null)) { await sb.from("scripts").update(stats(r)).eq("id", s.id); updated++; }
       continue;
     }
-    if (!["published", "ready"].includes(s.video_status)) continue;
+    // ролик могли выложить с телефона тимлида — сценарий тогда так и стоит «готов» или «в монтаже»
+    if (!["published", "ready", "review", "inProgress"].includes(s.video_status)) continue;
     const pub: any = pubOf.get(s.id);
     let match: Reel | null = null;
     // 1) вышло через CRM — ссылка уже в публикации
@@ -72,14 +73,19 @@ export async function linkPublishedReels(
       }
     }
     // 3) единственный ролик Instagram рядом с датой
-    if (!match && s.pub_date && s.video_status === "published") {
+    if (!match && s.pub_date && ["published", "ready"].includes(s.video_status)) {
       const near = reels.filter(r => r.net === "instagram" && !used.has(code(r.url) || "") && dayDiff(r.date, s.pub_date) <= 1);
       const otherScripts = list.filter(x => x.id !== s.id && !x.published_url && x.pub_date && dayDiff(x.pub_date, s.pub_date) <= 1);
       if (near.length === 1 && otherScripts.length === 0) match = near[0];
     }
     if (!match?.url) continue;
     used.add(code(match.url) || match.url);
-    await sb.from("scripts").update({ published_url: match.url, ...(match.views ? stats(match) : {}) }).eq("id", s.id);
+    // нашли вышедший ролик → сценарий «опубликован», откуда бы его ни выложили (CRM или телефон)
+    await sb.from("scripts").update({
+      published_url: match.url, ...(match.views ? stats(match) : {}),
+      ...(s.video_status !== "published" ? { video_status: "published" } : {}),
+      ...(!s.pub_date && match.date ? { pub_date: match.date } : {}),
+    }).eq("id", s.id);
     linked++;
   }
   return { linked, updated, reels };

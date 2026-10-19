@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase-server";
 import { getModel } from "@/lib/aiModels";
 import { askClaude } from "@/lib/claude";
 import { buildWeeklyHtml, type PlanItem, type WeekReel, type WeekTotals } from "@/lib/weeklyReport";
+import { linkPublishedReels } from "@/lib/linkReels";
 import { accountWeekDelta, addDays, fetchNetworkPosts, followersDelta, inlineImage, lastSyncs, median, mondayOf, reelFields } from "@/lib/weeklyStats";
 import { requireUser } from "@/lib/apiGuard";
 
@@ -36,6 +37,9 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   if (!c) return new Response("клиент не найден", { status: 404 });
   if (!c.metricool_blog_id)
     return new Response(htmlError("У клиента не привязан бренд Metricool — цифр по роликам нет."), { status: 400, headers: htmlHeaders() });
+
+  // сначала привязать вышедшие ролики к сценариям (в т.ч. выложенные с телефона) — названия в отчёте свежие
+  try { await linkPublishedReels(sb, c as any); } catch {}
 
   // ролики недели, прошлой недели и 60 дней до недели (для «обычного уровня аккаунта»)
   const [curRaw, prevRaw, histRaw] = await Promise.all([
