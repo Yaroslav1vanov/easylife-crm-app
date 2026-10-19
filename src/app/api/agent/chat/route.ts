@@ -145,7 +145,7 @@ export async function POST(req: Request) {
   const sb = createAdmin();
 
   if (b.op === "claim") {
-    const { data } = await sb.from("client_chat_messages").update({ ai_status: "working" })
+    const { data } = await sb.from("client_chat_messages").update({ ai_status: "working", ai_started_at: new Date().toISOString() })
       .eq("id", b.id).eq("ai_status", "queued").select("id");
     return NextResponse.json({ ok: !!data?.length });
   }
@@ -237,8 +237,24 @@ export async function POST(req: Request) {
     }
     if (b.op === "reply") {
       const status = b.status === "error" ? "error" : "done";
-      await sb.from("client_chat_messages").update({ ai_status: status, ai_error: status === "error" ? String(b.error || "ошибка").slice(0, 1000) : null }).eq("id", m.id);
+      const mt = b.metrics || {};
+      const n = (v: any) => (v == null || !isFinite(Number(v)) ? null : Number(v));
+      await sb.from("client_chat_messages").update({
+        ai_status: status, ai_error: status === "error" ? String(b.error || "ошибка").slice(0, 1000) : null,
+        ai_finished_at: new Date().toISOString(), ai_minutes: n(mt.minutes), ai_cost_usd: n(mt.cost_usd), ai_files: n(mt.files),
+      }).eq("id", m.id);
     }
+    return NextResponse.json({ ok: true });
+  }
+
+  // пульс сервера (раз в 5 минут): диск, нагрузка, память, задач в работе — для страницы «ИИ-чат: аналитика»
+  if (b.op === "heartbeat") {
+    const n = (v: any) => (v == null || !isFinite(Number(v)) ? null : Number(v));
+    await sb.from("server_status").insert({
+      disk_used_gb: n(b.disk_used_gb), disk_total_gb: n(b.disk_total_gb), load1: n(b.load1), cpus: n(b.cpus),
+      mem_used_mb: n(b.mem_used_mb), mem_total_mb: n(b.mem_total_mb), running: n(b.running),
+    });
+    await sb.from("server_status").delete().lt("at", new Date(Date.now() - 45 * 864e5).toISOString());
     return NextResponse.json({ ok: true });
   }
 

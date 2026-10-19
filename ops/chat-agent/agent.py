@@ -29,6 +29,7 @@ THREAD_HINT = {
 CURRENT_DIR = HOME / ".current_jobs"     # по файлу на каждую задачу в работе (их может быть несколько)
 CURRENT_DIR.mkdir(exist_ok=True)
 LEGACY_CURRENT = HOME / ".current_job"
+FILES_KEEP_DAYS = 14   # файлы переписки старше — не держим на диске (см. /etc/cron.d/easylife-disk-cleanup)
 PARALLEL = int(ENV.get("CHAT_PARALLEL", "3"))   # сколько задач РАЗНЫХ клиентов идут одновременно
 # правила перечитываются на каждую задачу — правка CLAUDE.md работает без перезапуска
 MEDIA = re.compile(r"\.(mp4|mov|webm|m4v|png|jpe?g|webp|gif|pdf|zip|mp3|wav|srt|html?|docx|xlsx|pptx|csv|txt|md)$", re.I)
@@ -98,7 +99,18 @@ def prepare(job):
     def local(m, a):
         return files / f"{m['id']}_{safe(a['name'])}"
     quoted = job.get("quoted")
+    # Файлы переписки качаем только за последние FILES_KEEP_DAYS дней (+ текущее сообщение и цитата).
+    # Старше — их удаляет ночная чистка диска (18.10.2026 диск забился), ИИ докачает нужный сам: bin/getfile.
+    fresh_from = time.time() - FILES_KEEP_DAYS * 86400
+    def is_fresh(m):
+        try:
+            from datetime import datetime, timezone
+            return datetime.strptime(m["created_at"][:19], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc).timestamp() >= fresh_from
+        except Exception:
+            return True
     for m in job["history"] + ([quoted] if quoted else []):
+        if m is not msg and m is not quoted and not is_fresh(m):
+            continue
         for a in m.get("attachments") or []:
             try:
                 fetch_file(a["key"], local(m, a))
@@ -109,7 +121,8 @@ def prepare(job):
     hist = []
     for m in job["history"]:
         who = "ИИ (ты)" if m["author_type"] == "ai" else (m.get("author_name") or "Сотрудник")
-        att = "".join(f"\n    📎 files/{local(m, a).name}" for a in (m.get("attachments") or []))
+        att = "".join(f"\n    📎 files/{local(m, a).name}" + ("" if local(m, a).exists() else f"  (старый, на сервере нет — если нужен: python3 ~/bin/getfile.py {a['key']} files/{local(m, a).name})")
+                      for a in (m.get("attachments") or []))
         tag = f"[{THREAD_RU.get(m.get('thread') or 'reels')}] " if (msg.get('thread') == 'strategy') else ""
         re_ = f" (ответ на #{m['quote_id']})" if m.get("quote_id") else ""
         hist.append(f"{tag}[{m['created_at'][:16].replace('T', ' ')}] #{m['id']} {who}{re_}: {m['body']}{att}")
@@ -431,7 +444,8 @@ def handle(job):
         mins = (time.time() - t0) / 60
         cost = res.get("total_cost_usd")
         log("готово", mid, f"{mins:.1f} мин", f"файлов {len(atts)}", f"расход ${cost}" if cost else "")
-        api_post(op="reply", id=mid, body=reply or "Готово.", attachments=atts, status="done")
+        api_post(op="reply", id=mid, body=reply or "Готово.", attachments=atts, status="done",
+                 metrics={"minutes": round(mins, 2), "cost_usd": cost, "files": len(atts)})
     except subprocess.TimeoutExpired:
         api_post(op="reply", id=mid, body="", status="error", error=f"Не уложился в {TIMEOUT // 60} минут. Разбейте задачу или напишите ещё раз.")
     except Exception as e:
@@ -547,6 +561,24 @@ def quick_loop():
         time.sleep(2)
 
 
+def heartbeat_loop():
+    """Раз в 5 минут — состояние сервера в CRM (страница «ИИ-чат: аналитика», видит только владелец)."""
+    while True:
+        try:
+            du = shutil.disk_usage("/")
+            load1 = os.getloadavg()[0]
+            mem = {}
+            for line in open("/proc/meminfo"):
+                k, v = line.split(":", 1); mem[k] = int(v.split()[0])
+            running = len(list(CURRENT_DIR.iterdir())) if CURRENT_DIR.exists() else 0
+            api_post(op="heartbeat", disk_used_gb=round((du.total - du.free) / 1e9, 1), disk_total_gb=round(du.total / 1e9, 1),
+                     load1=round(load1, 2), cpus=os.cpu_count(), mem_used_mb=(mem.get("MemTotal", 0) - mem.get("MemAvailable", 0)) // 1024,
+                     mem_total_mb=mem.get("MemTotal", 0) // 1024, running=running)
+        except Exception as e:
+            log("пульс не ушёл:", str(e)[:200])
+        time.sleep(300)
+
+
 def main():
     """Задачи разных клиентов идут параллельно (до PARALLEL), по одному клиенту — строго по очереди:
     у клиента общая папка и журнал, две задачи в ней мешали бы друг другу."""
@@ -555,6 +587,7 @@ def main():
     resume_interrupted()
     import threading
     threading.Thread(target=quick_loop, daemon=True).start()
+    threading.Thread(target=heartbeat_loop, daemon=True).start()
     pool = ThreadPoolExecutor(max_workers=PARALLEL)
     busy = {}   # client_id -> future
     while True:
