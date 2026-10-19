@@ -54,21 +54,32 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       ageDays: f.date ? Math.max(0, Math.round((Date.parse(today) - Date.parse(f.date)) / 86400000)) : 0,
     };
   };
-  const histViews = histRaw.map(p => reelFields(p).views).filter(v => v > 0);
-  const norm = median(histViews.slice(-30)) || median(histViews) || 1;
-  // почти не показанные ролики (реклама, тесты) не портят статистику — только сноской
-  const isTest = (r: WeekReel) => r.views < Math.max(50, norm * 0.01) && r.ageDays >= 3;
+  // «обычный уровень» — по каждой площадке свой: просмотры TikTok и Instagram в одну медиану не смешиваем
+  const netNorm: Record<string, number> = {};
+  for (const net of Array.from(new Set(histRaw.map((p: any) => p._net)))) {
+    const v = histRaw.filter((p: any) => p._net === net).map(p => reelFields(p).views).filter(x => x > 0);
+    netNorm[net] = median(v.slice(-30)) || median(v) || 1;
+  }
+  const mainNet = netNorm.instagram ? "instagram" : Object.keys(netNorm)[0];
+  const norm = (mainNet && netNorm[mainNet]) || 1;
+  const normOf = (net: string) => netNorm[net] || norm;
+  // почти не показанные ролики (реклама из кабинета, тесты) не портят статистику — только сноской.
+  // Порог относительный: у небольшого аккаунта 25 просмотров — обычный ролик, а не тест (Lash Couture, 19.10).
+  const isTest = (r: WeekReel) => r.views < Math.max(5, normOf(r.net) * 0.03) && r.ageDays >= 3;
 
   const curAll = curRaw.map(map), prevAll = prevRaw.map(map);
-  const reels = curAll.filter(r => !isTest(r)).map(r => ({ ...r, x: Math.round((r.views / norm) * 100) / 100 }));
+  const reels = curAll.filter(r => !isTest(r)).map(r => ({ ...r, x: Math.round((r.views / normOf(r.net)) * 100) / 100 }));
   const excluded = curAll.filter(isTest).map(r => ({ views: r.views }));
   const prevReels = prevAll.filter(r => !isTest(r));
 
   const totals = (list: WeekReel[]): WeekTotals => {
     const s = (k: keyof WeekReel) => list.reduce((a, r) => a + (Number(r[k]) || 0), 0);
     const rets = list.map(r => r.ret).filter((v): v is number => v != null);
+    // один ролик уходит в Instagram, TikTok и YouTube — это ОДИН ролик, а не три (Юлия: было «15» вместо 5)
+    const byNet: Record<string, { n: number; views: number }> = {};
+    for (const r of list) { const b = (byNet[r.net] ||= { n: 0, views: 0 }); b.n++; b.views += Number(r.views) || 0; }
     return {
-      n: list.length, views: s("views"), reach: s("reach"), likes: s("likes"),
+      n: Math.max(0, ...Object.values(byNet).map(b => b.n)), byNet, views: s("views"), reach: s("reach"), likes: s("likes"),
       comments: s("comments"), saved: s("saved"), shares: s("shares"),
       ret: rets.length ? Math.round(rets.reduce((a, b) => a + b, 0) / rets.length) : null,
     };

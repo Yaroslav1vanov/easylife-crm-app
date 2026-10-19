@@ -30,7 +30,13 @@ export async function clientReels(
     sb.from("scripts").select("id, pub_date, hook_text, hook, video_status, published_url")
       .eq("client_id", client.id).gte("pub_date", addDays(from, -1)).lte("pub_date", addDays(to, 1)),
   ]);
-  const norm = median(hist.map(p => reelFields(p).views).filter(v => v > 0).slice(-30)) || 1;
+  // «обычный уровень» по каждой площадке свой — просмотры TikTok и Instagram не смешиваем
+  const netNorm: Record<string, number> = {};
+  for (const net of Array.from(new Set(hist.map((p: any) => p._net as string)))) {
+    const v = hist.filter((p: any) => p._net === net).map(p => reelFields(p).views).filter(x => x > 0);
+    netNorm[net] = median(v.slice(-30)) || median(v) || 1;
+  }
+  const normAll = median(hist.map(p => reelFields(p).views).filter(v => v > 0).slice(-30)) || 1;
   const scripts = (scr.data || []) as any[];
   const nameOf = (x: any) => String(x.hook_text || x.hook || "").replace(/^Сценарий #\d+$/, "").trim();
   const byCode = new Map(scripts.filter(x => x.published_url).map(x => [code(x.published_url), x]));
@@ -54,7 +60,7 @@ export async function clientReels(
         views: f.views, reach: f.reach, likes: f.likes, comments: f.comments, saves: f.saved, shares: f.shares,
         er: base ? Math.round((((f.likes || 0) + (f.comments || 0) + (f.saved || 0) + (f.shares || 0)) / base) * 1000) / 10 : null,
         retention: f.ret, duration: f.dur, skip: f.skip,
-        x: Math.round((f.views / norm) * 100) / 100,
+        x: Math.round((f.views / (netNorm[net] || normAll)) * 100) / 100,
         isOurs: !!sc,
       };
     });

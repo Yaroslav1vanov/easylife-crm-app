@@ -9,7 +9,7 @@ export type WeekReel = {
   ourTitle?: string | null;              // как ролик называется у нас в контент-плане
 };
 export type PlanItem = { date: string; title: string; type: string; why: string | null };
-export type WeekTotals = { n: number; views: number; reach: number; likes: number; comments: number; saved: number; shares: number; ret: number | null };
+export type WeekTotals = { n: number; byNet?: Record<string, { n: number; views: number }>; views: number; reach: number; likes: number; comments: number; saved: number; shares: number; ret: number | null };
 export type WeeklyArgs = {
   client: { name: string; surname?: string | null; avatar_url?: string | null; instagram?: string | null };
   avatar: string | null;                 // base64 или url
@@ -245,7 +245,7 @@ ${(() => {
 })()}
 <div class="grid">
   ${kpi(t.views, a.cur.views, a.prev.views, true)}
-  <div class="kpi"><div class="l">${t.reels}</div><div class="v">${a.cur.n}</div><div class="d ${a.cur.n >= a.prev.n ? "up" : "down"}">${t.was}: ${a.prev.n}${a.ourVideos != null ? ` · ${t.ours}: ${a.ourVideos}` : ""}</div></div>
+  <div class="kpi"><div class="l">${t.reels}</div><div class="v">${a.cur.n}</div><div class="d ${a.cur.n >= a.prev.n ? "up" : "down"}">${t.was}: ${a.prev.n}${a.ourVideos != null ? ` · ${t.ours}: ${a.ourVideos}` : ""}</div>${netLine(a.cur.byNet)}</div>
   ${kpi(t.reach, a.cur.reach, a.prev.reach)}
   ${kpi(t.likes, a.cur.likes, a.prev.likes)}
   ${kpi(t.comments, a.cur.comments, a.prev.comments)}
@@ -334,6 +334,14 @@ ${a.narrative.plan.length ? `<h2>${t.nextWeek}</h2>
   return iso ? (t as any).synced(`${dm(iso.slice(0, 10))} ${iso.slice(11, 16)}`) + " " : "";
 })()}${t.erFoot} ${t.sources(dm(a.generatedAt))}<br>EasyLife AI · easylifeai.biz</p>
 </div></body></html>`;
+}
+
+/** «Instagram 5 · TikTok 5 · YouTube 5» под числом роликов — где вышел каждый ролик. Одна площадка — не показываем. */
+const NET_NAME: Record<string, string> = { instagram: "Instagram", tiktok: "TikTok", youtube: "YouTube", facebook: "Facebook" };
+function netLine(byNet?: Record<string, { n: number; views: number }>): string {
+  const e = Object.entries(byNet || {}).filter(([, b]) => b.n > 0);
+  if (e.length < 2) return "";
+  return `<div class="d" style="opacity:.75">${e.map(([k, b]) => `${NET_NAME[k] || k} ${b.n}`).join(" · ")}</div>`;
 }
 
 function handleOf(url: string): string {
