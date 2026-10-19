@@ -571,7 +571,8 @@ def heartbeat_loop():
             for line in open("/proc/meminfo"):
                 k, v = line.split(":", 1); mem[k] = int(v.split()[0])
             running = len(list(CURRENT_DIR.iterdir())) if CURRENT_DIR.exists() else 0
-            api_post(op="heartbeat", disk_used_gb=round((du.total - du.free) / 1e9, 1), disk_total_gb=round(du.total / 1e9, 1),
+            # как в df: занято / (занято + свободно), в ГиБ (зарезервированное системой не считаем)
+            api_post(op="heartbeat", disk_used_gb=round(du.used / 2**30, 1), disk_total_gb=round((du.used + du.free) / 2**30, 1),
                      load1=round(load1, 2), cpus=os.cpu_count(), mem_used_mb=(mem.get("MemTotal", 0) - mem.get("MemAvailable", 0)) // 1024,
                      mem_total_mb=mem.get("MemTotal", 0) // 1024, running=running)
         except Exception as e:

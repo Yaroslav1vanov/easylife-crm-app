@@ -61,7 +61,7 @@ export async function GET(req: Request) {
   const rows = (tasks as any[]).map(t => {
     const r = byTask.get(t.id);
     // время работы: от исполнителя (точно) или от постановки до ответа (с ожиданием в очереди)
-    const minutes = t.ai_minutes != null ? Number(t.ai_minutes)
+    const minutes = t.ai_status !== "done" ? null : t.ai_minutes != null ? Number(t.ai_minutes)
       : r ? Math.max(0, (Date.parse(r.first) - Date.parse(t.created_at)) / 60000) : null;
     return {
       id: t.id, client_id: t.client_id, client: cname.get(t.client_id) || `клиент ${t.client_id}`, avatar: cavatar.get(t.client_id) || null,
