@@ -40,12 +40,14 @@ export async function GET(req: Request) {
     const patch: any = {};
     if (Object.keys(r.urls).length) patch.published_urls = { ...(p.published_urls || {}), ...r.urls };
     if (r.allPublished) { patch.pub_status = "published"; patch.error_message = null; published++; }
+    // вышел в Instagram, а TikTok/YouTube отвалились — ролик в ленте, считаем опубликованным, ошибку оставляем пометкой
+    else if (r.partial) { patch.pub_status = "published"; patch.error_message = r.errorText; published++; }
     else if ((p as any)._wasError) { pending++; }
     else if (r.anyError) { patch.pub_status = "error"; patch.error_message = r.errorText; failed++; }
     else pending++;
     if (Object.keys(patch).length) await sb.from("publications").update(patch).eq("id", p.id);
     // запасной путь, если триггер ещё не установлен: закрываем сценарий сами
-    if (r.allPublished && p.script_id) {
+    if ((r.allPublished || r.partial) && p.script_id) {
       await sb.from("scripts").update({ video_status: "published" }).eq("id", p.script_id).neq("video_status", "published");
     }
   }

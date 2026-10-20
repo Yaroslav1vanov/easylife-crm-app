@@ -23,9 +23,10 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   const patch: any = {};
   if (Object.keys(r.urls).length) patch.published_urls = { ...(pub.published_urls || {}), ...r.urls };
   if (r.allPublished && pub.pub_status !== "published") { patch.pub_status = "published"; patch.error_message = null; }
-  if (r.anyError && pub.pub_status === "scheduled") { patch.pub_status = "error"; patch.error_message = r.errorText; }
+  else if (r.partial) { patch.pub_status = "published"; patch.error_message = r.errorText; }   // вышел частично
+  if (r.anyError && !r.partial && pub.pub_status === "scheduled") { patch.pub_status = "error"; patch.error_message = r.errorText; }
   if (Object.keys(patch).length) await sb.from("publications").update(patch).eq("id", id);
-  if (r.allPublished && pub.script_id) {
+  if ((r.allPublished || r.partial) && pub.script_id) {
     await sb.from("scripts").update({ video_status: "published" }).eq("id", pub.script_id).neq("video_status", "published");
   }
   return NextResponse.json({ ok: true, items: r.items.map(i => ({ ...i, key: i.ch, id: "" , when: null })), allPublished: r.allPublished, anyError: r.anyError, patch });

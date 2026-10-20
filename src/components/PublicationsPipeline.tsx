@@ -404,6 +404,7 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
                           {CHANNELS.filter(ch => chans.includes(ch.id)).map(ch => <ch.Icon key={ch.id} size={11} style={{ color: "var(--t3)" }} />)}
                           {p.ai_generated_at && <span style={{ fontSize: 8, color: "var(--pu)", marginLeft: "auto" }}>🤖 AI</span>}
                           {p.pub_status === "error" && <AlertTriangle size={11} style={{ color: "#ff5c7a", marginLeft: "auto" }} />}
+                          {p.pub_status === "published" && p.error_message && <span title={p.error_message} style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 3, fontSize: 8, fontWeight: 800, color: "var(--or)", background: "rgba(255,174,66,0.14)", padding: "2px 5px", borderRadius: 5 }}><AlertTriangle size={9} />частично</span>}
                         </div>
                       </div>
                     );

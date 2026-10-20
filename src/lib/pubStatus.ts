@@ -6,6 +6,8 @@ const NET2CH: Record<string, string> = { instagram: "ig", tiktok: "tt", youtube:
 
 export type PubCheck = {
   allPublished: boolean;
+  /** вышел хотя бы в одной сети, а в какой-то упал (например, TikTok отключён от Metricool) */
+  partial?: boolean;
   anyError: boolean;
   urls: Record<string, string>;
   errorText: string | null;
@@ -73,11 +75,14 @@ async function checkMetricool(postIds: string, blogId: number): Promise<PubCheck
   const urls: Record<string, string> = {};
   for (const i of items) if (i.url) urls[i.ch] = i.url;
   const bad = items.filter(i => up(i.status) === "ERROR");
+  const pending = items.filter(i => !["PUBLISHED", "ERROR"].includes(up(i.status)));
+  const NET: Record<string, string> = { ig: "Instagram", tt: "TikTok", yt: "YouTube", threads: "Threads" };
   return {
     allPublished: items.every(i => up(i.status) === "PUBLISHED"),
+    partial: bad.length > 0 && !pending.length && items.some(i => up(i.status) === "PUBLISHED"),
     anyError: bad.length > 0,
     urls,
-    errorText: bad.length ? `Metricool: ${bad.map(i => `${i.ch}: ${i.error || "ошибка публикации"}`).join("; ")}` : null,
+    errorText: bad.length ? `Не вышло: ${bad.map(i => `${NET[i.ch] || i.ch} — ${i.error || "ошибка публикации"}`).join("; ")}` : null,
     items,
   };
 }
