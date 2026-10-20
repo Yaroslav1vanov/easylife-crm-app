@@ -60,6 +60,26 @@ function humanLinkError(raw: string): string {
   return raw;
 }
 
+/** Прямая ссылка на mp4 ролика Instagram (через ScrapeCreators /v1/instagram/post).
+ *  Запасной путь, когда готовой расшифровки у провайдера нет («does not have a video» на открытых роликах):
+ *  видео отдаём в AssemblyAI как файл. null — видео не отдали (18+, закрытый аккаунт, удалён). */
+export async function instagramVideoUrl(rawUrl: string): Promise<string | null> {
+  const key = process.env.SCRAPECREATORS_API_KEY;
+  if (!key) return null;
+  const m = rawUrl.match(/instagram\.com\/(reel|reels|p|tv)\/([A-Za-z0-9_-]+)/i);
+  const url = m ? `https://www.instagram.com/${m[1] === "reels" ? "reel" : m[1]}/${m[2]}/` : rawUrl;
+  try {
+    const r = await fetch(`${SC}/v1/instagram/post?url=${encodeURIComponent(url)}`, { headers: { "x-api-key": key } });
+    if (!r.ok) return null;
+    const j: any = await r.json().catch(() => null);
+    const d = j?.data || j?.post || j || {};
+    const md = d?.xdt_shortcode_media || d?.shortcode_media || d?.media || d;
+    const v = md?.video_url || md?.video_versions?.[0]?.url
+      || md?.edge_sidecar_to_children?.edges?.map((e: any) => e?.node?.video_url).find(Boolean) || null;
+    return typeof v === "string" && /^https?:/.test(v) ? v : null;
+  } catch { return null; }
+}
+
 export function detectPlatform(url: string) {
   if (/tiktok\.com/i.test(url)) return "tiktok";
   if (/instagram\.com/i.test(url)) return "instagram";

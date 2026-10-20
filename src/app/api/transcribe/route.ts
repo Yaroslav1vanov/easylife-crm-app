@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
-import { submitFile, transcribeLink, type Lang } from "@/lib/transcribe";
+import { detectPlatform, instagramVideoUrl, submitFile, transcribeLink, type Lang } from "@/lib/transcribe";
 
 export const maxDuration = 60;
 
@@ -29,9 +29,16 @@ export async function POST(req: Request) {
 
   if (mode === "link") {
     const r = await transcribeLink(url);
-    Object.assign(row, r.ok
-      ? { status: "done", text: r.text, platform: r.platform, provider: "scrapecreators" }
-      : { status: "error", error: r.error, provider: "scrapecreators" });
+    if (r.ok) Object.assign(row, { status: "done", text: r.text, platform: r.platform, provider: "scrapecreators" });
+    else {
+      // Готовой расшифровки нет — пробуем сам ролик: прямая ссылка на видео → распознавание речи (AssemblyAI).
+      // Так проходят открытые ролики, на которых провайдер отвечал «нет видео» (20.10.2026).
+      const video = detectPlatform(url) === "instagram" ? await instagramVideoUrl(url) : null;
+      const f = video ? await submitFile(video, language) : null;
+      Object.assign(row, f?.ok
+        ? { platform: "instagram", provider: "assemblyai", provider_job_id: f.jobId }
+        : { status: "error", error: r.error, provider: "scrapecreators" });
+    }
   } else {
     const r = await submitFile(url, language);
     Object.assign(row, r.ok
