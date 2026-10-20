@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdmin } from "@/lib/supabase-admin";
 import { r2 } from "@/lib/r2";
+import { submitFile } from "@/lib/transcribe";
 import { metricoolProfile } from "@/lib/metricoolProfile";
 import { DEFAULT_FORECAST_BENCHMARKS, FORECAST_BENCHMARKS_KEY, unpackingToText } from "@/lib/forecast";
 
@@ -248,6 +249,37 @@ export async function POST(req: Request) {
   }
 
   // пульс сервера (раз в 5 минут): диск, нагрузка, память, задач в работе — для страницы «ИИ-чат: аналитика»
+  // Транскрибация роликов, которые Instagram без входа не отдаёт: сервер качает через вход в наш Instagram.
+  // igq — что скачать; igq_put — куда залить; igq_done — залил (ставим на распознавание) или не смог (ошибка).
+  if (b.op === "igq") {
+    const { data } = await sb.from("transcriptions").select("id, source_url, language")
+      .eq("provider", "ig_session").eq("status", "processing").is("provider_job_id", null).order("id").limit(5);
+    return NextResponse.json({ jobs: data || [] });
+  }
+  if (b.op === "igq_put") {
+    const store = r2();
+    if (!store || !Number(b.id)) return bad("нет хранилища или id");
+    const key = `transcribe/ig/${Number(b.id)}-${crypto.randomUUID().slice(0, 8)}.mp4`;
+    return NextResponse.json({ uploadUrl: await store.signPut(key), key });
+  }
+  if (b.op === "igq_done") {
+    const id = Number(b.id);
+    const { data: t } = await sb.from("transcriptions").select("id, language, status").eq("id", id).maybeSingle();
+    if (!t || t.status !== "processing") return bad("нет такой задачи");
+    if (b.error) {
+      await sb.from("transcriptions").update({ status: "error", error: String(b.error).slice(0, 500), updated_at: new Date().toISOString() }).eq("id", id);
+      return NextResponse.json({ ok: true });
+    }
+    const key = String(b.key || "");
+    if (!key.startsWith(`transcribe/ig/${id}-`)) return bad("чужой файл");
+    const pub = (process.env.R2_PUBLIC_URL || "").replace(/\/$/, "");
+    const f = await submitFile(`${pub}/${key}`, (t.language || "auto") as any);
+    await sb.from("transcriptions").update(f.ok
+      ? { provider: "assemblyai", provider_job_id: f.jobId, updated_at: new Date().toISOString() }
+      : { status: "error", error: f.error, updated_at: new Date().toISOString() }).eq("id", id);
+    return NextResponse.json({ ok: !!f.ok });
+  }
+
   if (b.op === "heartbeat") {
     const n = (v: any) => (v == null || !isFinite(Number(v)) ? null : Number(v));
     await sb.from("server_status").insert({

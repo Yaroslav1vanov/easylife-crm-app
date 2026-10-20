@@ -11,6 +11,11 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   const sb = createClient();
   const { data: t } = await sb.from("transcriptions").select("*").eq("id", id).maybeSingle();
   if (!t) return NextResponse.json({ error: "не найдено" }, { status: 404 });
+  if (t.status === "processing" && t.provider === "ig_session" && !t.provider_job_id
+      && Date.now() - Date.parse(t.created_at) > 15 * 60 * 1000) {
+    const { data } = await sb.from("transcriptions").update({ status: "error", error: "Сервер не успел скачать ролик из Instagram за 15 минут. Попробуйте ещё раз или отправьте закладкой «В CRM: транскрибация».", updated_at: new Date().toISOString() }).eq("id", id).select().single();
+    return NextResponse.json({ ok: true, item: data || t });
+  }
   if (t.status !== "processing" || !t.provider_job_id) return NextResponse.json({ ok: true, item: t });
 
   const r = await pollFile(t.provider_job_id);

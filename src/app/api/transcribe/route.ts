@@ -39,6 +39,8 @@ export async function POST(req: Request) {
       const f = video ? await submitFile(video, language) : null;
       Object.assign(row, f?.ok
         ? { platform: "instagram", provider: "assemblyai", provider_job_id: f.jobId }
+        // 3) Instagram без входа не отдал (18+, пластика, медицина) — скачает наш сервер через вход в наш Instagram
+        : ig ? { platform: "instagram", provider: "ig_session", status: "processing", error: null }
         : { status: "error", error: r.error, provider: "scrapecreators" });
     }
   } else {

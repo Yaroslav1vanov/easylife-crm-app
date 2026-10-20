@@ -561,6 +561,65 @@ def quick_loop():
         time.sleep(2)
 
 
+# ---------------- Instagram через наш вход: ролики, которые без входа не отдаются (18+, пластика, медицина) ----------------
+IG_SESSION = HOME / "ig_session.json"   # куки вошедшего аккаунта (ставит Ярослав: ops/set_ig_session.sh), chmod 600
+IG_ALPHA = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+IG_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36"
+
+
+def ig_fetch_video(url):
+    """Ссылка на рилс → байты mp4 через вход в наш Instagram. Исключение с понятным текстом, если не вышло."""
+    m = re.search(r"instagram\.com/(?:reel|reels|p|tv)/([A-Za-z0-9_-]+)", url or "")
+    if not m:
+        raise RuntimeError("Не похоже на ссылку на ролик Instagram.")
+    if not IG_SESSION.exists():
+        raise RuntimeError("На сервере нет входа в Instagram — Ярославу нужно один раз запустить ops/set_ig_session.sh.")
+    ck = json.loads(IG_SESSION.read_text())
+    pk = 0
+    for ch in m.group(1)[:11]:
+        pk = pk * 64 + IG_ALPHA.index(ch)
+    s = requests.Session()
+    s.cookies.update({k: v for k, v in ck.items() if v})
+    s.headers.update({"User-Agent": IG_UA, "X-IG-App-ID": "936619743392459", "X-Requested-With": "XMLHttpRequest",
+                      "X-CSRFToken": ck.get("csrftoken", ""), "Referer": f"https://www.instagram.com/reel/{m.group(1)}/",
+                      "Accept": "*/*", "Accept-Language": "ru,en;q=0.9"})
+    r = s.get(f"https://www.instagram.com/api/v1/media/{pk}/info/", timeout=30, allow_redirects=False)
+    if r.status_code in (301, 302, 401, 403) or "login" in (r.headers.get("location") or ""):
+        raise RuntimeError("Вход в Instagram на сервере устарел — Ярославу нужно обновить его (ops/set_ig_session.sh).")
+    if r.status_code == 404:
+        raise RuntimeError("Ролик не найден — возможно, удалён.")
+    r.raise_for_status()
+    it = (r.json().get("items") or [{}])[0]
+    vers = it.get("video_versions") or next((c.get("video_versions") for c in it.get("carousel_media") or [] if c.get("video_versions")), None)
+    if not vers:
+        raise RuntimeError("В этой публикации нет видео.")
+    v = max(vers, key=lambda x: x.get("width") or 0)
+    d = requests.get(v["url"], headers={"User-Agent": IG_UA, "Referer": "https://www.instagram.com/"}, timeout=180)
+    d.raise_for_status()
+    return d.content
+
+
+def ig_loop():
+    """Раз в 15 секунд: есть ли ролики, которые CRM не смогла взять без входа."""
+    while True:
+        try:
+            for job in api_post(op="igq").get("jobs", []):
+                jid = job["id"]
+                try:
+                    data = ig_fetch_video(job.get("source_url"))
+                    put = api_post(op="igq_put", id=jid)
+                    requests.put(put["uploadUrl"], data=data, headers={"Content-Type": "video/mp4"}, timeout=300).raise_for_status()
+                    api_post(op="igq_done", id=jid, key=put["key"])
+                    log("instagram: скачал ролик для транскрибации", jid, f"{len(data) // 1048576} МБ")
+                except Exception as e:
+                    log("instagram: не скачал", jid, str(e)[:200])
+                    api_post(op="igq_done", id=jid, error=str(e)[:400])
+                time.sleep(3)   # не дёргаем Instagram пачкой
+        except Exception as e:
+            log("instagram: очередь недоступна", str(e)[:200])
+        time.sleep(15)
+
+
 def heartbeat_loop():
     """Раз в 5 минут — состояние сервера в CRM (страница «ИИ-чат: аналитика», видит только владелец)."""
     while True:
@@ -589,6 +648,7 @@ def main():
     import threading
     threading.Thread(target=quick_loop, daemon=True).start()
     threading.Thread(target=heartbeat_loop, daemon=True).start()
+    threading.Thread(target=ig_loop, daemon=True).start()
     pool = ThreadPoolExecutor(max_workers=PARALLEL)
     busy = {}   # client_id -> future
     while True:
