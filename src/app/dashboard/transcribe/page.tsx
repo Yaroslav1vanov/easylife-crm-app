@@ -6,6 +6,7 @@ import db, { Client } from "@/lib/database";
 import { getStore, setStore } from "@/lib/store";
 import Avatar from "@/components/Avatar";
 import Tour, { TourButton, type TourStep } from "@/components/Tour";
+import IgBookmarklet from "@/components/IgBookmarklet";
 import {
   Mic, Upload, Link2, Loader2, Copy, Check, Download, Trash2, Database,
   ChevronDown, Filter, AlertTriangle, FileAudio,
@@ -176,6 +177,7 @@ export default function TranscribePage() {
         </div>
       ) : (
         <>
+          <IgBookmarklet />
           <div style={{ background: "rgba(123,63,228,0.04)", border: "1px solid var(--brd)", borderRadius: 14, padding: 14, marginBottom: 18 }}>
             <div data-tour="tr-mode" style={{ display: "flex", gap: 6, marginBottom: 12 }}>
               {([["file", "Свой файл", Upload], ["link", "Ссылка на ролик", Link2]] as const).map(([v, l, Ic]) => (
