@@ -80,6 +80,31 @@ export async function instagramVideoUrl(rawUrl: string): Promise<string | null> 
   } catch { return null; }
 }
 
+/** Запасной источник видео: HikerAPI (ходит в Instagram через свои вошедшие аккаунты) — отдаёт и то, что без входа
+ *  не показывается: 18+, «чувствительный» контент (пластика, медицина), часть закрытых. ~$0,001 за запрос.
+ *  Работает, только если в Vercel задан HIKERAPI_KEY (ops/set_hikerapi_key.sh). */
+export async function instagramVideoUrlHiker(rawUrl: string): Promise<string | null> {
+  const key = process.env.HIKERAPI_KEY;
+  const code = rawUrl.match(/instagram\.com\/(?:reel|reels|p|tv)\/([A-Za-z0-9_-]+)/i)?.[1];
+  if (!key || !code) return null;
+  const pickVideo = (m: any): string | null => {
+    if (!m) return null;
+    const v = m.video_url || m.video_versions?.[0]?.url
+      || (m.resources || m.carousel_media || []).map((x: any) => x?.video_url || x?.video_versions?.[0]?.url).find(Boolean);
+    return typeof v === "string" && /^https?:/.test(v) ? v : null;
+  };
+  for (const path of [`/v1/media/by/code?code=${code}`, `/v2/media/info/by/code?code=${code}`]) {
+    try {
+      const r = await fetch(`https://api.hikerapi.com${path}`, { headers: { "x-access-key": key, accept: "application/json" } });
+      if (!r.ok) continue;
+      const j: any = await r.json().catch(() => null);
+      const v = pickVideo(j) || pickVideo(j?.media_or_ad) || pickVideo(j?.items?.[0]) || pickVideo(j?.media);
+      if (v) return v;
+    } catch { /* следующий вариант */ }
+  }
+  return null;
+}
+
 export function detectPlatform(url: string) {
   if (/tiktok\.com/i.test(url)) return "tiktok";
   if (/instagram\.com/i.test(url)) return "instagram";

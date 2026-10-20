@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
-import { detectPlatform, instagramVideoUrl, submitFile, transcribeLink, type Lang } from "@/lib/transcribe";
+import { detectPlatform, instagramVideoUrl, instagramVideoUrlHiker, submitFile, transcribeLink, type Lang } from "@/lib/transcribe";
 
 export const maxDuration = 60;
 
@@ -33,7 +33,9 @@ export async function POST(req: Request) {
     else {
       // Готовой расшифровки нет — пробуем сам ролик: прямая ссылка на видео → распознавание речи (AssemblyAI).
       // Так проходят открытые ролики, на которых провайдер отвечал «нет видео» (20.10.2026).
-      const video = detectPlatform(url) === "instagram" ? await instagramVideoUrl(url) : null;
+      // 1) ScrapeCreators (без входа) → 2) HikerAPI (через вошедшие аккаунты: 18+, пластика, медицина)
+      const ig = detectPlatform(url) === "instagram";
+      const video = ig ? (await instagramVideoUrl(url)) || (await instagramVideoUrlHiker(url)) : null;
       const f = video ? await submitFile(video, language) : null;
       Object.assign(row, f?.ok
         ? { platform: "instagram", provider: "assemblyai", provider_job_id: f.jobId }
