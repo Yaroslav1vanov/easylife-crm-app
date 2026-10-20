@@ -3,11 +3,13 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase-browser";
 import { RefreshCw, FileDown, ExternalLink } from "lucide-react";
 
+const NET_RU: Record<string, string> = { instagram: "Instagram", tiktok: "TikTok", youtube: "YouTube", facebook: "Facebook" };
+
 /* Итоги по неделям за всё время работы клиента (client_weekly_stats).
    Заполняет /api/stats/collect-week, ежедневный крон добирает прошлые недели. */
 
 type W = {
-  week_start: string; week_end: string; reels_count: number | null; our_videos: number | null;
+  week_start: string; week_end: string; reels_count: number | null; our_videos: number | null; posts_count?: number | null; by_net?: Record<string, number> | null;
   views: number | null; reach: number | null; likes: number | null; comments: number | null;
   saves: number | null; shares: number | null; er: number | null; avg_retention: number | null;
   followers_end: number | null; followers_gained: number | null; followers_lost: number | null;
@@ -40,6 +42,18 @@ export default function WeeklyStatsTable({ clientId }: { clientId: number }) {
     setLoading(false);
   }
   useEffect(() => { load(); }, [clientId]);
+
+  // Прошлая неделя (пн–вс) ещё не собрана ночным сбором (он в 08:00 UTC = 16:00 по Бали) — соберём сами при открытии.
+  const [autoTried, setAutoTried] = useState(false);
+  useEffect(() => {
+    if (loading || missing || autoTried || busy) return;
+    const d = new Date(); const dow = (d.getDay() + 6) % 7; d.setDate(d.getDate() - dow - 7);
+    const lastMon = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    if (rows.length && !rows.some(r => r.week_start === lastMon)) {
+      setAutoTried(true);
+      fetch(`/api/stats/collect-week?clientId=${clientId}&weeks=2`, { cache: "no-store" }).then(() => load()).catch(() => {});
+    }
+  }, [loading, rows, missing, autoTried, busy, clientId]);
 
   async function collect(mode: "last" | "all") {
     setBusy(mode);
@@ -143,7 +157,7 @@ export default function WeeklyStatsTable({ clientId }: { clientId: number }) {
                   <tr key={r.week_start} style={{ borderTop: "1px solid var(--brd)" }}>
                     <td style={{ padding: "9px 11px", fontWeight: 700, color: "var(--t1)", whiteSpace: "nowrap" }}>{label(r.week_start, r.week_end)}</td>
                     <td style={{ padding: "9px 11px", textAlign: "right", whiteSpace: "nowrap" }}>
-                      {fmt(r.reels_count)}{r.our_videos ? <span style={{ fontSize: 10.5, color: "var(--t3)" }}> · наших {r.our_videos}</span> : null}
+                      {fmt(r.reels_count)}{r.by_net && Object.keys(r.by_net).length > 1 ? <span style={{ fontSize: 10.5, color: "var(--t3)" }} title={Object.entries(r.by_net).map(([k, v]) => `${NET_RU[k] || k} ${v}`).join(" · ")}> · публикаций {r.posts_count}</span> : null}
                     </td>
                     <td style={{ padding: "9px 11px", textAlign: "right", fontWeight: 700, color: "var(--t1)" }}>
                       {fmt(r.views)}{d != null && <span style={{ marginLeft: 6, fontSize: 10.5, color: d >= 0 ? "var(--gr)" : "var(--rd)" }}>{d >= 0 ? "+" : ""}{d}%</span>}

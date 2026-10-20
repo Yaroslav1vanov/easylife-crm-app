@@ -29,6 +29,7 @@ export type WeeklyArgs = {
   nextWeek: PlanItem[];                  // что выходит на следующей неделе (контент-план CRM)
   narrative: { headline: string; lead: string; hit: string[]; cards: { tone: "g" | "y" | "r"; title: string; text: string }[]; plan: string[] };
   lang: "ru" | "en";
+  partial?: boolean;                     // неделя ещё не закончилась по времени клиента
   generatedAt: string;
 };
 
@@ -232,6 +233,7 @@ a{color:var(--white);text-decoration:none}a:hover{color:var(--neon)}
 <div class="top"><div class="brand">Easy<b>Life</b> AI</div><div class="pill">${t.report} · ${long(a.from)} — ${long(a.to)}</div></div>
 
 <div class="client">${a.avatar ? `<img src="${a.avatar}" alt="">` : ""}<div><div class="nm">${esc(a.client.name)} ${esc(a.client.surname || "")}</div><div class="hd">${esc(a.client.instagram ? handleOf(a.client.instagram) : "")}</div></div></div>
+${a.partial ? `<p class="excl" style="margin:0 0 12px">${a.lang === "en" ? "This week is not over yet in the client's time zone — the numbers are incomplete." : "Неделя ещё не закончилась по времени клиента — цифры неполные. Полный отчёт за эту неделю — после полудня понедельника по Бали."}</p>` : ""}
 <h1>${a.narrative.headline}</h1>
 <p class="sub">${a.narrative.lead}</p>
 

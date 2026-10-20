@@ -7,7 +7,7 @@ import { addDays, fetchNetworkPosts, followersDelta, median, mondayOf, reelField
 
 export type WeekRow = {
   client_id: number; week_start: string; week_end: string;
-  reels_count: number; our_videos: number | null;
+  reels_count: number; posts_count: number; by_net: Record<string, number>; our_videos: number | null;
   views: number; reach: number; likes: number; comments: number; saves: number; shares: number;
   er: number | null; avg_retention: number | null;
   followers_end: number | null; followers_gained: number | null; followers_lost: number | null;
@@ -24,9 +24,19 @@ export async function collectClientWeek(sb: SupabaseClient, client: ClientLike, 
     fetchNetworkPosts(client, from, to),
     fetchNetworkPosts(client, addDays(from, -60), addDays(from, -1)),
   ]);
-  const norm = median(hist.map(p => reelFields(p).views).filter(v => v > 0).slice(-30)) || 1;
-  const items = raw.map(p => ({ ...reelFields(p), net: (p as any)._net }))
-    .filter(r => !(r.views < Math.max(50, norm * 0.01)));   // почти не показанные в ленте не учитываем
+  // «обычный уровень» по каждой площадке свой; почти не показанные (реклама из кабинета, тесты) — меньше 3% нормы.
+  // Жёсткий порог 50 просмотров убран: у небольших аккаунтов (Lash Couture) так выпадали все ролики недели.
+  const netNorm: Record<string, number> = {};
+  for (const net of Array.from(new Set(hist.map((p: any) => p._net as string)))) {
+    const v = hist.filter((p: any) => p._net === net).map(p => reelFields(p).views).filter(x => x > 0);
+    netNorm[net] = median(v.slice(-30)) || median(v) || 1;
+  }
+  const items = raw.map(p => ({ ...reelFields(p), net: (p as any)._net as string }))
+    .filter(r => !(r.views < Math.max(5, (netNorm[r.net] || 1) * 0.03)));
+  // один ролик в Instagram, TikTok и YouTube — это 1 ролик и 3 публикации
+  const byNet: Record<string, number> = {};
+  for (const r of items) byNet[r.net] = (byNet[r.net] || 0) + 1;
+  const uniqueReels = Math.max(0, ...Object.values(byNet));
 
   const sum = (k: "views" | "reach" | "likes" | "comments" | "saved" | "shares") =>
     items.reduce((a, r) => a + (Number((r as any)[k]) || 0), 0);
@@ -47,7 +57,7 @@ export async function collectClientWeek(sb: SupabaseClient, client: ClientLike, 
   const top = items.length ? items.reduce((a, b) => (b.views > a.views ? b : a), items[0]) : null;
   return {
     client_id: client.id, week_start: from, week_end: to,
-    reels_count: items.length, our_videos: ourVideos ?? null,
+    reels_count: uniqueReels, posts_count: items.length, by_net: byNet, our_videos: ourVideos ?? null,
     views, reach, likes, comments, saves, shares,
     er: base ? Math.round(((likes + comments + saves + shares) / base) * 1000) / 10 : null,
     avg_retention: rets.length ? Math.round(rets.reduce((a, b) => a + b, 0) / rets.length) : null,

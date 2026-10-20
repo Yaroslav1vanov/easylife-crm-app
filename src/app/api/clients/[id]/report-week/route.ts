@@ -164,6 +164,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
 
   const html = buildWeeklyHtml({
     client: c, avatar, from, to, prevFrom, prevTo, cur, prev, reels, excluded, norm,
+    partial: new Intl.DateTimeFormat("en-CA", { timeZone: c.timezone || "America/New_York" }).format(new Date()) <= to,
     ourVideos: ourVideos ?? null, month, followers, account, nextWeek, syncs, narrative, lang, generatedAt: today,
   });
   const fn = `${[c.name, c.surname].filter(Boolean).join(" ")} — отчёт ${from}—${to}.html`;

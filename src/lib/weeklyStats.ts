@@ -138,7 +138,7 @@ export type AccountWeek = {
 export async function accountWeekDelta(sb: any, clientId: number, from: string, to: string): Promise<AccountWeek> {
   const empty: AccountWeek = { ready: false, views: 0, reach: 0, likes: 0, comments: 0, saved: 0, shares: 0, tracked: 0, newInWeek: 0, older: 0, olderViews: 0, baseDate: null, endDate: null };
   const { data } = await sb.from("reel_snapshots")
-    .select("post_url, published_at, snapshot_date, views, reach, likes, comments, saves, shares")
+    .select("network, post_url, published_at, snapshot_date, views, reach, likes, comments, saves, shares")
     .eq("client_id", clientId).gte("snapshot_date", addDays(from, -3)).lte("snapshot_date", addDays(to, 3))
     .order("snapshot_date", { ascending: true });
   const rows = (data || []) as any[];
@@ -151,6 +151,7 @@ export async function accountWeekDelta(sb: any, clientId: number, from: string, 
   const at = (d: string) => new Map(rows.filter(r => r.snapshot_date === d).map(r => [r.post_url, r]));
   const base = at(baseDate), end = at(endDate);
   const out: AccountWeek = { ...empty, ready: true, baseDate, endDate };
+  const newBy: Record<string, number> = {}, oldBy: Record<string, number> = {};
   end.forEach((cur: any, url: string) => {
     const was: any = base.get(url);
     const isNew = !was || (cur.published_at && cur.published_at >= from);
@@ -158,8 +159,12 @@ export async function accountWeekDelta(sb: any, clientId: number, from: string, 
     out.views += d("views"); out.reach += d("reach"); out.likes += d("likes");
     out.comments += d("comments"); out.saved += d("saves"); out.shares += d("shares");
     out.tracked++;
-    if (isNew) out.newInWeek++; else { out.older++; out.olderViews += d("views"); }
+    const net = cur.network || "instagram";
+    if (isNew) newBy[net] = (newBy[net] || 0) + 1; else { oldBy[net] = (oldBy[net] || 0) + 1; out.olderViews += d("views"); }
   });
+  // ролик в трёх сетях — один ролик: берём максимум по площадкам, а не сумму
+  out.newInWeek = Math.max(0, ...Object.values(newBy));
+  out.older = Math.max(0, ...Object.values(oldBy));
   return out;
 }
 
