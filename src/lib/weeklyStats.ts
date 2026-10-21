@@ -59,7 +59,10 @@ export function reelFields(p: any) {
     dur,
     skip: num(pick(p, ...F.skip)),
     full: num(pick(p, ...F.full)),
-    ret: dur && watch ? Math.round((watch / dur) * 100) : null,
+    // средний просмотр / длина. Instagram считает повторы по кругу, поэтому бывает больше длины ролика
+    // (MedSpa 17.10: 95 с при 54 с = 177%). В «досмотре» и средних — максимум 100%, факт повторов — в retLoop.
+    ret: dur && watch ? Math.min(100, Math.round((watch / dur) * 100)) : null,
+    retLoop: !!(dur && watch && watch > dur),
   };
 }
 

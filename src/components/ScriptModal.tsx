@@ -457,7 +457,7 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
               </div>
               {(s.our_retention_pct != null || s.our_skip_rate != null) && (
                 <div style={{ marginTop: 10, display: "flex", justifyContent: "center", gap: 14, flexWrap: "wrap", fontSize: 12, color: "var(--t2)" }}>
-                  {s.our_retention_pct != null && <span title="Средняя доля ролика, которую досматривают">досмотр <b style={{ color: "var(--t1)" }}>{Math.round(s.our_retention_pct)}%</b></span>}
+                  {s.our_retention_pct != null && <span title="Средняя доля ролика, которую досматривают">досмотр <b style={{ color: "var(--t1)" }}>{s.our_retention_pct >= 100 ? "100%+" : `${Math.round(s.our_retention_pct)}%`}</b></span>}
                   {s.our_skip_rate != null && <span title="Сколько зрителей пролистали ролик в первые секунды. Высокое — слабый хук">пролистали в начале <b style={{ color: s.our_skip_rate >= 50 ? "var(--rd)" : "var(--t1)" }}>{Math.round(s.our_skip_rate)}%</b></span>}
                 </div>
               )}

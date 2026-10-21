@@ -31,7 +31,7 @@ const curYm = () => { const d = new Date(); return `${d.getFullYear()}-${String(
 type Reel = {
   date: string; net: string; title: string; ourTitle: string | null; url: string | null; image: string | null;
   views: number; reach: number | null; likes: number | null; comments: number | null; saves: number | null;
-  shares: number | null; er: number | null; retention: number | null; duration: number | null; skip?: number | null; x: number; isOurs: boolean;
+  shares: number | null; er: number | null; retention: number | null; retLoop?: boolean; duration: number | null; skip?: number | null; x: number; isOurs: boolean;
 };
 
 export default function ClientStatsTab({ clientId, hasMetricool }: { clientId: number; hasMetricool: boolean }) {
@@ -265,7 +265,7 @@ export default function ClientStatsTab({ clientId, hasMetricool }: { clientId: n
                                   <td style={{ padding: "8px 12px", textAlign: "right" }}>{fmt(r.saves)}</td>
                                   <td style={{ padding: "8px 12px", textAlign: "right" }}>{fmt(r.shares)}</td>
                                   <td style={{ padding: "8px 12px", textAlign: "right" }}>{r.er != null ? `${String(r.er).replace(".", ",")}%` : "—"}</td>
-                                  <td style={{ padding: "8px 12px", textAlign: "right" }} title="Средняя доля ролика, которую смотрят">{r.retention != null ? `${r.retention}%` : "—"}</td>
+                                  <td style={{ padding: "8px 12px", textAlign: "right" }} title={r.retLoop ? "Средний просмотр длиннее самого ролика: его пересматривают по кругу (или он крутился в рекламе)" : "Средняя доля ролика, которую смотрят"}>{r.retention != null ? (r.retLoop ? "100%+ ↻" : `${r.retention}%`) : "—"}</td>
                                   <td style={{ padding: "8px 12px", textAlign: "right", color: r.skip != null && r.skip >= 50 ? "var(--rd)" : undefined }} title="Сколько зрителей пролистали ролик в первые секунды (Instagram). Высокое — слабый хук">{r.skip != null ? `${String(Math.round(r.skip)).replace(".", ",")}%` : "—"}</td>
                                 </tr>
                               ))}

@@ -8,7 +8,7 @@ export type ClientReel = {
   date: string; net: string; title: string; ourTitle: string | null; caption: string;
   url: string | null; image: string | null;
   views: number; reach: number | null; likes: number | null; comments: number | null;
-  saves: number | null; shares: number | null; er: number | null; retention: number | null;
+  saves: number | null; shares: number | null; er: number | null; retention: number | null; retLoop?: boolean;
   duration: number | null; skip: number | null; x: number; isOurs: boolean;
 };
 
@@ -59,7 +59,7 @@ export async function clientReels(
         url: f.url, image: f.image,
         views: f.views, reach: f.reach, likes: f.likes, comments: f.comments, saves: f.saved, shares: f.shares,
         er: base ? Math.round((((f.likes || 0) + (f.comments || 0) + (f.saved || 0) + (f.shares || 0)) / base) * 1000) / 10 : null,
-        retention: f.ret, duration: f.dur, skip: f.skip,
+        retention: f.ret, retLoop: f.retLoop, duration: f.dur, skip: f.skip,
         x: Math.round((f.views / (netNorm[net] || normAll)) * 100) / 100,
         isOurs: !!sc,
       };
