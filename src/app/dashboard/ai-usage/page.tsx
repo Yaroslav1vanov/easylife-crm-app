@@ -1,32 +1,52 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useIsOwner } from "@/components/RoleContext";
 import Avatar from "@/components/Avatar";
-import { Bot, Film, AlertTriangle, Clock, Users, Server, HardDrive, Cpu, MemoryStick, CircleDollarSign } from "lucide-react";
+import { Bot, Film, AlertTriangle, Clock, Users, Server, HardDrive, Cpu, MemoryStick, CircleDollarSign, X, Search } from "lucide-react";
 
 /* ИИ-чат: аналитика (видит только владелец). Что сотрудники делают через ИИ-исполнителя:
    задачи по дням, кто сколько ставит, смонтированные ролики, ошибки, время, условная стоимость,
-   по клиентам и чатам; и состояние сервера — диск, нагрузка, сколько задач идёт прямо сейчас. */
+   по клиентам и чатам; фильтры по сотруднику / клиенту / дню и полный список задач по дням;
+   и состояние сервера — диск, нагрузка, сколько задач идёт прямо сейчас. */
 
-type G = { key: string; tasks: number; done: number; error: number; working: number; videos: number; images: number; avgMin: number | null; cost: number; clients: number; people: number; last: string; name?: string; avatar?: string | null };
-type Row = { id: number; client: string; avatar: string | null; who: string; thread: string; status: string; error: string | null; at: string; minutes: number | null; cost: number | null; videos: number; images: number; files: number; text: string };
+type Row = { id: number; client_id: number; client: string; avatar: string | null; who: string; thread: string; status: string; error: string | null; at: string; minutes: number | null; cost: number | null; videos: number; images: number; files: number; text: string };
 type Data = {
-  days: number; total: G; today: { tasks: number; videos: number; error: number };
-  timeline: { day: string; tasks: number; done: number; error: number; videos: number }[];
-  people: G[]; clients: G[]; threads: G[]; errors: Row[]; recent: Row[];
+  days: number; rows: Row[];
   server: { last: any; online: boolean; hourly: { at: string; disk: number; load: number; run: number }[] };
   quick: { total: number; byKind: Record<string, number> };
 };
+type Agg = { key: string; tasks: number; done: number; error: number; videos: number; images: number; avgMin: number | null; cost: number; clients: number; people: number; last: string; first: string; name?: string; avatar?: string | null };
 
 const THREAD: Record<string, string> = { reels: "Рилсы", stories: "Сторис", strategy: "Стратегия" };
 const STATUS: Record<string, { t: string; c: string }> = { done: { t: "готово", c: "var(--gr)" }, error: { t: "ошибка", c: "var(--rd)" }, working: { t: "в работе", c: "var(--cy)" }, queued: { t: "в очереди", c: "var(--t3)" } };
+const WD = ["воскресенье", "понедельник", "вторник", "среда", "четверг", "пятница", "суббота"];
+const MON = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
 const fmtMin = (m: number | null) => (m == null ? "—" : m < 1 ? "<1 мин" : m < 60 ? `${Math.round(m)} мин` : `${Math.floor(m / 60)} ч ${Math.round(m % 60)} мин`);
 const ago = (iso: string) => { const m = (Date.now() - Date.parse(iso)) / 60000; return m < 60 ? `${Math.round(m)} мин назад` : m < 1440 ? `${Math.round(m / 60)} ч назад` : `${Math.round(m / 1440)} дн назад`; };
-const dm = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}`;
-const tm = (iso: string) => new Date(iso).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+const localDay = (iso: string) => { const d = new Date(iso); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+const dm = (day: string) => `${day.slice(8, 10)}.${day.slice(5, 7)}`;
+const dayTitle = (day: string) => { const d = new Date(day + "T12:00:00"); return `${d.getDate()} ${MON[d.getMonth()]}, ${WD[d.getDay()]}`; };
+const hm = (iso: string) => new Date(iso).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
 
 const card: React.CSSProperties = { padding: 16, marginBottom: 14 };
 const label: React.CSSProperties = { fontSize: 11, color: "var(--t3)", fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.4 };
+const sel: React.CSSProperties = { height: 32, borderRadius: 9, border: "1px solid var(--brd)", background: "var(--v2-inset, var(--card))", color: "var(--t1)", padding: "0 10px", fontSize: 13, fontFamily: "inherit" };
+
+function group(rows: Row[], key: (r: Row) => string): Agg[] {
+  const m = new Map<string, any>();
+  for (const r of rows) {
+    const k = key(r);
+    const g = m.get(k) || { key: k, tasks: 0, done: 0, error: 0, videos: 0, images: 0, minutes: 0, minN: 0, cost: 0, last: r.at, first: r.at, cl: new Set<number>(), pp: new Set<string>(), name: r.client, avatar: r.avatar };
+    g.tasks++; if (r.status === "done") g.done++; else if (r.status === "error") g.error++;
+    g.videos += r.videos; g.images += r.images;
+    if (r.minutes != null && r.status === "done") { g.minutes += r.minutes; g.minN++; }
+    if (r.cost) g.cost += r.cost;
+    if (r.at > g.last) g.last = r.at; if (r.at < g.first) g.first = r.at;
+    g.cl.add(r.client_id); g.pp.add(r.who);
+    m.set(k, g);
+  }
+  return Array.from(m.values()).map(g => ({ ...g, avgMin: g.minN ? Math.round((g.minutes / g.minN) * 10) / 10 : null, cost: Math.round(g.cost * 100) / 100, clients: g.cl.size, people: g.pp.size }));
+}
 
 function Kpi({ icon: I, title, value, sub, color }: { icon: any; title: string; value: string; sub?: string; color?: string }) {
   return (
@@ -37,7 +57,6 @@ function Kpi({ icon: I, title, value, sub, color }: { icon: any; title: string; 
     </div>
   );
 }
-
 function Bar({ v, max, color }: { v: number; max: number; color: string }) {
   return <div style={{ height: 6, borderRadius: 3, background: "var(--track)", overflow: "hidden" }}><div style={{ width: `${max ? (v / max) * 100 : 0}%`, height: "100%", background: color }} /></div>;
 }
@@ -47,17 +66,47 @@ export default function AiUsagePage() {
   const [days, setDays] = useState(30);
   const [d, setD] = useState<Data | null>(null);
   const [err, setErr] = useState("");
+  const [who, setWho] = useState("");
+  const [cid, setCid] = useState<number | null>(null);
+  const [day, setDay] = useState("");
+  const [q, setQ] = useState("");
+  const [open, setOpen] = useState<number | null>(null);
+  const [showDays, setShowDays] = useState(7);
 
   useEffect(() => {
     if (!isOwner) return;
     setErr("");
     fetch(`/api/admin/ai-usage?days=${days}`).then(r => r.json()).then(j => (j.error ? setErr(j.error) : setD(j))).catch(e => setErr(String(e)));
   }, [days, isOwner]);
+  useEffect(() => { setShowDays(7); }, [who, cid, day, q, days]);
+
+  const all = d?.rows || [];
+  // фильтр без дня — для графика по дням (чтобы видеть, в какие дни работал выбранный сотрудник)
+  const base = useMemo(() => all.filter(r => (!who || r.who === who) && (cid == null || r.client_id === cid) && (!q || r.text.toLowerCase().includes(q.toLowerCase()) || r.client.toLowerCase().includes(q.toLowerCase()))), [all, who, cid, q]);
+  const rows = useMemo(() => (day ? base.filter(r => localDay(r.at) === day) : base), [base, day]);
+
+  const t = useMemo(() => group(rows, () => "all")[0] || null, [rows]);
+  const people = useMemo(() => group(day || cid != null || q ? rows : all.filter(r => true), r => r.who).sort((a, b) => b.tasks - a.tasks), [rows, all, day, cid, q]);
+  const clients = useMemo(() => group(rows, r => String(r.client_id)).sort((a, b) => b.tasks - a.tasks), [rows]);
+  const threads = useMemo(() => group(rows, r => r.thread).sort((a, b) => b.tasks - a.tasks), [rows]);
+  const timeline = useMemo(() => {
+    const byDay = new Map(group(base, r => localDay(r.at)).map(g => [g.key, g]));
+    const out: { day: string; tasks: number; error: number; videos: number }[] = [];
+    for (let i = days - 1; i >= 0; i--) { const k = localDay(new Date(Date.now() - i * 864e5).toISOString()); const g = byDay.get(k); out.push({ day: k, tasks: g?.tasks || 0, error: g?.error || 0, videos: g?.videos || 0 }); }
+    return out;
+  }, [base, days]);
+  const byDay = useMemo(() => {
+    const m = new Map<string, Row[]>();
+    for (const r of rows) { const k = localDay(r.at); (m.get(k) || m.set(k, []).get(k)!).push(r); }
+    return Array.from(m.entries()).sort((a, b) => (a[0] < b[0] ? 1 : -1));
+  }, [rows]);
+  const peopleNames = useMemo(() => Array.from(new Set(all.map(r => r.who))).sort(), [all]);
+  const clientOpts = useMemo(() => Array.from(new Map(all.map(r => [r.client_id, r.client])).entries()).sort((a, b) => a[1].localeCompare(b[1])), [all]);
+  const errors = rows.filter(r => r.status === "error").slice(0, 15);
 
   if (!isOwner) return <div style={{ padding: 40, color: "var(--t3)" }}>Раздел доступен только владельцу.</div>;
 
-  const t = d?.total;
-  const maxDay = Math.max(1, ...(d?.timeline || []).map(x => x.tasks));
+  const maxDay = Math.max(1, ...timeline.map(x => x.tasks));
   const s = d?.server.last;
   const diskPct = s ? Math.round((Number(s.disk_used_gb) / Number(s.disk_total_gb)) * 100) : null;
   const loadPct = s && s.cpus ? Math.round((Number(s.load1) / Number(s.cpus)) * 100) : null;
@@ -65,10 +114,12 @@ export default function AiUsagePage() {
   const tone = (p: number | null, warn = 80, bad = 92) => (p == null ? "var(--t3)" : p >= bad ? "var(--rd)" : p >= warn ? "var(--or)" : "var(--gr)");
   const hourly = d?.server.hourly || [];
   const diskMax = Math.max(1, ...hourly.map(h => h.disk), Number(s?.disk_total_gb) || 1);
+  const filtered = !!(who || cid != null || day || q);
+  const todayRows = all.filter(r => localDay(r.at) === localDay(new Date().toISOString()) && (!who || r.who === who));
 
   return (
     <div style={{ maxWidth: 1180, margin: "0 auto", paddingBottom: 40 }}>
-      <div className="flex items-center gap-3 flex-wrap" style={{ marginBottom: 14 }}>
+      <div className="flex items-center gap-3 flex-wrap" style={{ marginBottom: 12 }}>
         <Bot size={22} style={{ color: "var(--pu)" }} />
         <h1 style={{ fontSize: 22, fontWeight: 800 }}>ИИ-чат: аналитика</h1>
         <span style={{ fontSize: 12, color: "var(--t3)" }}>видите только вы</span>
@@ -80,92 +131,151 @@ export default function AiUsagePage() {
         ))}
       </div>
 
+      {/* фильтры */}
+      <div className="flex items-center gap-2 flex-wrap" style={{ marginBottom: 14 }}>
+        <select value={who} onChange={e => setWho(e.target.value)} style={sel}>
+          <option value="">Все сотрудники</option>
+          {peopleNames.map(n => <option key={n} value={n}>{n}</option>)}
+        </select>
+        <select value={cid ?? ""} onChange={e => setCid(e.target.value ? Number(e.target.value) : null)} style={sel}>
+          <option value="">Все клиенты</option>
+          {clientOpts.map(([id, n]) => <option key={id} value={id}>{n}</option>)}
+        </select>
+        <input type="date" value={day} onChange={e => setDay(e.target.value)} style={sel} />
+        <div className="flex items-center gap-1" style={{ ...sel, padding: "0 8px", minWidth: 200 }}>
+          <Search size={13} style={{ color: "var(--t3)" }} />
+          <input value={q} onChange={e => setQ(e.target.value)} placeholder="Поиск по задачам…" style={{ background: "transparent", border: 0, outline: "none", color: "var(--t1)", fontSize: 13, flex: 1, fontFamily: "inherit" }} />
+        </div>
+        {filtered && <button onClick={() => { setWho(""); setCid(null); setDay(""); setQ(""); }} className="v2-chip mut" style={{ cursor: "pointer", height: 30, padding: "0 10px", display: "inline-flex", alignItems: "center", gap: 4 }}><X size={12} /> Сбросить</button>}
+      </div>
+
       {err && <div className="v2-card" style={{ ...card, color: "var(--rd)" }}>{err}</div>}
       {!d && !err && <div style={{ color: "var(--t3)" }}>Загружаю…</div>}
 
-      {d && t && (
+      {d && (
         <>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 10, marginBottom: 14 }}>
-            <Kpi icon={Bot} title="Задач ИИ" value={String(t.tasks)} sub={`сегодня ${d.today.tasks}`} />
-            <Kpi icon={Film} title="Роликов смонтировано" value={String(t.videos)} sub={`сегодня ${d.today.videos} · картинок ${t.images}`} color="var(--gr)" />
-            <Kpi icon={AlertTriangle} title="Ошибок" value={String(t.error)} sub={t.tasks ? `${Math.round((t.error / t.tasks) * 100)}% задач` : "—"} color={t.error ? "var(--rd)" : undefined} />
-            <Kpi icon={Clock} title="Время задачи" value={fmtMin(t.avgMin)} sub="в среднем на готовую" />
-            <Kpi icon={Users} title="Работали с ИИ" value={String(t.people)} sub={`сотрудников · клиентов ${t.clients}`} />
-            <Kpi icon={CircleDollarSign} title="Условный расход" value={`$${t.cost.toFixed(0)}`} sub="по ценам API; платим подпиской" />
+            <Kpi icon={Bot} title="Задач ИИ" value={String(t?.tasks || 0)} sub={day ? dayTitle(day) : `сегодня ${todayRows.length}`} />
+            <Kpi icon={Film} title="Роликов смонтировано" value={String(t?.videos || 0)} sub={`картинок ${t?.images || 0}`} color="var(--gr)" />
+            <Kpi icon={AlertTriangle} title="Ошибок" value={String(t?.error || 0)} sub={t?.tasks ? `${Math.round(((t?.error || 0) / t.tasks) * 100)}% задач` : "—"} color={t?.error ? "var(--rd)" : undefined} />
+            <Kpi icon={Clock} title="Время задачи" value={fmtMin(t?.avgMin ?? null)} sub="в среднем на готовую" />
+            <Kpi icon={Users} title={who ? "Клиентов" : "Работали с ИИ"} value={String(who ? t?.clients || 0 : t?.people || 0)} sub={who ? who : `сотрудников · клиентов ${t?.clients || 0}`} />
+            <Kpi icon={CircleDollarSign} title="Условный расход" value={`$${(t?.cost || 0).toFixed(0)}`} sub="по ценам API; платим подпиской" />
           </div>
 
           <div className="v2-card" style={card}>
-            <div className="flex items-center gap-2" style={{ marginBottom: 10 }}>
-              <b style={{ fontSize: 14 }}>Задачи по дням</b>
+            <div className="flex items-center gap-2 flex-wrap" style={{ marginBottom: 10 }}>
+              <b style={{ fontSize: 14 }}>Задачи по дням{who ? ` · ${who}` : ""}</b>
               <span style={{ fontSize: 12, color: "var(--t3)" }}>
-                <span style={{ color: "var(--pu)" }}>■</span> готово · <span style={{ color: "var(--rd)" }}>■</span> ошибка · цифра сверху — ролики
+                <span style={{ color: "var(--pu)" }}>■</span> готово · <span style={{ color: "var(--rd)" }}>■</span> ошибка · цифра сверху — ролики · клик по дню — задачи этого дня
               </span>
             </div>
             <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 150 }}>
-              {d.timeline.map(x => (
-                <div key={x.day} title={`${dm(x.day)}: задач ${x.tasks}, готово ${x.done}, ошибок ${x.error}, роликов ${x.videos}`}
-                  style={{ flex: 1, minWidth: 4, display: "flex", flexDirection: "column", justifyContent: "flex-end", height: "100%" }}>
-                  {x.videos > 0 && d.timeline.length <= 31 && <div style={{ fontSize: 9, color: "var(--gr)", textAlign: "center", fontWeight: 800 }}>{x.videos}</div>}
+              {timeline.map(x => (
+                <button key={x.day} onClick={() => setDay(day === x.day ? "" : x.day)} title={`${dayTitle(x.day)}: задач ${x.tasks}, ошибок ${x.error}, роликов ${x.videos}`}
+                  style={{ flex: 1, minWidth: 4, display: "flex", flexDirection: "column", justifyContent: "flex-end", height: "100%", background: "transparent", border: 0, padding: 0, cursor: "pointer", opacity: day && day !== x.day ? 0.35 : 1 }}>
+                  {x.videos > 0 && timeline.length <= 31 && <div style={{ fontSize: 9, color: "var(--gr)", textAlign: "center", fontWeight: 800 }}>{x.videos}</div>}
                   <div style={{ height: `${(x.error / maxDay) * 100}%`, background: "var(--rd)", borderRadius: "2px 2px 0 0" }} />
                   <div style={{ height: `${((x.tasks - x.error) / maxDay) * 100}%`, background: "var(--pu)", opacity: 0.85, borderRadius: x.error ? 0 : "2px 2px 0 0" }} />
-                </div>
+                </button>
               ))}
             </div>
             <div className="flex justify-between" style={{ fontSize: 10.5, color: "var(--t3)", marginTop: 4 }}>
-              <span>{dm(d.timeline[0]?.day || "")}</span><span>{dm(d.timeline.at(-1)?.day || "")}</span>
+              <span>{dm(timeline[0]?.day || "")}</span><span>{dm(timeline.at(-1)?.day || "")}</span>
             </div>
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: 14 }}>
             <div className="v2-card" style={card}>
-              <b style={{ fontSize: 14 }}>Сотрудники</b>
+              <b style={{ fontSize: 14 }}>Сотрудники</b> <span style={{ fontSize: 12, color: "var(--t3)" }}>клик — только его задачи</span>
               <div style={{ marginTop: 10, display: "grid", gap: 10 }}>
-                {d.people.map(p => (
-                  <div key={p.key}>
+                {people.map(p => (
+                  <button key={p.key} onClick={() => setWho(who === p.key ? "" : p.key)} style={{ textAlign: "left", background: who === p.key ? "var(--pud)" : "transparent", border: 0, borderRadius: 8, padding: "4px 6px", margin: "0 -6px", cursor: "pointer", color: "inherit", fontFamily: "inherit" }}>
                     <div className="flex items-center gap-2" style={{ fontSize: 13 }}>
                       <b style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.key}</b>
                       <span style={{ color: "var(--t2)" }}>{p.tasks} задач</span>
                       <span style={{ color: "var(--gr)" }}>{p.videos} 🎬</span>
                       {p.error > 0 && <span style={{ color: "var(--rd)" }}>{p.error} ош.</span>}
                     </div>
-                    <Bar v={p.tasks} max={d.people[0]?.tasks || 1} color="var(--pu)" />
+                    <Bar v={p.tasks} max={people[0]?.tasks || 1} color="var(--pu)" />
                     <div style={{ fontSize: 11, color: "var(--t3)", marginTop: 3 }}>клиентов {p.clients} · в среднем {fmtMin(p.avgMin)} · последняя {ago(p.last)}</div>
-                  </div>
+                  </button>
                 ))}
-                {!d.people.length && <div style={{ fontSize: 13, color: "var(--t3)" }}>За период задач не было.</div>}
+                {!people.length && <div style={{ fontSize: 13, color: "var(--t3)" }}>Задач нет.</div>}
               </div>
             </div>
 
             <div className="v2-card" style={card}>
-              <b style={{ fontSize: 14 }}>Клиенты</b>
-              <div style={{ marginTop: 10, display: "grid", gap: 9, maxHeight: 420, overflowY: "auto" }}>
-                {d.clients.map(c => (
-                  <div key={c.key} className="flex items-center gap-2" style={{ fontSize: 13 }}>
+              <b style={{ fontSize: 14 }}>Клиенты</b> <span style={{ fontSize: 12, color: "var(--t3)" }}>клик — только его задачи</span>
+              <div style={{ marginTop: 10, display: "grid", gap: 6, maxHeight: 420, overflowY: "auto" }}>
+                {clients.map(c => (
+                  <button key={c.key} onClick={() => setCid(cid === Number(c.key) ? null : Number(c.key))} className="flex items-center gap-2"
+                    style={{ fontSize: 13, background: cid === Number(c.key) ? "var(--cyd)" : "transparent", border: 0, borderRadius: 8, padding: "4px 6px", cursor: "pointer", color: "inherit", fontFamily: "inherit", textAlign: "left" }}>
                     <Avatar name={c.name || ""} src={c.avatar || null} size={22} />
                     <span style={{ flex: 1, minWidth: 0 }}>
                       <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 700 }}>{c.name}</span>
-                      <Bar v={c.tasks} max={d.clients[0]?.tasks || 1} color="var(--cy)" />
+                      <Bar v={c.tasks} max={clients[0]?.tasks || 1} color="var(--cy)" />
                     </span>
                     <span style={{ width: 70, textAlign: "right", color: "var(--t2)" }}>{c.tasks} задач</span>
                     <span style={{ width: 44, textAlign: "right", color: "var(--gr)" }}>{c.videos} 🎬</span>
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>
+          </div>
+
+          {/* все задачи по дням */}
+          <div className="v2-card" style={card}>
+            <div className="flex items-center gap-2 flex-wrap">
+              <b style={{ fontSize: 14 }}>Задачи{who ? ` · ${who}` : ""}{cid != null ? ` · ${clientOpts.find(c => c[0] === cid)?.[1] || ""}` : ""}{day ? ` · ${dayTitle(day)}` : ""}</b>
+              <span style={{ fontSize: 12, color: "var(--t3)" }}>{rows.length} задач · клик по строке — полный текст</span>
+            </div>
+            {!rows.length && <div style={{ fontSize: 13, color: "var(--t3)", marginTop: 10 }}>Задач нет.</div>}
+            {byDay.slice(0, showDays).map(([k, list]) => {
+              const g = group(list, () => "d")[0];
+              return (
+                <div key={k} style={{ marginTop: 14 }}>
+                  <div className="flex items-center gap-2 flex-wrap" style={{ padding: "6px 0", borderBottom: "1px solid var(--brd)" }}>
+                    <b style={{ fontSize: 13.5 }}>{dayTitle(k)}</b>
+                    <span style={{ fontSize: 12, color: "var(--t3)" }}>
+                      {g.tasks} задач · {g.videos} роликов{g.error ? ` · ${g.error} ош.` : ""} · работа с {hm(g.first)} до {hm(g.last)}{!who && g.people > 1 ? ` · сотрудников ${g.people}` : ""}
+                    </span>
+                  </div>
+                  {list.map(r => (
+                    <div key={r.id} onClick={() => setOpen(open === r.id ? null : r.id)} style={{ borderBottom: "1px solid var(--brd)", padding: "7px 2px", cursor: "pointer" }}>
+                      <div className="flex items-center gap-2" style={{ fontSize: 12.5 }}>
+                        <span style={{ width: 42, color: "var(--t3)", flexShrink: 0 }}>{hm(r.at)}</span>
+                        {!who && <span style={{ width: 130, flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.who}</span>}
+                        <b style={{ width: 140, flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.client}</b>
+                        <span style={{ width: 70, flexShrink: 0, color: "var(--t2)" }}>{THREAD[r.thread] || r.thread}</span>
+                        <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: open === r.id ? "normal" : "nowrap" }}>{r.text || "—"}</span>
+                        <span style={{ width: 70, flexShrink: 0, color: STATUS[r.status]?.c }}>{STATUS[r.status]?.t || r.status}</span>
+                        <span style={{ width: 54, flexShrink: 0, textAlign: "right" }}>{fmtMin(r.minutes)}</span>
+                        <span style={{ width: 54, flexShrink: 0, textAlign: "right", color: "var(--t2)" }}>{r.videos ? `${r.videos}🎬` : ""}{r.images ? ` ${r.images}🖼` : ""}{!r.videos && !r.images && r.files ? r.files : ""}</span>
+                      </div>
+                      {open === r.id && r.error && <div style={{ fontSize: 12, color: "var(--rd)", margin: "4px 0 0 50px" }}>{r.error}</div>}
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+            {byDay.length > showDays && (
+              <button onClick={() => setShowDays(n => n + 7)} className="v2-chip mut" style={{ cursor: "pointer", height: 32, padding: "0 14px", marginTop: 12 }}>Показать ещё дни ({byDay.length - showDays})</button>
+            )}
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: 14 }}>
             <div className="v2-card" style={card}>
               <b style={{ fontSize: 14 }}>Чаты и кнопки ИИ</b>
               <div style={{ marginTop: 10, display: "grid", gap: 9 }}>
-                {d.threads.sort((a, b) => b.tasks - a.tasks).map(th => (
+                {threads.map(th => (
                   <div key={th.key}>
                     <div className="flex justify-between" style={{ fontSize: 13 }}><b>{THREAD[th.key] || th.key}</b><span style={{ color: "var(--t2)" }}>{th.tasks} задач · {th.videos} роликов · {fmtMin(th.avgMin)}</span></div>
-                    <Bar v={th.tasks} max={t.tasks} color="var(--pu)" />
+                    <Bar v={th.tasks} max={t?.tasks || 1} color="var(--pu)" />
                   </div>
                 ))}
                 <div style={{ fontSize: 12.5, color: "var(--t2)", marginTop: 4 }}>
-                  Быстрые кнопки ИИ (адаптация текста, подписи, отчёты): <b>{d.quick.total}</b>
+                  Быстрые кнопки ИИ (адаптация текста, подписи, отчёты) за период: <b>{d.quick.total}</b>
                   {Object.keys(d.quick.byKind).length > 0 && <span style={{ color: "var(--t3)" }}> · {Object.entries(d.quick.byKind).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(" · ")}</span>}
                 </div>
               </div>
@@ -208,44 +318,19 @@ export default function AiUsagePage() {
             </div>
           </div>
 
-          {d.errors.length > 0 && (
+          {errors.length > 0 && (
             <div className="v2-card" style={card}>
               <b style={{ fontSize: 14, color: "var(--rd)" }}>Ошибки</b>
               <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
-                {d.errors.map(r => (
+                {errors.map(r => (
                   <div key={r.id} style={{ fontSize: 12.5 }}>
-                    <span style={{ color: "var(--t3)" }}>{tm(r.at)}</span> · <b>{r.client}</b> · {r.who} · {THREAD[r.thread] || r.thread}
+                    <span style={{ color: "var(--t3)" }}>{dm(localDay(r.at))}, {hm(r.at)}</span> · <b>{r.client}</b> · {r.who} · {THREAD[r.thread] || r.thread}
                     <div style={{ color: "var(--rd)" }}>{r.error}</div>
                   </div>
                 ))}
               </div>
             </div>
           )}
-
-          <div className="v2-card" style={card}>
-            <b style={{ fontSize: 14 }}>Последние задачи</b>
-            <div style={{ overflowX: "auto", marginTop: 8 }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5, minWidth: 720 }}>
-                <thead><tr style={{ color: "var(--t3)", fontSize: 10.5, textTransform: "uppercase", letterSpacing: 0.4 }}>
-                  {["Когда", "Кто", "Клиент", "Чат", "Задача", "Статус", "Время", "Файлы"].map(h => <th key={h} style={{ textAlign: "left", padding: "6px 8px", fontWeight: 800 }}>{h}</th>)}
-                </tr></thead>
-                <tbody>
-                  {d.recent.map(r => (
-                    <tr key={r.id} style={{ borderTop: "1px solid var(--brd)" }}>
-                      <td style={{ padding: "7px 8px", whiteSpace: "nowrap", color: "var(--t3)" }}>{tm(r.at)}</td>
-                      <td style={{ padding: "7px 8px", whiteSpace: "nowrap" }}>{r.who}</td>
-                      <td style={{ padding: "7px 8px", whiteSpace: "nowrap", fontWeight: 700 }}>{r.client}</td>
-                      <td style={{ padding: "7px 8px", whiteSpace: "nowrap", color: "var(--t2)" }}>{THREAD[r.thread] || r.thread}</td>
-                      <td style={{ padding: "7px 8px", maxWidth: 360, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={r.text}>{r.text || "—"}</td>
-                      <td style={{ padding: "7px 8px", whiteSpace: "nowrap", color: STATUS[r.status]?.c }}>{STATUS[r.status]?.t || r.status}</td>
-                      <td style={{ padding: "7px 8px", whiteSpace: "nowrap" }}>{fmtMin(r.minutes)}</td>
-                      <td style={{ padding: "7px 8px", whiteSpace: "nowrap", color: "var(--t2)" }}>{r.videos ? `${r.videos} 🎬 ` : ""}{r.images ? `${r.images} 🖼` : ""}{!r.videos && !r.images ? (r.files || "—") : ""}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
         </>
       )}
     </div>

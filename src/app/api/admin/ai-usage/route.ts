@@ -69,7 +69,7 @@ export async function GET(req: Request) {
       at: t.created_at, minutes: minutes != null ? Math.round(minutes * 10) / 10 : null,
       cost: t.ai_cost_usd != null ? Number(t.ai_cost_usd) : null,
       videos: r?.videos || 0, images: r?.images || 0, files: r?.files || 0,
-      text: String(t.body || "").replace(/\s+/g, " ").slice(0, 140),
+      text: String(t.body || "").replace(/\s+/g, " ").slice(0, 600),
     };
   });
 
@@ -120,6 +120,7 @@ export async function GET(req: Request) {
     threads: group(r => r.thread),
     errors: rows.filter(r => r.status === "error").slice(-15).reverse(),
     recent: rows.slice(-40).reverse(),
+    rows: rows.slice().reverse(),   // все задачи периода — фильтры по сотруднику / клиенту / дню считаются на странице
     server: { last, online: last ? Date.now() - Date.parse(last.at) < 15 * 60000 : false, hourly: Array.from(hourly.values()) },
     quick: { total: (quick as any[]).length, byKind: quickBy },
   });
