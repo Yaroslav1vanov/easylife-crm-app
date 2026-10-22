@@ -86,12 +86,13 @@ export default function ClientStatsTab({ clientId, hasMetricool }: { clientId: n
       const agg = list.reduce((acc, r) => ({
         // одно видео выходит в нескольких сетях — роликов берём по сети, где их больше, а не сумму
         posts: acc.posts == null && r.posts_count == null ? null : Math.max(acc.posts || 0, r.posts_count || 0),
+        pubs: add(acc.pubs, r.posts_count),   // публикаций по всем сетям (как в Metricool)
         our: Math.max(acc.our || 0, r.our_videos || 0) || null,
         carousels: add(acc.carousels, r.carousels_count ?? null),
         views: add(acc.views, r.views), reach: add(acc.reach, r.reach),
         likes: add(acc.likes, r.likes), comments: add(acc.comments, r.comments), saves: add(acc.saves, r.saves), shares: add(acc.shares, r.shares),
         fStart: add(acc.fStart, r.followers_start), fEnd: add(acc.fEnd, r.followers_end),
-      }), { posts: null, our: null, carousels: null, views: null, reach: null, likes: null, comments: null, saves: null, shares: null, fStart: null, fEnd: null } as any);
+      }), { posts: null, pubs: null, our: null, carousels: null, views: null, reach: null, likes: null, comments: null, saves: null, shares: null, fStart: null, fEnd: null } as any);
       const top = list.flatMap(r => (r.top_posts || []).map(p => ({ ...p, network: r.network })))
         .sort((a, b) => (b.views || 0) - (a.views || 0)).slice(0, 5);
       return { ym, ...agg, top, partial: ym === curYm() };
@@ -166,7 +167,7 @@ export default function ClientStatsTab({ clientId, hasMetricool }: { clientId: n
             {prev && <span style={{ fontSize: 11, color: "var(--t3)", fontWeight: 600 }}> · сравнение с {ymLabel(prev.ym)}</span>}
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 10 }}>
-            <Tile label="Роликов" v={cur.posts} p={pct(cur.posts, prev?.posts)} hint={cur.our ? `наших по CRM: ${cur.our}` : undefined} />
+            <Tile label="Роликов" v={cur.posts} p={pct(cur.posts, prev?.posts)} hint={[cur.pubs && cur.pubs !== cur.posts ? `публикаций во всех сетях: ${cur.pubs}` : "", cur.our ? `из контент-плана: ${cur.our}` : ""].filter(Boolean).join(" · ") || undefined} />
             {cur.carousels ? <Tile label="Карусели и фото" v={cur.carousels} p={pct(cur.carousels, prev?.carousels)} /> : null}
             <Tile label="Просмотры" v={cur.views} p={pct(cur.views, prev?.views)} />
             <Tile label="Охват" v={cur.reach} p={pct(cur.reach, prev?.reach)} />
@@ -218,7 +219,7 @@ export default function ClientStatsTab({ clientId, hasMetricool }: { clientId: n
                       <span style={{ color: "var(--pu)", marginRight: 6, display: "inline-block", transform: openYm === m.ym ? "rotate(90deg)" : "none", transition: ".15s" }}>›</span>
                       {ymLabel(m.ym)}{m.partial ? " *" : ""}
                     </td>
-                    <td style={{ padding: "10px 12px", textAlign: "right", whiteSpace: "nowrap" }}>{fmt(m.posts)}{m.our ? <span style={{ fontSize: 10.5, color: "var(--t3)" }}> · наших {m.our}</span> : null}</td>
+                    <td style={{ padding: "10px 12px", textAlign: "right", whiteSpace: "nowrap" }}>{fmt(m.posts)}{m.pubs && m.pubs !== m.posts ? <span style={{ fontSize: 10.5, color: "var(--t3)" }} title="Один ролик в Instagram, TikTok и YouTube — это 1 ролик и 3 публикации"> · публикаций {m.pubs}</span> : null}</td>
                     <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 700, color: "var(--t1)" }}>
                       {fmt(m.views)}{d != null && <span style={{ marginLeft: 6, fontSize: 10.5, color: d >= 0 ? "var(--gr)" : "var(--rd)" }}>{d >= 0 ? "+" : ""}{d}%</span>}
                     </td>
@@ -253,7 +254,7 @@ export default function ClientStatsTab({ clientId, hasMetricool }: { clientId: n
                                       <div style={{ minWidth: 0 }}>
                                         <a href={r.url || "#"} target="_blank" rel="noreferrer" style={{ color: "var(--t1)", textDecoration: "none", display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.title}</a>
                                         <div style={{ fontSize: 9.5, color: "var(--t3)" }}>
-                                          {NET_LABEL[r.net] || r.net}{r.duration ? ` · ${r.duration} сек` : ""}{r.isOurs ? " · наш" : ""}{r.x >= 1.5 ? ` · ×${String(Math.round(r.x * 10) / 10).replace(".", ",")} к норме` : ""}
+                                          {NET_LABEL[r.net] || r.net}{r.duration ? ` · ${r.duration} сек` : ""}{r.isOurs ? " · из плана" : ""}{!r.isOurs ? <span style={{ color: "var(--or)" }}> · не из плана</span> : null}{r.x >= 1.5 ? ` · ×${String(Math.round(r.x * 10) / 10).replace(".", ",")} к норме` : ""}
                                         </div>
                                       </div>
                                     </div>
