@@ -604,7 +604,7 @@ def ig_fetch_video(url):
     if not m:
         raise RuntimeError("Не похоже на ссылку на ролик Instagram.")
     if not IG_SESSION.exists():
-        raise RuntimeError("На сервере нет входа в Instagram — Ярославу нужно один раз запустить ops/set_ig_session.sh.")
+        return ig_fetch_via_bridge(m.group(1))
     ck = json.loads(IG_SESSION.read_text())
     pk = 0
     for ch in m.group(1)[:11]:
@@ -628,6 +628,29 @@ def ig_fetch_video(url):
     d = requests.get(v["url"], headers={"User-Agent": IG_UA, "Referer": "https://www.instagram.com/"}, timeout=180)
     d.raise_for_status()
     return d.content
+
+
+IG_BRIDGE = "auditig@195.201.137.115"   # браузер с входом в Instagram (сервер аудитов); ключ умеет только «video <код>»
+
+
+def ig_fetch_via_bridge(code):
+    """Видео ролика через браузер на сервере аудитов (вход в Instagram там уже есть). Браузер общий с аудитами —
+    если идёт аудит, ждём его окончания (замок на той стороне)."""
+    key = HOME / ".ssh" / "id_igbridge"
+    if not key.exists():
+        raise RuntimeError("Нет ключа к браузеру с входом в Instagram (/srv/easylife-chat-agent/.ssh/id_igbridge).")
+    r = subprocess.run(["ssh", "-i", str(key), "-o", "BatchMode=yes", "-o", "ConnectTimeout=15",
+                        "-o", f"UserKnownHostsFile={HOME / '.ssh' / 'known_hosts'}", IG_BRIDGE, "video", code],
+                       capture_output=True, text=True, timeout=900)
+    try:
+        d = json.loads((r.stdout or "").strip().splitlines()[-1])
+    except Exception:
+        raise RuntimeError("Браузер с входом в Instagram не ответил — попробуйте позже.")
+    if d.get("error"):
+        raise RuntimeError("Вход в Instagram на сервере аудитов слетел — Ярославу нужно зайти заново." if str(d["error"]).startswith("LOGIN") else str(d["error"]))
+    v = requests.get(d["url"], headers={"User-Agent": IG_UA, "Referer": "https://www.instagram.com/"}, timeout=300)
+    v.raise_for_status()
+    return v.content
 
 
 def ig_loop():
