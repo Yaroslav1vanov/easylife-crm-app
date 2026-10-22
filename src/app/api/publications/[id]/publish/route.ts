@@ -89,7 +89,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const tz = client?.timezone || "America/New_York";
   // Время прошло и подтвердили «опубликовать сейчас» — шлём «через 2 минуты»: прошедшую дату Metricool отклоняет (400)
   const past = Date.parse(pub.publish_at) < Date.now() + 60 * 1000;
-  const dateTime = tzIso(past ? new Date(Date.now() + 2 * 60 * 1000).toISOString() : pub.publish_at, tz);
+  const realAt = past ? new Date(Date.now() + 2 * 60 * 1000).toISOString() : pub.publish_at;
+  const dateTime = tzIso(realAt, tz);
+  // реальное время выхода — по нему CRM потом узнаёт свой ролик в Metricool (привязка к сценарию по времени)
+  if (past) await sb.from("publications").update({ publish_at: realAt }).eq("id", id);
   const allow = isStory ? ["ig"] : isCarousel ? ["ig", "threads"] : ["ig", "tt", "yt", "threads"];
   const channels: string[] = (pub.target_channels?.length ? pub.target_channels : client?.platforms?.length ? client.platforms : allow).filter((ch: string) => allow.includes(ch));
   const targetsAll = channels.filter(ch => NET[ch]);

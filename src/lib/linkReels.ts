@@ -13,7 +13,25 @@ import { addDays, fetchNetworkPosts, reelFields } from "@/lib/weeklyStats";
    Сценарий без ссылки, но «готов / в монтаже» по пп. 1–3 становится «опубликован», прежний статус запоминаем.
    Ссылку сняли или поменяли вручную (autolink_off) — сценарий больше не трогаем. */
 
-export type Reel = { date: string; net: string; url: string | null; title: string; views: number; likes: number | null; comments: number | null; reach: number | null; retention: number | null; skip: number | null };
+export type Reel = { date: string; net: string; url: string | null; title: string; views: number; likes: number | null; comments: number | null; reach: number | null; retention: number | null; skip: number | null; ts?: number | null };
+
+/** Время выхода поста в UTC (мс). Metricool отдаёт местное время + часовой пояс бренда (IG), TikTok — со смещением. */
+function postTs(p: any): number | null {
+  const pa = p?.publishedAt;
+  if (pa && typeof pa === "object" && pa.dateTime) {
+    const asUtc = Date.parse(String(pa.dateTime).slice(0, 19) + "Z");
+    if (!isFinite(asUtc)) return null;
+    if (!pa.timezone) return asUtc;
+    try {
+      const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: pa.timezone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" })
+        .formatToParts(new Date(asUtc)).map(x => [x.type, x.value]));
+      const local = Date.UTC(+parts.year, +parts.month - 1, +parts.day, +parts.hour, +parts.minute, +parts.second);
+      return asUtc - (local - asUtc);
+    } catch { return asUtc; }
+  }
+  const t = Date.parse(String(p?.createTime || pa || p?.created || "").replace(/([+-]\d{2})(\d{2})$/, "$1:$2"));
+  return isFinite(t) ? t : null;
+}
 
 const code = (u: string | null | undefined) => String(u || "").match(/(?:reel|reels|p|video|shorts)\/([A-Za-z0-9_-]+)/)?.[1] || null;
 const norm = (s: string | null | undefined) => String(s || "").toLowerCase().replace(/https?:\S+/g, " ").replace(/[^a-zа-яёіїєґ0-9]+/g, " ").trim();
@@ -29,7 +47,7 @@ export async function linkPublishedReels(
   const today = new Date().toISOString().slice(0, 10);
   const from = addDays(today, -60);
   const raw = await fetchNetworkPosts(client, from, today);
-  const reels: Reel[] = raw.map((p: any) => { const f = reelFields(p); return { date: f.date || "", net: p._net, url: f.url, title: f.title, views: f.views, likes: f.likes, comments: f.comments, reach: f.reach, retention: f.ret, skip: f.skip }; })
+  const reels: Reel[] = raw.map((p: any) => { const f = reelFields(p); return { date: f.date || "", net: p._net, url: f.url, title: f.title, views: f.views, likes: f.likes, comments: f.comments, reach: f.reach, retention: f.ret, skip: f.skip, ts: postTs(p) }; })
     .filter(r => r.date && r.url).sort((a, b) => (a.date < b.date ? -1 : 1));
   if (!reels.length) return { linked: 0, updated: 0, reels };
 
@@ -41,6 +59,22 @@ export async function linkPublishedReels(
   const pubOf = new Map((pubs || []).map((p: any) => [p.script_id, p]));
   const byCode = new Map(reels.map(r => [code(r.url), r]));
   const used = new Set(list.map(s => code(s.published_url)).filter(Boolean) as string[]);
+
+  // Чей это ролик по времени выхода: публикация CRM, вышедшая в те же ±20 минут (в т.ч. пробные и без сценария).
+  // Ролик чужой публикации никогда не привязываем к другому сценарию (22.10: пробный MedSpa ушёл в «13. Процедуры…»).
+  const { data: allPubs } = await sb.from("publications").select("id, script_id, publish_at, pub_status")
+    .eq("client_id", client.id).gte("publish_at", addDays(from, -1)).in("pub_status", ["published", "scheduled", "error"]);
+  const owner = new Map<Reel, any>();
+  for (const r of reels) {
+    if (r.ts == null) continue;
+    let best: any = null, bestD = 20 * 60 * 1000;
+    for (const p of (allPubs || []) as any[]) {
+      const d = Math.abs(Date.parse(p.publish_at) - r.ts);
+      if (d <= bestD) { best = p; bestD = d; }
+    }
+    if (best) owner.set(r, best);
+  }
+  const othersReel = (r: Reel, sid: number) => { const o = owner.get(r); return !!o && o.script_id !== sid; };
 
   // слова, которые есть в трети и больше подписей аккаунта, — не признак конкретного ролика
   const df = new Map<string, number>();
@@ -68,11 +102,16 @@ export async function linkPublishedReels(
     }
     if (!["published", "ready", "review", "inProgress"].includes(s.video_status)) continue;
     const pub: any = pubOf.get(s.id);
-    const free = (r: Reel) => !used.has(code(r.url) || "");
+    const free = (r: Reel) => !used.has(code(r.url) || "") && !othersReel(r, s.id);
     let match: Reel | null = null;
     // 1) вышло через CRM — ссылка уже в публикации
     const pubUrl = pub?.published_urls ? (pub.published_urls.ig || pub.published_urls.instagram || Object.values(pub.published_urls)[0]) : null;
     if (pubUrl && !used.has(code(pubUrl as string) || "")) match = byCode.get(code(pubUrl as string)) || { date: s.pub_date, net: "instagram", url: pubUrl as string, title: "", views: 0, likes: null, comments: null, reach: null, retention: null, skip: null };
+    // 1б) ролик вышел ровно во время нашей публикации этого сценария (±20 минут)
+    if (!match) {
+      const mine = reels.filter(r => free(r) && owner.get(r)?.script_id === s.id);
+      if (mine.length) match = mine.find(r => r.net === "instagram") || mine[0];
+    }
     // 2) подпись ролика = подпись нашей публикации этого сценария
     if (!match && pub) {
       const h = head(pub.caption_ig) || head(pub.base_text);
