@@ -85,6 +85,33 @@ def upload_file(client_id, path):
     return {"key": j["key"], "name": path.name, "type": ctype.split(";")[0], "size": path.stat().st_size}
 
 
+JOURNAL_KEEP = 60   # записей в JOURNAL.md; старше — в JOURNAL_ARCHIVE.md
+
+
+def rotate_journal(ws):
+    """Журнал растёт в конец, а ИИ читает файл с начала (по умолчанию первые 2000 строк) — при 2–3 тыс. строк
+    он видел начало октября и не видел последние задачи (22.10: «тупит, рисует мимо» у Laccura, Юлии, Lash).
+    Держим в JOURNAL.md последние JOURNAL_KEEP записей, остальное дописываем в JOURNAL_ARCHIVE.md (ничего не теряется)."""
+    j = ws / "JOURNAL.md"
+    if not j.exists():
+        return
+    text = j.read_text()
+    parts = re.split(r"(?m)^(?=## )", text)
+    head, entries = (parts[0], parts[1:]) if parts and not parts[0].startswith("## ") else ("", parts)
+    if len(entries) <= JOURNAL_KEEP:
+        return
+    old, keep = entries[:-JOURNAL_KEEP], entries[-JOURNAL_KEEP:]
+    arch = ws / "JOURNAL_ARCHIVE.md"
+    fresh = not arch.exists() or arch.stat().st_size == 0
+    with open(arch, "a") as f:
+        if fresh:
+            f.write("# Архив журнала (старые записи; искать: grep -n \"#<номер задачи>\" JOURNAL_ARCHIVE.md)\n\n")
+        f.write("".join(old))
+    head = head.strip() or "# Рабочий журнал клиента"
+    j.write_text(head + "\n\nЗдесь последние " + str(JOURNAL_KEEP) + " задач, свежие внизу. Более ранние — в JOURNAL_ARCHIVE.md "
+                 "(ищи по номеру задачи или названию ролика: grep -n).\n\n" + "".join(keep))
+
+
 def prepare(job):
     msg, client = job["message"], job["client"]
     cid, mid = client["id"], msg["id"]
@@ -94,6 +121,10 @@ def prepare(job):
     for d in (files, out):
         d.mkdir(parents=True, exist_ok=True)
     (ws / "CLAUDE.md").write_text((HOME / "CLAUDE.md").read_text())
+    try:
+        rotate_journal(ws)
+    except Exception as e:
+        log("журнал не перенёсся в архив", e)
 
     # файлы из переписки: имя «<id сообщения>_<имя файла>», чтобы не путать версии
     def local(m, a):
