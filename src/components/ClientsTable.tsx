@@ -420,7 +420,7 @@ function ClientsBlock(p: ClientsBlockProps) {
         </div>
         {remaining != null && remaining > 0 && daysToEnd != null && (
           <div style={{ fontSize: 9, color: daysToEnd < 0 ? "var(--rd)" : "var(--t3)", fontWeight: 600, marginTop: 2 }}>
-            {daysToEnd < 0 ? `месяц закрыт, не хватает ${remaining}` : `осталось ${remaining} за ${daysToEnd + 1} дн.`}
+            {daysToEnd < 0 ? `месяц закрыт, не хватает ${remaining}` : daysToEnd === 0 ? `осталось ${remaining}, сегодня последний день` : `осталось ${remaining} за ${daysToEnd} дн.`}
           </div>
         )}
       </div>
