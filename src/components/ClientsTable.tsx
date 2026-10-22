@@ -188,15 +188,18 @@ function ClientsBlock(p: ClientsBlockProps) {
       const winPassed = Math.max(0, Math.min(winDays, daysBetween(winStart, p.todayIso)));  // «к сегодня» = до сегодня
       // уже публикуемся — значит онбординг закрыт, даже если по датам он ещё идёт
       const inOnboardingNow = cm.month_number === 1 && p.todayIso < publishFrom && published === 0;
-      const dueByToday = inOnboardingNow
-        ? 0
-        : target != null && !useDates
-          ? (winDays > 0 ? Math.round((target * winPassed) / winDays) : 0)
-          : dueByDates;
-      const factByToday = list.filter(s => s.video_status === "published" && inMonth(s) && (s.pub_date as string) < p.todayIso).length;
+      void dueByDates; void useDates; void winPassed;   // календарный счёт остался только для колонки «Опубл. в …»
       const remaining = Math.max(0, plan - published);
-      const progressPct = Math.round((published / plan) * 100);
       const daysToEnd = daysBetween(p.todayIso, cm.end_date);
+      // Темп — по КОНТРАКТНОМУ месяцу (М6: 26.09–25.10), а не по календарному и не по датам карточек:
+      // сколько роликов пакета должно было выйти к сегодня ровным темпом от начала публикаций до конца месяца.
+      // Месяц закончился — должно быть всё. (22.10: у Ели показывало «отстаём −2» при 11/20 за 3 дня до конца.)
+      const cStart = cm.month_number === 1 && publishFrom > cm.start_date ? publishFrom : cm.start_date;
+      const cDays = Math.max(1, daysBetween(cStart, cm.end_date) + 1);
+      const cPassed = Math.max(0, Math.min(cDays, daysBetween(cStart, p.todayIso)));   // до сегодня, не включая
+      const dueByToday = inOnboardingNow ? 0 : daysToEnd < 0 ? plan : Math.round((plan * cPassed) / cDays);
+      const factByToday = published;
+      const progressPct = Math.round((published / plan) * 100);
       const daysTotal = Math.max(1, daysBetween(cm.start_date, cm.end_date) + 1);
       const paused = c.stage === "paused";
       const isOverdue = !paused && ((daysToEnd < 0 && published < plan) || p.overdueClientIds.has(c.id));
@@ -392,8 +395,8 @@ function ClientsBlock(p: ClientsBlockProps) {
     );
   };
 
-  // Темп к сегодня: факт vs «должно быть к сегодня» (строго до сегодня), по плановым датам
-  const DueCell = ({ fact, due, onboardingUntil }: { fact: number; due: number; onboardingUntil?: string | null }) => {
+  // Темп к сегодня: опубликовано в контрактном месяце vs «должно быть к сегодня» ровным темпом до конца месяца
+  const DueCell = ({ fact, due, onboardingUntil, remaining, daysToEnd }: { fact: number; due: number; onboardingUntil?: string | null; remaining?: number; daysToEnd?: number }) => {
     if (onboardingUntil) {
       return (
         <div>
@@ -415,6 +418,11 @@ function ClientsBlock(p: ClientsBlockProps) {
         <div style={{ fontSize: 9, color: due === 0 ? "var(--t3)" : color, fontWeight: 700, marginTop: 3, display: "inline-flex", alignItems: "center", gap: 3 }}>
           <PI size={9} strokeWidth={2.2} /> {label}
         </div>
+        {remaining != null && remaining > 0 && daysToEnd != null && (
+          <div style={{ fontSize: 9, color: daysToEnd < 0 ? "var(--rd)" : "var(--t3)", fontWeight: 600, marginTop: 2 }}>
+            {daysToEnd < 0 ? `месяц закрыт, не хватает ${remaining}` : `осталось ${remaining} за ${daysToEnd + 1} дн.`}
+          </div>
+        )}
       </div>
     );
   };
@@ -607,7 +615,7 @@ function ClientsBlock(p: ClientsBlockProps) {
                     {/* Сделано за этот месяц (текущий M-период): опубликовано / пакет */}
                     <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 110 }}><StageCell done={r.published} plan={r.plan} color="#9d6bff" /></td>
                     {/* Темп к сегодня */}
-                    <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 110 }}><DueCell fact={r.factByToday} due={r.dueByToday} onboardingUntil={r.onboardingUntil} /></td>
+                    <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 110 }}><DueCell fact={r.factByToday} due={r.dueByToday} onboardingUntil={r.onboardingUntil} remaining={r.isPaused ? undefined : r.remaining} daysToEnd={r.daysToEnd} /></td>
                     {/* Дедлайн */}
                     <td style={{ padding: "12px 8px", verticalAlign: "middle", whiteSpace: "nowrap" }}>
                       <div style={{ fontSize: 11, fontWeight: 700, color: "var(--t1)" }}>{fmtDateShort(r.cm.end_date)}</div>
