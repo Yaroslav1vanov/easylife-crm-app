@@ -165,6 +165,7 @@ export default function ClientStatsTab({ clientId, hasMetricool }: { clientId: n
           <div style={{ fontSize: 13, fontWeight: 800, color: "var(--t1)" }}>
             {ymLabel(cur.ym)}{cur.partial ? " · на сегодня" : ""}
             {prev && <span style={{ fontSize: 11, color: "var(--t3)", fontWeight: 600 }}> · сравнение с {ymLabel(prev.ym)}</span>}
+            <div style={{ fontSize: 11, color: "var(--t3)", fontWeight: 600, marginTop: 2 }}>ролики, вышедшие в этом месяце (включая пробные и перемонтажи), и их просмотры. Просмотры всего аккаунта за 30 дней — в карточке клиента</div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 10 }}>
             <Tile label="Роликов" v={cur.posts} p={pct(cur.posts, prev?.posts)} hint={[cur.pubs && cur.pubs !== cur.posts ? `публикаций во всех сетях: ${cur.pubs}` : "", cur.our ? `из контент-плана: ${cur.our}` : ""].filter(Boolean).join(" · ") || undefined} />

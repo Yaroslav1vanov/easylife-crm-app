@@ -151,7 +151,7 @@ function ClientCard({
       <div style={{ padding: "14px 15px", borderRadius: 13, background: "var(--inset)", border: "1px solid var(--brd)", marginBottom: 12 }}>
         <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.6 }}>Просмотры за 30 дней · все соцсети</div>
+            <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.6 }}>Просмотры аккаунта за 30 дней · все соцсети, включая старые ролики</div>
             <div style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 30, fontWeight: 800, color: "var(--t1)", lineHeight: 1.15, marginTop: 3 }}>
               {compactNumber(tot.reach)}
             </div>
