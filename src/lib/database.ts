@@ -45,6 +45,7 @@ export type Script = {
   // «Дуэль» статистики: исходник (реф) vs наше опубликованное видео
   ref_views?: number | null; ref_likes?: number | null; ref_comments?: number | null;
   our_views?: number | null; our_likes?: number | null; our_comments?: number | null; our_stats_at?: string | null;
+  autolink_off?: boolean | null; autolink_prev_status?: string | null;   // ссылку на вышедший ролик правили руками / статус до автопривязки
   our_retention_pct?: number | null; our_skip_rate?: number | null;   // удержание нашего ролика (аналитика): досмотр %, пролистали в первые секунды %
 };
 export type ChecklistTask = {

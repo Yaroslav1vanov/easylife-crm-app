@@ -62,7 +62,15 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
      и описание к рилсу «исчезало». Поэтому все записи идут через save(), а закрытие
      сначала досохраняет изменённые поля и дожидается ответа базы. */
   const pending = useRef<Promise<unknown>[]>([]);
-  const save = (patch: Partial<Script>) => {
+  const save = (patch0: Partial<Script>) => {
+    let patch = patch0;
+    // ссылку на вышедший ролик правят руками → автопривязка этот сценарий больше не трогает;
+    // сняли ссылку, которую ставила автопривязка, → возвращаем статус, что был до неё
+    if ("published_url" in patch0 && (patch0.published_url || "") !== (s.published_url || "")) {
+      patch = { ...patch0, autolink_off: true };
+      if (!patch0.published_url && s.autolink_prev_status && s.video_status === "published" && !("video_status" in patch0))
+        patch = { ...patch, video_status: s.autolink_prev_status as any, autolink_prev_status: null };
+    }
     const p = Promise.resolve(onUpdate(s.id, patch));
     pending.current.push(p);
     return p;
