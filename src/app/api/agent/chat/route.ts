@@ -4,6 +4,7 @@ import { r2 } from "@/lib/r2";
 import { submitFile } from "@/lib/transcribe";
 import { metricoolProfile } from "@/lib/metricoolProfile";
 import { DEFAULT_FORECAST_BENCHMARKS, FORECAST_BENCHMARKS_KEY, unpackingToText } from "@/lib/forecast";
+import { dictionaryText, monthStart, videoLimit } from "@/lib/avatar";
 
 /* Канал для ИИ-исполнителя чата по клиенту (работает на нашем сервере).
    Только по секрету x-agent-secret, работает служебным ключом.
@@ -16,7 +17,10 @@ import { DEFAULT_FORECAST_BENCHMARKS, FORECAST_BENCHMARKS_KEY, unpackingToText }
    POST {op:"upload", client_id, filename} → ссылка, чтобы залить готовый файл
    POST {op:"download", key}              → ссылка, чтобы скачать файл из чата
    POST {op:"script_update", id, script_id, fields} → записать согласованный текст в сценарий
-   POST {op:"doc_save", id, kind:"forecast", title, file_key, data, body} → прогноз новой версией документа клиента */
+   POST {op:"doc_save", id, kind:"forecast", title, file_key, data, body} → прогноз новой версией документа клиента
+   POST {op:"avatar_gen", gen_id, status, seconds?, credits_before?, credits_after?, heygen_id?, result_key?, error?}
+                                          → итог генерации HeyGen (журнал трат; готовый файл — в медиатеку клиента)
+   reply/progress в чате «Аватар» могут нести meta {type:"avatar_order", text, look_id} — карточка-заказ озвучки */
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -93,7 +97,7 @@ export async function GET(req: Request) {
       sb.from("clients").select("id, name, surname, niche, product, instagram, tiktok, youtube, brand_voice, timezone, ai_chat").eq("id", cid).maybeSingle(),
       sb.from("client_brand").select("kit, version").eq("client_id", cid).maybeSingle(),
       sb.from("client_documents").select("title, body, version").eq("client_id", cid).eq("kind", "strategy").eq("is_current", true).maybeSingle(),
-      sb.from("client_chat_messages").select("id, author_type, author_name, body, attachments, created_at, ai_status, thread, script_id, quote_id")
+      sb.from("client_chat_messages").select("id, author_type, author_name, body, attachments, created_at, ai_status, thread, script_id, quote_id, meta")
         // рилсы и сторис — только своя переписка; «Стратегия» видит все три чата клиента
         .eq("client_id", cid).in("thread", m.thread === "strategy" ? ["reels", "stories", "strategy"] : [m.thread || "reels"]).is("hidden_at", null)   // скрытое владельцем ИИ не видит
         .lte("id", m.id).order("id", { ascending: false }).limit(m.thread === "strategy" ? 80 : 40),
@@ -135,7 +139,26 @@ export async function GET(req: Request) {
         profile, package: cm?.package ?? null,
       };
     }
-    jobs.push({ message: m, client, brand_kit: brand?.kit || null, strategy: strategy?.body || null, history: (history || []).reverse(), script, quoted, planning, ...(await folder(sb, cid)) });
+    // чат «Аватар»: какой аватар разрешён клиенту, словарь, сколько генераций осталось; задача генерации — в m.meta.avatar_job
+    let avatar: any = null;
+    if (m.thread === "avatar") {
+      const [{ data: av }, { data: dict }, { count: vids }, { data: pk }] = await Promise.all([
+        sb.from("client_avatars").select("*").eq("client_id", cid).maybeSingle(),
+        sb.from("client_avatar_dictionary").select("written, spoken, note").eq("client_id", cid).order("written"),
+        sb.from("avatar_generations").select("id", { count: "exact", head: true }).eq("client_id", cid).eq("kind", "video").neq("status", "error").gte("created_at", monthStart()),
+        sb.from("clients").select("package").eq("id", cid).maybeSingle(),
+      ]);
+      const job = m.meta?.avatar_job ? { ...m.meta.avatar_job } : null;
+      // аудио для видео — подписанная ссылка на 12 ч: HeyGen скачивает его сам (audioUrl)
+      if (job?.source_key) { const store = r2(); if (store) job.source_url = await store.signGet(job.source_key, 12 * 3600); }
+      const { data: gen } = job?.gen_id ? await sb.from("avatar_generations").select("*").eq("id", job.gen_id).maybeSingle() : { data: null };
+      avatar = av ? {
+        config: av, dictionary: dictionaryText(dict || []), dictionary_rows: dict || [],
+        video_limit: videoLimit(av, pk?.package), videos_this_month: vids || 0,
+        job, generation: gen,
+      } : { error: "К клиенту не привязан аватар — генерировать нельзя. Напиши, что Ярославу нужно привязать аватар в «Настройках»." };
+    }
+    jobs.push({ message: m, client, brand_kit: brand?.kit || null, strategy: strategy?.body || null, history: (history || []).reverse(), script, quoted, planning, avatar, ...(await folder(sb, cid)) });
   }
   return NextResponse.json({ jobs });
 }
@@ -233,6 +256,7 @@ export async function POST(req: Request) {
       const { error } = await sb.from("client_chat_messages").insert({
         client_id: m.client_id, author_type: "ai", author_name: "ИИ", body: String(b.body || "").slice(0, 20000),
         attachments: atts, reply_to: m.id, thread: m.thread || "reels",   // ответ — в тот же чат
+        meta: await orderMeta(sb, m, b.meta),
       });
       if (error) return bad(error.message, 500);
     }
@@ -244,6 +268,30 @@ export async function POST(req: Request) {
         ai_status: status, ai_error: status === "error" ? String(b.error || "ошибка").slice(0, 1000) : null,
         ai_finished_at: new Date().toISOString(), ai_minutes: n(mt.minutes), ai_cost_usd: n(mt.cost_usd), ai_files: n(mt.files),
       }).eq("id", m.id);
+    }
+    return NextResponse.json({ ok: true });
+  }
+
+  // итог генерации HeyGen: журнал трат + готовый файл в медиатеку клиента (ссылки HeyGen временные)
+  if (b.op === "avatar_gen") {
+    const { data: g } = await sb.from("avatar_generations").select("id, client_id, kind, script_id, status").eq("id", Number(b.gen_id)).maybeSingle();
+    if (!g) return bad("нет такой генерации", 404);
+    if (g.status === "done" && b.status !== "done") return NextResponse.json({ ok: true, skipped: "уже готово" });   // поздняя ошибка не затирает готовый результат
+    const num = (v: any) => (v == null || v === "" || !isFinite(Number(v)) ? undefined : Number(v));
+    const status = ["working", "done", "error"].includes(b.status) ? b.status : "done";
+    const key = typeof b.result_key === "string" && b.result_key.startsWith(`strategy/${g.client_id}/`) ? b.result_key : undefined;
+    await sb.from("avatar_generations").update({
+      status, seconds: num(b.seconds), credits_before: num(b.credits_before), credits_after: num(b.credits_after),
+      heygen_id: b.heygen_id ? String(b.heygen_id).slice(0, 120) : undefined, result_key: key,
+      error: status === "error" ? String(b.error || "ошибка").slice(0, 1000) : null,
+      ...(status !== "working" ? { finished_at: new Date().toISOString() } : {}),
+    }).eq("id", g.id);
+    if (status === "done" && key && g.status !== "done") {
+      await sb.from("client_assets").insert({
+        client_id: g.client_id, file_key: key, category: "generated", kind: g.kind === "video" ? "video" : "other", source: "ai",
+        title: `${g.kind === "video" ? "Видео аватара" : "Озвучка аватара"}${g.script_id ? ` · сценарий #${g.script_id}` : ""} · ${new Date().toISOString().slice(0, 10)}`,
+        tags: ["аватар", g.kind === "video" ? "видео аватара" : "озвучка", ...(g.script_id ? [`сценарий:${g.script_id}`] : [])],
+      });
     }
     return NextResponse.json({ ok: true });
   }
@@ -308,4 +356,13 @@ export async function POST(req: Request) {
   }
 
   return bad("неизвестная операция");
+}
+
+/** Карточка-заказ озвучки (чат «Аватар»): берём только известные поля и только разрешённый клиенту лук. */
+async function orderMeta(sb: ReturnType<typeof createAdmin>, m: { client_id: number; thread: string | null }, meta: any) {
+  if (m.thread !== "avatar" || meta?.type !== "avatar_order" || typeof meta.text !== "string" || !meta.text.trim()) return null;
+  const { data: av } = await sb.from("client_avatars").select("look_ids, default_look_id").eq("client_id", m.client_id).maybeSingle();
+  if (!av) return null;
+  const look = av.look_ids.includes(meta.look_id) ? meta.look_id : av.default_look_id || av.look_ids[0];
+  return { type: "avatar_order", text: meta.text.slice(0, 5000), look_id: look };
 }

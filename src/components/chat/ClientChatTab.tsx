@@ -2,7 +2,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase-browser";
 import { fileUrl, guessType, when } from "@/components/strategy/files";
-import { Paperclip, Send, X, Sparkles, Loader2, AlertTriangle, CheckCircle2, Download, RotateCw, UploadCloud, ArrowRightCircle, Smartphone, CornerUpLeft, ExternalLink, EyeOff, Eye } from "lucide-react";
+import { Paperclip, Send, X, Sparkles, Loader2, AlertTriangle, CheckCircle2, Download, RotateCw, UploadCloud, ArrowRightCircle, Smartphone, CornerUpLeft, ExternalLink, EyeOff, Eye, Mic, Film } from "lucide-react";
+import { estimate, monthStart, monthUsage, videoLimit, type AvatarGen, type ClientAvatar } from "@/lib/avatar";
 import SendToPipelineModal, { PipeAtt } from "@/components/chat/SendToPipelineModal";
 
 /* Чат по клиенту. Вся работа по проекту в одном месте: сотрудники пишут задачи
@@ -18,12 +19,14 @@ type Msg = {
   quote_id?: number | null;   // «Ответить» на конкретное сообщение — ИИ получит его целиком
   script_id?: number | null;  // задача пришла кнопкой из карточки сценария
   hidden_at?: string | null;  // скрыто владельцем: видит только он, ИИ не видит. Удалить сообщение нельзя никому
+  meta?: any;                 // чат «Аватар»: {type:"avatar_order", text, look_id} от ИИ или {avatar_job:{…}} у задачи генерации
 };
 type Pending = { id: string; file: File; pct: number; status: "uploading" | "done" | "error"; key?: string; err?: string; preview?: string };
 
 const mb = (n: number) => (n >= 1048576 ? `${(n / 1048576).toFixed(n > 104857600 ? 0 : 1)} МБ` : `${Math.max(1, Math.round(n / 1024))} КБ`);
 const isVideo = (a: Att) => a.type.startsWith("video/") || /\.(mp4|mov|webm|m4v)$/i.test(a.name);
 const isImage = (a: Att) => a.type.startsWith("image/") || /\.(png|jpe?g|webp|gif)$/i.test(a.name);
+const isAudio = (a: Att) => a.type.startsWith("audio/") || /\.(mp3|wav|m4a|aac|ogg)$/i.test(a.name);
 
 /* Заливка в R2 с процентами: исходники аватара бывают по сотне мегабайт */
 function putWithProgress(url: string, file: File, onPct: (p: number) => void) {
@@ -38,7 +41,7 @@ function putWithProgress(url: string, file: File, onPct: (p: number) => void) {
   });
 }
 
-export type ChatThread = "reels" | "stories" | "strategy";
+export type ChatThread = "reels" | "stories" | "strategy" | "avatar";
 const THREADS: { id: ChatThread; label: string; hint: string; placeholder: string; empty: string }[] = [
   { id: "reels", label: "🎬 Рилсы", hint: "Чат по рилсам: монтаж роликов, правки, разбор стиля и что зашло. Готовый ролик одной кнопкой уходит к сценарию или в публикации.",
     placeholder: "Задача по рилсам: «смонтируй этот исходник в стиле клиента» (приложите видео аватара). Правка: «на 12-й секунде другой кадр», «обрежь начало до фразы …»",
@@ -49,9 +52,15 @@ const THREADS: { id: ChatThread; label: string; hint: string; placeholder: strin
   { id: "strategy", label: "🧭 Стратегия", hint: "Чат по проекту в целом: ИИ видит переписку и рилсов, и сторис, контент-план и статистику. Спрашивайте, что зашло, какие сторис поставить под рилсы этой недели, что поменять в контенте.",
     placeholder: "Вопрос по стратегии: «что зашло за месяц и почему?», «предложи сторис на неделю под наши рилсы», «чего не хватает в контент-плане?»",
     empty: "Задайте вопрос по контенту клиента — ИИ разберёт план, статистику и обе переписки." },
+  { id: "avatar", label: "🧑‍💼 Аватар", hint: "Чат голоса и видео аватара: ИИ размечает текст эмоциями, применяет словарь произношения и предлагает лук — карточка-заказ. Генерация только по кнопкам «Озвучить» и «Сделать видео», каждая тратит кредиты HeyGen.",
+    placeholder: "Вставьте текст для озвучки или нажмите «Озвучить сценарий» в карточке сценария. Неправильно произнёс слово — напишите «вот тут неправильно: …»",
+    empty: "Вставьте текст или отправьте сценарий кнопкой «Озвучить сценарий» — ИИ подготовит заказ." },
 ];
 
-export default function ClientChatTab({ clientId, aiEnabled, draft, initialThread, isOwner }: { clientId: number; aiEnabled: boolean; draft?: string; initialThread?: ChatThread; isOwner?: boolean }) {
+export default function ClientChatTab({ clientId, aiEnabled, draft, initialThread, isOwner, avatar, canGenerate, clientPackage }: {
+  clientId: number; aiEnabled: boolean; draft?: string; initialThread?: ChatThread; isOwner?: boolean;
+  avatar?: ClientAvatar | null; canGenerate?: boolean; clientPackage?: number | null }) {
+  const threads = THREADS.filter((t) => t.id !== "avatar" || !!avatar);
   const [thread, setThread] = useState<ChatThread>(initialThread || "reels");
   useEffect(() => { if (initialThread) setThread(initialThread); }, [initialThread]);
   const T = THREADS.find((t) => t.id === thread)!;
@@ -130,6 +139,37 @@ export default function ClientChatTab({ clientId, aiEnabled, draft, initialThrea
     await load();
   }
 
+  /* Чат «Аватар»: траты за месяц и кнопки генерации. Проверки прав и лимита — на сервере (/api/avatar/request). */
+  const [gens, setGens] = useState<AvatarGen[]>([]);
+  useEffect(() => {
+    if (thread !== "avatar") return;
+    supabase.from("avatar_generations").select("*").eq("client_id", clientId).gte("created_at", monthStart()).order("id", { ascending: false })
+      .then(({ data }) => setGens((data || []) as AvatarGen[]));
+  }, [thread, clientId, msgs.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [lastCredits, setLastCredits] = useState<number | null>(null);   // кредиты HeyGen общие на агентство
+  useEffect(() => {
+    if (thread !== "avatar") return;
+    supabase.from("avatar_generations").select("credits_after").not("credits_after", "is", null).order("finished_at", { ascending: false }).limit(1)
+      .then(({ data }) => setLastCredits(data?.[0]?.credits_after ?? null));
+  }, [thread, msgs.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  const usage = monthUsage(gens);
+  async function avatarRequest(p: Record<string, any>, again = false): Promise<boolean> {
+    const r = await fetch("/api/avatar/request", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ clientId, ...p, ...(again ? { overLimit: true } : {}) }) });
+    const j = await r.json().catch(() => ({}));
+    if (r.status === 409 && j.needConfirm) return confirm(j.needConfirm) ? avatarRequest(p, true) : false;
+    if (!r.ok) { alert(j.error || `ошибка ${r.status}`); return false; }
+    await load(); return true;
+  }
+  async function toMontage(m: Msg, a: Att) {
+    const r = await fetch("/api/avatar/to-montage", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messageId: m.id, key: a.key }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { alert(j.error || `ошибка ${r.status}`); return; }
+    if (confirm("Задача на монтаж отправлена в чат «Рилсы». Открыть его?")) setThread("reels");
+  }
+  // сценарий, к которому относится сообщение (задача «Озвучить сценарий» или выше по переписке)
+  const scriptOf = (m: Msg) => m.script_id ?? [...msgs].reverse().find((x) => x.id <= m.id && x.script_id)?.script_id ?? null;
+  const avatarCtx = thread === "avatar" && avatar ? { avatar, canGenerate: !!canGenerate, request: avatarRequest, toMontage, scriptOf } : null;
+
   const working = useMemo(() => msgs.some((m) => m.ai_status === "queued" || m.ai_status === "working"), [msgs]);
 
   const [drag, setDrag] = useState(false);
@@ -198,8 +238,8 @@ export default function ClientChatTab({ clientId, aiEnabled, draft, initialThrea
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 4, padding: 4, borderRadius: 12, background: "var(--v2-inset)", border: "1px solid var(--brd)" }}>
-        {THREADS.map((t) => (
+      <div style={{ display: "grid", gridTemplateColumns: `repeat(${threads.length}, 1fr)`, gap: 4, padding: 4, borderRadius: 12, background: "var(--v2-inset)", border: "1px solid var(--brd)" }}>
+        {threads.map((t) => (
           <button key={t.id} onClick={() => setThread(t.id)} disabled={sending}
             style={{ padding: "9px 0", borderRadius: 9, border: 0, cursor: "pointer", fontSize: 13.5, fontWeight: 800, fontFamily: "inherit",
               background: thread === t.id ? "var(--card)" : "transparent", color: thread === t.id ? "var(--t1)" : "var(--t3)",
@@ -211,6 +251,14 @@ export default function ClientChatTab({ clientId, aiEnabled, draft, initialThrea
         <div className="v2-card" style={{ padding: "10px 14px", display: "flex", gap: 10, alignItems: "center", fontSize: 12.5, color: "var(--t2)" }}>
           <Sparkles size={15} style={{ color: "var(--pu)", flexShrink: 0 }} />
           <span>{T.hint} ИИ знает клиента: бренд-кит, стратегию, контент-план, статистику, медиатеку и переписку этого чата.</span>
+        </div>
+      )}
+
+      {thread === "avatar" && avatar && (
+        <div className="v2-card" style={{ padding: "10px 14px", display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center", fontSize: 12.5, color: "var(--t2)" }}>
+          <span>За месяц: <b>{usage.voices}</b> озвучек · <b>{usage.videos}</b> из {videoLimit(avatar, clientPackage)} видео · <b>{usage.redos}</b> переделок · <b>{usage.credits}</b> кредитов{usage.errors ? ` · ошибок ${usage.errors}` : ""}</span>
+          {lastCredits != null && <span style={{ color: lastCredits < 100 ? "var(--rd)" : "var(--t3)" }}>остаток HeyGen: {lastCredits} кредитов{lastCredits < 100 ? " — мало!" : ""}</span>}
+          {!canGenerate && <span style={{ color: "var(--or)" }}>генерировать могут тимлид и монтажёр клиента и Ярослав</span>}
         </div>
       )}
 
@@ -228,7 +276,7 @@ export default function ClientChatTab({ clientId, aiEnabled, draft, initialThrea
               // сценарий, над которым шла работа к этому моменту чата («Уникализировать в чате ИИ»)
               onPipe={(p) => setPipe({ ...p, scriptId: [...msgs].reverse().find((x) => x.id <= m.id && x.script_id)?.script_id ?? null })}
               quoted={m.quote_id ? byId.get(m.quote_id) || null : null} onReply={startReply} onJump={jumpTo}
-              onHide={isOwner ? toggleHidden : undefined} />)}
+              onHide={isOwner ? toggleHidden : undefined} av={avatarCtx} />)}
         {working && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--pu)" }}>
             <Loader2 size={14} className="spin" /> {ahead > 0
@@ -341,8 +389,10 @@ function snippet(m: Msg) {
   return t ? t.slice(0, 160) : (m.attachments || []).map((a) => a.name).join(", ") || "сообщение";
 }
 
-function Bubble({ m, mine, onPipe, quoted, onReply, onJump, onHide }: { m: Msg; mine: boolean; onPipe: (p: { video?: PipeAtt; images?: PipeAtt[] }) => void;
-  quoted: Msg | null; onReply: (m: Msg) => void; onJump: (id: number) => void; onHide?: (m: Msg) => void }) {
+type AvatarCtx = { avatar: ClientAvatar; canGenerate: boolean; request: (p: Record<string, any>) => Promise<boolean>; toMontage: (m: Msg, a: Att) => void; scriptOf: (m: Msg) => number | null };
+
+function Bubble({ m, mine, onPipe, quoted, onReply, onJump, onHide, av }: { m: Msg; mine: boolean; onPipe: (p: { video?: PipeAtt; images?: PipeAtt[] }) => void;
+  quoted: Msg | null; onReply: (m: Msg) => void; onJump: (id: number) => void; onHide?: (m: Msg) => void; av?: AvatarCtx | null }) {
   const ai = m.author_type === "ai";
   const imgs = ai ? (m.attachments || []).filter(isImage) : [];
   const status = m.author_type === "user" ? m.ai_status : null;
@@ -381,19 +431,27 @@ function Bubble({ m, mine, onPipe, quoted, onReply, onJump, onHide }: { m: Msg; 
           </button>
         )}
         {m.body}
+        {ai && av && m.meta?.type === "avatar_order" && <AvatarOrder m={m} av={av} />}
         {status === "error" && m.ai_error && <div style={{ marginTop: 6, fontSize: 12, color: "var(--rd)" }}>{m.ai_error}</div>}
         {m.attachments?.length > 0 && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: m.body ? 10 : 0 }}>
             {m.attachments.map((a) => (
               <div key={a.key} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                 {isVideo(a) ? <video src={fileUrl(a.key)} controls preload="metadata" style={{ width: 220, maxHeight: 390, borderRadius: 10, background: "#000" }} />
+                  : isAudio(a) ? <audio src={fileUrl(a.key)} controls preload="metadata" style={{ width: 300, maxWidth: "100%" }} />
                   : isImage(a) ? <a href={fileUrl(a.key)} target="_blank" rel="noreferrer"><img src={fileUrl(a.key)} alt={a.name} style={{ width: 160, borderRadius: 10, display: "block" }} /></a>
                   : null}
-                {isVideo(a) || isImage(a) ? (
+                {isVideo(a) || isImage(a) || isAudio(a) ? (
                   <a href={fileUrl(a.key)} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: "var(--t3)", display: "inline-flex", gap: 4, alignItems: "center" }}>
                     <Download size={11} /> {a.name} · {mb(a.size)}
                   </a>
                 ) : <FileCard a={a} />}
+                {ai && av && isAudio(a) && <AvatarVideoOrder m={m} a={a} av={av} />}
+                {ai && av && isVideo(a) && (
+                  <button className="v2-act" onClick={() => av.toMontage(m, a)} style={{ height: 30, fontSize: 12, justifyContent: "center" }}>
+                    <Film size={13} /> В монтаж →
+                  </button>
+                )}
                 {ai && isVideo(a) && (
                   <button className="v2-act ghost" onClick={() => onPipe({ video: { key: a.key, name: a.name } })} style={{ height: 30, fontSize: 12, justifyContent: "center" }}>
                     <ArrowRightCircle size={13} /> К сценарию / в публикации
@@ -409,6 +467,56 @@ function Bubble({ m, mine, onPipe, quoted, onReply, onJump, onHide }: { m: Msg; 
           </button>
         )}
       </div>
+    </div>
+  );
+}
+
+/* Карточка-заказ озвучки от ИИ: текст с тегами эмоций и лук можно поправить руками, генерация — только по кнопке. */
+function AvatarOrder({ m, av }: { m: Msg; av: AvatarCtx }) {
+  const [text, setText] = useState<string>(m.meta?.text || "");
+  const [look, setLook] = useState<string>(av.avatar.look_ids.includes(m.meta?.look_id) ? m.meta.look_id : av.avatar.default_look_id || av.avatar.look_ids[0]);
+  const [busy, setBusy] = useState(false);
+  const est = estimate(text, Number(av.avatar.voice_speed) || 1);
+  return (
+    <div style={{ marginTop: 10, padding: 10, borderRadius: 10, background: "var(--card)", border: "1px solid rgba(66,212,244,.35)", display: "flex", flexDirection: "column", gap: 8, whiteSpace: "normal" }}>
+      <div style={{ fontSize: 11.5, fontWeight: 800, color: "var(--cy)" }}>ЗАКАЗ ОЗВУЧКИ · текст можно поправить</div>
+      <textarea value={text} onChange={(e) => setText(e.target.value)} rows={Math.min(14, Math.max(4, Math.ceil(text.length / 70)))}
+        style={{ width: "100%", padding: "8px 10px", borderRadius: 8, background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 13, fontFamily: "inherit", resize: "vertical" }} />
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", fontSize: 12 }}>
+        <select value={look} onChange={(e) => setLook(e.target.value)} style={{ padding: "6px 8px", borderRadius: 8, background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 12 }}>
+          {av.avatar.look_ids.map((id) => <option key={id} value={id}>{av.avatar.look_names?.[id] || id.slice(0, 8)}</option>)}
+        </select>
+        <span style={{ color: "var(--t3)" }}>≈ {est.seconds} с · голос ≈ {est.voiceCredits} кр.</span>
+        <div style={{ flex: 1 }} />
+        {av.canGenerate ? (
+          <button className="v2-act pri" disabled={busy || !text.trim()} style={{ height: 32 }}
+            onClick={async () => { setBusy(true); await av.request({ kind: "voice", fromMessageId: m.id, text, lookId: look, scriptId: av.scriptOf(m) }); setBusy(false); }}>
+            {busy ? <Loader2 size={13} className="spin" /> : <Mic size={13} />} Озвучить
+          </button>
+        ) : <span style={{ color: "var(--t3)" }}>озвучивают тимлид и монтажёр клиента</span>}
+      </div>
+    </div>
+  );
+}
+
+/* Под готовым аудио: «Сделать видео» на выбранном луке; галки для монтажа — прозрачный фон и субтитры. */
+function AvatarVideoOrder({ m, a, av }: { m: Msg; a: Att; av: AvatarCtx }) {
+  const [look, setLook] = useState<string>(av.avatar.look_ids.includes(m.meta?.look_id) ? m.meta.look_id : av.avatar.default_look_id || av.avatar.look_ids[0]);
+  const [transparent, setTransparent] = useState(false);
+  const [captions, setCaptions] = useState(false);
+  const [busy, setBusy] = useState(false);
+  if (!av.canGenerate) return null;
+  return (
+    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", fontSize: 12 }}>
+      <select value={look} onChange={(e) => setLook(e.target.value)} style={{ padding: "6px 8px", borderRadius: 8, background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 12 }}>
+        {av.avatar.look_ids.map((id) => <option key={id} value={id}>{av.avatar.look_names?.[id] || id.slice(0, 8)}</option>)}
+      </select>
+      <label style={{ display: "inline-flex", gap: 4, alignItems: "center" }}><input type="checkbox" checked={transparent} onChange={(e) => setTransparent(e.target.checked)} /> прозрачный фон</label>
+      <label style={{ display: "inline-flex", gap: 4, alignItems: "center" }}><input type="checkbox" checked={captions} onChange={(e) => setCaptions(e.target.checked)} /> субтитры</label>
+      <button className="v2-act pri" disabled={busy} style={{ height: 30, fontSize: 12 }}
+        onClick={async () => { setBusy(true); await av.request({ kind: "video", fromMessageId: m.id, sourceKey: a.key, lookId: look, transparent, captions, scriptId: av.scriptOf(m) }); setBusy(false); }}>
+        {busy ? <Loader2 size={13} className="spin" /> : <Film size={13} />} Сделать видео
+      </button>
     </div>
   );
 }

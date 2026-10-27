@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Client, Script, StopCheck, StopIssue, stopHash } from "@/lib/database";
 import ConfirmDialog from "@/components/ConfirmDialog";
-import { ExternalLink, X, Trash2, Eye, Heart, MessageCircle, RefreshCw, Swords, ShieldCheck, ShieldAlert, Loader2, Sparkles } from "lucide-react";
+import { ExternalLink, X, Trash2, Eye, Heart, MessageCircle, RefreshCw, Swords, ShieldCheck, ShieldAlert, Loader2, Sparkles, Mic } from "lucide-react";
+import { createClient } from "@/lib/supabase-browser";
 
 const fmtNum = (n: number | null | undefined) => n == null ? "—" : n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(1) + "K" : String(n);
 
@@ -156,7 +157,13 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
   const router = useRouter();
   const [chatBusy, setChatBusy] = useState(false);
   const [chatErr, setChatErr] = useState("");
-  async function sendToChat() {
+  // «Озвучить сценарий» — только у клиентов с привязанным аватаром HeyGen
+  const [hasAvatar, setHasAvatar] = useState(false);
+  useEffect(() => {
+    createClient().from("client_avatars").select("client_id").eq("client_id", s.client_id).maybeSingle()
+      .then(({ data }) => setHasAvatar(!!data), () => setHasAvatar(false));
+  }, [s.client_id]);
+  async function sendToChat(to: "reels" | "avatar" = "reels") {
     setChatBusy(true); setChatErr("");
     const diff: Partial<Script> = {};
     if (!ro) {
@@ -170,12 +177,12 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
     }
     if (Object.keys(diff).length) save(diff);
     await Promise.allSettled(pending.current);
-    const r = await fetch(`/api/scripts/${s.id}/to-chat`, { method: "POST" });
+    const r = await fetch(`/api/scripts/${s.id}/to-chat${to === "avatar" ? "?to=avatar" : ""}`, { method: "POST" });
     const j = await r.json().catch(() => ({}));
     setChatBusy(false);
     if (!r.ok) { setChatErr(j.error || `ошибка ${r.status}`); return; }
     onClose();
-    router.push(`/dashboard/clients/${j.client_id}?ctab=chat&thread=reels`);
+    router.push(`/dashboard/clients/${j.client_id}?ctab=chat&thread=${to}`);
   }
 
   const closing = useRef(false);
@@ -320,9 +327,15 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
             <span style={{ fontSize: 11, fontWeight: 800, color: "var(--pu)", textTransform: "uppercase", letterSpacing: 0.5 }}>✨ Наш сценарий</span>
             <span style={{ display: "inline-flex", gap: 6, flexWrap: "wrap" }}>
             {!ro && (
-              <button onClick={sendToChat} disabled={chatBusy} title="Задача уйдёт в «Чат · ИИ» → «Рилсы» клиента: ИИ посмотрит референс и расшифровку и предложит версию под клиента. В сценарий запишет, когда скажете «записывай»."
+              <button onClick={() => sendToChat()} disabled={chatBusy} title="Задача уйдёт в «Чат · ИИ» → «Рилсы» клиента: ИИ посмотрит референс и расшифровку и предложит версию под клиента. В сценарий запишет, когда скажете «записывай»."
                 style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 11px", borderRadius: 8, border: "1px solid rgba(157,107,255,.45)", background: "rgba(157,107,255,.12)", color: "var(--t1)", fontSize: 11.5, fontWeight: 700, cursor: chatBusy ? "default" : "pointer" }}>
                 {chatBusy ? <Loader2 size={13} className="spin" /> : <Sparkles size={13} />} {chatBusy ? "Отправляю…" : "Уникализировать в чате ИИ"}
+              </button>
+            )}
+            {!ro && hasAvatar && (
+              <button onClick={() => sendToChat("avatar")} disabled={chatBusy} title="Сценарий уйдёт в «Чат · ИИ» → «Аватар»: ИИ разметит эмоции, применит словарь произношения и предложит лук. Генерация — только после кнопки «Озвучить»."
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 11px", borderRadius: 8, border: "1px solid rgba(66,212,244,.45)", background: "rgba(66,212,244,.10)", color: "var(--t1)", fontSize: 11.5, fontWeight: 700, cursor: chatBusy ? "default" : "pointer" }}>
+                <Mic size={13} /> Озвучить сценарий
               </button>
             )}
             <button onClick={runStopCheck} disabled={stopBusy} title="ИИ подсветит фразы, из-за которых Instagram может занизить показы. Ничего не меняет — решаете вы."

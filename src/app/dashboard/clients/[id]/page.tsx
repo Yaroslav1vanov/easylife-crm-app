@@ -22,7 +22,9 @@ import ClientStatsTab from "@/components/ClientStatsTab";
 import PlanFactTab from "@/components/stats/PlanFactTab";
 import ViewsBreakdown from "@/components/stats/ViewsBreakdown";
 import ClientStrategyTab from "@/components/strategy/ClientStrategyTab";
-import ClientChatTab from "@/components/chat/ClientChatTab";
+import ClientChatTab, { type ChatThread } from "@/components/chat/ClientChatTab";
+import AvatarSettings from "@/components/avatar/AvatarSettings";
+import { canGenerate, type ClientAvatar } from "@/lib/avatar";
 import ClientPlanTab from "@/components/plan/ClientPlanTab";
 import { Camera, Music2, Play } from "lucide-react";
 
@@ -73,12 +75,12 @@ export default function ClientDetailPage() {
   const [tab, setTab] = useState("scripts");
   const [ctab, setCtab] = useState<"work" | "plan" | "set" | "stats" | "strategy" | "chat">("work");
   const [chatDraft, setChatDraft] = useState("");
-  const [chatThread, setChatThread] = useState<"reels" | "stories" | undefined>(undefined);
+  const [chatThread, setChatThread] = useState<ChatThread | undefined>(undefined);
   // ссылка вида ?ctab=chat&thread=reels — например, после «Уникализировать в чате ИИ» в карточке сценария
   const search = useSearchParams();
   useEffect(() => {
     const t = search.get("ctab");
-    if (t === "chat") { setCtab("chat"); const th = search.get("thread"); if (th === "reels" || th === "stories") setChatThread(th); }
+    if (t === "chat") { setCtab("chat"); const th = search.get("thread"); if (th === "reels" || th === "stories" || th === "strategy" || th === "avatar") setChatThread(th); }
   }, [search]);
   const [menuOpen, setMenuOpen] = useState(false);
   const isMobile = useIsMobile();
@@ -92,6 +94,7 @@ export default function ClientDetailPage() {
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState("");
   const [myTeamId, setMyTeamId] = useState<number | null>(null);
+  const [avatar, setAvatar] = useState<ClientAvatar | null>(null);   // аватар HeyGen клиента → чат «Аватар»
   const [statsView, setStatsView] = useState<"stats" | "planfact">("stats");
   const router = useRouter();
   const supabase = createClient();
@@ -109,6 +112,7 @@ export default function ClientDetailPage() {
       db.getOnboardingProgress(supabase, clientId),
     ]);
     setClient(c); setScripts(s); setChecklist(ch); setTeam(tm);
+    supabase.from("client_avatars").select("*").eq("client_id", clientId).maybeSingle().then(({ data }) => setAvatar((data as ClientAvatar) || null));
     tryAutoAvatar(c);
     if (cmRes?.data) {
       setClientMonths(cmRes.data);
@@ -407,7 +411,8 @@ export default function ClientDetailPage() {
       {ctab === "stats" && statsView === "stats" && !isMont && !!c.metricool_blog_id && <ViewsBreakdown clientId={clientId} />}
       {ctab === "stats" && (statsView === "stats" || isMont) && <ClientStatsTab clientId={clientId} hasMetricool={!!c.metricool_blog_id} />}
       {ctab === "stats" && statsView === "planfact" && !isMont && <PlanFactTab clientId={clientId} />}
-      {ctab === "chat" && <ClientChatTab clientId={clientId} aiEnabled={!!c.ai_chat} isOwner={userRole === "owner" || userRole === "admin"} draft={chatDraft} initialThread={chatThread} />}
+      {ctab === "chat" && <ClientChatTab clientId={clientId} aiEnabled={!!c.ai_chat} isOwner={userRole === "owner" || userRole === "admin"}
+        avatar={avatar} canGenerate={canGenerate(userRole, myTeamId, c)} clientPackage={c.package} draft={chatDraft} initialThread={chatThread} />}
       {ctab === "plan" && <ClientPlanTab client={c} scripts={scripts}
         monthOptions={clientMonths.filter(m => m.status !== "cancelled").map(m => m.month_number).sort((a, b) => a - b)}
         canEdit={userRole !== "montager"} canEditReadyAt={userRole === "owner" || userRole === "admin"}
@@ -491,6 +496,7 @@ export default function ClientDetailPage() {
                   onClick={() => updateClientField("ai_chat", !c.ai_chat)}>{c.ai_chat ? "✓ включён" : "выключен"}</button></div>
               <div className="v2-hint">задачи из вкладки «Чат» выполняет ИИ на сервере (монтаж, сторис, правки)</div>
             </>)}
+            <AvatarSettings clientId={clientId} avatar={avatar} isOwner={userRole === "owner" || userRole === "admin"} clientPackage={c.package} onSaved={setAvatar} />
             {c.metricool_blog_id ? (
               <div className="v2-fr"><span>Отчёт за неделю</span>
                 <span style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>

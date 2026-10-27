@@ -18,14 +18,20 @@ HDR = {"x-agent-secret": ENV["AGENT_SECRET"], "content-type": "application/json"
 TIMEOUT = int(ENV.get("CHAT_TIMEOUT_MIN", "45")) * 60
 WORK = HOME / "work"
 # У клиента два чата с ИИ: по рилсам и по сторис. Переписка не смешивается, папка клиента общая.
-THREAD_RU = {"reels": "рилсы", "stories": "сторис", "strategy": "стратегия"}
+THREAD_RU = {"reels": "рилсы", "stories": "сторис", "strategy": "стратегия", "avatar": "аватар"}
 THREAD_HINT = {
     "reels": "Задачи этого чата — рилсы: монтаж роликов, правки, разбор стиля роликов.",
     "strategy": "Это чат по проекту в целом. Ты видишь переписку всех трёх чатов (метки [рилсы]/[сторис]/[стратегия]), PLAN.md и STATS.md. "
                 "Задача — думать и советовать: что зашло, что выкладывать, какие сторис поставить рядом с рилсами, чего не хватает в плане. "
                 "Отвечай текстом с конкретикой по этому клиенту; файлы делай, только если прямо попросили.",
     "stories": "Задачи этого чата — сторис: серии сторис (кадры PNG 1080×1920 или короткие видео), тексты, план сторис. Рилсы здесь не монтируй, если об этом прямо не просят.",
+    "avatar": "Чат голоса и видео аватара HeyGen. Правила — раздел «Чат „Аватар“» в CLAUDE.md, настройки и заказ — AVATAR.json. Каждая генерация тратит кредиты агентства.",
 }
+
+# Инструменты HeyGen (MCP-сервер heygen у пользователя chatagent). Включаются только в чате «Аватар»,
+# каждый вызов дополнительно проверяет хук bin/heygen_guard.py (лук и голос клиента, одна генерация на задачу).
+HEYGEN_READ = ["list_avatar_looks", "get_avatar_look", "get_video", "get_current_user"]
+HEYGEN_GEN = {"voice": ["create_speech", "create_speech_without_player"], "video": ["create_video_from_avatar"]}
 CURRENT_DIR = HOME / ".current_jobs"     # по файлу на каждую задачу в работе (их может быть несколько)
 CURRENT_DIR.mkdir(exist_ok=True)
 LEGACY_CURRENT = HOME / ".current_job"
@@ -196,6 +202,12 @@ Instagram: {client.get('instagram') or '—'} · TikTok: {client.get('tiktok') o
         (ws / "FORECAST.md").write_text((HOME / "FORECAST.md").read_text())
     else:
         (ws / "FORECAST.md").unlink(missing_ok=True)
+    # чат «Аватар»: что разрешено клиенту и что заказано кнопкой (хук сверяет с этим файлом каждый вызов HeyGen)
+    av = job.get("avatar")
+    if av:
+        (ws / "AVATAR.json").write_text(json.dumps(av, ensure_ascii=False, indent=1))
+    else:
+        (ws / "AVATAR.json").unlink(missing_ok=True)
     task_att = "".join(f"\n- files/{local(msg, a).name}" for a in (msg.get("attachments") or [])) or "\n- (файлов нет)"
     quote_block = ""
     if quoted:
@@ -216,8 +228,20 @@ Instagram: {client.get('instagram') or '—'} · TikTok: {client.get('tiktok') o
 ## Куда класть результат
 - Ответ человеку: out/{mid}/reply.md
 - Готовые файлы (ролик, кадры сторис): out/{mid}/ — всё из этой папки уйдёт в чат
-{SCRIPT_HINT.format(mid=mid) if job.get("script") else ""}{FORECAST_HINT.format(mid=mid, pkg=(pl or {}).get("package") or "не указан") if pl else ""}""")
+{AVATAR_HINT.format(mid=mid, kind=((av or {}).get("job") or {}).get("kind") or "заказ") if av else ""}{SCRIPT_HINT.format(mid=mid) if job.get("script") else ""}{FORECAST_HINT.format(mid=mid, pkg=(pl or {}).get("package") or "не указан") if pl else ""}""")
     return ws, out
+
+
+AVATAR_HINT = """
+## Чат «Аватар» — AVATAR.json (вид задачи: {kind})
+- Нет job.gen_id → это ЗАКАЗ: ничего не генерируй. Разметь текст тегами эмоций, примени словарь, выбери лук и запиши
+  out/{mid}/avatar.json → {{"order": {{"text": "текст с тегами", "look_id": "id лука из config.look_ids"}}}} + короткий reply.md.
+- job.kind = "voice" → ОДНА озвучка текста job.text (create_speech, voiceId и модель из config, speed = config.voice_speed).
+- job.kind = "video" → ОДНО видео на луке job.look_id из аудио files/… (create_video_from_avatar, audioUrl, engine из config).
+- Результат положи в out/{mid}/ (mp3 / mp4 / webm / srt) и запиши out/{mid}/avatar.json →
+  {{"gen": {{"file": "имя файла результата", "seconds": 0, "credits_before": 0, "credits_after": 0, "heygen_id": "…"}}}}
+  Кредиты — из get_current_user до и после генерации. Ошибка или таймаут HeyGen — НЕ повторяй, запиши {{"gen": {{"error": "что случилось"}}}}.
+"""
 
 
 SCRIPT_HINT = """
@@ -380,7 +404,7 @@ def fresh_token():
     return ENV["CLAUDE_CODE_OAUTH_TOKEN"]
 
 
-def run_claude(ws, mid, resume=False):
+def run_claude(ws, mid, resume=False, avatar=None):
     # Каждая задача — с чистого листа. Раньше разговор по клиенту продолжался бесконечно, и к каждой задаче
     # тянулась вся прошлая история: 01.10 три кадра сторис стоили $9,8 при контексте 276 тыс. токенов.
     # Память между задачами теперь в файлах: JOURNAL.md (что сделано и где лежит), STYLE.md, files/, studio/src/crm.
@@ -393,6 +417,12 @@ def run_claude(ws, mid, resume=False):
            "--model", ENV.get("CHAT_MODEL", "claude-opus-5-5"),   # монтаж — только Opus 5.5
            "--add-dir", str(HOME / "easylife-montage"), str(HOME / "easylife-top-reels"),
            "--allowedTools", "Bash", "Read", "Write", "Edit", "Glob", "Grep"]
+    kind = ((avatar or {}).get("job") or {}).get("kind")
+    if avatar and not avatar.get("error"):
+        # только чат «Аватар»: чтение луков и кредитов + ровно тот вид генерации, что заказан кнопкой
+        cmd += [f"mcp__heygen__{t}" for t in HEYGEN_READ + HEYGEN_GEN.get(kind, [])]
+    else:
+        cmd += ["--disallowedTools", "mcp__heygen"]   # в остальных чатах HeyGen недоступен совсем
     if resume:
         cmd.insert(1, "-c")   # та же задача после обрыва — продолжаем её разговор
     env = {"PATH": "/srv/easylife-chat-agent/bin:/srv/easylife-chat-agent/.venv/bin:/usr/local/bin:/usr/bin:/bin",
@@ -423,7 +453,7 @@ def handle(job):
         mark.write_text(str(mid))
         before = studio_snapshot()
         try:
-            res = run_claude(ws, mid, resume=resumed)
+            res = run_claude(ws, mid, resume=resumed, avatar=job.get("avatar"))
         finally:
             mark.unlink(missing_ok=True)   # при убийстве процесса сюда не дойдём — метка останется
         reply = (out / "reply.md").read_text().strip() if (out / "reply.md").exists() else (res.get("result") or "").strip()
@@ -472,18 +502,49 @@ def handle(job):
             journal(ws, mid, msg, reply, atts, before)
         except Exception:
             log("журнал не записался", traceback.format_exc()[-500:])
+        meta = None
+        aj = out / "avatar.json"            # чат «Аватар»: карточка-заказ или итог генерации HeyGen
+        gen_id = (((job.get("avatar") or {}).get("job")) or {}).get("gen_id")
+        if aj.exists():
+            try:
+                a = json.loads(aj.read_text())
+                if a.get("order") and not gen_id:
+                    meta = {"type": "avatar_order", "text": a["order"].get("text", ""), "look_id": a["order"].get("look_id")}
+                g = a.get("gen")
+                if g and gen_id:
+                    key = next((x["key"] for x in atts if x["name"] == g.get("file")), None)
+                    api_post(op="avatar_gen", gen_id=gen_id, status="error" if g.get("error") or not key else "done",
+                             error=g.get("error") or (None if key else "файл результата не найден"), result_key=key,
+                             seconds=g.get("seconds"), credits_before=g.get("credits_before"), credits_after=g.get("credits_after"), heygen_id=g.get("heygen_id"))
+                    gen_id = None
+            except Exception as e:
+                log("аватар: итог не разобрался", e)
+        if gen_id:   # генерацию заказали, а итога нет — фиксируем ошибку (без автоповтора)
+            api_post(op="avatar_gen", gen_id=gen_id, status="error", error="ИИ не отчитался о генерации")
         mins = (time.time() - t0) / 60
         cost = res.get("total_cost_usd")
         log("готово", mid, f"{mins:.1f} мин", f"файлов {len(atts)}", f"расход ${cost}" if cost else "")
-        api_post(op="reply", id=mid, body=reply or "Готово.", attachments=atts, status="done",
+        api_post(op="reply", id=mid, body=reply or "Готово.", attachments=atts, status="done", meta=meta,
                  metrics={"minutes": round(mins, 2), "cost_usd": cost, "files": len(atts)})
     except subprocess.TimeoutExpired:
+        avatar_failed(job, "таймаут задачи")
         api_post(op="reply", id=mid, body="", status="error", error=f"Не уложился в {TIMEOUT // 60} минут. Разбейте задачу или напишите ещё раз.")
     except Exception as e:
         log("ошибка", mid, traceback.format_exc()[-1500:])
+        avatar_failed(job, f"сбой исполнителя: {str(e)[:200]}")
         api_post(op="reply", id=mid, body="", status="error", error=f"Сбой исполнителя: {str(e)[:300]}")
     finally:
         cur.unlink(missing_ok=True)
+
+
+def avatar_failed(job, why):
+    """Задача чата «Аватар» упала — закрываем генерацию ошибкой, иначе следующие кнопки будут ждать её вечно. Без автоповтора."""
+    gid = (((job.get("avatar") or {}).get("job")) or {}).get("gen_id")
+    if gid:
+        try:
+            api_post(op="avatar_gen", gen_id=gid, status="error", error=why)
+        except Exception:
+            pass
 
 
 STUDIO = HOME / "easylife-montage" / "studio"
