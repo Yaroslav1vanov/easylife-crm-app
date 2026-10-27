@@ -69,7 +69,8 @@ def main():
         if model and model != cfg.get("voice_model"):
             deny(f"Модель голоса клиента — {cfg.get('voice_model')}, а не {model}.")
     else:
-        if inp.get("avatarId") not in (cfg.get("look_ids") or []):
+        allowed = set(cfg.get("look_ids") or []) | {g.get("id") for g in (cfg.get("group_looks") or [])}   # основные + вся группа клиента
+        if inp.get("avatarId") not in allowed:
             deny("Этот аватар не привязан к клиенту.")
         if job.get("look_id") and inp.get("avatarId") != job.get("look_id"):
             deny("В заказе выбран другой лук — бери его из AVATAR.json → job.look_id.")

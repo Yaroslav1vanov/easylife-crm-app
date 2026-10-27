@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
 import { createAdmin } from "@/lib/supabase-admin";
-import { canGenerate, loadAvatar, monthStart, videoLimit } from "@/lib/avatar";
+import { allowedLooks, canGenerate, loadAvatar, monthStart, videoLimit } from "@/lib/avatar";
 
 /* Кнопки «Озвучить» и «Сделать видео» в чате «Аватар».
    Одна кнопка = одна задача исполнителю = одна генерация HeyGen. Проверяем здесь, а не в браузере:
@@ -34,7 +34,7 @@ export async function POST(req: Request) {
   if (!canGenerate(prof?.role, tm?.id, client)) return bad("Генерировать голос и видео могут тимлид и монтажёр этого клиента и Ярослав", 403);
 
   const lookId = String(b.lookId || av.default_look_id || av.look_ids[0] || "");
-  if (!av.look_ids.includes(lookId)) return bad("Этот лук не привязан к клиенту");
+  if (!allowedLooks(av).has(lookId)) return bad("Этот образ не из группы аватара клиента");
   const text = String(b.text || "").trim();
   if (kind === "voice" && !text) return bad("Пустой текст для озвучки");
   if (kind === "voice" && text.length > 5000) return bad("Текст длиннее 5000 знаков — разбейте на части");
@@ -77,7 +77,7 @@ export async function POST(req: Request) {
   }).select("id").single();
   if (gErr) return bad(gErr.message, 500);
 
-  const lookName = av.look_names?.[lookId] || lookId.slice(0, 8);
+  const lookName = av.look_names?.[lookId] || (av.group_looks || []).find((l) => l.id === lookId)?.name || lookId.slice(0, 8);
   const body = kind === "voice"
     ? `🎙 Озвучить${isRedo ? " заново" : ""} (лук «${lookName}»):\n\n${text}`
     : `🎬 Сделать видео${isRedo ? " заново" : ""} на луке «${lookName}» по аудио выше${b.transparent ? " · прозрачный фон" : ""}${b.captions ? " · субтитры" : ""}${overLimit ? " · сверх лимита, подтвердил Ярослав" : ""}`;

@@ -4,7 +4,7 @@ import { r2 } from "@/lib/r2";
 import { submitFile } from "@/lib/transcribe";
 import { metricoolProfile } from "@/lib/metricoolProfile";
 import { DEFAULT_FORECAST_BENCHMARKS, FORECAST_BENCHMARKS_KEY, unpackingToText } from "@/lib/forecast";
-import { dictionaryText, monthStart, videoLimit } from "@/lib/avatar";
+import { allowedLooks, dictionaryText, monthStart, videoLimit } from "@/lib/avatar";
 
 /* Канал для ИИ-исполнителя чата по клиенту (работает на нашем сервере).
    Только по секрету x-agent-secret, работает служебным ключом.
@@ -385,8 +385,8 @@ export async function POST(req: Request) {
 /** Карточка-заказ озвучки (чат «Аватар»): берём только известные поля и только разрешённый клиенту лук. */
 async function orderMeta(sb: ReturnType<typeof createAdmin>, m: { client_id: number; thread: string | null }, meta: any) {
   if (m.thread !== "avatar" || meta?.type !== "avatar_order" || typeof meta.text !== "string" || !meta.text.trim()) return null;
-  const { data: av } = await sb.from("client_avatars").select("look_ids, default_look_id").eq("client_id", m.client_id).maybeSingle();
+  const { data: av } = await sb.from("client_avatars").select("look_ids, default_look_id, group_looks").eq("client_id", m.client_id).maybeSingle();
   if (!av) return null;
-  const look = av.look_ids.includes(meta.look_id) ? meta.look_id : av.default_look_id || av.look_ids[0];
+  const look = allowedLooks(av as any).has(meta.look_id) ? meta.look_id : av.default_look_id || av.look_ids[0];
   return { type: "avatar_order", text: meta.text.slice(0, 5000), look_id: look };
 }

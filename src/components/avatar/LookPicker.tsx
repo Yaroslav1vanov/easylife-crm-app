@@ -31,6 +31,8 @@ export function LookThumb({ look, active, star, onClick, size = 74, dim }: { loo
 /** Выбор образа: выбранный — крупно, «Сменить образ ▾» раскрывает все разрешённые клиенту образы большими карточками. */
 export default function LookPicker({ avatar, value, onChange, readOnly }: { avatar: ClientAvatar; value: string; onChange: (id: string) => void; size?: number; readOnly?: boolean }) {
   const [open, setOpen] = useState(false);
+  const [kind, setKind] = useState<"all" | "digital_twin" | "photo_avatar">("all");
+  const others = (avatar.group_looks || []).filter((l) => !avatar.look_ids.includes(l.id));   // вся группа клиента, кроме основных
   const cur = lookOf(avatar, value || avatar.default_look_id || avatar.look_ids[0]);
   const title = (l: GroupLook) => (l.name && l.name !== "Photo Avatar" ? l.name : "Образ без названия");
   if (readOnly) return (
@@ -45,17 +47,33 @@ export default function LookPicker({ avatar, value, onChange, readOnly }: { avat
         <div style={{ minWidth: 0 }}>
           <div style={{ fontSize: 13, fontWeight: 800, color: "var(--t1)" }}>{title(cur)}{cur.id === avatar.default_look_id ? " · основной" : ""}</div>
           <button type="button" className="v2-act ghost" style={{ height: 28, fontSize: 12, marginTop: 5 }} onClick={() => setOpen(!open)}>
-            {open ? "Свернуть ▴" : `Сменить образ ▾ (${avatar.look_ids.length})`}
+            {open ? "Свернуть ▴" : `Сменить образ ▾ (${avatar.look_ids.length + others.length})`}
           </button>
         </div>
       </div>
       {open && (
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", padding: 10, borderRadius: 12, background: "var(--v2-inset)", border: "1px solid var(--brd)" }}>
-          {avatar.look_ids.map((id) => {
-            const l = lookOf(avatar, id);
-            return <LookCard key={id} look={l} title={title(l)} main={id === avatar.default_look_id} active={id === cur.id}
-              onClick={() => { onChange(id); setOpen(false); }} />;
-          })}
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: 12, borderRadius: 12, background: "var(--v2-inset)", border: "1px solid var(--brd)", maxHeight: 640, overflowY: "auto" }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: "var(--t2)" }}>★ Основные</div>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+            {avatar.look_ids.map((id) => {
+              const l = lookOf(avatar, id);
+              return <LookCard key={id} look={l} title={title(l)} main={id === avatar.default_look_id} active={id === cur.id}
+                onClick={() => { onChange(id); setOpen(false); }} />;
+            })}
+          </div>
+          {others.length > 0 && (<>
+            <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginTop: 4 }}>
+              <span style={{ fontSize: 12, fontWeight: 800, color: "var(--t2)" }}>Все образы ({others.length})</span>
+              {([["all", "все"], ["digital_twin", "видео-двойники"], ["photo_avatar", "фото"]] as const).map(([k, l]) => (
+                <button key={k} type="button" className={`v2-chip ${kind === k ? "cy" : "mut"}`} style={{ cursor: "pointer", border: 0 }} onClick={() => setKind(k)}>{l}</button>
+              ))}
+            </div>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              {others.filter((l) => kind === "all" || l.type === kind).map((l) => (
+                <LookCard key={l.id} look={l} width={120} title={title(l)} active={l.id === cur.id} onClick={() => { onChange(l.id); setOpen(false); }} />
+              ))}
+            </div>
+          </>)}
         </div>
       )}
     </div>

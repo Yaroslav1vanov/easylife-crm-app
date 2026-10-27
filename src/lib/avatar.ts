@@ -57,6 +57,11 @@ export function canGenerate(role: string | null | undefined, myTeamId: number | 
   return !!myTeamId && (client.teamlead_id === myTeamId || client.montager_id === myTeamId);
 }
 
+/** Какие образы можно брать: основные клиента + все образы его группы HeyGen (чужие группы — никогда). */
+export function allowedLooks(av: Pick<ClientAvatar, "look_ids" | "group_looks">): Set<string> {
+  return new Set([...(av.look_ids || []), ...((av.group_looks || []).map((l) => l.id))]);
+}
+
 export async function loadAvatar(sb: SupabaseClient, clientId: number): Promise<ClientAvatar | null> {
   const { data } = await sb.from("client_avatars").select("*").eq("client_id", clientId).maybeSingle();
   return (data as ClientAvatar) || null;
