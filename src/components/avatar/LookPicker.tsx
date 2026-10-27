@@ -46,13 +46,20 @@ export default function LookPicker({ avatar, value, onChange, readOnly }: { avat
         <LookThumb look={cur} size={64} />
         <div style={{ minWidth: 0 }}>
           <div style={{ fontSize: 13, fontWeight: 800, color: "var(--t1)" }}>{title(cur)}{cur.id === avatar.default_look_id ? " · основной" : ""}</div>
-          <button type="button" className="v2-act ghost" style={{ height: 28, fontSize: 12, marginTop: 5 }} onClick={() => setOpen(!open)}>
-            {open ? "Свернуть ▴" : `Сменить образ ▾ (${avatar.look_ids.length + others.length})`}
+          <button type="button" className="v2-act ghost" style={{ height: 28, fontSize: 12, marginTop: 5 }} onClick={() => setOpen(true)}>
+            {`Сменить образ (${avatar.look_ids.length + others.length}) →`}
           </button>
         </div>
       </div>
       {open && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: 12, borderRadius: 12, background: "var(--v2-inset)", border: "1px solid var(--brd)", maxHeight: 640, overflowY: "auto" }}>
+        <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+        <div onClick={(e) => e.stopPropagation()} style={{ width: "min(1180px, 100%)", maxHeight: "88vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: 12, padding: 18, borderRadius: 16, background: "var(--card)", border: "1px solid var(--brd)", boxShadow: "0 20px 60px rgba(0,0,0,.5)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <b style={{ fontSize: 16, color: "var(--t1)" }}>Выберите образ для видео</b>
+            <span style={{ fontSize: 12, color: "var(--t3)" }}>нажмите на картинку</span>
+            <div style={{ flex: 1 }} />
+            <button type="button" className="v2-act ghost" style={{ height: 30 }} onClick={() => setOpen(false)}>Закрыть ✕</button>
+          </div>
           <div style={{ fontSize: 12, fontWeight: 800, color: "var(--t2)" }}>★ Основные</div>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
             {avatar.look_ids.map((id) => {
@@ -70,10 +77,11 @@ export default function LookPicker({ avatar, value, onChange, readOnly }: { avat
             </div>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
               {others.filter((l) => kind === "all" || l.type === kind).map((l) => (
-                <LookCard key={l.id} look={l} width={120} title={title(l)} active={l.id === cur.id} onClick={() => { onChange(l.id); setOpen(false); }} />
+                <LookCard key={l.id} look={l} width={150} title={title(l)} active={l.id === cur.id} onClick={() => { onChange(l.id); setOpen(false); }} />
               ))}
             </div>
           </>)}
+        </div>
         </div>
       )}
     </div>
