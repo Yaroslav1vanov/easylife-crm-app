@@ -237,7 +237,7 @@ AVATAR_HINT = """
 - Нет job.gen_id и нет sync → это ЗАКАЗ: ничего не генерируй. Разметь текст тегами эмоций, примени словарь, выбери лук и запиши
   out/{mid}/avatar.json → {{"order": {{"text": "текст с тегами", "look_id": "id лука из config.look_ids"}}}} + короткий reply.md.
 - В AVATAR.json sync = true → «Обнови образы из HeyGen»: только list_avatar_looks (groupId = каждый id из config.heygen_group_id — их может быть несколько через запятую, limit 50, листай next_token до конца),
-  ничего не генерируй. Запиши out/{mid}/looks.json — массив [{{"id", "name", "avatar_type", "preview_image_url", "supported_api_engines", "status"}}] как пришло. Картинки скачает исполнитель.
+  ничего не генерируй. Запиши out/{mid}/looks.json — массив [{{"id", "name", "avatar_type", "preview_image_url", "default_voice_id", "supported_api_engines", "status"}}] как пришло. Картинки скачает исполнитель.
 - job.kind = "voice" → ОДНА озвучка текста job.text (create_speech, voiceId и модель из config, speed = config.voice_speed).
 - job.kind = "video" → ОДНО видео на луке job.look_id из аудио files/… (create_video_from_avatar, audioUrl, engine из config).
 - Результат положи в out/{mid}/ (mp3 / mp4 / webm / srt) и запиши out/{mid}/avatar.json →
@@ -574,6 +574,7 @@ def sync_looks(cid, mid, looks, ws):
             except Exception as e:
                 log("картинка образа не скачалась", lid, str(e)[:120])
         out.append({"id": lid, "name": str(lk.get("name") or "")[:80], "type": lk.get("avatar_type"), "preview_key": key,
+                    "voice": re.sub(r"[^A-Za-z0-9]", "", str(lk.get("default_voice_id") or ""))[:64] or None,
                     "engines": lk.get("supported_api_engines") or [], "status": lk.get("status")})
     api_post(op="avatar_looks", id=mid, looks=out)
     return len(out)

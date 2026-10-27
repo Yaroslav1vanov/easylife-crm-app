@@ -63,7 +63,8 @@ def main():
         deny("Генерация по этому заказу уже была. Повтор — только новой задачей от человека (кнопкой «Озвучить»/«Сделать видео» ещё раз).")
 
     if want == "voice":
-        if inp.get("voiceId") != cfg.get("voice_id"):
+        voices = {cfg.get("voice_id")} | {g.get("voice") for g in (cfg.get("group_looks") or []) if g.get("voice")}
+        if inp.get("voiceId") not in voices:
             deny("Этот голос не привязан к клиенту.")
         model = (inp.get("settings") or {}).get("model_id")
         if model and model != cfg.get("voice_model"):
@@ -76,7 +77,7 @@ def main():
             deny("В заказе выбран другой лук — бери его из AVATAR.json → job.look_id.")
         if inp.get("script") or not (inp.get("audioUrl") or inp.get("audioAssetId")):
             deny("Видео делается только из готового аудио (audioUrl), не из текста.")
-        if inp.get("voiceId") and inp.get("voiceId") != cfg.get("voice_id"):
+        if inp.get("voiceId") and inp.get("voiceId") not in ({cfg.get("voice_id")} | {g.get("voice") for g in (cfg.get("group_looks") or []) if g.get("voice")}):
             deny("Этот голос не привязан к клиенту.")
         eng = (inp.get("engine") or {}).get("type") or "avatar_iv"
         if eng != cfg.get("engine"):

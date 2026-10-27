@@ -281,6 +281,7 @@ export async function POST(req: Request) {
       id: String(l.id || "").replace(/[^A-Za-z0-9]/g, "").slice(0, 64), name: String(l.name || "").slice(0, 80),
       type: l.type ? String(l.type).slice(0, 30) : null, status: l.status ? String(l.status).slice(0, 20) : null,
       engines: Array.isArray(l.engines) ? l.engines.map(String).slice(0, 6) : [],
+      voice: l.voice ? String(l.voice).replace(/[^A-Za-z0-9]/g, "").slice(0, 64) : null,   // голос человека с этого образа (у клиента бывает несколько людей)
       preview_key: typeof l.preview_key === "string" && l.preview_key.startsWith(`strategy/${cid}/`) ? l.preview_key : null,
     })).filter((l: any) => l.id);
     // основные ещё не выбраны (новый клиент) — берём первые 3 видео-двойника, первый — основной; Ярослав поменяет в «Настройках»
