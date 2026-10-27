@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase-browser";
 import { fileUrl, guessType, when } from "@/components/strategy/files";
-import { Paperclip, Send, X, Sparkles, Loader2, AlertTriangle, CheckCircle2, Download, RotateCw, UploadCloud, ArrowRightCircle, Smartphone, CornerUpLeft, ExternalLink } from "lucide-react";
+import { Paperclip, Send, X, Sparkles, Loader2, AlertTriangle, CheckCircle2, Download, RotateCw, UploadCloud, ArrowRightCircle, Smartphone, CornerUpLeft, ExternalLink, EyeOff, Eye } from "lucide-react";
 import SendToPipelineModal, { PipeAtt } from "@/components/chat/SendToPipelineModal";
 
 /* Чат по клиенту. Вся работа по проекту в одном месте: сотрудники пишут задачи
@@ -17,6 +17,7 @@ type Msg = {
   ai_error: string | null; reply_to: number | null; created_at: string;
   quote_id?: number | null;   // «Ответить» на конкретное сообщение — ИИ получит его целиком
   script_id?: number | null;  // задача пришла кнопкой из карточки сценария
+  hidden_at?: string | null;  // скрыто владельцем: видит только он, ИИ не видит. Удалить сообщение нельзя никому
 };
 type Pending = { id: string; file: File; pct: number; status: "uploading" | "done" | "error"; key?: string; err?: string; preview?: string };
 
@@ -50,7 +51,7 @@ const THREADS: { id: ChatThread; label: string; hint: string; placeholder: strin
     empty: "Задайте вопрос по контенту клиента — ИИ разберёт план, статистику и обе переписки." },
 ];
 
-export default function ClientChatTab({ clientId, aiEnabled, draft, initialThread }: { clientId: number; aiEnabled: boolean; draft?: string; initialThread?: ChatThread }) {
+export default function ClientChatTab({ clientId, aiEnabled, draft, initialThread, isOwner }: { clientId: number; aiEnabled: boolean; draft?: string; initialThread?: ChatThread; isOwner?: boolean }) {
   const [thread, setThread] = useState<ChatThread>(initialThread || "reels");
   useEffect(() => { if (initialThread) setThread(initialThread); }, [initialThread]);
   const T = THREADS.find((t) => t.id === thread)!;
@@ -118,6 +119,16 @@ export default function ClientChatTab({ clientId, aiEnabled, draft, initialThrea
     const t = setInterval(() => { if (document.visibilityState === "visible") load(); }, 4000);
     return () => clearInterval(t);
   }, [clientId, thread]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* Удалять переписку нельзя никому (ни в интерфейсе, ни через базу). Владелец может скрыть
+     сообщение: команда и ИИ его не видят, владелец видит с пометкой и может вернуть. */
+  async function toggleHidden(m: Msg) {
+    const hide = !m.hidden_at;
+    if (hide && !confirm("Скрыть сообщение? Команда и ИИ перестанут его видеть. Вы увидите его с пометкой и сможете вернуть.")) return;
+    const { error } = await supabase.rpc("hide_chat_message", { p_id: m.id, p_hide: hide });
+    if (error) { alert(`Не получилось: ${error.message}`); return; }
+    await load();
+  }
 
   const working = useMemo(() => msgs.some((m) => m.ai_status === "queued" || m.ai_status === "working"), [msgs]);
 
@@ -216,7 +227,8 @@ export default function ClientChatTab({ clientId, aiEnabled, draft, initialThrea
           : msgs.map((m) => <Bubble key={m.id} m={m} mine={m.author_type === "user" && m.author_name === me.name}
               // сценарий, над которым шла работа к этому моменту чата («Уникализировать в чате ИИ»)
               onPipe={(p) => setPipe({ ...p, scriptId: [...msgs].reverse().find((x) => x.id <= m.id && x.script_id)?.script_id ?? null })}
-              quoted={m.quote_id ? byId.get(m.quote_id) || null : null} onReply={startReply} onJump={jumpTo} />)}
+              quoted={m.quote_id ? byId.get(m.quote_id) || null : null} onReply={startReply} onJump={jumpTo}
+              onHide={isOwner ? toggleHidden : undefined} />)}
         {working && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--pu)" }}>
             <Loader2 size={14} className="spin" /> {ahead > 0
@@ -329,13 +341,13 @@ function snippet(m: Msg) {
   return t ? t.slice(0, 160) : (m.attachments || []).map((a) => a.name).join(", ") || "сообщение";
 }
 
-function Bubble({ m, mine, onPipe, quoted, onReply, onJump }: { m: Msg; mine: boolean; onPipe: (p: { video?: PipeAtt; images?: PipeAtt[] }) => void;
-  quoted: Msg | null; onReply: (m: Msg) => void; onJump: (id: number) => void }) {
+function Bubble({ m, mine, onPipe, quoted, onReply, onJump, onHide }: { m: Msg; mine: boolean; onPipe: (p: { video?: PipeAtt; images?: PipeAtt[] }) => void;
+  quoted: Msg | null; onReply: (m: Msg) => void; onJump: (id: number) => void; onHide?: (m: Msg) => void }) {
   const ai = m.author_type === "ai";
   const imgs = ai ? (m.attachments || []).filter(isImage) : [];
   const status = m.author_type === "user" ? m.ai_status : null;
   return (
-    <div id={`msg-${m.id}`} className="chat-msg" style={{ alignSelf: mine ? "flex-end" : "flex-start", maxWidth: "min(620px, 92%)", display: "flex", flexDirection: "column", gap: 4, borderRadius: 14 }}>
+    <div id={`msg-${m.id}`} className="chat-msg" style={{ alignSelf: mine ? "flex-end" : "flex-start", maxWidth: "min(620px, 92%)", display: "flex", flexDirection: "column", gap: 4, borderRadius: 14, opacity: m.hidden_at ? 0.5 : 1 }}>
       <div style={{ fontSize: 11, color: "var(--t3)", display: "flex", gap: 6, alignItems: "center", justifyContent: mine ? "flex-end" : "flex-start" }}>
         {ai && <Sparkles size={11} style={{ color: "var(--pu)" }} />}
         <b style={{ color: ai ? "var(--pu)" : "var(--t2)" }}>{ai ? "ИИ" : m.author_name || "Сотрудник"}</b>
@@ -348,6 +360,13 @@ function Bubble({ m, mine, onPipe, quoted, onReply, onJump }: { m: Msg; mine: bo
           style={{ background: "none", border: 0, color: "var(--cy)", cursor: "pointer", fontSize: 11, fontWeight: 700, display: "inline-flex", gap: 3, alignItems: "center", padding: "0 2px", fontFamily: "inherit" }}>
           <CornerUpLeft size={11} /> Ответить
         </button>
+        {m.hidden_at && <span className="v2-chip mut" style={{ padding: "1px 6px" }}><EyeOff size={10} /> скрыто {when(m.hidden_at)}</span>}
+        {onHide && (
+          <button className="chat-reply" onClick={() => onHide(m)} title={m.hidden_at ? "Вернуть сообщение команде и ИИ" : "Скрыть от команды и ИИ (удалить переписку нельзя)"}
+            style={{ background: "none", border: 0, color: "var(--t3)", cursor: "pointer", fontSize: 11, fontWeight: 700, display: "inline-flex", gap: 3, alignItems: "center", padding: "0 2px", fontFamily: "inherit" }}>
+            {m.hidden_at ? <><Eye size={11} /> Вернуть</> : <><EyeOff size={11} /> Скрыть</>}
+          </button>
+        )}
       </div>
       <div style={{
         padding: "10px 13px", borderRadius: 14, fontSize: 13.5, lineHeight: 1.55, whiteSpace: "pre-wrap", wordBreak: "break-word",

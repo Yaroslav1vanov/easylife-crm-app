@@ -341,7 +341,7 @@ export default function ClientsPage() {
   // Группировка по статусу: активные (не пауза/не ушёл), на паузе, ушли (архив)
   const stageOf = (c: Client) => c.stage === "paused" ? "paused" : c.stage === "churned" ? "churned" : "active";
   const counts = {
-    active: clients.filter(c => stageOf(c) === "active").length,
+    active: clients.filter(c => stageOf(c) === "active" && !c.is_internal).length,   // внутренняя карточка в списке есть, в счёт клиентов не идёт
     paused: clients.filter(c => stageOf(c) === "paused").length,
     churned: clients.filter(c => stageOf(c) === "churned").length,
   };

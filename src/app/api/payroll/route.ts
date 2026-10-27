@@ -45,7 +45,7 @@ export async function GET(req: Request) {
 
   const db = machineOk ? createAdmin() : sb;   // по токену сессии нет — читаем служебным ключом
   const [clients, clientMonths, scripts, team] = await Promise.all([
-    fetchAll(sb, "clients", "id,name,surname,package,montager_id,teamlead_id,stage,niche"),
+    fetchAll(sb, "clients", "id,name,surname,package,montager_id,teamlead_id,stage,niche,is_internal"),
     fetchAll(sb, "client_months", "id,client_id,month_number,start_date,end_date,package,status"),
     fetchAll(sb, "scripts", "id,client_id,month_number,order_num,hook,hook_text,script_status,video_status,pub_date,ready_at"),
     fetchAll(sb, "team_members", "id,name,member_type"),

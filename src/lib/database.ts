@@ -5,6 +5,7 @@ export type TeamMember = { id: number; profile_id: string | null; name: string; 
 export type Client = {
   id: number; name: string; surname: string; niche: string; product: string; phone: string;
   birthday?: string | null;      // ДР — для поздравлений (видят владелец и ассистент)
+  is_internal?: boolean;         // своя карточка агентства (личный блог): работает как клиент, но не идёт в ЗП, план/факт и статистику агентства
   avg_check: string; instagram: string; tiktok: string; youtube: string; avatar_url: string;
   metricool_blog_id?: number | null; platforms?: string[] | null;
   publisher?: string | null;            // metricool | uploadpost

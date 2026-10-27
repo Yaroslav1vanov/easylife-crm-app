@@ -95,7 +95,7 @@ export async function GET(req: Request) {
       sb.from("client_documents").select("title, body, version").eq("client_id", cid).eq("kind", "strategy").eq("is_current", true).maybeSingle(),
       sb.from("client_chat_messages").select("id, author_type, author_name, body, attachments, created_at, ai_status, thread, script_id, quote_id")
         // рилсы и сторис — только своя переписка; «Стратегия» видит все три чата клиента
-        .eq("client_id", cid).in("thread", m.thread === "strategy" ? ["reels", "stories", "strategy"] : [m.thread || "reels"])
+        .eq("client_id", cid).in("thread", m.thread === "strategy" ? ["reels", "stories", "strategy"] : [m.thread || "reels"]).is("hidden_at", null)   // скрытое владельцем ИИ не видит
         .lte("id", m.id).order("id", { ascending: false }).limit(m.thread === "strategy" ? 80 : 40),
     ]);
     if (!client?.ai_chat) {

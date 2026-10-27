@@ -81,7 +81,7 @@ export default function AnalyticsPage() {
   }
 
   const visibleClients = useMemo(
-    () => clients.filter(c => c.stage !== "churned" && (withPaused || c.stage !== "paused")),
+    () => clients.filter(c => c.stage !== "churned" && !c.is_internal && (withPaused || c.stage !== "paused")),   // внутренние — не в статистику агентства
     [clients, withPaused]
   );
 

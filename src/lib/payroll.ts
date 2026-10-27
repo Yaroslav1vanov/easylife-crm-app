@@ -178,6 +178,9 @@ type Input = {
 const d10 = (s?: string | null) => (s || "").slice(0, 10);
 
 export function computePayroll(ym: string, { clients, clientMonths, scripts, team, adjustments = [] }: Input): PayrollResult {
+  // внутренние карточки (личный блог Ярослава и т.п.) в ЗП не идут
+  const internal = new Set(clients.filter(c => (c as any).is_internal).map(c => c.id));
+  if (internal.size) { clients = clients.filter(c => !internal.has(c.id)); clientMonths = clientMonths.filter(cm => !internal.has(cm.client_id)); scripts = scripts.filter(s => !internal.has(s.client_id)); }
   const R = ratesFor(ym);                       // ставки того месяца, который считаем
   const adjBy: Record<string, PayrollAdjustment> = {};
   for (const a of adjustments) if (a.ym === ym) adjBy[a.row_id] = a;

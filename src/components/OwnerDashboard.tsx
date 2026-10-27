@@ -48,7 +48,7 @@ export default function OwnerDashboard({ clients, clientMonths, scripts, team, o
 
   const rows = useMemo<Row[]>(() => {
     const overdueTaskIds = new Set(overdueTasks.map((t: any) => t.client_id));
-    return clients.filter(c => c.stage === "active").map(c => {
+    return clients.filter(c => c.stage === "active" && !c.is_internal).map(c => {   // внутренние карточки — не в план/факт агентства
       const cm = currentMonthOf(clientMonths.filter(m => m.client_id === c.id), todayIso);
       const all = scripts.filter(s => s.client_id === c.id);
       const ms = cm ? all.filter(s => s.month_number === cm.month_number) : [];
@@ -193,7 +193,7 @@ export default function OwnerDashboard({ clients, clientMonths, scripts, team, o
       {/* ===== Таблица «Клиенты в работе» (v1, без изменений) ===== */}
       <div className="v2-sec">
         <ClientsTable
-          clients={clients} clientMonths={clientMonths} scripts={scripts} team={team} todayIso={todayIso}
+          clients={clients.filter(c => !c.is_internal)} clientMonths={clientMonths} scripts={scripts} team={team} todayIso={todayIso}
           overdueClientIds={new Set(overdueTasks.map((t: any) => t.client_id))}
           selectedMonth={selectedMonth} setSelectedMonth={setSelectedMonth} currentYM={currentYM}
           calTargets={calTargets} onSetTarget={onSetTarget} canEditPlan={role !== "montager"}

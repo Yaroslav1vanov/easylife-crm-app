@@ -384,7 +384,7 @@ export default function ClientDetailPage() {
           {c.metricool_blog_id ? <SheetOption color="#a8e063" label="Отчёт клиенту · месяц" hint={reportMonth} onClick={() => window.open(`/api/clients/${clientId}/report?month=${reportMonth}`, "_blank")} /> : null}
           {c.metricool_blog_id ? <SheetOption color="#2ee6c8" label="Отчёт клиенту · неделя" hint={weekLabel(reportWeek)} onClick={() => window.open(`/api/clients/${clientId}/report-week?week=${reportWeek}&lang=${reportLang}`, "_blank")} /> : null}
           <SheetOption color={c.stage === "paused" ? "#a8e063" : "#f5c451"} label={c.stage === "paused" ? "Снять с паузы" : "Поставить на паузу"} onClick={async () => { setMenuOpen(false); await updateClientField("stage", c.stage === "paused" ? "active" : "paused"); }} />
-          {userRole === "admin" && <SheetOption danger label="Удалить клиента" hint="безвозвратно" onClick={async () => { if (confirm("Удалить клиента? Все данные будут потеряны.")) { await db.deleteClient(supabase, clientId); router.push("/dashboard/clients"); } }} />}
+          {userRole === "admin" && <SheetOption danger label="Удалить клиента" hint="безвозвратно" onClick={async () => { if (confirm("Удалить клиента? Все данные будут потеряны.")) { const { error } = await db.deleteClient(supabase, clientId); if (error) { alert(error.code === "23503" ? "У клиента есть переписка в чате — её удалить нельзя. Переведите клиента в «Ушёл» (Редактировать профиль → этап)." : `Не удалилось: ${error.message}`); return; } router.push("/dashboard/clients"); } }} />}
         </div>
       </Sheet>
 
@@ -407,7 +407,7 @@ export default function ClientDetailPage() {
       {ctab === "stats" && statsView === "stats" && !isMont && !!c.metricool_blog_id && <ViewsBreakdown clientId={clientId} />}
       {ctab === "stats" && (statsView === "stats" || isMont) && <ClientStatsTab clientId={clientId} hasMetricool={!!c.metricool_blog_id} />}
       {ctab === "stats" && statsView === "planfact" && !isMont && <PlanFactTab clientId={clientId} />}
-      {ctab === "chat" && <ClientChatTab clientId={clientId} aiEnabled={!!c.ai_chat} draft={chatDraft} initialThread={chatThread} />}
+      {ctab === "chat" && <ClientChatTab clientId={clientId} aiEnabled={!!c.ai_chat} isOwner={userRole === "owner" || userRole === "admin"} draft={chatDraft} initialThread={chatThread} />}
       {ctab === "plan" && <ClientPlanTab client={c} scripts={scripts}
         monthOptions={clientMonths.filter(m => m.status !== "cancelled").map(m => m.month_number).sort((a, b) => a - b)}
         canEdit={userRole !== "montager"} canEditReadyAt={userRole === "owner" || userRole === "admin"}
