@@ -177,7 +177,7 @@ export default function AiUsagePage() {
                 <div style={{ flex: 1 }} />
                 {d.claude.last?.status && d.claude.last.status !== "allowed" && <span className="v2-chip rd" style={{ height: 24, padding: "0 9px", fontSize: 12 }}>лимит исчерпан</span>}
               </div>
-              {!d.claude.last ? <div style={{ fontSize: 13, color: "var(--t3)", marginTop: 10 }}>Сервер ещё не прислал лимиты — они приходят раз в 15 минут.</div> : (
+              {!d.claude.last ? <div style={{ fontSize: 13, color: "var(--t3)", marginTop: 10 }}>Сервер ещё не прислал лимиты — они приходят раз в час.</div> : (
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginTop: 12 }}>
                   <div><div style={label}>5-часовое окно</div>
                     <div style={{ fontSize: 22, fontWeight: 800, color: tone(d.claude.last.h5 ?? 0, 70, 90) }}>{d.claude.last.h5 ?? "—"}%</div>
