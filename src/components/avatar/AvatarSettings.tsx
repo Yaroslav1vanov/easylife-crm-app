@@ -2,7 +2,8 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase-browser";
 import { ENGINES, videoLimit, type ClientAvatar } from "@/lib/avatar";
-import { Plus, Trash2, Check } from "lucide-react";
+import { Plus, Trash2, Check, RefreshCw, Loader2 } from "lucide-react";
+import LookPicker, { LookThumb } from "./LookPicker";
 
 /* «Настройки» → «Аватар HeyGen». Какой аватар закреплён за клиентом: исполнитель генерирует только
    из этих луков и этим голосом (проверка кодом на сервере). Менять привязку может только владелец,
@@ -22,6 +23,15 @@ export default function AvatarSettings({ clientId, avatar, isOwner, clientPackag
   const [err, setErr] = useState("");
   const [dict, setDict] = useState<Dict[]>([]);
   const [nw, setNw] = useState({ written: "", spoken: "" });
+  const [syncing, setSyncing] = useState(false);
+  const groupLooks = avatar?.group_looks || [];
+  async function syncLooks() {
+    setSyncing(true);
+    const r = await fetch("/api/avatar/sync-looks", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ clientId }) });
+    const j = await r.json().catch(() => ({}));
+    setSyncing(false);
+    alert(r.ok ? "Задача ушла в чат «Аватар»: ИИ заберёт образы с картинками (1–3 минуты, кредиты не тратятся). Потом обновите страницу." : j.error || `ошибка ${r.status}`);
+  }
 
   async function loadDict() {
     const { data } = await supabase.from("client_avatar_dictionary").select("id, written, spoken, note").eq("client_id", clientId).order("written");
@@ -79,12 +89,15 @@ export default function AvatarSettings({ clientId, avatar, isOwner, clientPackag
         <b style={{ fontSize: 13.5 }}>🧑‍💼 Аватар HeyGen</b>
         <span style={{ fontSize: 11.5, color: "var(--t3)" }}>{avatar ? "чат «Аватар» включён" : "не привязан"}</span>
         <div style={{ flex: 1 }} />
+        {isOwner && !edit && avatar && <button className="v2-act ghost" style={{ height: 30, fontSize: 12 }} disabled={syncing} onClick={syncLooks} title="Забрать все образы группы с картинками. Только просмотр, кредиты не тратятся">
+          {syncing ? <Loader2 size={12} className="spin" /> : <RefreshCw size={12} />} Обновить образы из HeyGen</button>}
         {isOwner && !edit && <button className="v2-act ghost" style={{ height: 30, fontSize: 12 }} onClick={startEdit}>{avatar ? "Изменить" : "Привязать аватар"}</button>}
       </div>
 
       {!edit && avatar && (
         <div style={{ fontSize: 12.5, color: "var(--t2)", display: "grid", gap: 4 }}>
-          <div>Луки: {avatar.look_ids.map((id) => <span key={id} className={`v2-chip ${id === avatar.default_look_id ? "cy" : "mut"}`} style={{ marginRight: 4 }}>{avatar.look_names?.[id] || id.slice(0, 8)}{id === avatar.default_look_id ? " · основной" : ""}</span>)}</div>
+          <div>Разрешённые образы ({avatar.look_ids.length}){groupLooks.length ? ` из ${groupLooks.length} в группе` : ""}:</div>
+          <LookPicker avatar={avatar} value="" onChange={() => {}} size={64} />
           <div>Голос: <code>{avatar.voice_id?.slice(0, 10) || "—"}</code> · {avatar.voice_model} · {avatar.language} · скорость {avatar.voice_speed}x{avatar.trim_silence ? " · обрезать тишину" : ""}</div>
           <div>Видео: {ENGINES.find((e) => e.id === avatar.engine)?.label || avatar.engine} · {avatar.aspect} · {avatar.resolution} · лимит {videoLimit(avatar, clientPackage)} видео в месяц{avatar.monthly_limit ? "" : " (по пакету)"}</div>
         </div>
@@ -93,7 +106,25 @@ export default function AvatarSettings({ clientId, avatar, isOwner, clientPackag
       {edit && f && (
         <div style={{ display: "grid", gap: 8, fontSize: 12.5 }}>
           <label>Группа аватара (id из HeyGen) <input style={{ ...sel, width: "100%" }} value={f.heygen_group_id} onChange={(e) => setF({ ...f, heygen_group_id: e.target.value })} /></label>
-          <div>Разрешённые луки (3–5 основных; ● — по умолчанию):
+          {groupLooks.length > 0 && (
+            <div>
+              <div style={{ marginBottom: 6 }}>Нажмите на образ, чтобы разрешить или убрать (3–5 основных). ★ — сделать основным.</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 10, maxHeight: 420, overflowY: "auto", padding: 2 }}>
+                {groupLooks.map((g) => {
+                  const on = (f.looks as Look[]).some((l) => l.id === g.id);
+                  return (
+                    <div key={g.id} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+                      <LookThumb look={g} size={78} active={on} star={on && f.default_look_id === g.id} dim={!on}
+                        onClick={() => setF({ ...f, looks: on ? f.looks.filter((l: Look) => l.id !== g.id) : [...f.looks, { id: g.id, name: g.name && g.name !== "Photo Avatar" ? g.name : "" }],
+                          default_look_id: on && f.default_look_id === g.id ? "" : f.default_look_id })} />
+                      {on && f.default_look_id !== g.id && <button className="v2-act ghost" style={{ height: 22, fontSize: 10.5, padding: "0 6px" }} onClick={() => setF({ ...f, default_look_id: g.id })}>★ основной</button>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          <div>{groupLooks.length ? "Выбранные образы (название можно поменять):" : "Разрешённые луки (3–5 основных; ● — по умолчанию). Картинки появятся после «Обновить образы из HeyGen»:"}
             {(f.looks as Look[]).map((l, i) => (
               <div key={i} style={{ display: "flex", gap: 6, marginTop: 5, alignItems: "center" }}>
                 <input type="radio" checked={f.default_look_id === l.id} onChange={() => setF({ ...f, default_look_id: l.id })} title="по умолчанию" />

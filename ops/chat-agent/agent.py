@@ -234,8 +234,10 @@ Instagram: {client.get('instagram') or '—'} · TikTok: {client.get('tiktok') o
 
 AVATAR_HINT = """
 ## Чат «Аватар» — AVATAR.json (вид задачи: {kind})
-- Нет job.gen_id → это ЗАКАЗ: ничего не генерируй. Разметь текст тегами эмоций, примени словарь, выбери лук и запиши
+- Нет job.gen_id и нет sync → это ЗАКАЗ: ничего не генерируй. Разметь текст тегами эмоций, примени словарь, выбери лук и запиши
   out/{mid}/avatar.json → {{"order": {{"text": "текст с тегами", "look_id": "id лука из config.look_ids"}}}} + короткий reply.md.
+- В AVATAR.json sync = true → «Обнови образы из HeyGen»: только list_avatar_looks (groupId = config.heygen_group_id, limit 50, листай next_token до конца),
+  ничего не генерируй. Запиши out/{mid}/looks.json — массив [{{"id", "name", "avatar_type", "preview_image_url", "supported_api_engines", "status"}}] как пришло. Картинки скачает исполнитель.
 - job.kind = "voice" → ОДНА озвучка текста job.text (create_speech, voiceId и модель из config, speed = config.voice_speed).
 - job.kind = "video" → ОДНО видео на луке job.look_id из аудио files/… (create_video_from_avatar, audioUrl, engine из config).
 - Результат положи в out/{mid}/ (mp3 / mp4 / webm / srt) и запиши out/{mid}/avatar.json →
@@ -502,6 +504,14 @@ def handle(job):
             journal(ws, mid, msg, reply, atts, before)
         except Exception:
             log("журнал не записался", traceback.format_exc()[-500:])
+        lj = out / "looks.json"             # «Обновить образы из HeyGen»: картинки образов → наше хранилище → CRM
+        if lj.exists() and (job.get("avatar") or {}).get("sync"):
+            try:
+                n = sync_looks(cid, mid, json.loads(lj.read_text()), ws)
+                reply = (reply or "") + f"\n\n🖼 Образов в CRM: {n}. Выбрать разрешённые — «Настройки» → «Аватар HeyGen» → «Изменить»."
+            except Exception as e:
+                log("образы не сохранились", e)
+                reply = (reply or "") + f"\n\n⚠ Образы не сохранились в CRM: {str(e)[:200]}"
         meta = None
         aj = out / "avatar.json"            # чат «Аватар»: карточка-заказ или итог генерации HeyGen
         gen_id = (((job.get("avatar") or {}).get("job")) or {}).get("gen_id")
@@ -535,6 +545,33 @@ def handle(job):
         api_post(op="reply", id=mid, body="", status="error", error=f"Сбой исполнителя: {str(e)[:300]}")
     finally:
         cur.unlink(missing_ok=True)
+
+
+def sync_looks(cid, mid, looks, ws):
+    """Картинки образов HeyGen живут по временным ссылкам — копируем их к нам и отдаём список в CRM."""
+    tmp = ws / ".looks_tmp"
+    tmp.mkdir(exist_ok=True)
+    out = []
+    for lk in looks[:200]:
+        lid = re.sub(r"[^A-Za-z0-9]", "", str(lk.get("id") or ""))[:64]
+        if not lid:
+            continue
+        key = None
+        if lk.get("preview_image_url"):
+            try:
+                r = requests.get(lk["preview_image_url"], timeout=60)
+                r.raise_for_status()
+                ext = ".webp" if "webp" in r.headers.get("content-type", "") or ".WEBP" in lk["preview_image_url"].upper() else ".jpg"
+                f = tmp / f"look_{lid}{ext}"
+                f.write_bytes(r.content)
+                key = upload_file(cid, f)["key"]
+                f.unlink(missing_ok=True)
+            except Exception as e:
+                log("картинка образа не скачалась", lid, str(e)[:120])
+        out.append({"id": lid, "name": str(lk.get("name") or "")[:80], "type": lk.get("avatar_type"), "preview_key": key,
+                    "engines": lk.get("supported_api_engines") or [], "status": lk.get("status")})
+    api_post(op="avatar_looks", id=mid, looks=out)
+    return len(out)
 
 
 def avatar_failed(job, why):

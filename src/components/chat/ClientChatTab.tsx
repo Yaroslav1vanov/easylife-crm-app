@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase-browser";
 import { fileUrl, guessType, when } from "@/components/strategy/files";
 import { Paperclip, Send, X, Sparkles, Loader2, AlertTriangle, CheckCircle2, Download, RotateCw, UploadCloud, ArrowRightCircle, Smartphone, CornerUpLeft, ExternalLink, EyeOff, Eye, Mic, Film } from "lucide-react";
+import LookPicker from "@/components/avatar/LookPicker";
 import { estimate, monthStart, monthUsage, videoLimit, type AvatarGen, type ClientAvatar } from "@/lib/avatar";
 import SendToPipelineModal, { PipeAtt } from "@/components/chat/SendToPipelineModal";
 
@@ -262,7 +263,8 @@ export default function ClientChatTab({ clientId, aiEnabled, draft, initialThrea
           <div><b>2.</b> В карточке поправьте текст, выберите <b>образ</b> в списке и нажмите <b>«Озвучить»</b> → придёт аудио, прослушайте. Не нравится — правьте текст и «Озвучить» ещё раз.</div>
           <div><b>3.</b> Под аудио выберите образ и нажмите <b>«Сделать видео»</b> → придёт видео аватара.</div>
           <div><b>4.</b> Под видео — <b>«В монтаж →»</b>: задача уйдёт в чат «Рилсы».</div>
-          <div style={{ color: "var(--t3)" }}>Образы клиента: {avatar.look_ids.map((id) => avatar.look_names?.[id] || id.slice(0, 8)).join(" · ")} (основной — {avatar.look_names?.[avatar.default_look_id || ""] || "первый"}). Список меняет Ярослав в «Настройках».</div>
+          <div style={{ color: "var(--t3)" }}>Образы клиента (★ — основной; список меняет Ярослав в «Настройках»):</div>
+          <LookPicker avatar={avatar} value={avatar.default_look_id || ""} onChange={() => {}} size={52} />
         </div>
       )}
 
@@ -494,11 +496,10 @@ function AvatarOrder({ m, av }: { m: Msg; av: AvatarCtx }) {
       <div style={{ fontSize: 11.5, fontWeight: 800, color: "var(--cy)" }}>ЗАКАЗ ОЗВУЧКИ · текст можно поправить</div>
       <textarea value={text} onChange={(e) => setText(e.target.value)} rows={Math.min(14, Math.max(4, Math.ceil(text.length / 70)))}
         style={{ width: "100%", padding: "8px 10px", borderRadius: 8, background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 13, fontFamily: "inherit", resize: "vertical" }} />
+      <div style={{ fontSize: 11.5, color: "var(--t3)" }}>Образ для видео (можно поменять и позже, под аудио):</div>
+      <LookPicker avatar={av.avatar} value={look} onChange={setLook} />
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", fontSize: 12 }}>
-        <select value={look} onChange={(e) => setLook(e.target.value)} style={{ padding: "6px 8px", borderRadius: 8, background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 12 }}>
-          {av.avatar.look_ids.map((id) => <option key={id} value={id}>{av.avatar.look_names?.[id] || id.slice(0, 8)}</option>)}
-        </select>
-        <span style={{ color: "var(--t3)" }}>≈ {est.seconds} с · голос ≈ {est.voiceCredits} кр.</span>
+        <span style={{ color: "var(--t3)" }}>≈ {est.seconds} с речи</span>
         <div style={{ flex: 1 }} />
         {av.canGenerate ? (
           <button className="v2-act pri" disabled={busy || !text.trim()} style={{ height: 32 }}
@@ -519,10 +520,9 @@ function AvatarVideoOrder({ m, a, av }: { m: Msg; a: Att; av: AvatarCtx }) {
   const [busy, setBusy] = useState(false);
   if (!av.canGenerate) return null;
   return (
-    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", fontSize: 12 }}>
-      <select value={look} onChange={(e) => setLook(e.target.value)} style={{ padding: "6px 8px", borderRadius: 8, background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 12 }}>
-        {av.avatar.look_ids.map((id) => <option key={id} value={id}>{av.avatar.look_names?.[id] || id.slice(0, 8)}</option>)}
-      </select>
+    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", fontSize: 12, maxWidth: 520 }}>
+      <div style={{ width: "100%", fontSize: 11.5, color: "var(--t3)" }}>Образ для видео:</div>
+      <div style={{ width: "100%" }}><LookPicker avatar={av.avatar} value={look} onChange={setLook} size={56} /></div>
       <label style={{ display: "inline-flex", gap: 4, alignItems: "center" }}><input type="checkbox" checked={transparent} onChange={(e) => setTransparent(e.target.checked)} /> прозрачный фон</label>
       <label style={{ display: "inline-flex", gap: 4, alignItems: "center" }}><input type="checkbox" checked={captions} onChange={(e) => setCaptions(e.target.checked)} /> субтитры</label>
       <button className="v2-act pri" disabled={busy} style={{ height: 30, fontSize: 12 }}

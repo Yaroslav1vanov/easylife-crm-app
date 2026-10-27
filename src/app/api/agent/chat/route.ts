@@ -155,7 +155,7 @@ export async function GET(req: Request) {
       avatar = av ? {
         config: av, dictionary: dictionaryText(dict || []), dictionary_rows: dict || [],
         video_limit: videoLimit(av, pk?.package), videos_this_month: vids || 0,
-        job, generation: gen,
+        job, generation: gen, sync: !!m.meta?.avatar_sync,   // «Обновить образы из HeyGen» — только просмотр списка
       } : { error: "К клиенту не привязан аватар — генерировать нельзя. Напиши, что Ярославу нужно привязать аватар в «Настройках»." };
     }
     jobs.push({ message: m, client, brand_kit: brand?.kit || null, strategy: strategy?.body || null, history: (history || []).reverse(), script, quoted, planning, avatar, ...(await folder(sb, cid)) });
@@ -270,6 +270,22 @@ export async function POST(req: Request) {
       }).eq("id", m.id);
     }
     return NextResponse.json({ ok: true });
+  }
+
+  // образы группы HeyGen с картинками (их копирует исполнитель) → выбор образов в CRM
+  if (b.op === "avatar_looks") {
+    const { data: m } = await sb.from("client_chat_messages").select("client_id, meta").eq("id", Number(b.id)).maybeSingle();
+    if (!m?.meta?.avatar_sync) return bad("это не задача обновления образов");
+    const cid = m.client_id;
+    const looks = (Array.isArray(b.looks) ? b.looks : []).slice(0, 200).map((l: any) => ({
+      id: String(l.id || "").replace(/[^A-Za-z0-9]/g, "").slice(0, 64), name: String(l.name || "").slice(0, 80),
+      type: l.type ? String(l.type).slice(0, 30) : null, status: l.status ? String(l.status).slice(0, 20) : null,
+      engines: Array.isArray(l.engines) ? l.engines.map(String).slice(0, 6) : [],
+      preview_key: typeof l.preview_key === "string" && l.preview_key.startsWith(`strategy/${cid}/`) ? l.preview_key : null,
+    })).filter((l: any) => l.id);
+    const { error } = await sb.from("client_avatars").update({ group_looks: looks, looks_synced_at: new Date().toISOString() }).eq("client_id", cid);
+    if (error) return bad(error.message, 500);
+    return NextResponse.json({ ok: true, count: looks.length });
   }
 
   // итог генерации HeyGen: журнал трат + готовый файл в медиатеку клиента (ссылки HeyGen временные)

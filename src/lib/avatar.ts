@@ -11,6 +11,8 @@ export type ClientAvatar = {
   look_names: Record<string, string>; voice_id: string | null; voice_model: string; engine: string;
   aspect: string; resolution: string; monthly_limit: number | null;
   language: "ru" | "uk" | "en"; voice_speed: number; trim_silence: boolean;
+  group_looks?: { id: string; name: string; type?: string | null; preview_key?: string | null; engines?: string[]; status?: string | null }[];
+  looks_synced_at?: string | null;
 };
 export type AvatarGen = {
   id: number; client_id: number; kind: "voice" | "video" | "avatar"; status: "queued" | "working" | "done" | "error";
