@@ -14,10 +14,12 @@ type Data = {
   days: number; rows: Row[];
   server: { last: any; online: boolean; hourly: { at: string; disk: number; load: number; run: number }[] };
   quick: { total: number; byKind: Record<string, number> };
+  heygen?: { total: HG; remaining: number | null; remainingAt: string | null; clients: (HG & { key: string; name: string; avatar: string | null })[]; people: (HG & { key: string })[] };
 };
+type HG = { credits: number; voices: number; videos: number; redos: number; errors: number; seconds: number; last?: string };
 type Agg = { key: string; tasks: number; done: number; error: number; videos: number; images: number; avgMin: number | null; cost: number; clients: number; people: number; last: string; first: string; name?: string; avatar?: string | null };
 
-const THREAD: Record<string, string> = { reels: "Рилсы", stories: "Сторис", strategy: "Стратегия" };
+const THREAD: Record<string, string> = { reels: "Рилсы", stories: "Сторис", strategy: "Стратегия", avatar: "Аватар" };
 const STATUS: Record<string, { t: string; c: string }> = { done: { t: "готово", c: "var(--gr)" }, error: { t: "ошибка", c: "var(--rd)" }, working: { t: "в работе", c: "var(--cy)" }, queued: { t: "в очереди", c: "var(--t3)" } };
 const WD = ["воскресенье", "понедельник", "вторник", "среда", "четверг", "пятница", "суббота"];
 const MON = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
@@ -317,6 +319,50 @@ export default function AiUsagePage() {
               )}
             </div>
           </div>
+
+          {d.heygen && (
+            <div className="v2-card" style={card}>
+              <div className="flex items-center gap-2" style={{ flexWrap: "wrap" }}>
+                <CircleDollarSign size={15} /><b style={{ fontSize: 14 }}>HeyGen: кредиты по клиентам</b>
+                <span style={{ fontSize: 11, color: "var(--t3)" }}>за {d.days} дн · видите только вы</span>
+                <div style={{ flex: 1 }} />
+                {d.heygen.remaining != null && (
+                  <span className={`v2-chip ${d.heygen.remaining < 100 ? "rd" : "gr"}`} style={{ height: 24, padding: "0 9px", fontSize: 12 }}>
+                    остаток {d.heygen.remaining} кр.{d.heygen.remainingAt ? ` · ${ago(d.heygen.remainingAt)}` : ""}
+                  </span>
+                )}
+              </div>
+              <div style={{ fontSize: 13, color: "var(--t2)", marginTop: 8 }}>
+                Всего: <b>{d.heygen.total.credits}</b> кредитов · {d.heygen.total.voices} озвучек · {d.heygen.total.videos} видео · {d.heygen.total.redos} переделок
+                {d.heygen.total.errors ? <span style={{ color: "var(--rd)" }}> · ошибок {d.heygen.total.errors}</span> : null}
+                {d.heygen.total.seconds ? <span style={{ color: "var(--t3)" }}> · {Math.round(d.heygen.total.seconds / 60)} мин речи</span> : null}
+              </div>
+              {!d.heygen.clients.length ? <div style={{ fontSize: 13, color: "var(--t3)", marginTop: 10 }}>Генераций за период не было.</div> : (
+                <div style={{ marginTop: 10, overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+                    <thead><tr style={{ color: "var(--t3)", textAlign: "left" }}>
+                      <th style={{ padding: "4px 6px" }}>Клиент</th><th style={{ padding: "4px 6px", textAlign: "right" }}>Кредиты</th>
+                      <th style={{ padding: "4px 6px", textAlign: "right" }}>Озвучки</th><th style={{ padding: "4px 6px", textAlign: "right" }}>Видео</th>
+                      <th style={{ padding: "4px 6px", textAlign: "right" }}>Переделки</th><th style={{ padding: "4px 6px", textAlign: "right" }}>Ошибки</th>
+                      <th style={{ padding: "4px 6px", textAlign: "right" }}>Последняя</th></tr></thead>
+                    <tbody>{d.heygen.clients.map(c => (
+                      <tr key={c.key} style={{ borderTop: "1px solid var(--brd)" }}>
+                        <td style={{ padding: "6px" }}><span className="flex items-center gap-2"><Avatar src={c.avatar} name={c.name} size={20} /> {c.name}</span></td>
+                        <td style={{ padding: "6px", textAlign: "right", fontWeight: 800 }}>{c.credits}</td>
+                        <td style={{ padding: "6px", textAlign: "right" }}>{c.voices}</td><td style={{ padding: "6px", textAlign: "right" }}>{c.videos}</td>
+                        <td style={{ padding: "6px", textAlign: "right", color: c.redos ? "var(--or)" : undefined }}>{c.redos}</td>
+                        <td style={{ padding: "6px", textAlign: "right", color: c.errors ? "var(--rd)" : undefined }}>{c.errors}</td>
+                        <td style={{ padding: "6px", textAlign: "right", color: "var(--t3)" }}>{c.last ? ago(c.last) : "—"}</td>
+                      </tr>
+                    ))}</tbody>
+                  </table>
+                  {d.heygen.people.length > 0 && (
+                    <div style={{ fontSize: 12, color: "var(--t3)", marginTop: 8 }}>По сотрудникам: {d.heygen.people.map(p => `${p.key} — ${p.credits} кр. (${p.voices} озв., ${p.videos} видео)`).join(" · ")}</div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {errors.length > 0 && (
             <div className="v2-card" style={card}>

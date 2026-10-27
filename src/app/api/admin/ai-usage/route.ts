@@ -32,7 +32,7 @@ export async function GET(req: Request) {
   const since = new Date(Date.now() - days * 864e5).toISOString();
   const sb = createAdmin();
 
-  const [tasks, replies, clients, status, quick] = await Promise.all([
+  const [tasks, replies, clients, status, quick, gens] = await Promise.all([
     all((a, b) => sb.from("client_chat_messages")
       .select("id, client_id, author_id, author_name, thread, ai_status, ai_error, created_at, ai_started_at, ai_finished_at, ai_minutes, ai_cost_usd, ai_files, body")
       .eq("author_type", "user").not("ai_status", "is", null).gte("created_at", since).order("id").range(a, b)),
@@ -42,6 +42,8 @@ export async function GET(req: Request) {
     sb.from("server_status").select("at, disk_used_gb, disk_total_gb, load1, cpus, mem_used_mb, mem_total_mb, running")
       .gte("at", new Date(Date.now() - Math.max(days, 7) * 864e5).toISOString()).order("at").limit(20000).then(r => r.data || []),
     all((a, b) => sb.from("ai_jobs").select("kind, status, created_at").gte("created_at", since).order("id").range(a, b)).catch(() => []),
+    all((a, b) => sb.from("avatar_generations").select("id, client_id, kind, status, seconds, credits_before, credits_after, is_redo, requested_name, created_at, finished_at, error")
+      .gte("created_at", since).order("id").range(a, b)).catch(() => []),
   ]);
 
   // ответы ИИ по задаче: ролики, картинки, первое время ответа
@@ -112,8 +114,31 @@ export async function GET(req: Request) {
   const quickBy: Record<string, number> = {};
   for (const q of quick as any[]) quickBy[q.kind] = (quickBy[q.kind] || 0) + 1;
 
+  // HeyGen: кредиты по клиентам и сотрудникам (только для владельца; сотрудники кредитов не видят)
+  const spent = (g: any) => (g.credits_before != null && g.credits_after != null ? Math.max(0, Number(g.credits_before) - Number(g.credits_after)) : 0);
+  const hgAgg = (key: (g: any) => string) => {
+    const m = new Map<string, any>();
+    for (const g of gens as any[]) {
+      const k = key(g);
+      const a = m.get(k) || { key: k, credits: 0, voices: 0, videos: 0, redos: 0, errors: 0, seconds: 0, last: g.created_at };
+      if (g.status === "error") a.errors++;
+      else { if (g.kind === "voice") a.voices++; if (g.kind === "video") a.videos++; if (g.is_redo) a.redos++; a.seconds += Number(g.seconds) || 0; }
+      a.credits += spent(g);
+      if (g.created_at > a.last) a.last = g.created_at;
+      m.set(k, a);
+    }
+    return Array.from(m.values()).map(a => ({ ...a, credits: Math.round(a.credits * 10) / 10, seconds: Math.round(a.seconds) })).sort((x, y) => y.credits - x.credits || (y.voices + y.videos) - (x.voices + x.videos));
+  };
+  const withBalance = (gens as any[]).filter(g => g.credits_after != null).sort((a, b) => String(b.finished_at || b.created_at).localeCompare(String(a.finished_at || a.created_at)));
+  const heygen = {
+    total: hgAgg(() => "all")[0] || { credits: 0, voices: 0, videos: 0, redos: 0, errors: 0, seconds: 0 },
+    remaining: withBalance[0] ? Number(withBalance[0].credits_after) : null, remainingAt: withBalance[0]?.finished_at || null,
+    clients: hgAgg(g => String(g.client_id)).map(a => ({ ...a, name: cname.get(Number(a.key)) || `клиент ${a.key}`, avatar: cavatar.get(Number(a.key)) || null })),
+    people: hgAgg(g => g.requested_name || "сотрудник"),
+  };
+
   return NextResponse.json({
-    days, total: tot, today,
+    days, total: tot, today, heygen,
     timeline,
     people: group(r => r.who).sort((a, b) => b.tasks - a.tasks),
     clients: group(r => String(r.client_id) as string).map(g => ({ ...g, name: cname.get(Number(g.key)) || g.key, avatar: cavatar.get(Number(g.key)) || null })).sort((a, b) => b.tasks - a.tasks),

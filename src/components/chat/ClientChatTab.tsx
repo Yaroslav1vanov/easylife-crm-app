@@ -140,19 +140,20 @@ export default function ClientChatTab({ clientId, aiEnabled, draft, initialThrea
   }
 
   /* Чат «Аватар»: траты за месяц и кнопки генерации. Проверки прав и лимита — на сервере (/api/avatar/request). */
-  const [gens, setGens] = useState<AvatarGen[]>([]);
+  // Кредиты видит только владелец (журнал генераций закрыт для остальных); сотрудникам — только счётчики за месяц
+  const [usage, setUsage] = useState({ voices: 0, videos: 0, redos: 0, errors: 0, credits: 0 });
+  const [lastCredits, setLastCredits] = useState<number | null>(null);   // остаток HeyGen, общий на агентство
   useEffect(() => {
     if (thread !== "avatar") return;
-    supabase.from("avatar_generations").select("*").eq("client_id", clientId).gte("created_at", monthStart()).order("id", { ascending: false })
-      .then(({ data }) => setGens((data || []) as AvatarGen[]));
-  }, [thread, clientId, msgs.length]); // eslint-disable-line react-hooks/exhaustive-deps
-  const [lastCredits, setLastCredits] = useState<number | null>(null);   // кредиты HeyGen общие на агентство
-  useEffect(() => {
-    if (thread !== "avatar") return;
-    supabase.from("avatar_generations").select("credits_after").not("credits_after", "is", null).order("finished_at", { ascending: false }).limit(1)
-      .then(({ data }) => setLastCredits(data?.[0]?.credits_after ?? null));
-  }, [thread, msgs.length]); // eslint-disable-line react-hooks/exhaustive-deps
-  const usage = monthUsage(gens);
+    if (isOwner) {
+      supabase.from("avatar_generations").select("*").eq("client_id", clientId).gte("created_at", monthStart())
+        .then(({ data }) => setUsage(monthUsage((data || []) as AvatarGen[])));
+      supabase.from("avatar_generations").select("credits_after").not("credits_after", "is", null).order("finished_at", { ascending: false }).limit(1)
+        .then(({ data }) => setLastCredits(data?.[0]?.credits_after ?? null));
+    } else {
+      supabase.rpc("avatar_usage", { p_client: clientId }).then(({ data }) => { const r = (data as any[])?.[0]; if (r) setUsage({ ...r, credits: 0 }); });
+    }
+  }, [thread, clientId, msgs.length, isOwner]); // eslint-disable-line react-hooks/exhaustive-deps
   async function avatarRequest(p: Record<string, any>, again = false): Promise<boolean> {
     const r = await fetch("/api/avatar/request", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ clientId, ...p, ...(again ? { overLimit: true } : {}) }) });
     const j = await r.json().catch(() => ({}));
@@ -256,8 +257,8 @@ export default function ClientChatTab({ clientId, aiEnabled, draft, initialThrea
 
       {thread === "avatar" && avatar && (
         <div className="v2-card" style={{ padding: "10px 14px", display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center", fontSize: 12.5, color: "var(--t2)" }}>
-          <span>За месяц: <b>{usage.voices}</b> озвучек · <b>{usage.videos}</b> из {videoLimit(avatar, clientPackage)} видео · <b>{usage.redos}</b> переделок · <b>{usage.credits}</b> кредитов{usage.errors ? ` · ошибок ${usage.errors}` : ""}</span>
-          {lastCredits != null && <span style={{ color: lastCredits < 100 ? "var(--rd)" : "var(--t3)" }}>остаток HeyGen: {lastCredits} кредитов{lastCredits < 100 ? " — мало!" : ""}</span>}
+          <span>За месяц: <b>{usage.voices}</b> озвучек · <b>{usage.videos}</b> из {videoLimit(avatar, clientPackage)} видео · <b>{usage.redos}</b> переделок{isOwner ? <> · <b>{usage.credits}</b> кредитов</> : null}{usage.errors ? ` · ошибок ${usage.errors}` : ""}</span>
+          {isOwner && lastCredits != null && <span style={{ color: lastCredits < 100 ? "var(--rd)" : "var(--t3)" }}>остаток HeyGen: {lastCredits} кредитов{lastCredits < 100 ? " — мало!" : ""}</span>}
           {!canGenerate && <span style={{ color: "var(--or)" }}>генерировать могут тимлид и монтажёр клиента и Ярослав</span>}
         </div>
       )}
