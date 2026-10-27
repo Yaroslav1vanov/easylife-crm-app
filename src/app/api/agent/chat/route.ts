@@ -330,10 +330,18 @@ export async function POST(req: Request) {
 
   if (b.op === "heartbeat") {
     const n = (v: any) => (v == null || !isFinite(Number(v)) ? null : Number(v));
-    await sb.from("server_status").insert({
+    const base = {
       disk_used_gb: n(b.disk_used_gb), disk_total_gb: n(b.disk_total_gb), load1: n(b.load1), cpus: n(b.cpus),
       mem_used_mb: n(b.mem_used_mb), mem_total_mb: n(b.mem_total_mb), running: n(b.running),
-    });
+    };
+    // лимиты подписки Claude (раз в 15 минут); без миграции 2026-10-27_claude_limits пишем пульс без них
+    const d = (v: any) => (typeof v === "string" && !isNaN(Date.parse(v)) ? v : null);
+    const limits = b.claude_5h_util != null || b.claude_7d_util != null ? {
+      claude_5h_util: n(b.claude_5h_util), claude_5h_reset: d(b.claude_5h_reset), claude_7d_util: n(b.claude_7d_util), claude_7d_reset: d(b.claude_7d_reset),
+      claude_status: b.claude_status ? String(b.claude_status).slice(0, 40) : null, claude_overage: b.claude_overage ? String(b.claude_overage).slice(0, 40) : null,
+    } : {};
+    const { error } = await sb.from("server_status").insert({ ...base, ...limits });
+    if (error && Object.keys(limits).length) await sb.from("server_status").insert(base);
     await sb.from("server_status").delete().lt("at", new Date(Date.now() - 45 * 864e5).toISOString());
     return NextResponse.json({ ok: true });
   }

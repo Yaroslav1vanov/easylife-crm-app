@@ -32,16 +32,21 @@ export async function GET(req: Request) {
   const since = new Date(Date.now() - days * 864e5).toISOString();
   const sb = createAdmin();
 
-  const [tasks, replies, clients, status, quick, gens] = await Promise.all([
+  const [tasks, replies, clients, status, quick, limitRows, gens] = await Promise.all([
     all((a, b) => sb.from("client_chat_messages")
       .select("id, client_id, author_id, author_name, thread, ai_status, ai_error, created_at, ai_started_at, ai_finished_at, ai_minutes, ai_cost_usd, ai_files, body")
       .eq("author_type", "user").not("ai_status", "is", null).gte("created_at", since).order("id").range(a, b)),
     all((a, b) => sb.from("client_chat_messages").select("reply_to, attachments, created_at")
       .eq("author_type", "ai").not("reply_to", "is", null).gte("created_at", since).order("id").range(a, b)),
     sb.from("clients").select("id, name, surname, avatar_url").then(r => r.data || []),
-    sb.from("server_status").select("at, disk_used_gb, disk_total_gb, load1, cpus, mem_used_mb, mem_total_mb, running")
-      .gte("at", new Date(Date.now() - Math.max(days, 7) * 864e5).toISOString()).order("at").limit(20000).then(r => r.data || []),
+    // постранично: пульс раз в 5 минут = ~2000 строк за неделю, а Supabase отдаёт максимум 1000 за раз
+    // (до 27.10 брались 1000 самых старых — «последний пульс» был пятидневной давности и сервер казался «без связи»)
+    all((a, b) => sb.from("server_status").select("at, disk_used_gb, disk_total_gb, load1, cpus, mem_used_mb, mem_total_mb, running")
+      .gte("at", new Date(Date.now() - Math.max(days, 7) * 864e5).toISOString()).order("at").range(a, b)),
     all((a, b) => sb.from("ai_jobs").select("kind, status, created_at").gte("created_at", since).order("id").range(a, b)).catch(() => []),
+    // лимиты подписки Claude из пульса (до миграции 2026-10-27_claude_limits колонок нет — тогда пусто)
+    all((a, b) => sb.from("server_status").select("at, claude_5h_util, claude_5h_reset, claude_7d_util, claude_7d_reset, claude_status, claude_overage")
+      .not("claude_7d_util", "is", null).gte("at", new Date(Date.now() - Math.max(days, 7) * 864e5).toISOString()).order("at").range(a, b)).catch(() => []),
     all((a, b) => sb.from("avatar_generations").select("id, client_id, kind, status, seconds, credits_before, credits_after, is_redo, requested_name, created_at, finished_at, error")
       .gte("created_at", since).order("id").range(a, b)).catch(() => []),
   ]);
@@ -137,8 +142,32 @@ export async function GET(req: Request) {
     people: hgAgg(g => g.requested_name || "сотрудник"),
   };
 
+  // Подписка Claude: загрузка 5-часового окна и недели, прогноз к сбросу недели, расход по ценам API
+  const lim = limitRows as any[];
+  const L = lim.at(-1) || null;
+  const WEEK = 7 * 864e5;
+  let weekForecast: number | null = null;
+  if (L?.claude_7d_reset && L.claude_7d_util != null) {
+    const elapsed = 1 - (Date.parse(L.claude_7d_reset) - Date.parse(L.at)) / WEEK;   // доля недели, что уже прошла
+    if (elapsed > 0.05) weekForecast = Math.round((Number(L.claude_7d_util) / elapsed) * 100);
+  }
+  const limHourly = new Map<string, { at: string; h5: number; d7: number }>();
+  for (const r of lim) {
+    const h = String(r.at).slice(0, 13);
+    const cur = limHourly.get(h) || { at: h, h5: 0, d7: 0 };
+    cur.h5 = Math.max(cur.h5, Math.round(Number(r.claude_5h_util || 0) * 100)); cur.d7 = Math.max(cur.d7, Math.round(Number(r.claude_7d_util || 0) * 100));
+    limHourly.set(h, cur);
+  }
+  const costSince = (ms: number) => Math.round((rows as any[]).filter(r => Date.parse(r.at) >= Date.now() - ms).reduce((x, r) => x + (r.cost || 0), 0));
+  const claude = {
+    last: L ? { at: L.at, h5: L.claude_5h_util != null ? Math.round(Number(L.claude_5h_util) * 100) : null, h5Reset: L.claude_5h_reset,
+      d7: Math.round(Number(L.claude_7d_util) * 100), d7Reset: L.claude_7d_reset, status: L.claude_status, overage: L.claude_overage } : null,
+    weekForecast, hourly: Array.from(limHourly.values()),
+    cost: { day: costSince(864e5), week: costSince(WEEK), perDay: Math.round((rows as any[]).reduce((x, r) => x + (r.cost || 0), 0) / days) },
+  };
+
   return NextResponse.json({
-    days, total: tot, today, heygen,
+    days, total: tot, today, heygen, claude,
     timeline,
     people: group(r => r.who).sort((a, b) => b.tasks - a.tasks),
     clients: group(r => String(r.client_id) as string).map(g => ({ ...g, name: cname.get(Number(g.key)) || g.key, avatar: cavatar.get(Number(g.key)) || null })).sort((a, b) => b.tasks - a.tasks),

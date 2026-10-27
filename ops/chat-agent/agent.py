@@ -735,6 +735,36 @@ def ig_loop():
         time.sleep(15)
 
 
+_limits = {"at": 0.0, "data": {}}
+
+
+def claude_limits():
+    """Загрузка лимитов подписки Claude (5-часовое окно и неделя) — из заголовков ответа на крошечный запрос
+    (1 токен Haiku раз в 15 минут). Эндпоинт /api/oauth/usage часто отвечает 429, а заголовки приходят всегда."""
+    if time.time() - _limits["at"] < 900:
+        return _limits["data"]
+    _limits["at"] = time.time()
+    try:
+        r = requests.post("https://api.anthropic.com/v1/messages", timeout=30, headers={
+            "Authorization": f"Bearer {fresh_token()}", "anthropic-beta": "oauth-2025-04-20",
+            "anthropic-version": "2023-06-01", "content-type": "application/json"},
+            json={"model": "claude-haiku-4-5", "max_tokens": 1,
+                  "system": "You are Claude Code, Anthropic's official CLI for Claude.",
+                  "messages": [{"role": "user", "content": "ping"}]})
+        h = r.headers   # при 429 (лимит исчерпан) заголовки тоже есть
+        g = lambda k: h.get(f"anthropic-ratelimit-unified-{k}")
+        ts = lambda v: time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(int(v))) if v and str(v).isdigit() else None
+        num = lambda v: float(v) if v not in (None, "") else None
+        _limits["data"] = {k: v for k, v in {
+            "claude_5h_util": num(g("5h-utilization")), "claude_5h_reset": ts(g("5h-reset")),
+            "claude_7d_util": num(g("7d-utilization")), "claude_7d_reset": ts(g("7d-reset")),
+            "claude_status": g("status"), "claude_overage": g("overage-status"),
+        }.items() if v is not None}
+    except Exception as e:
+        log("лимиты Claude не снялись:", str(e)[:200])
+    return _limits["data"]
+
+
 def heartbeat_loop():
     """Раз в 5 минут — состояние сервера в CRM (страница «ИИ-чат: аналитика», видит только владелец)."""
     while True:
@@ -748,7 +778,7 @@ def heartbeat_loop():
             # как в df: занято / (занято + свободно), в ГиБ (зарезервированное системой не считаем)
             api_post(op="heartbeat", disk_used_gb=round(du.used / 2**30, 1), disk_total_gb=round((du.used + du.free) / 2**30, 1),
                      load1=round(load1, 2), cpus=os.cpu_count(), mem_used_mb=(mem.get("MemTotal", 0) - mem.get("MemAvailable", 0)) // 1024,
-                     mem_total_mb=mem.get("MemTotal", 0) // 1024, running=running)
+                     mem_total_mb=mem.get("MemTotal", 0) // 1024, running=running, **claude_limits())
         except Exception as e:
             log("пульс не ушёл:", str(e)[:200])
         time.sleep(300)

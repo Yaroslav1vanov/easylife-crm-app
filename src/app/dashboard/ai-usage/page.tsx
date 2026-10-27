@@ -14,6 +14,8 @@ type Data = {
   days: number; rows: Row[];
   server: { last: any; online: boolean; hourly: { at: string; disk: number; load: number; run: number }[] };
   quick: { total: number; byKind: Record<string, number> };
+  claude?: { last: { at: string; h5: number | null; h5Reset: string | null; d7: number; d7Reset: string | null; status: string | null; overage: string | null } | null;
+    weekForecast: number | null; hourly: { at: string; h5: number; d7: number }[]; cost: { day: number; week: number; perDay: number } };
   heygen?: { total: HG; remaining: number | null; remainingAt: string | null; clients: (HG & { key: string; name: string; avatar: string | null })[]; people: (HG & { key: string })[] };
 };
 type HG = { credits: number; voices: number; videos: number; redos: number; errors: number; seconds: number; last?: string };
@@ -163,6 +165,92 @@ export default function AiUsagePage() {
             <Kpi icon={Clock} title="Время задачи" value={fmtMin(t?.avgMin ?? null)} sub="в среднем на готовую" />
             <Kpi icon={Users} title={who ? "Клиентов" : "Работали с ИИ"} value={String(who ? t?.clients || 0 : t?.people || 0)} sub={who ? who : `сотрудников · клиентов ${t?.clients || 0}`} />
             <Kpi icon={CircleDollarSign} title="Условный расход" value={`$${(t?.cost || 0).toFixed(0)}`} sub="по ценам API; платим подпиской" />
+          </div>
+
+          {/* Расходы — наверху: подписка Claude и кредиты HeyGen (видит только владелец) */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(420px, 100%), 1fr))", gap: 12, marginBottom: 14 }}>
+          {d.claude && (
+            <div className="v2-card" style={{ ...card, marginBottom: 0 }}>
+              <div className="flex items-center gap-2" style={{ flexWrap: "wrap" }}>
+                <Bot size={15} /><b style={{ fontSize: 14 }}>Подписка Claude (ИИ-исполнитель)</b>
+                {d.claude.last && <span style={{ fontSize: 11, color: "var(--t3)" }}>обновлено {ago(d.claude.last.at)}</span>}
+                <div style={{ flex: 1 }} />
+                {d.claude.last?.status && d.claude.last.status !== "allowed" && <span className="v2-chip rd" style={{ height: 24, padding: "0 9px", fontSize: 12 }}>лимит исчерпан</span>}
+              </div>
+              {!d.claude.last ? <div style={{ fontSize: 13, color: "var(--t3)", marginTop: 10 }}>Сервер ещё не прислал лимиты — они приходят раз в 15 минут.</div> : (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginTop: 12 }}>
+                  <div><div style={label}>5-часовое окно</div>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: tone(d.claude.last.h5 ?? 0, 70, 90) }}>{d.claude.last.h5 ?? "—"}%</div>
+                    <Bar v={d.claude.last.h5 ?? 0} max={100} color={tone(d.claude.last.h5 ?? 0, 70, 90)} />
+                    <div style={{ fontSize: 11, color: "var(--t3)", marginTop: 3 }}>{d.claude.last.h5Reset ? `сброс в ${hm(d.claude.last.h5Reset)}` : ""}</div></div>
+                  <div><div style={label}>Неделя</div>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: tone(d.claude.last.d7, 70, 90) }}>{d.claude.last.d7}%</div>
+                    <Bar v={d.claude.last.d7} max={100} color={tone(d.claude.last.d7, 70, 90)} />
+                    <div style={{ fontSize: 11, color: "var(--t3)", marginTop: 3 }}>
+                      {d.claude.last.d7Reset ? `сброс ${dayTitle(localDay(d.claude.last.d7Reset))}, ${hm(d.claude.last.d7Reset)}` : ""}
+                      {d.claude.weekForecast != null && <> · <span style={{ color: tone(d.claude.weekForecast, 80, 100) }}>к сбросу ≈ {d.claude.weekForecast}%</span></>}
+                    </div></div>
+                </div>
+              )}
+              <div style={{ fontSize: 12.5, color: "var(--t2)", marginTop: 10 }}>
+                Расход по ценам API: сегодня <b>${d.claude.cost.day}</b> · за 7 дн <b>${d.claude.cost.week}</b> · в среднем <b>${d.claude.cost.perDay}</b>/день
+                <span style={{ color: "var(--t3)" }}> — платим подпиской, это «сколько стоило бы»</span>
+              </div>
+              {d.claude.hourly.length > 2 && (
+                <div style={{ marginTop: 10 }}>
+                  <div style={label}>Загрузка по часам: <span style={{ color: "var(--cy)" }}>5 ч</span> · <span style={{ color: "var(--pu)" }}>неделя</span></div>
+                  <svg viewBox={`0 0 ${d.claude.hourly.length} 40`} preserveAspectRatio="none" style={{ width: "100%", height: 46, display: "block", marginTop: 4 }}>
+                    <polyline fill="none" stroke="var(--cy)" strokeWidth={0.6} vectorEffect="non-scaling-stroke" points={d.claude.hourly.map((h, i) => `${i},${40 - (h.h5 / 100) * 38}`).join(" ")} />
+                    <polyline fill="none" stroke="var(--pu)" strokeWidth={0.6} vectorEffect="non-scaling-stroke" points={d.claude.hourly.map((h, i) => `${i},${40 - (h.d7 / 100) * 38}`).join(" ")} />
+                  </svg>
+                </div>
+              )}
+            </div>
+          )}
+          {d.heygen && (
+            <div className="v2-card" style={{ ...card, marginBottom: 0 }}>
+              <div className="flex items-center gap-2" style={{ flexWrap: "wrap" }}>
+                <CircleDollarSign size={15} /><b style={{ fontSize: 14 }}>HeyGen: кредиты по клиентам</b>
+                <span style={{ fontSize: 11, color: "var(--t3)" }}>за {d.days} дн · видите только вы</span>
+                <div style={{ flex: 1 }} />
+                {d.heygen.remaining != null && (
+                  <span className={`v2-chip ${d.heygen.remaining < 100 ? "rd" : "gr"}`} style={{ height: 24, padding: "0 9px", fontSize: 12 }}>
+                    остаток {d.heygen.remaining} кр.{d.heygen.remainingAt ? ` · ${ago(d.heygen.remainingAt)}` : ""}
+                  </span>
+                )}
+              </div>
+              <div style={{ fontSize: 13, color: "var(--t2)", marginTop: 8 }}>
+                Всего: <b>{d.heygen.total.credits}</b> кредитов · {d.heygen.total.voices} озвучек · {d.heygen.total.videos} видео · {d.heygen.total.redos} переделок
+                {d.heygen.total.errors ? <span style={{ color: "var(--rd)" }}> · ошибок {d.heygen.total.errors}</span> : null}
+                {d.heygen.total.seconds ? <span style={{ color: "var(--t3)" }}> · {Math.round(d.heygen.total.seconds / 60)} мин речи</span> : null}
+              </div>
+              {!d.heygen.clients.length ? <div style={{ fontSize: 13, color: "var(--t3)", marginTop: 10 }}>Генераций за период не было.</div> : (
+                <div style={{ marginTop: 10, overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+                    <thead><tr style={{ color: "var(--t3)", textAlign: "left" }}>
+                      <th style={{ padding: "4px 6px" }}>Клиент</th><th style={{ padding: "4px 6px", textAlign: "right" }}>Кредиты</th>
+                      <th style={{ padding: "4px 6px", textAlign: "right" }}>Озвучки</th><th style={{ padding: "4px 6px", textAlign: "right" }}>Видео</th>
+                      <th style={{ padding: "4px 6px", textAlign: "right" }}>Переделки</th><th style={{ padding: "4px 6px", textAlign: "right" }}>Ошибки</th>
+                      <th style={{ padding: "4px 6px", textAlign: "right" }}>Последняя</th></tr></thead>
+                    <tbody>{d.heygen.clients.map(c => (
+                      <tr key={c.key} style={{ borderTop: "1px solid var(--brd)" }}>
+                        <td style={{ padding: "6px" }}><span className="flex items-center gap-2"><Avatar src={c.avatar} name={c.name} size={20} /> {c.name}</span></td>
+                        <td style={{ padding: "6px", textAlign: "right", fontWeight: 800 }}>{c.credits}</td>
+                        <td style={{ padding: "6px", textAlign: "right" }}>{c.voices}</td><td style={{ padding: "6px", textAlign: "right" }}>{c.videos}</td>
+                        <td style={{ padding: "6px", textAlign: "right", color: c.redos ? "var(--or)" : undefined }}>{c.redos}</td>
+                        <td style={{ padding: "6px", textAlign: "right", color: c.errors ? "var(--rd)" : undefined }}>{c.errors}</td>
+                        <td style={{ padding: "6px", textAlign: "right", color: "var(--t3)" }}>{c.last ? ago(c.last) : "—"}</td>
+                      </tr>
+                    ))}</tbody>
+                  </table>
+                  {d.heygen.people.length > 0 && (
+                    <div style={{ fontSize: 12, color: "var(--t3)", marginTop: 8 }}>По сотрудникам: {d.heygen.people.map(p => `${p.key} — ${p.credits} кр. (${p.voices} озв., ${p.videos} видео)`).join(" · ")}</div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           </div>
 
           <div className="v2-card" style={card}>
@@ -319,50 +407,6 @@ export default function AiUsagePage() {
               )}
             </div>
           </div>
-
-          {d.heygen && (
-            <div className="v2-card" style={card}>
-              <div className="flex items-center gap-2" style={{ flexWrap: "wrap" }}>
-                <CircleDollarSign size={15} /><b style={{ fontSize: 14 }}>HeyGen: кредиты по клиентам</b>
-                <span style={{ fontSize: 11, color: "var(--t3)" }}>за {d.days} дн · видите только вы</span>
-                <div style={{ flex: 1 }} />
-                {d.heygen.remaining != null && (
-                  <span className={`v2-chip ${d.heygen.remaining < 100 ? "rd" : "gr"}`} style={{ height: 24, padding: "0 9px", fontSize: 12 }}>
-                    остаток {d.heygen.remaining} кр.{d.heygen.remainingAt ? ` · ${ago(d.heygen.remainingAt)}` : ""}
-                  </span>
-                )}
-              </div>
-              <div style={{ fontSize: 13, color: "var(--t2)", marginTop: 8 }}>
-                Всего: <b>{d.heygen.total.credits}</b> кредитов · {d.heygen.total.voices} озвучек · {d.heygen.total.videos} видео · {d.heygen.total.redos} переделок
-                {d.heygen.total.errors ? <span style={{ color: "var(--rd)" }}> · ошибок {d.heygen.total.errors}</span> : null}
-                {d.heygen.total.seconds ? <span style={{ color: "var(--t3)" }}> · {Math.round(d.heygen.total.seconds / 60)} мин речи</span> : null}
-              </div>
-              {!d.heygen.clients.length ? <div style={{ fontSize: 13, color: "var(--t3)", marginTop: 10 }}>Генераций за период не было.</div> : (
-                <div style={{ marginTop: 10, overflowX: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
-                    <thead><tr style={{ color: "var(--t3)", textAlign: "left" }}>
-                      <th style={{ padding: "4px 6px" }}>Клиент</th><th style={{ padding: "4px 6px", textAlign: "right" }}>Кредиты</th>
-                      <th style={{ padding: "4px 6px", textAlign: "right" }}>Озвучки</th><th style={{ padding: "4px 6px", textAlign: "right" }}>Видео</th>
-                      <th style={{ padding: "4px 6px", textAlign: "right" }}>Переделки</th><th style={{ padding: "4px 6px", textAlign: "right" }}>Ошибки</th>
-                      <th style={{ padding: "4px 6px", textAlign: "right" }}>Последняя</th></tr></thead>
-                    <tbody>{d.heygen.clients.map(c => (
-                      <tr key={c.key} style={{ borderTop: "1px solid var(--brd)" }}>
-                        <td style={{ padding: "6px" }}><span className="flex items-center gap-2"><Avatar src={c.avatar} name={c.name} size={20} /> {c.name}</span></td>
-                        <td style={{ padding: "6px", textAlign: "right", fontWeight: 800 }}>{c.credits}</td>
-                        <td style={{ padding: "6px", textAlign: "right" }}>{c.voices}</td><td style={{ padding: "6px", textAlign: "right" }}>{c.videos}</td>
-                        <td style={{ padding: "6px", textAlign: "right", color: c.redos ? "var(--or)" : undefined }}>{c.redos}</td>
-                        <td style={{ padding: "6px", textAlign: "right", color: c.errors ? "var(--rd)" : undefined }}>{c.errors}</td>
-                        <td style={{ padding: "6px", textAlign: "right", color: "var(--t3)" }}>{c.last ? ago(c.last) : "—"}</td>
-                      </tr>
-                    ))}</tbody>
-                  </table>
-                  {d.heygen.people.length > 0 && (
-                    <div style={{ fontSize: 12, color: "var(--t3)", marginTop: 8 }}>По сотрудникам: {d.heygen.people.map(p => `${p.key} — ${p.credits} кр. (${p.voices} озв., ${p.videos} видео)`).join(" · ")}</div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
 
           {errors.length > 0 && (
             <div className="v2-card" style={card}>
