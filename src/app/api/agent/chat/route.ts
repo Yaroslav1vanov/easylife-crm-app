@@ -249,14 +249,17 @@ export async function POST(req: Request) {
   }
 
   if (b.op === "progress" || b.op === "reply") {
-    const { data: m } = await sb.from("client_chat_messages").select("id, client_id, thread").eq("id", b.id).maybeSingle();
+    const { data: m } = await sb.from("client_chat_messages").select("id, client_id, thread, meta").eq("id", b.id).maybeSingle();
     if (!m) return bad("нет такой задачи", 404);
+    // служебное «Обнови образы из HeyGen» — в чате команды не показываем (скрыто, владелец видит с пометкой)
+    const service = !!(m as any).meta?.avatar_sync;
     const atts = Array.isArray(b.attachments) ? b.attachments.filter((a: any) => typeof a?.key === "string" && a.key.startsWith(`strategy/${m.client_id}/chat/`)) : [];
     if ((b.body && String(b.body).trim()) || atts.length) {
       const { error } = await sb.from("client_chat_messages").insert({
         client_id: m.client_id, author_type: "ai", author_name: "ИИ", body: String(b.body || "").slice(0, 20000),
         attachments: atts, reply_to: m.id, thread: m.thread || "reels",   // ответ — в тот же чат
         meta: await orderMeta(sb, m, b.meta),
+        ...(service ? { hidden_at: new Date().toISOString() } : {}),
       });
       if (error) return bad(error.message, 500);
     }
@@ -288,6 +291,7 @@ export async function POST(req: Request) {
     const { data: cur } = await sb.from("client_avatars").select("look_ids, look_names").eq("client_id", cid).maybeSingle();
     const pick = cur?.look_ids?.length ? null
       : [...looks.filter((l: any) => l.type === "digital_twin"), ...looks.filter((l: any) => l.type !== "digital_twin")].slice(0, 3);
+    await sb.from("client_chat_messages").update({ hidden_at: new Date().toISOString() }).eq("id", Number(b.id)).is("hidden_at", null);
     const { error } = await sb.from("client_avatars").update({
       group_looks: looks, looks_synced_at: new Date().toISOString(),
       ...(pick?.length ? { look_ids: pick.map((l: any) => l.id), default_look_id: pick[0].id,
