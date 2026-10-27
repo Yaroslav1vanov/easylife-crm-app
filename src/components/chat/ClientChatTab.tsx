@@ -264,7 +264,7 @@ export default function ClientChatTab({ clientId, aiEnabled, draft, initialThrea
           <div><b>3.</b> Под аудио выберите образ и нажмите <b>«Сделать видео»</b> → придёт видео аватара.</div>
           <div><b>4.</b> Под видео — <b>«В монтаж →»</b>: задача уйдёт в чат «Рилсы».</div>
           <div style={{ color: "var(--t3)" }}>Образы клиента (★ — основной; список меняет Ярослав в «Настройках»):</div>
-          <LookPicker avatar={avatar} value={avatar.default_look_id || ""} onChange={() => {}} size={52} />
+          <LookPicker avatar={avatar} value={avatar.default_look_id || ""} onChange={() => {}} readOnly />
         </div>
       )}
 
@@ -522,7 +522,7 @@ function AvatarVideoOrder({ m, a, av }: { m: Msg; a: Att; av: AvatarCtx }) {
   return (
     <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", fontSize: 12, maxWidth: 520 }}>
       <div style={{ width: "100%", fontSize: 11.5, color: "var(--t3)" }}>Образ для видео:</div>
-      <div style={{ width: "100%" }}><LookPicker avatar={av.avatar} value={look} onChange={setLook} size={56} /></div>
+      <div style={{ width: "100%" }}><LookPicker avatar={av.avatar} value={look} onChange={setLook} /></div>
       <label style={{ display: "inline-flex", gap: 4, alignItems: "center" }}><input type="checkbox" checked={transparent} onChange={(e) => setTransparent(e.target.checked)} /> прозрачный фон</label>
       <label style={{ display: "inline-flex", gap: 4, alignItems: "center" }}><input type="checkbox" checked={captions} onChange={(e) => setCaptions(e.target.checked)} /> субтитры</label>
       <button className="v2-act pri" disabled={busy} style={{ height: 30, fontSize: 12 }}

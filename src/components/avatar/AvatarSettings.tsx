@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase-browser";
 import { ENGINES, videoLimit, type ClientAvatar } from "@/lib/avatar";
 import { Plus, Trash2, Check, RefreshCw, Loader2 } from "lucide-react";
-import LookPicker, { LookThumb } from "./LookPicker";
+import LookPicker, { LookCard } from "./LookPicker";
 
 /* «Настройки» → «Аватар HeyGen». Какой аватар закреплён за клиентом: исполнитель генерирует только
    из этих луков и этим голосом (проверка кодом на сервере). Менять привязку может только владелец,
@@ -97,7 +97,7 @@ export default function AvatarSettings({ clientId, avatar, isOwner, clientPackag
       {!edit && avatar && (
         <div style={{ fontSize: 12.5, color: "var(--t2)", display: "grid", gap: 4 }}>
           <div>Разрешённые образы ({avatar.look_ids.length}){groupLooks.length ? ` из ${groupLooks.length} в группе` : ""}:</div>
-          <LookPicker avatar={avatar} value="" onChange={() => {}} size={64} />
+          <LookPicker avatar={avatar} value="" onChange={() => {}} readOnly />
           <div>Голос: <code>{avatar.voice_id?.slice(0, 10) || "—"}</code> · {avatar.voice_model} · {avatar.language} · скорость {avatar.voice_speed}x{avatar.trim_silence ? " · обрезать тишину" : ""}</div>
           <div>Видео: {ENGINES.find((e) => e.id === avatar.engine)?.label || avatar.engine} · {avatar.aspect} · {avatar.resolution} · лимит {videoLimit(avatar, clientPackage)} видео в месяц{avatar.monthly_limit ? "" : " (по пакету)"}</div>
         </div>
@@ -114,7 +114,7 @@ export default function AvatarSettings({ clientId, avatar, isOwner, clientPackag
                   const on = (f.looks as Look[]).some((l) => l.id === g.id);
                   return (
                     <div key={g.id} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
-                      <LookThumb look={g} size={78} active={on} star={on && f.default_look_id === g.id} dim={!on}
+                      <LookCard look={g} width={130} title={g.name && g.name !== "Photo Avatar" ? g.name : "Без названия"} active={on} main={on && f.default_look_id === g.id} dim={!on}
                         onClick={() => setF({ ...f, looks: on ? f.looks.filter((l: Look) => l.id !== g.id) : [...f.looks, { id: g.id, name: g.name && g.name !== "Photo Avatar" ? g.name : "" }],
                           default_look_id: on && f.default_look_id === g.id ? "" : f.default_look_id })} />
                       {on && f.default_look_id !== g.id && <button className="v2-act ghost" style={{ height: 22, fontSize: 10.5, padding: "0 6px" }} onClick={() => setF({ ...f, default_look_id: g.id })}>★ основной</button>}
