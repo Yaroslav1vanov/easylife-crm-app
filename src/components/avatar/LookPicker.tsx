@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { fileUrl } from "@/components/strategy/files";
 import type { ClientAvatar } from "@/lib/avatar";
 
@@ -51,9 +52,9 @@ export default function LookPicker({ avatar, value, onChange, readOnly }: { avat
           </button>
         </div>
       </div>
-      {open && (
-        <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-        <div onClick={(e) => e.stopPropagation()} style={{ width: "min(1180px, 100%)", maxHeight: "88vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: 12, padding: 18, borderRadius: 16, background: "var(--card)", border: "1px solid var(--brd)", boxShadow: "0 20px 60px rgba(0,0,0,.5)" }}>
+      {open && typeof document !== "undefined" && createPortal(
+        <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(5,3,20,.82)", backdropFilter: "blur(3px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+        <div onClick={(e) => e.stopPropagation()} style={{ width: "min(1180px, 100%)", maxHeight: "88vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: 12, padding: 18, borderRadius: 16, background: "#161033", border: "1px solid var(--brd)", boxShadow: "0 20px 60px rgba(0,0,0,.5)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <b style={{ fontSize: 16, color: "var(--t1)" }}>Выберите образ для видео</b>
             <span style={{ fontSize: 12, color: "var(--t3)" }}>нажмите на картинку</span>
@@ -82,7 +83,7 @@ export default function LookPicker({ avatar, value, onChange, readOnly }: { avat
             </div>
           </>)}
         </div>
-        </div>
+        </div>, document.body
       )}
     </div>
   );
