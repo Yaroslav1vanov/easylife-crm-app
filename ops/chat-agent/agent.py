@@ -529,8 +529,13 @@ def handle(job):
                     gen_id = None
             except Exception as e:
                 log("аватар: итог не разобрался", e)
-        if gen_id:   # генерацию заказали, а итога нет — фиксируем ошибку (без автоповтора)
-            api_post(op="avatar_gen", gen_id=gen_id, status="error", error="ИИ не отчитался о генерации")
+        if gen_id:   # генерацию заказали, а итога нет — фиксируем ошибку (без автоповтора), id HeyGen — чтобы достать готовое
+            try:
+                hid = (json.loads(aj.read_text()).get("gen") or {}).get("heygen_id") if aj.exists() else None
+            except Exception:
+                hid = None
+            api_post(op="avatar_gen", gen_id=gen_id, status="error", heygen_id=hid,
+                     error="ИИ не дождался результата" + (f" (видео HeyGen {hid} — можно достать без новой генерации)" if hid else ""))
         mins = (time.time() - t0) / 60
         cost = res.get("total_cost_usd")
         log("готово", mid, f"{mins:.1f} мин", f"файлов {len(atts)}", f"расход ${cost}" if cost else "")
