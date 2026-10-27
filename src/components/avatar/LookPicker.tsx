@@ -34,7 +34,9 @@ export default function LookPicker({ avatar, value, onChange, readOnly }: { avat
   const [open, setOpen] = useState(false);
   const [kind, setKind] = useState<"all" | "digital_twin" | "photo_avatar">("all");
   const others = (avatar.group_looks || []).filter((l) => !avatar.look_ids.includes(l.id));   // вся группа клиента, кроме основных
-  const cur = lookOf(avatar, value || avatar.default_look_id || avatar.look_ids[0]);
+  const firstId = value || avatar.default_look_id || avatar.look_ids[0] || avatar.group_looks?.[0]?.id;
+  if (!firstId) return <div style={{ fontSize: 12.5, color: "var(--t3)" }}>Образы ещё не загружены — «Настройки» → «Аватар HeyGen» → «Обновить образы из HeyGen».</div>;
+  const cur = lookOf(avatar, firstId);
   const title = (l: GroupLook) => (l.name && l.name !== "Photo Avatar" ? l.name : "Образ без названия");
   if (readOnly) return (
     <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>

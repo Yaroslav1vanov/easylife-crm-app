@@ -33,7 +33,7 @@ export async function POST(req: Request) {
   const isOwner = prof?.role === "owner" || prof?.role === "admin";
   if (!canGenerate(prof?.role, tm?.id, client)) return bad("Генерировать голос и видео могут тимлид и монтажёр этого клиента и Ярослав", 403);
 
-  const lookId = String(b.lookId || av.default_look_id || av.look_ids[0] || "");
+  const lookId = String(b.lookId || av.default_look_id || av.look_ids[0] || av.group_looks?.[0]?.id || "");
   if (!allowedLooks(av).has(lookId)) return bad("Этот образ не из группы аватара клиента");
   const text = String(b.text || "").trim();
   if (kind === "voice" && !text) return bad("Пустой текст для озвучки");

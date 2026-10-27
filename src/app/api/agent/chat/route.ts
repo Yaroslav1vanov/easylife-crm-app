@@ -283,7 +283,15 @@ export async function POST(req: Request) {
       engines: Array.isArray(l.engines) ? l.engines.map(String).slice(0, 6) : [],
       preview_key: typeof l.preview_key === "string" && l.preview_key.startsWith(`strategy/${cid}/`) ? l.preview_key : null,
     })).filter((l: any) => l.id);
-    const { error } = await sb.from("client_avatars").update({ group_looks: looks, looks_synced_at: new Date().toISOString() }).eq("client_id", cid);
+    // основные ещё не выбраны (новый клиент) — берём первые 3 видео-двойника, первый — основной; Ярослав поменяет в «Настройках»
+    const { data: cur } = await sb.from("client_avatars").select("look_ids, look_names").eq("client_id", cid).maybeSingle();
+    const pick = cur?.look_ids?.length ? null
+      : [...looks.filter((l: any) => l.type === "digital_twin"), ...looks.filter((l: any) => l.type !== "digital_twin")].slice(0, 3);
+    const { error } = await sb.from("client_avatars").update({
+      group_looks: looks, looks_synced_at: new Date().toISOString(),
+      ...(pick?.length ? { look_ids: pick.map((l: any) => l.id), default_look_id: pick[0].id,
+        look_names: Object.fromEntries(pick.map((l: any) => [l.id, l.name || l.id.slice(0, 8)])) } : {}),
+    }).eq("client_id", cid);
     if (error) return bad(error.message, 500);
     return NextResponse.json({ ok: true, count: looks.length });
   }

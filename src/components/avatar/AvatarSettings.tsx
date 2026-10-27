@@ -105,7 +105,7 @@ export default function AvatarSettings({ clientId, avatar, isOwner, clientPackag
 
       {edit && f && (
         <div style={{ display: "grid", gap: 8, fontSize: 12.5 }}>
-          <label>Группа аватара (id из HeyGen) <input style={{ ...sel, width: "100%" }} value={f.heygen_group_id} onChange={(e) => setF({ ...f, heygen_group_id: e.target.value })} /></label>
+          <label>Группа аватара (id из HeyGen; несколько — через запятую) <input style={{ ...sel, width: "100%" }} value={f.heygen_group_id} onChange={(e) => setF({ ...f, heygen_group_id: e.target.value })} /></label>
           {groupLooks.length > 0 && (
             <div>
               <div style={{ marginBottom: 6 }}>Нажмите на образ, чтобы разрешить или убрать (3–5 основных). ★ — сделать основным.</div>
