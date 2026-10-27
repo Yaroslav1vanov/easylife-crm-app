@@ -170,7 +170,17 @@ export default function ClientChatTab({ clientId, aiEnabled, draft, initialThrea
   }
   // сценарий, к которому относится сообщение (задача «Озвучить сценарий» или выше по переписке)
   const scriptOf = (m: Msg) => m.script_id ?? [...msgs].reverse().find((x) => x.id <= m.id && x.script_id)?.script_id ?? null;
-  const avatarCtx = thread === "avatar" && avatar ? { avatar, canGenerate: !!canGenerate, request: avatarRequest, toMontage, scriptOf } : null;
+  // названия сценариев для плашки «сценарий #N» на задачах чата «Аватар»
+  const [scriptTitles, setScriptTitles] = useState<Record<number, string>>({});
+  useEffect(() => {
+    if (thread !== "avatar") return;
+    const ids = Array.from(new Set(msgs.map((m) => m.script_id).filter((x): x is number => !!x && !scriptTitles[x])));
+    if (!ids.length) return;
+    supabase.from("scripts").select("id, order_num, hook_text, hook").in("id", ids).then(({ data }) => {
+      if (data?.length) setScriptTitles((t) => ({ ...t, ...Object.fromEntries(data.map((x: any) => [x.id, `#${x.order_num || x.id} «${String(x.hook_text || x.hook || "").trim().slice(0, 60)}»`])) }));
+    });
+  }, [thread, msgs.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  const avatarCtx = thread === "avatar" && avatar ? { avatar, canGenerate: !!canGenerate, request: avatarRequest, toMontage, scriptOf, scriptTitles } : null;
 
   const working = useMemo(() => msgs.some((m) => m.ai_status === "queued" || m.ai_status === "working"), [msgs]);
 
@@ -403,7 +413,7 @@ function snippet(m: Msg) {
   return t ? t.slice(0, 160) : (m.attachments || []).map((a) => a.name).join(", ") || "сообщение";
 }
 
-type AvatarCtx = { avatar: ClientAvatar; canGenerate: boolean; request: (p: Record<string, any>) => Promise<boolean>; toMontage: (m: Msg, a: Att) => void; scriptOf: (m: Msg) => number | null };
+type AvatarCtx = { avatar: ClientAvatar; canGenerate: boolean; request: (p: Record<string, any>) => Promise<boolean>; toMontage: (m: Msg, a: Att) => void; scriptOf: (m: Msg) => number | null; scriptTitles: Record<number, string> };
 
 function Bubble({ m, mine, onPipe, quoted, onReply, onJump, onHide, av }: { m: Msg; mine: boolean; onPipe: (p: { video?: PipeAtt; images?: PipeAtt[] }) => void;
   quoted: Msg | null; onReply: (m: Msg) => void; onJump: (id: number) => void; onHide?: (m: Msg) => void; av?: AvatarCtx | null }) {
@@ -425,6 +435,12 @@ function Bubble({ m, mine, onPipe, quoted, onReply, onJump, onHide, av }: { m: M
           <CornerUpLeft size={11} /> Ответить
         </button>
         {m.hidden_at && <span className="v2-chip mut" style={{ padding: "1px 6px" }}><EyeOff size={10} /> скрыто {when(m.hidden_at)}</span>}
+        {av && m.author_type === "user" && !m.meta?.avatar_sync && (() => {
+          const sid = av.scriptOf(m);
+          return sid
+            ? <span className="v2-chip cy" style={{ padding: "1px 7px" }} title="Озвучка, видео и монтаж привяжутся к этому сценарию">📄 сценарий {av.scriptTitles[sid] || `#${sid}`}</span>
+            : <span className="v2-chip or" style={{ padding: "1px 7px" }} title="Задача начата не из карточки сценария: готовый ролик придётся привязать к сценарию вручную. Лучше — кнопка «Озвучить сценарий» в карточке сценария">⚠ без сценария</span>;
+        })()}
         {onHide && (
           <button className="chat-reply" onClick={() => onHide(m)} title={m.hidden_at ? "Вернуть сообщение команде и ИИ" : "Скрыть от команды и ИИ (удалить переписку нельзя)"}
             style={{ background: "none", border: 0, color: "var(--t3)", cursor: "pointer", fontSize: 11, fontWeight: 700, display: "inline-flex", gap: 3, alignItems: "center", padding: "0 2px", fontFamily: "inherit" }}>
