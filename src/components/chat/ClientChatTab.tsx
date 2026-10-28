@@ -88,7 +88,9 @@ export default function ClientChatTab({ clientId, aiEnabled, draft, initialThrea
   const [ahead, setAhead] = useState(0); // задач других клиентов перед нашей в общей очереди ИИ
   const [me, setMe] = useState<{ id: string | null; name: string }>({ id: null, name: "Сотрудник" });
   const bottom = useRef<HTMLDivElement>(null);
+  const box = useRef<HTMLDivElement>(null);   // окно переписки (прокручивается само, не вся страница)
   const lastId = useRef(0);
+  const sig = useRef("");                     // отпечаток переписки: не перерисовываем, если ничего не изменилось
 
   const threadRef = useRef(thread); threadRef.current = thread;
   async function load() {
@@ -98,7 +100,9 @@ export default function ClientChatTab({ clientId, aiEnabled, draft, initialThrea
     if (error) { if (/does not exist|schema cache/i.test(error.message)) setMissing(true); setLoading(false); return; }
     if (asked !== threadRef.current) return;   // пока грузили, переключились на другой чат
     const rows = (data || []) as Msg[];
-    setMsgs(rows);
+    // опрос раз в 4 с: перерисовываем только при изменениях (на телефоне перерисовка дёргала прокрутку)
+    const s2 = rows.map((r) => `${r.id}:${r.ai_status || ""}:${r.hidden_at || ""}:${(r.attachments || []).length}`).join(",");
+    if (s2 !== sig.current) { sig.current = s2; setMsgs(rows); }
     setLoading(false);
     // ИИ берёт задачи по одной на всех клиентов — показываем, сколько впереди
     const firstQ = rows.find((m) => m.ai_status === "queued");
@@ -108,7 +112,17 @@ export default function ClientChatTab({ clientId, aiEnabled, draft, initialThrea
       setAhead(count || 0);
     } else setAhead(0);
     const newest = rows.length ? rows[rows.length - 1].id : 0;
-    if (newest > lastId.current) { lastId.current = newest; setTimeout(() => bottom.current?.scrollIntoView({ behavior: "smooth", block: "end" }), 50); }
+    if (newest > lastId.current) {
+      const first = lastId.current === 0;
+      lastId.current = newest;
+      // новое сообщение: прокручиваем только окно чата (scrollIntoView на iPhone двигал всю страницу)
+      // и только если человек и так внизу — читающего старую переписку не дёргаем
+      setTimeout(() => {
+        const el = box.current; if (!el) return;
+        const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 240;
+        if (first || nearBottom) el.scrollTo({ top: el.scrollHeight, behavior: first ? "auto" : "smooth" });
+      }, 60);
+    }
   }
 
   useEffect(() => {
@@ -123,7 +137,7 @@ export default function ClientChatTab({ clientId, aiEnabled, draft, initialThrea
       }
       setMe({ id: uid, name });
     })();
-    lastId.current = 0; setLoading(true); setMsgs([]); setReplyTo(null);
+    lastId.current = 0; sig.current = ""; setLoading(true); setMsgs([]); setReplyTo(null);
     load();
     // пока вкладка открыта — подтягиваем новые сообщения; ИИ отвечает с сервера
     const t = setInterval(() => { if (document.visibilityState === "visible") load(); }, 4000);
@@ -293,7 +307,7 @@ export default function ClientChatTab({ clientId, aiEnabled, draft, initialThrea
         </div>
       )}
 
-      <div className="v2-card" style={{ padding: 14, minHeight: 360, maxHeight: "62vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: 12 }}>
+      <div ref={box} className="v2-card" style={{ padding: 14, minHeight: 360, maxHeight: "62vh", overflowY: "auto", overscrollBehavior: "contain", display: "flex", flexDirection: "column", gap: 12 }}>
         {loading ? <div style={{ color: "var(--t3)", fontSize: 13 }}>Загружаю…</div>
           : !msgs.length ? <div style={{ color: "var(--t3)", fontSize: 13, margin: "auto", textAlign: "center" }}>Сообщений пока нет.<br />{aiEnabled ? T.empty : "Здесь команда ведёт работу по клиенту."}</div>
           : msgs.map((m) => <Bubble key={m.id} m={m} mine={m.author_type === "user" && m.author_name === me.name}
@@ -467,9 +481,9 @@ function Bubble({ m, mine, onPipe, quoted, onReply, onJump, onHide, av }: { m: M
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: m.body ? 10 : 0 }}>
             {m.attachments.map((a) => (
               <div key={a.key} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                {isVideo(a) ? <video src={fileUrl(a.key)} controls preload="metadata" style={{ width: 220, maxHeight: 390, borderRadius: 10, background: "#000" }} />
-                  : isAudio(a) ? <audio src={fileUrl(a.key)} controls preload="metadata" style={{ width: 300, maxWidth: "100%" }} />
-                  : isImage(a) ? <a href={fileUrl(a.key)} target="_blank" rel="noreferrer"><img src={fileUrl(a.key)} alt={a.name} style={{ width: 160, borderRadius: 10, display: "block" }} /></a>
+                {isVideo(a) ? <video src={fileUrl(a.key)} controls playsInline preload="metadata" style={{ width: 220, height: 391, objectFit: "contain", borderRadius: 10, background: "#000", display: "block" }} />
+                  : isAudio(a) ? <audio src={fileUrl(a.key)} controls preload="metadata" style={{ width: 300, maxWidth: "100%", height: 54, display: "block" }} />
+                  : isImage(a) ? <a href={fileUrl(a.key)} target="_blank" rel="noreferrer"><img src={fileUrl(a.key)} alt={a.name} loading="lazy" style={{ width: 160, height: 284, objectFit: "cover", borderRadius: 10, display: "block", background: "#000" }} /></a>
                   : null}
                 {isVideo(a) || isImage(a) || isAudio(a) ? (
                   <a href={fileUrl(a.key)} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: "var(--t3)", display: "inline-flex", gap: 4, alignItems: "center" }}>
