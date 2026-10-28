@@ -21,6 +21,11 @@ export type AvatarGen = {
   requested_name: string | null; error: string | null; created_at: string; finished_at: string | null; result_key: string | null;
 };
 
+/** Кредиты HeyGen за секунду видео по движку — оценка по замерам 27–28.10 (HeyGen не отдаёт списание за видео).
+ *  Avatar VI (веб HeyGen): 249 с ≈ 252 кр; Avatar V (CRM, API): 15,5 с = 13 кр, 49,9 с = 41 кр. IV/III — не мерили, берём как V. */
+export const HEYGEN_RATE: Record<string, number> = { avatar_vi: 1.0, avatar_v: 0.83, avatar_iv: 0.83, avatar_iii: 0.83 };
+export const heygenCredits = (seconds: number, engine?: string | null) => Math.round((seconds || 0) * (HEYGEN_RATE[engine || ""] ?? 1.0) * 10) / 10;
+
 export const ENGINES: { id: string; label: string }[] = [
   { id: "avatar_v", label: "Avatar V (лучший в API)" },
   { id: "avatar_iv", label: "Avatar IV" },

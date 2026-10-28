@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useIsOwner } from "@/components/RoleContext";
 import Avatar from "@/components/Avatar";
+import HeygenAllVideos, { type HeygenAll } from "@/components/stats/HeygenAllVideos";
 import { Bot, Film, AlertTriangle, Clock, Users, Server, HardDrive, Cpu, MemoryStick, CircleDollarSign, X, Search } from "lucide-react";
 
 /* ИИ-чат: аналитика (видит только владелец). Что сотрудники делают через ИИ-исполнителя:
@@ -16,6 +17,7 @@ type Data = {
   quick: { total: number; byKind: Record<string, number> };
   claude?: { last: { at: string; h5: number | null; h5Reset: string | null; d7: number; d7Reset: string | null; status: string | null; overage: string | null } | null;
     weekForecast: number | null; hourly: { at: string; h5: number; d7: number }[]; cost: { day: number; week: number; perDay: number } };
+  heygenAll?: HeygenAll;
   heygen?: { total: HG; remaining: number | null; remainingAt: string | null; clients: (HG & { key: string; name: string; avatar: string | null })[]; people: (HG & { key: string })[] };
 };
 type HG = { credits: number; voices: number; videos: number; redos: number; errors: number; seconds: number; last?: string };
@@ -76,12 +78,13 @@ export default function AiUsagePage() {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState<number | null>(null);
   const [showDays, setShowDays] = useState(7);
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
     if (!isOwner) return;
     setErr("");
     fetch(`/api/admin/ai-usage?days=${days}`).then(r => r.json()).then(j => (j.error ? setErr(j.error) : setD(j))).catch(e => setErr(String(e)));
-  }, [days, isOwner]);
+  }, [days, isOwner, reload]);
   useEffect(() => { setShowDays(7); }, [who, cid, day, q, days]);
 
   const all = d?.rows || [];
@@ -252,6 +255,7 @@ export default function AiUsagePage() {
           )}
 
           </div>
+          {d.heygenAll && <HeygenAllVideos data={d.heygenAll} onChanged={() => setReload((x) => x + 1)} />}
 
           <div className="v2-card" style={card}>
             <div className="flex items-center gap-2 flex-wrap" style={{ marginBottom: 10 }}>

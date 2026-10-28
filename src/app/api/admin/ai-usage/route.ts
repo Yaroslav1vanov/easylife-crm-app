@@ -32,7 +32,7 @@ export async function GET(req: Request) {
   const since = new Date(Date.now() - days * 864e5).toISOString();
   const sb = createAdmin();
 
-  const [tasks, replies, clients, status, quick, limitRows, gens] = await Promise.all([
+  const [tasks, replies, clients, status, quick, limitRows, gens, hvids] = await Promise.all([
     all((a, b) => sb.from("client_chat_messages")
       .select("id, client_id, author_id, author_name, thread, ai_status, ai_error, created_at, ai_started_at, ai_finished_at, ai_minutes, ai_cost_usd, ai_files, body")
       .eq("author_type", "user").not("ai_status", "is", null).gte("created_at", since).order("id").range(a, b)),
@@ -49,6 +49,9 @@ export async function GET(req: Request) {
       .not("claude_7d_util", "is", null).gte("at", new Date(Date.now() - Math.max(days, 7) * 864e5).toISOString()).order("at").range(a, b)).catch(() => []),
     all((a, b) => sb.from("avatar_generations").select("id, client_id, kind, status, seconds, credits_before, credits_after, is_redo, requested_name, created_at, finished_at, error")
       .gte("created_at", since).order("id").range(a, b)).catch(() => []),
+    // все видео HeyGen (CRM + веб) с 1 октября 2026 — для таблицы «по клиентам за месяц»
+    all((a, b) => sb.from("heygen_videos").select("id, title, created_at, duration, engine, client_id, match, source, credits_est, status")
+      .gte("created_at", "2026-10-01").order("created_at").range(a, b)).catch(() => []),
   ]);
 
   // ответы ИИ по задаче: ролики, картинки, первое время ответа
@@ -166,8 +169,33 @@ export async function GET(req: Request) {
     cost: { day: costSince(864e5), week: costSince(WEEK), perDay: Math.round((rows as any[]).reduce((x, r) => x + (r.cost || 0), 0) / days) },
   };
 
+  // «Все видео HeyGen» по месяцам: клиент → видео/секунды/кредиты, отдельно сделанные в CRM и в вебе HeyGen
+  const hv = (hvids as any[]).filter(v => v.status !== "failed");
+  const months = Array.from(new Set(hv.map(v => String(v.created_at).slice(0, 7)))).sort().reverse();
+  const byMonth: Record<string, any> = {};
+  for (const ym of months) {
+    const rowsM = hv.filter(v => String(v.created_at).startsWith(ym));
+    const m = new Map<string, any>();
+    for (const v of rowsM) {
+      const k = v.client_id ? String(v.client_id) : "none";
+      const a = m.get(k) || { key: k, name: v.client_id ? cname.get(v.client_id) || `клиент ${v.client_id}` : "Не распознано", avatar: v.client_id ? cavatar.get(v.client_id) || null : null,
+        videos: 0, crm: 0, web: 0, seconds: 0, credits: 0, engines: {} as Record<string, number> };
+      a.videos++; v.source === "crm" ? a.crm++ : a.web++;
+      a.seconds += Number(v.duration) || 0; a.credits += Number(v.credits_est) || 0;
+      const e = v.engine || "?"; a.engines[e] = (a.engines[e] || 0) + 1;
+      m.set(k, a);
+    }
+    const list = Array.from(m.values()).map(a => ({ ...a, seconds: Math.round(a.seconds), credits: Math.round(a.credits) })).sort((x, y) => (x.key === "none" ? 1 : 0) - (y.key === "none" ? 1 : 0) || y.credits - x.credits);
+    byMonth[ym] = {
+      clients: list,
+      total: { videos: rowsM.length, crm: rowsM.filter(v => v.source === "crm").length, seconds: Math.round(rowsM.reduce((s, v) => s + (Number(v.duration) || 0), 0)), credits: Math.round(rowsM.reduce((s, v) => s + (Number(v.credits_est) || 0), 0)) },
+      unmatched: rowsM.filter(v => !v.client_id).map(v => ({ id: v.id, title: v.title, at: v.created_at, seconds: Math.round(Number(v.duration) || 0) })),
+    };
+  }
+  const heygenAll = { months, byMonth, clientsList: (clients as any[]).map(c => ({ id: c.id, name: cname.get(c.id) })) };
+
   return NextResponse.json({
-    days, total: tot, today, heygen, claude,
+    days, total: tot, today, heygen, claude, heygenAll,
     timeline,
     people: group(r => r.who).sort((a, b) => b.tasks - a.tasks),
     clients: group(r => String(r.client_id) as string).map(g => ({ ...g, name: cname.get(Number(g.key)) || g.key, avatar: cavatar.get(Number(g.key)) || null })).sort((a, b) => b.tasks - a.tasks),

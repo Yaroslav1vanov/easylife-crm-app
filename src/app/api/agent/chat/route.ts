@@ -4,7 +4,7 @@ import { r2 } from "@/lib/r2";
 import { submitFile } from "@/lib/transcribe";
 import { metricoolProfile } from "@/lib/metricoolProfile";
 import { DEFAULT_FORECAST_BENCHMARKS, FORECAST_BENCHMARKS_KEY, unpackingToText } from "@/lib/forecast";
-import { allowedLooks, dictionaryText, monthStart, videoLimit } from "@/lib/avatar";
+import { allowedLooks, dictionaryText, heygenCredits, monthStart, videoLimit } from "@/lib/avatar";
 
 /* Канал для ИИ-исполнителя чата по клиенту (работает на нашем сервере).
    Только по секрету x-agent-secret, работает служебным ключом.
@@ -299,6 +299,69 @@ export async function POST(req: Request) {
     }).eq("client_id", cid);
     if (error) return bad(error.message, 500);
     return NextResponse.json({ ok: true, count: looks.length });
+  }
+
+  // Все видео HeyGen (и из CRM, и из веба HeyGen) → таблица heygen_videos для аналитики владельца.
+  // Клиент: «clientNN #…» = из CRM; иначе по образу (group_looks клиентов); общий образ двух карточек — по названию; иначе по папке.
+  if (b.op === "heygen_videos") {
+    const vids = (Array.isArray(b.videos) ? b.videos : []).slice(0, 1000);
+    if (!vids.length) return NextResponse.json({ ok: true, saved: 0 });
+    const { data: avs } = await sb.from("client_avatars").select("client_id, group_looks, look_ids");
+    const lookOwners = new Map<string, number[]>();
+    for (const a of avs || []) for (const id of [...((a as any).group_looks || []).map((l: any) => l.id), ...((a as any).look_ids || [])]) {
+      const arr = lookOwners.get(id) || []; if (!arr.includes(a.client_id)) arr.push(a.client_id); lookOwners.set(id, arr);
+    }
+    // общий образ на двух карточках — карточка по названию
+    const PICK: [RegExp, number][] = [[/^\s*(тт|tt|tiktok)\b/i, 14], [/^\s*(инст|inst)/i, 15], [/medspa|мед ?спа/i, 41]];
+    const { data: prev } = await sb.from("heygen_videos").select("folder_id, client_id").not("folder_id", "is", null).not("client_id", "is", null);
+    const folderClient = new Map<string, Map<number, number>>();
+    const noteFolder = (f: string, c: number) => { const m = folderClient.get(f) || new Map(); m.set(c, (m.get(c) || 0) + 1); folderClient.set(f, m); };
+    for (const p of prev || []) noteFolder((p as any).folder_id, (p as any).client_id);
+    const { data: crmGens } = await sb.from("avatar_generations").select("heygen_id, client_id, credits_before, credits_after").not("heygen_id", "is", null);
+    const genBy = new Map((crmGens || []).map((g: any) => [g.heygen_id, g]));
+    const rows: any[] = [];
+    const pending: any[] = [];
+    for (const v of vids) {
+      const id = String(v.id || "").replace(/[^A-Za-z0-9]/g, "").slice(0, 64);
+      if (!id) continue;
+      const title = String(v.title || "").slice(0, 300);
+      const engines = Array.isArray(v.engines) ? v.engines.map(String) : [];
+      const engine = engines.includes("avatar_vi") ? "avatar_vi" : engines[0] || null;
+      const dur = Number(v.duration) || 0;
+      const base = { id, title, created_at: new Date((Number(v.created_at) || 0) * 1000).toISOString(), duration: dur, folder_id: v.folder_id || null,
+        avatar_ids: (v.avatars || []).map(String).slice(0, 10), engine, voice_ids: (v.voices || []).map(String).slice(0, 10), status: v.status || null,
+        credits_est: heygenCredits(dur, engine), synced_at: new Date().toISOString() };
+      let client_id: number | null = null, match: string | null = null, source = "web";
+      const crm = title.match(/^client(\d+)\s+#/);
+      const g = genBy.get(id);
+      if (crm || g) {
+        client_id = g?.client_id ?? Number(crm![1]); match = "crm"; source = "crm";
+        if (g && g.credits_before != null && g.credits_after != null) base.credits_est = Math.max(0, Number(g.credits_before) - Number(g.credits_after));
+      } else {
+        const owners: number[] = Array.from(new Set<number>(base.avatar_ids.flatMap((a: string) => lookOwners.get(a) || [])));
+        if (owners.length === 1) { client_id = owners[0]; match = "avatar"; }
+        else if (owners.length > 1) {
+          const byTitle = PICK.find(([re, c]) => re.test(title) && owners.includes(c));
+          client_id = byTitle ? byTitle[1] : Math.min(...owners); match = "avatar";
+        }
+      }
+      if (client_id && base.folder_id) noteFolder(base.folder_id, client_id);
+      (client_id ? rows : pending).push({ ...base, client_id, match, source });
+    }
+    for (const r of pending) {   // по папке: к какому клиенту чаще всего относятся остальные видео этой папки
+      const m = r.folder_id ? folderClient.get(r.folder_id) : null;
+      if (m && m.size) { r.client_id = Array.from(m.entries()).sort((x, y) => y[1] - x[1])[0][0]; r.match = "folder"; }
+      rows.push(r);
+    }
+    // ручные привязки владельца не перетираем
+    const { data: manual } = await sb.from("heygen_videos").select("id, client_id").eq("match", "manual").in("id", rows.map(r => r.id));
+    const keep = new Map((manual || []).map((m: any) => [m.id, m.client_id]));
+    for (const r of rows) if (keep.has(r.id)) { r.client_id = keep.get(r.id); r.match = "manual"; }
+    for (let i = 0; i < rows.length; i += 200) {
+      const { error } = await sb.from("heygen_videos").upsert(rows.slice(i, i + 200));
+      if (error) return bad(error.message, 500);
+    }
+    return NextResponse.json({ ok: true, saved: rows.length, matched: rows.filter(r => r.client_id).length });
   }
 
   // итог генерации HeyGen: журнал трат + готовый файл в медиатеку клиента (ссылки HeyGen временные)
