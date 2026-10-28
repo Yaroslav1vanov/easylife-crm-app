@@ -406,15 +406,15 @@ def fresh_token():
     return ENV["CLAUDE_CODE_OAUTH_TOKEN"]
 
 
-def run_claude(ws, mid, resume=False, avatar=None):
+def run_claude(ws, mid, resume=False, avatar=None, prompt=None):
     # Каждая задача — с чистого листа. Раньше разговор по клиенту продолжался бесконечно, и к каждой задаче
     # тянулась вся прошлая история: 01.10 три кадра сторис стоили $9,8 при контексте 276 тыс. токенов.
     # Память между задачами теперь в файлах: JOURNAL.md (что сделано и где лежит), STYLE.md, files/, studio/src/crm.
     # Продолжаем тот же разговор только если эту же задачу прервали на середине.
     cmd = ["/usr/bin/claude", "-p",
-           f"Прочитай CONTEXT.md, TASK.md и JOURNAL.md и выполни задачу #{mid} по правилам из CLAUDE.md. "
+           prompt or (f"Прочитай CONTEXT.md, TASK.md и JOURNAL.md и выполни задачу #{mid} по правилам из CLAUDE.md. "
            f"Если ты уже начинал эту задачу и прервался — продолжи с места остановки, сделанное не переделывай. "
-           f"Ответ человеку обязательно запиши в out/{mid}/reply.md.",
+           f"Ответ человеку обязательно запиши в out/{mid}/reply.md."),
            "--output-format", "json",
            "--model", ENV.get("CHAT_MODEL", "claude-opus-5-5"),   # монтаж — только Opus 5.5
            "--add-dir", str(HOME / "easylife-montage"), str(HOME / "easylife-top-reels"),
@@ -456,6 +456,7 @@ def handle(job):
         before = studio_snapshot()
         try:
             res = run_claude(ws, mid, resume=resumed, avatar=job.get("avatar"))
+            wait_heygen_video(ws, out, mid, job)
         finally:
             mark.unlink(missing_ok=True)   # при убийстве процесса сюда не дойдём — метка останется
         reply = (out / "reply.md").read_text().strip() if (out / "reply.md").exists() else (res.get("result") or "").strip()
@@ -550,6 +551,35 @@ def handle(job):
         api_post(op="reply", id=mid, body="", status="error", error=f"Сбой исполнителя: {str(e)[:300]}")
     finally:
         cur.unlink(missing_ok=True)
+
+
+def wait_heygen_video(ws, out, mid, job):
+    """Видео HeyGen рендерится 2–10 минут. Claude в режиме -p ждать не умеет (долгий sleep запрещён, фоновый не возвращается —
+    27.10 задачи закрывались на «жду таймера»). Поэтому ждёт сервер: раз в минуту короткий запуск ИИ «проверь get_video один раз»."""
+    avj = ((job.get("avatar") or {}).get("job")) or {}
+    if avj.get("kind") != "video":
+        return
+    aj = out / "avatar.json"
+    for attempt in range(40):
+        try:
+            g = (json.loads(aj.read_text()).get("gen") or {}) if aj.exists() else {}
+        except Exception:
+            g = {}
+        if g.get("file") or g.get("error") or not g.get("heygen_id"):
+            return
+        time.sleep(60)
+        log("видео HeyGen: проверка", attempt + 1, g["heygen_id"])
+        run_claude(ws, mid, avatar=job.get("avatar"), prompt=(
+            f"Задача #{mid}, проверка готовности видео HeyGen {g['heygen_id']}. Вызови get_video ОДИН раз и ничего не жди. "
+            f"Если status completed — скачай видео (и srt, если есть) в out/{mid}/, вызови get_current_user, допиши в out/{mid}/avatar.json "
+            f"поля gen.file, gen.seconds, gen.credits_after (heygen_id и credits_before оставь) и перепиши out/{mid}/reply.md: видео готово, длительность, образ. "
+            f"Если failed — запиши gen.error и объясни в reply.md. Если ещё в работе — ничего не меняй и ответь одним словом PENDING."))
+    try:
+        a = json.loads(aj.read_text()) if aj.exists() else {}
+        a.setdefault("gen", {})["error"] = "видео не готово за 40 минут — проверьте в HeyGen"
+        aj.write_text(json.dumps(a, ensure_ascii=False))
+    except Exception:
+        pass
 
 
 def sync_looks(cid, mid, looks, ws):
