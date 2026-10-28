@@ -13,7 +13,8 @@
 """
 import json, os, sys, time
 
-READ_ONLY = {"list_avatar_looks", "get_avatar_look", "get_video", "get_current_user", "get_voice", "list_voices", "show_video", "get_avatar_group"}
+READ_ONLY = {"list_avatar_looks", "get_avatar_look", "get_video", "get_current_user", "get_voice", "list_voices", "show_video", "get_avatar_group",
+             "lookup_videos", "list_videos", "get_video_scenes"}   # последние три — ежедневная выгрузка видео для аналитики владельца
 VOICE = {"create_speech", "create_speech_without_player"}
 VIDEO = {"create_video_from_avatar"}
 

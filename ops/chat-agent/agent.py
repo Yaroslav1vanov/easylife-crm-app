@@ -406,7 +406,7 @@ def fresh_token():
     return ENV["CLAUDE_CODE_OAUTH_TOKEN"]
 
 
-def run_claude(ws, mid, resume=False, avatar=None, prompt=None):
+def run_claude(ws, mid, resume=False, avatar=None, prompt=None, extra_tools=None):
     # Каждая задача — с чистого листа. Раньше разговор по клиенту продолжался бесконечно, и к каждой задаче
     # тянулась вся прошлая история: 01.10 три кадра сторис стоили $9,8 при контексте 276 тыс. токенов.
     # Память между задачами теперь в файлах: JOURNAL.md (что сделано и где лежит), STYLE.md, files/, studio/src/crm.
@@ -424,7 +424,7 @@ def run_claude(ws, mid, resume=False, avatar=None, prompt=None):
         # только чат «Аватар»: чтение луков и кредитов + ровно тот вид генерации, что заказан кнопкой
         cmd += [f"mcp__heygen__{t}" for t in HEYGEN_READ + HEYGEN_GEN.get(kind, [])]
     else:
-        cmd += ["--disallowedTools", "mcp__heygen"]   # в остальных чатах HeyGen недоступен совсем
+        cmd += [f"mcp__heygen__{t}" for t in (extra_tools or [])] or ["--disallowedTools", "mcp__heygen"]   # в остальных чатах HeyGen недоступен совсем
     if resume:
         cmd.insert(1, "-c")   # та же задача после обрыва — продолжаем её разговор
     env = {"PATH": "/srv/easylife-chat-agent/bin:/srv/easylife-chat-agent/.venv/bin:/usr/local/bin:/usr/bin:/bin",
@@ -551,6 +551,39 @@ def handle(job):
         api_post(op="reply", id=mid, body="", status="error", error=f"Сбой исполнителя: {str(e)[:300]}")
     finally:
         cur.unlink(missing_ok=True)
+
+
+def heygen_daily_loop():
+    """Раз в сутки (02:00 UTC) — все новые видео HeyGen, включая сделанные командой прямо в вебе HeyGen, в CRM:
+    таблица «Все видео HeyGen по клиентам» у владельца. Только чтение HeyGen, кредиты не тратятся."""
+    while True:
+        now = time.gmtime()
+        wait = ((26 - now.tm_hour) % 24) * 3600 - now.tm_min * 60 - now.tm_sec
+        time.sleep(wait if wait > 0 else 86400 + wait)
+        try:
+            heygen_sync_once()
+        except Exception as e:
+            log("выгрузка HeyGen не прошла:", str(e)[:300])
+
+
+def heygen_sync_once(since_days=2):
+    ws = HOME / "work" / "_heygen_sync"
+    (ws / "out").mkdir(parents=True, exist_ok=True)
+    out = ws / "out" / "videos.jsonl"
+    out.unlink(missing_ok=True)
+    since = time.strftime("%Y-%m-%d %H:%M", time.gmtime(time.time() - since_days * 86400))
+    run_claude(ws, 0, extra_tools=["lookup_videos", "get_video_scenes"], prompt=(
+        f"Выгрузка видео HeyGen для аналитики. Ничего не генерируй и не меняй. "
+        f"Вызывай lookup_videos (limit 50, листай next_token), пока не дойдёшь до видео старше {since} UTC (created_at — unix-время). "
+        f"Для КАЖДОГО видео новее этой даты вызови get_video_scenes и допиши в out/videos.jsonl ОДНУ строку JSON: "
+        f'{{"id","title","created_at","duration","folder_id","status","avatars":[avatar_id всех сцен],"engines":[engine всех сцен],"voices":[voice_id всех сцен]}}. '
+        f"Если get_video_scenes даёт ошибку — пиши строку с пустыми avatars/engines/voices. Ссылки на видео и тексты сценариев не пиши. "
+        f"В конце ответь одной строкой: сколько видео записал."))
+    vids = [json.loads(l) for l in out.read_text().splitlines() if l.strip()] if out.exists() else []
+    for i in range(0, len(vids), 200):
+        r = api_post(op="heygen_videos", videos=vids[i:i + 200])
+        log("выгрузка HeyGen:", r)
+    return len(vids)
 
 
 def wait_heygen_video(ws, out, mid, job):
@@ -868,6 +901,7 @@ def main():
     threading.Thread(target=quick_loop, daemon=True).start()
     threading.Thread(target=heartbeat_loop, daemon=True).start()
     threading.Thread(target=ig_loop, daemon=True).start()
+    threading.Thread(target=heygen_daily_loop, daemon=True).start()
     pool = ThreadPoolExecutor(max_workers=PARALLEL)
     busy = {}   # client_id -> future
     while True:
