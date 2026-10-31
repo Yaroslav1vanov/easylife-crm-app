@@ -151,11 +151,11 @@ export default function KanbanBoard({ scripts, clients, columns, onUpdate, showC
       const col = columns.find(c => c.matches(s));
       if (col) out[col.id].push(s);
     }
-    // дедлайн-режим: самые горящие — наверх (по due = pub_date − lead), без даты — в конец
-    if (hasDeadline) {
-      const dueOf = (s: Script) => (s.pub_date ? addDaysIso(s.pub_date, -deadlineLeadDays!) : "9999-99-99");
-      for (const col of columns) out[col.id].sort((a, b) => dueOf(a).localeCompare(dueOf(b)));
-    }
+    // по дате: ближайшие наверх, без даты — в конец; одна дата — по номеру сценария.
+    // В дедлайн-режиме считаем от срока готовности (pub_date − lead). До 31.10 в карточке клиента
+    // колонки шли по номеру сценария, и пустые слоты «Идея из референса» (номер 0) стояли вразнобой по датам.
+    const dueOf = (s: Script) => (s.pub_date ? (hasDeadline ? addDaysIso(s.pub_date, -deadlineLeadDays!) : s.pub_date) : "9999-99-99");
+    for (const col of columns) out[col.id].sort((a, b) => dueOf(a).localeCompare(dueOf(b)) || (a.order_num || 0) - (b.order_num || 0) || a.id - b.id);
     return out;
   }, [scripts, columns, hasDeadline, deadlineLeadDays, findTerm]); // eslint-disable-line react-hooks/exhaustive-deps
 
