@@ -6,6 +6,7 @@ import { Paperclip, Send, X, Sparkles, Loader2, AlertTriangle, CheckCircle2, Dow
 import LookPicker from "@/components/avatar/LookPicker";
 import { estimate, monthStart, monthUsage, videoLimit, type AvatarGen, type ClientAvatar } from "@/lib/avatar";
 import SendToPipelineModal, { PipeAtt } from "@/components/chat/SendToPipelineModal";
+import { uploadClientFileWithProgress } from "@/lib/upload";
 
 /* Чат по клиенту. Вся работа по проекту в одном месте: сотрудники пишут задачи
    и кидают исходники, у клиентов с включённым ИИ-чатом отвечает исполнитель на
@@ -29,18 +30,6 @@ const isVideo = (a: Att) => a.type.startsWith("video/") || /\.(mp4|mov|webm|m4v)
 const isImage = (a: Att) => a.type.startsWith("image/") || /\.(png|jpe?g|webp|gif)$/i.test(a.name);
 const isAudio = (a: Att) => a.type.startsWith("audio/") || /\.(mp3|wav|m4a|aac|ogg)$/i.test(a.name);
 
-/* Заливка в R2 с процентами: исходники аватара бывают по сотне мегабайт */
-function putWithProgress(url: string, file: File, onPct: (p: number) => void) {
-  return new Promise<void>((resolve, reject) => {
-    const x = new XMLHttpRequest();
-    x.open("PUT", url);
-    x.setRequestHeader("Content-Type", file.type || guessType(file.name));
-    x.upload.onprogress = (e) => { if (e.lengthComputable) onPct(Math.round((e.loaded / e.total) * 100)); };
-    x.onload = () => (x.status >= 200 && x.status < 300 ? resolve() : reject(new Error(`хранилище ответило ${x.status}`)));
-    x.onerror = () => reject(new Error("сеть оборвалась"));
-    x.send(file);
-  });
-}
 
 export type ChatThread = "reels" | "stories" | "strategy" | "avatar";
 const THREADS: { id: ChatThread; label: string; hint: string; placeholder: string; empty: string }[] = [
@@ -206,12 +195,9 @@ export default function ClientChatTab({ clientId, aiEnabled, draft, initialThrea
   async function startUpload(p: Pending) {
     patchFile(p.id, { status: "uploading", pct: 0, err: undefined });
     try {
-      const r = await fetch("/api/client-files", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clientId, category: "chat", filename: p.file.name }) });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error || "не удалось подготовить загрузку");
-      await putWithProgress(j.uploadUrl, p.file, (pct) => patchFile(p.id, { pct }));
-      patchFile(p.id, { key: j.key, pct: 100, status: "done" });
+      // большие исходники (гигабайты с айфона) — частями, с повтором упавших кусков
+      const key = await uploadClientFileWithProgress(clientId, "chat", p.file, p.file.type || guessType(p.file.name), (pct) => patchFile(p.id, { pct }));
+      patchFile(p.id, { key, pct: 100, status: "done" });
     } catch (e: any) {
       patchFile(p.id, { status: "error", err: e.message || String(e) });
     }

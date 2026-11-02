@@ -1,6 +1,11 @@
 /* Загрузка и открытие файлов вкладки «Стратегия». Файл уходит прямо в R2, мимо нашего сервера. */
 
 export async function uploadClientFile(clientId: number, category: string, file: File): Promise<string> {
+  // большие видео в медиатеку — частями (см. lib/upload.ts), маленькие — как раньше
+  if (file.size > 64 * 1024 * 1024) {
+    const { uploadClientFileWithProgress } = await import("@/lib/upload");
+    return uploadClientFileWithProgress(clientId, category, file, file.type || guessType(file.name), () => {});
+  }
   const r = await fetch("/api/client-files", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
