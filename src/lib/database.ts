@@ -231,7 +231,8 @@ const db = {
     }
     // RPC ставит нестандартный stage «Онбординг» — CRM везде ждёт 'active',
     // иначе клиент выпадает из активных, Команды и планирования.
-    await sb.from("clients").update({ stage: "active" }).eq("id", data);
+    // ИИ-чат включаем сразу всем новым клиентам (с 03.11.2026 — по умолчанию у всех)
+    await sb.from("clients").update({ stage: "active", ai_chat: true }).eq("id", data);
     // RPC по старой логике сидирует пустые карточки под пакет — удаляем их:
     // сценарии теперь рождаются из референсов, пакет = цель.
     await sb.from("scripts").delete().eq("client_id", data)
