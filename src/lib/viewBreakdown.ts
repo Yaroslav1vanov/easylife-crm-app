@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { mcFetch } from "@/lib/mcFetch";
 
 /* Просмотры аккаунта Instagram по дням с разбивкой (Metricool → client_view_breakdown):
    кто смотрит — подписчики или новые люди, и что смотрят — рилсы, сторис или посты.
@@ -16,7 +17,7 @@ export async function syncViewBreakdown(sb: SupabaseClient, clientId: number, bl
     ["reels_views", "media_product_type", "REEL"], ["stories_views", "media_product_type", "STORY"], ["posts_views", "media_product_type", "POST"],
   ];
   const byDay: Record<string, Record<string, number>> = {};
-  const res = await Promise.all(parts.map(([, s, sc]) => fetch(q(s, sc), { headers: { "X-Mc-Auth": token }, cache: "no-store" }).then(r => (r.ok ? r.json() : null)).catch(() => null)));
+  const res = await Promise.all(parts.map(([, s, sc]) => mcFetch(q(s, sc), { headers: { "X-Mc-Auth": token }, cache: "no-store" }).then(r => (r.ok ? r.json() : null)).catch(() => null)));
   res.forEach((j, i) => {
     for (const v of j?.data?.[0]?.values || []) {
       const d = String(v.dateTime || "").slice(0, 10);

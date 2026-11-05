@@ -1,3 +1,4 @@
+import { mcFetch } from "@/lib/mcFetch";
 /* Снимок профиля клиента из Metricool — для прогноза (PROFILE.md у ИИ-исполнителя).
    По каждой подключённой сети: подписчики сейчас и 30/90 дней назад, последние 30 роликов
    (медиана и среднее просмотров, топ-5, доля топ-10%), сколько роликов в неделю выходило за 90 дней, ER.
@@ -13,7 +14,7 @@ export async function metricoolProfile(blogId: number | string): Promise<string>
   const user = process.env.METRICOOL_USER_ID, token = process.env.METRICOOL_TOKEN;
   if (!user || !token) return "Metricool не настроен — цифр профиля нет.";
   const get = async (path: string) => {
-    const r = await fetch(`${MC}${path}${path.includes("?") ? "&" : "?"}blogId=${blogId}&userId=${encodeURIComponent(user)}&userToken=${encodeURIComponent(token)}`,
+    const r = await mcFetch(`${MC}${path}${path.includes("?") ? "&" : "?"}blogId=${blogId}&userId=${encodeURIComponent(user)}&userToken=${encodeURIComponent(token)}`,
       { headers: { "X-Mc-Auth": token }, cache: "no-store" });
     if (!r.ok) throw new Error(`Metricool ${r.status}`);
     return r.json();

@@ -1,3 +1,4 @@
+import { mcFetch } from "@/lib/mcFetch";
 // Сбор данных по роликам за период из Metricool — общий код для недельных отчётов и снимков.
 
 const MC = "https://app.metricool.com/api";
@@ -81,7 +82,7 @@ export async function fetchNetworkPosts(client: ClientLike, from: string, to: st
     if (allowed && !allowed.has(n.snap)) continue;
     for (const path of n.paths) {
       try {
-        const r = await fetch(`${MC}${path}?${qs}`, { headers: { "X-Mc-Auth": token }, cache: "no-store" });
+        const r = await mcFetch(`${MC}${path}?${qs}`, { headers: { "X-Mc-Auth": token }, cache: "no-store" });
         if (!r.ok) continue;
         const j: any = await r.json().catch(() => null);
         const arr = Array.isArray(j?.data) ? j.data : Array.isArray(j) ? j : [];
@@ -181,7 +182,7 @@ export async function followersDelta(client: ClientLike, from: string, to: strin
     const qs = `network=instagram&subject=account&metric=${metric}&from=${from}T00:00:00&to=${to}T23:59:59`
       + `&timezone=${tz}&blogId=${client.metricool_blog_id}&userToken=${encodeURIComponent(token)}&userId=${encodeURIComponent(userId)}`;
     try {
-      const r = await fetch(`${MC}/v2/analytics/timelines?${qs}`, { headers: { "X-Mc-Auth": token }, cache: "no-store" });
+      const r = await mcFetch(`${MC}/v2/analytics/timelines?${qs}`, { headers: { "X-Mc-Auth": token }, cache: "no-store" });
       if (!r.ok) return null;
       const j: any = await r.json().catch(() => null);
       const values: any[] = Array.isArray(j?.data) ? (j.data[0]?.values || []) : [];
@@ -200,7 +201,7 @@ export async function lastSyncs(client: ClientLike): Promise<Record<string, stri
   if (!token || !userId || !client.metricool_blog_id) return null;
   const qs = `blogId=${client.metricool_blog_id}&userToken=${encodeURIComponent(token)}&userId=${encodeURIComponent(userId)}`;
   try {
-    const r = await fetch(`${MC}/profile/lastsyncs?${qs}`, { headers: { "X-Mc-Auth": token }, cache: "no-store" });
+    const r = await mcFetch(`${MC}/profile/lastsyncs?${qs}`, { headers: { "X-Mc-Auth": token }, cache: "no-store" });
     if (!r.ok) return null;
     const j: any = await r.json().catch(() => null);
     const src = j?.data && typeof j.data === "object" ? j.data : j;

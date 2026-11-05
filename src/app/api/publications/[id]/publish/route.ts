@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
 import { publishVideo, UP_NET } from "@/lib/uploadpost";
 import { requireUser } from "@/lib/apiGuard";
+import { mcFetch } from "@/lib/mcFetch";
 
 /* ============================================================
    Выгрузка публикации в Metricool: на каждую выбранную соцсеть — отдельный
@@ -124,7 +125,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     let idsByNet: Record<string, string> = { ...knownByNet };
     if (force) {
       for (const pid of [...legacyIds, ...Object.values(knownByNet)]) {
-        try { const r = await fetch(mc(`/v2/scheduler/posts/${pid}`), { method: "DELETE", headers: hdr }); deleted.push({ id: pid, ok: r.ok, status: r.status }); }
+        try { const r = await mcFetch(mc(`/v2/scheduler/posts/${pid}`), { method: "DELETE", headers: hdr }); deleted.push({ id: pid, ok: r.ok, status: r.status }); }
         catch (e: any) { deleted.push({ id: pid, ok: false, error: String(e) }); }
       }
       idsByNet = {};
@@ -161,7 +162,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       if (network === "youtube") body.youtubeData = { title: ytTitle, type: "SHORT", tags: pub.yt_tags || [], madeForKids: false, privacy: "public" };
       if (network === "tiktok") body.tiktokData = { privacyOption: "PUBLIC_TO_EVERYONE", disableComment: false, disableDuet: false, disableStitch: false, commercialContentThirdParty: false, commercialContentOwnBrand: false };
       try {
-        const r = await fetch(mc(`/v2/scheduler/posts`), { method: "POST", headers: hdr, body: JSON.stringify(body) });
+        const r = await mcFetch(mc(`/v2/scheduler/posts`), { method: "POST", headers: hdr, body: JSON.stringify(body) });
         const txt = await r.text().catch(() => "");
         let j: any = {}; try { j = JSON.parse(txt); } catch {}
         // причина отказа: у Metricool она бывает в message / error / detail / errors — без неё в CRM видно только «400»

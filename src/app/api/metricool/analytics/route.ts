@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
 import { requireUser } from "@/lib/apiGuard";
+import { mcFetch } from "@/lib/mcFetch";
 
 // Read-only аналитика за произвольный период — источник цифр для месячных отчётов клиентам.
 // GET /api/metricool/analytics?from=2026-06-01&to=2026-06-30&clientId=25
@@ -36,7 +37,7 @@ export async function GET(req: Request) {
   const headers = { "X-Mc-Auth": token };
   const mcGet = async (path: string) => {
     try {
-      const r = await fetch(`${BASE}${path}${path.includes("?") ? "&" : "?"}${auth}`, { headers });
+      const r = await mcFetch(`${BASE}${path}${path.includes("?") ? "&" : "?"}${auth}`, { headers });
       if (!r.ok) return { _err: r.status };
       return await r.json().catch(() => null);
     } catch (e: any) { return { _err: String(e) }; }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
+import { mcFetch } from "@/lib/mcFetch";
 
 /* Диагностика Metricool (только владелец/админ): сырой ответ любого ЧИТАЮЩЕГО эндпоинта аналитики
    для бренда клиента — чтобы видеть реальные поля (просмотры, подписчики), а не гадать по схеме.
@@ -27,7 +28,7 @@ export async function GET(req: Request) {
   }
   if (!blogId) return NextResponse.json({ error: "нет blogId" }, { status: 400 });
   const url = `${BASE}${path}${path.includes("?") ? "&" : "?"}blogId=${blogId}&userId=${encodeURIComponent(userId)}&userToken=${encodeURIComponent(token)}`;
-  const r = await fetch(url, { headers: { "X-Mc-Auth": token }, cache: "no-store" });
+  const r = await mcFetch(url, { headers: { "X-Mc-Auth": token }, cache: "no-store" });
   const text = await r.text();
   let body: any = text.slice(0, 20000);
   try { body = JSON.parse(text); } catch {}

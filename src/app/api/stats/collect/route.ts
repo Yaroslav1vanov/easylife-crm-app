@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdmin } from "@/lib/supabase-admin";
 import { collectClientMonth, prevYm } from "@/lib/monthlyStats";
 import { requireUserOrCron } from "@/lib/apiGuard";
+import { mcFetch } from "@/lib/mcFetch";
 
 /* Сбор помесячной статистики.
    GET /api/stats/collect?ym=2026-08&clientId=25
@@ -27,7 +28,7 @@ export async function GET(req: Request) {
     const qs = `from=${ym}-01T00:00:00&to=${ym}-${last}T23:59:59&timezone=America%2FNew_York&blogId=${c?.metricool_blog_id}&userToken=${encodeURIComponent(token)}&userId=${encodeURIComponent(uid)}`;
     const out: any = { blogId: c?.metricool_blog_id };
     for (const path of ["/v2/analytics/posts/tiktok", "/v2/analytics/posts/youtube", "/v2/analytics/videos/youtube"]) {
-      const r = await fetch(`https://app.metricool.com/api${path}?${qs}`, { headers: { "X-Mc-Auth": token } });
+      const r = await mcFetch(`https://app.metricool.com/api${path}?${qs}`, { headers: { "X-Mc-Auth": token } });
       const j: any = await r.json().catch(() => null);
       const arr = Array.isArray(j?.data) ? j.data : Array.isArray(j) ? j : [];
       out[path] = { status: r.status, count: arr.length, first: arr[0] || j };

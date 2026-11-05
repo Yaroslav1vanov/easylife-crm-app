@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdmin } from "@/lib/supabase-admin";
 import { requireUserOrCron } from "@/lib/apiGuard";
+import { mcFetch } from "@/lib/mcFetch";
 
 // On-demand сбор базовой соц-статистики для карточек клиентов (без крона).
 // Для каждого клиента с metricool_blog_id и платформой ig/tt/yt тянет
@@ -39,7 +40,7 @@ export async function GET(req: Request) {
   const snapDate = ymd(today);
 
   const mcGet = async (path: string) => {
-    try { const r = await fetch(`${BASE}${path}${path.includes("?") ? "&" : "?"}${auth}`, { headers }); if (!r.ok) return null; return await r.json().catch(() => null); }
+    try { const r = await mcFetch(`${BASE}${path}${path.includes("?") ? "&" : "?"}${auth}`, { headers }); if (!r.ok) return null; return await r.json().catch(() => null); }
     catch { return null; }
   };
   const range = `from=${ymd(from30)}T00:00:00&to=${ymd(today)}T23:59:59&timezone=Europe/Kyiv`;

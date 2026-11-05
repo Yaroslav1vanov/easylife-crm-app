@@ -5,6 +5,7 @@ import { vmxMcp, vmxMyAccounts, vmxAvatarUrl } from "@/lib/viralmaxing";
 import { requireUserOrCron } from "@/lib/apiGuard";
 import { linkPublishedReels } from "@/lib/linkReels";
 import { syncViewBreakdown } from "@/lib/viewBreakdown";
+import { mcFetch } from "@/lib/mcFetch";
 
 /* ============================================================
    Соц-статистика клиентов → social_snapshots.
@@ -124,7 +125,7 @@ export async function GET(req: Request) {
     const auth = `userToken=${encodeURIComponent(mcToken)}&userId=${encodeURIComponent(mcUser)}`;
     const headers = { "X-Mc-Auth": mcToken };
     const mcGet = async (path: string) => {
-      const r = await fetch(`${MC}${path}${path.includes("?") ? "&" : "?"}${auth}`, { headers, cache: "no-store" });
+      const r = await mcFetch(`${MC}${path}${path.includes("?") ? "&" : "?"}${auth}`, { headers, cache: "no-store" });
       if (!r.ok) throw new Error(`Metricool ${r.status} ${path.split("?")[0]}`);
       return await r.json();
     };

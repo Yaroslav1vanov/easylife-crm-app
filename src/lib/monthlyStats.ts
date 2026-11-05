@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { mcFetch } from "@/lib/mcFetch";
 
 /* Помесячная статистика клиента: контент из Metricool, подписчики из наших снимков.
    Одна строка на клиента × месяц × соцсеть. История в Metricool — с момента
@@ -62,7 +63,7 @@ export function prevYm(d = new Date()) {
 
 async function mcList(path: string, qs: string, token: string): Promise<any[] | null> {
   try {
-    const r = await fetch(`${MC}${path}?${qs}`, { headers: { "X-Mc-Auth": token }, cache: "no-store" });
+    const r = await mcFetch(`${MC}${path}?${qs}`, { headers: { "X-Mc-Auth": token }, cache: "no-store" });
     if (!r.ok) return null;
     const j: any = await r.json().catch(() => null);
     const arr = Array.isArray(j?.data) ? j.data : Array.isArray(j) ? j : null;

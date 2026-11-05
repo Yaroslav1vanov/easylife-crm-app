@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
 import { requireUser } from "@/lib/apiGuard";
+import { mcFetch } from "@/lib/mcFetch";
 
 /* Подписчики по дням из Metricool (метрики аккаунта).
    GET /api/metricool/followers?clientId=25&from=2026-09-01&to=2026-09-21
@@ -31,7 +32,7 @@ export async function GET(req: Request) {
     const qs = `network=instagram&subject=account&metric=${metric}&from=${from}T00:00:00&to=${to}T23:59:59`
       + `&timezone=${encodeURIComponent(tz)}&blogId=${c.metricool_blog_id}&userToken=${encodeURIComponent(token)}&userId=${encodeURIComponent(userId)}`;
     try {
-      const r = await fetch(`${BASE}/v2/analytics/timelines?${qs}`, { headers: { "X-Mc-Auth": token }, cache: "no-store" });
+      const r = await mcFetch(`${BASE}/v2/analytics/timelines?${qs}`, { headers: { "X-Mc-Auth": token }, cache: "no-store" });
       const body = await r.text();
       if (!r.ok) { out[metric] = { status: r.status, error: body.slice(0, 120) }; continue; }
       const j: any = JSON.parse(body);

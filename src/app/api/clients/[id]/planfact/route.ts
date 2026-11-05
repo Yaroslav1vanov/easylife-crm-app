@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
 import { requireUser } from "@/lib/apiGuard";
 import { linkPublishedReels } from "@/lib/linkReels";
+import { mcFetch } from "@/lib/mcFetch";
 
 /* «План / факт» клиента за контрактный месяц.
    GET ?month=N (без — текущий месяц по датам) →
@@ -24,7 +25,7 @@ async function dailyViews(blogId: number | string, from: string, to: string) {
   if (!user || !token) return { byDate: {} as Record<string, number>, note: "аналитика не настроена" };
   const auth = `blogId=${blogId}&userId=${encodeURIComponent(user)}&userToken=${encodeURIComponent(token)}`;
   const get = async (path: string) => {
-    const r = await fetch(`${MC}${path}${path.includes("?") ? "&" : "?"}${auth}`, { headers: { "X-Mc-Auth": token }, cache: "no-store" });
+    const r = await mcFetch(`${MC}${path}${path.includes("?") ? "&" : "?"}${auth}`, { headers: { "X-Mc-Auth": token }, cache: "no-store" });
     return r.ok ? r.json() : null;
   };
   const prof = await fetch(`${MC}/admin/simpleProfiles?userId=${encodeURIComponent(user)}&userToken=${encodeURIComponent(token)}`, { headers: { "X-Mc-Auth": token }, cache: "no-store" })

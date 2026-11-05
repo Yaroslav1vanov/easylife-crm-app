@@ -1,5 +1,6 @@
 // Реальный статус публикации у провайдера. Общий для ручной проверки и крона.
 import { checkStatus as upStatus } from "@/lib/uploadpost";
+import { mcFetch } from "@/lib/mcFetch";
 
 const MC = "https://app.metricool.com/api";
 const NET2CH: Record<string, string> = { instagram: "ig", tiktok: "tt", youtube: "yt", threads: "threads" };
@@ -57,7 +58,7 @@ async function checkMetricool(postIds: string, blogId: number): Promise<PubCheck
   const items: PubCheck["items"] = [];
   for (const [key, pid] of Object.entries(ids)) {
     try {
-      const r = await fetch(`${MC}/v2/scheduler/posts/${pid}?userToken=${encodeURIComponent(token)}&userId=${encodeURIComponent(userId)}&blogId=${blogId}`,
+      const r = await mcFetch(`${MC}/v2/scheduler/posts/${pid}?userToken=${encodeURIComponent(token)}&userId=${encodeURIComponent(userId)}&blogId=${blogId}`,
         { headers: { "X-Mc-Auth": token }, cache: "no-store" });
       const j: any = await r.json().catch(() => null);
       if (!r.ok) { if (r.status !== 404) items.push({ ch: key, status: `HTTP ${r.status}`, error: j?.message || null, url: null }); continue; }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
 import { requireUser } from "@/lib/apiGuard";
+import { mcFetch } from "@/lib/mcFetch";
 
 /* Удалить публикацию: сначала запланированный пост в Metricool (чтобы он не вышел), потом карточку в CRM.
    Если до выхода меньше 2 минут или пост уже опубликован — не трогаем: из соцсети его удаляют вручную.
@@ -27,7 +28,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     if (!userId || !token || !client?.metricool_blog_id) return NextResponse.json({ error: "Нет доступа к Metricool для этого клиента" }, { status: 400 });
     const fails: string[] = [];
     for (const pid of mcIds) {
-      const r = await fetch(`${BASE}/v2/scheduler/posts/${pid}?userToken=${encodeURIComponent(token)}&userId=${encodeURIComponent(userId)}&blogId=${client.metricool_blog_id}`,
+      const r = await mcFetch(`${BASE}/v2/scheduler/posts/${pid}?userToken=${encodeURIComponent(token)}&userId=${encodeURIComponent(userId)}&blogId=${client.metricool_blog_id}`,
         { method: "DELETE", headers: { "X-Mc-Auth": token } }).catch(() => null);
       if (!r || (!r.ok && r.status !== 404)) fails.push(`${pid}: ${r ? r.status : "нет ответа"}`);   // 404 — поста уже нет, это нам и нужно
     }
