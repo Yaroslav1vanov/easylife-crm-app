@@ -5,6 +5,7 @@ import { submitFile } from "@/lib/transcribe";
 import { metricoolProfile } from "@/lib/metricoolProfile";
 import { DEFAULT_FORECAST_BENCHMARKS, FORECAST_BENCHMARKS_KEY, unpackingToText } from "@/lib/forecast";
 import { allowedLooks, dictionaryText, heygenCredits, monthStart, videoLimit } from "@/lib/avatar";
+import { COMPANY_CLIENT_ID } from "@/lib/company";
 
 /* Канал для ИИ-исполнителя чата по клиенту (работает на нашем сервере).
    Только по секрету x-agent-secret, работает служебным ключом.
@@ -125,7 +126,7 @@ export async function GET(req: Request) {
     const script = sid ? await scriptContext(sb, sid, cid) : null;
     // чат «Стратегия»: для прогноза — распаковка, «Наши цифры» и свежий снимок профиля из Metricool
     let planning: any = null;
-    if (m.thread === "strategy") {
+    if (m.thread === "strategy" && cid !== COMPANY_CLIENT_ID) {
       const [{ data: unp }, { data: bench }, { data: cm }] = await Promise.all([
         sb.from("client_documents").select("version, data, created_at, author_name").eq("client_id", cid).eq("kind", "unpacking").eq("is_current", true).maybeSingle(),
         sb.from("app_settings").select("value").eq("key", FORECAST_BENCHMARKS_KEY).maybeSingle(),
@@ -158,7 +159,9 @@ export async function GET(req: Request) {
         job, generation: gen, sync: !!m.meta?.avatar_sync,   // «Обновить образы из HeyGen» — только просмотр списка
       } : { error: "К клиенту не привязан аватар — генерировать нельзя. Напиши, что Ярославу нужно привязать аватар в «Настройках»." };
     }
-    jobs.push({ message: m, client, brand_kit: brand?.kit || null, strategy: strategy?.body || null, history: (history || []).reverse(), script, quoted, planning, avatar, ...(await folder(sb, cid)) });
+    // чат «Стратегия» компании (служебная карточка): план забега, задачи и живые цифры CRM
+    const company = cid === COMPANY_CLIENT_ID ? await companySnapshot(sb) : null;
+    jobs.push({ message: m, client, brand_kit: brand?.kit || null, strategy: strategy?.body || null, history: (history || []).reverse(), script, quoted, planning, avatar, company, ...(await folder(sb, cid)) });
   }
   return NextResponse.json({ jobs });
 }
@@ -364,6 +367,37 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, saved: rows.length, matched: rows.filter(r => r.client_id).length });
   }
 
+  // чат «Стратегия» компании: ИИ ставит, переносит и закрывает задачи забега (только по просьбе человека)
+  if (b.op === "strategy_apply") {
+    const { data: m } = await sb.from("client_chat_messages").select("client_id, author_name").eq("id", Number(b.id)).maybeSingle();
+    if (!m || m.client_id !== COMPANY_CLIENT_ID) return bad("не задача стратегии");
+    const { data: sp } = await sb.from("strategy_sprints").select("id").eq("status", "active").order("start_date", { ascending: false }).limit(1).maybeSingle();
+    const DIRS = ["Удержание", "Трафик", "Владельцы", "Рекомендации", "Продажи", "Производство", "HR", "Деньги", "Разгрузка", "Итог"];
+    const day = (v: any) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
+    const done: string[] = [];
+    for (const a of (Array.isArray(b.actions) ? b.actions : []).slice(0, 30)) {
+      const dir = DIRS.includes(a.direction) ? a.direction : null;
+      if (a.op === "create" && a.text) {
+        const text = String(a.text).slice(0, 300);
+        const { error } = await sb.from("strategy_tasks").insert({ text: dir ? `${dir}: ${text}` : text, direction: dir, planned_for: day(a.planned_for),
+          owner: a.owner ? String(a.owner).slice(0, 60) : null, priority: ["A", "B", "C"].includes(a.priority) ? a.priority : "B",
+          description: a.description ? String(a.description).slice(0, 4000) : null, status: "open", sprint_id: sp?.id ?? null, source: `чат стратегии #${b.id}` });
+        done.push(error ? `не создалась «${text}»: ${error.message}` : `создана «${text}»`);
+      } else if ((a.op === "update" || a.op === "done" || a.op === "cancel") && Number(a.id)) {
+        const f: any = { updated_at: new Date().toISOString() };
+        if (a.op === "done") { f.status = "done"; f.done_at = new Date().toISOString(); }
+        if (a.op === "cancel") f.status = "cancelled";
+        if (a.result) f.result = String(a.result).slice(0, 2000);
+        if (day(a.planned_for)) f.planned_for = day(a.planned_for);
+        if (a.owner) f.owner = String(a.owner).slice(0, 60);
+        if (["A", "B", "C"].includes(a.priority)) f.priority = a.priority;
+        const { error } = await sb.from("strategy_tasks").update(f).eq("id", Number(a.id));
+        done.push(error ? `задача ${a.id}: ${error.message}` : `задача ${a.id}: ${a.op === "done" ? "выполнена" : a.op === "cancel" ? "отменена" : "обновлена"}`);
+      }
+    }
+    return NextResponse.json({ ok: true, done });
+  }
+
   // итог генерации HeyGen: журнал трат + готовый файл в медиатеку клиента (ссылки HeyGen временные)
   if (b.op === "avatar_gen") {
     const { data: g } = await sb.from("avatar_generations").select("id, client_id, kind, script_id, status").eq("id", Number(b.gen_id)).maybeSingle();
@@ -465,4 +499,44 @@ async function orderMeta(sb: ReturnType<typeof createAdmin>, m: { client_id: num
   if (!av) return null;
   const look = allowedLooks(av as any).has(meta.look_id) ? meta.look_id : av.default_look_id || av.look_ids[0];
   return { type: "avatar_order", text: meta.text.slice(0, 5000), look_id: look };
+}
+
+/** Снимок компании для чата «Стратегия»: забег, задачи (просрочено / сегодня / неделя / сделано), клиенты по правилу счёта, продления. */
+async function companySnapshot(sb: ReturnType<typeof createAdmin>) {
+  const bali = (ms = 0) => new Date(Date.now() + 8 * 3600e3 + ms).toISOString().slice(0, 10);   // день по Бали
+  const today = bali(), in7 = bali(7 * 864e5), ago7 = bali(-7 * 864e5);
+  const [{ data: sprints }, { data: tasks }, { data: clients }, { data: months }, { data: ruleRow }] = await Promise.all([
+    sb.from("strategy_sprints").select("id, title, start_date, end_date, goals, client_target, status").order("start_date"),
+    sb.from("strategy_tasks").select("id, text, status, priority, direction, planned_for, owner, result, done_at, description").neq("status", "cancelled").order("planned_for"),
+    sb.from("clients").select("id, name, surname, stage, is_internal, start_date, package"),
+    sb.from("client_months").select("client_id, month_number, end_date, package").gte("end_date", today).lte("end_date", in7),
+    sb.from("app_settings").select("value").eq("key", "strategy_client_count").maybeSingle(),
+  ]);
+  const sprint = (sprints || []).find((x: any) => today >= x.start_date && today <= x.end_date) || (sprints || []).find((x: any) => x.status === "active") || null;
+  // правило счёта как на странице «Стратегия»: свои карточки не считаем, два аккаунта одного клиента — один проект
+  let rule: { exclude?: number[]; merge?: number[][] } = { exclude: [31], merge: [[14, 15], [40, 41]] };
+  try { if ((ruleRow as any)?.value) rule = JSON.parse((ruleRow as any).value); } catch { /* правило по умолчанию */ }
+  const name = (c: any) => `${c.name} ${c.surname || ""}`.trim();
+  const byId = new Map((clients || []).map((c: any) => [c.id, c]));
+  const excl = new Set([...(rule.exclude || []), COMPANY_CLIENT_ID]);
+  const group = new Map<number, string>(); (rule.merge || []).forEach((g, i) => g.forEach((id) => group.set(id, `g${i}`)));
+  const active = (clients || []).filter((c: any) => c.stage === "active" && !c.is_internal && !excl.has(c.id));
+  const counted = new Set(active.map((c: any) => group.get(c.id) || `c${c.id}`)).size;
+  const sprintTasks = (tasks || []).filter((t: any) => !sprint || !t.planned_for || (t.planned_for >= sprint.start_date && t.planned_for <= sprint.end_date));
+  const open = sprintTasks.filter((t: any) => t.status === "open");
+  return {
+    today, sprint,
+    clients: { counted, target: sprint?.client_target ?? null, active: active.map((c: any) => ({ id: c.id, name: name(c), since: c.start_date, package: c.package })),
+      paused: (clients || []).filter((c: any) => c.stage === "paused" && !c.is_internal).map(name),
+      newSinceSprint: sprint ? active.filter((c: any) => c.start_date && c.start_date >= sprint.start_date).map(name) : [],
+      renewals7d: (months || []).map((m: any) => ({ client: name(byId.get(m.client_id) || { name: `#${m.client_id}` }), month: m.month_number, ends: m.end_date, package: m.package })) },
+    tasks: {
+      overdue: open.filter((t: any) => t.planned_for && t.planned_for < today),
+      today: open.filter((t: any) => t.planned_for === today),
+      next7: open.filter((t: any) => t.planned_for && t.planned_for > today && t.planned_for <= in7),
+      later: open.filter((t: any) => !t.planned_for || t.planned_for > in7).length,
+      done7: sprintTasks.filter((t: any) => t.status === "done" && (t.done_at || "").slice(0, 10) >= ago7),
+      doneTotal: sprintTasks.filter((t: any) => t.status === "done").length, total: sprintTasks.length,
+    },
+  };
 }

@@ -3,9 +3,11 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { createClient } from "@/lib/supabase-browser";
 import { useRole, isOwner } from "@/components/RoleContext";
+import ClientChatTab from "@/components/chat/ClientChatTab";
+import { COMPANY_CLIENT_ID } from "@/lib/company";
 import {
   Target, Brain, Check, Plus, AlertTriangle, X, Sun, Sunrise, CalendarRange, CheckCircle2,
-  Flag, ListChecks, Trash2, Flame, ChevronRight,
+  Flag, ListChecks, Trash2, Flame, ChevronRight, MessageCircle,
 } from "lucide-react";
 
 /* Стратегия EasyLife AI — менеджер задач по «забегам» (2 месяца). Задачи с датами и дедлайнами,
@@ -21,7 +23,7 @@ type Task = {
 };
 type Entry = { id: number; kind: string; day: string; text: string; source: string; created_at: string };
 type Sprint = { id: number; title: string; start_date: string; end_date: string; goals: string | null; client_target: number | null; status: string };
-type View = { type: "today" | "tomorrow" | "week" | "done" | "brain" } | { type: "month"; ym: string; sprintId: number };
+type View = { type: "today" | "tomorrow" | "week" | "done" | "brain" | "chat" } | { type: "month"; ym: string; sprintId: number };
 
 const DIRECTIONS = ["Удержание", "Трафик", "Владельцы", "Рекомендации", "Продажи", "Производство", "HR", "Деньги", "Разгрузка", "Итог"];
 const DIR_COLOR: Record<string, string> = {
@@ -287,6 +289,7 @@ export default function StrategyPage() {
   };
 
   const header = () => {
+    if (view.type === "chat") return <><h1>Чат · ИИ</h1><div className="hsub">ИИ видит план забега, задачи и цифры CRM. Каждое утро сам пишет главное на день; задачи ставит и закрывает по вашей просьбе. Пятничные цифры (продажи, Zoom, лиды, аутрич) — сюда.</div></>;
     if (view.type === "brain") return <><h1>Мозг системы</h1><div className="hsub">Планы дня, пуши и итоги от CEO-бота. Решения и заметки отсюда бот учитывает в следующих планах.</div></>;
     if (view.type === "month") {
       const sp = sprints.find(s => s.id === view.sprintId);
@@ -313,6 +316,7 @@ export default function StrategyPage() {
         <button className={`ri ${view.type === "tomorrow" ? "on" : ""}`} onClick={() => setView({ type: "tomorrow" })}><Sunrise size={16} color="#42d4f4" />Завтра<span className="n">{counts.tomorrow || ""}</span></button>
         <button className={`ri ${view.type === "week" ? "on" : ""}`} onClick={() => setView({ type: "week" })}><CalendarRange size={16} color="#9d6bff" />7 дней<span className="n">{counts.week || ""}</span></button>
         <button className={`ri ${view.type === "done" ? "on" : ""}`} onClick={() => setView({ type: "done" })}><CheckCircle2 size={16} color="#a8e063" />Выполнено<span className="n">{counts.done || ""}</span></button>
+        <button className={`ri ${view.type === "chat" ? "on" : ""}`} onClick={() => setView({ type: "chat" })}><MessageCircle size={16} color="#42d4f4" />Чат · ИИ</button>
         <button className={`ri ${view.type === "brain" ? "on" : ""}`} onClick={() => setView({ type: "brain" })}><Brain size={16} color="#ec4899" />Мозг системы</button>
 
         {[...sprints].reverse().map(sp => (
@@ -345,7 +349,7 @@ export default function StrategyPage() {
         {err && <div className="card" style={{ marginBottom: 12, borderColor: "rgba(255,92,122,.45)", color: "var(--rd)" }}><AlertTriangle size={14} style={{ verticalAlign: -2 }} /> {err}</div>}
         {header()}
 
-        {view.type !== "brain" && view.type !== "done" && view.type !== "month" && curSprint && (
+        {view.type !== "brain" && view.type !== "chat" && view.type !== "done" && view.type !== "month" && curSprint && (
           <div className="kp">
             <div className="k"><div className="l">Активных клиентов</div><div className="v">{activeClients ?? "—"} <small>/ {curSprint.client_target ?? "—"}</small></div></div>
             <div className="k"><div className="l">Задач забега</div><div className="v">{sprintDone} <small>/ {sprintTasks.length}</small></div></div>
@@ -354,7 +358,9 @@ export default function StrategyPage() {
           </div>
         )}
 
-        {view.type === "brain" ? (
+        {view.type === "chat" ? (
+          <div style={{ marginTop: 14 }}><ClientChatTab clientId={COMPANY_CLIENT_ID} aiEnabled isOwner={isOwner(role)} initialThread="strategy" threadsOnly={["strategy"]} /></div>
+        ) : view.type === "brain" ? (
           <>
             {(() => { const p = journal.find(e => e.kind === "plan"); return (
               <div className="card" style={{ marginTop: 14 }}>

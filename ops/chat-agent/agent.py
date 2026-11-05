@@ -202,6 +202,12 @@ Instagram: {client.get('instagram') or '—'} · TikTok: {client.get('tiktok') o
         (ws / "FORECAST.md").write_text((HOME / "FORECAST.md").read_text())
     else:
         (ws / "FORECAST.md").unlink(missing_ok=True)
+    # чат «Стратегия» компании: план забега, задачи и цифры CRM
+    comp = job.get("company")
+    if comp:
+        (ws / "COMPANY.md").write_text(company_md(comp))
+    else:
+        (ws / "COMPANY.md").unlink(missing_ok=True)
     # чат «Аватар»: что разрешено клиенту и что заказано кнопкой (хук сверяет с этим файлом каждый вызов HeyGen)
     av = job.get("avatar")
     if av:
@@ -228,8 +234,17 @@ Instagram: {client.get('instagram') or '—'} · TikTok: {client.get('tiktok') o
 ## Куда класть результат
 - Ответ человеку: out/{mid}/reply.md
 - Готовые файлы (ролик, кадры сторис): out/{mid}/ — всё из этой папки уйдёт в чат
-{AVATAR_HINT.format(mid=mid, kind=((av or {}).get("job") or {}).get("kind") or "заказ") if av else ""}{SCRIPT_HINT.format(mid=mid) if job.get("script") else ""}{FORECAST_HINT.format(mid=mid, pkg=(pl or {}).get("package") or "не указан") if pl else ""}""")
+{COMPANY_HINT.format(mid=mid) if comp else ""}{AVATAR_HINT.format(mid=mid, kind=((av or {}).get("job") or {}).get("kind") or "заказ") if av else ""}{SCRIPT_HINT.format(mid=mid) if job.get("script") else ""}{FORECAST_HINT.format(mid=mid, pkg=(pl or {}).get("package") or "не указан") if pl else ""}""")
     return ws, out
+
+
+COMPANY_HINT = """
+## Это чат «Стратегия» КОМПАНИИ EasyLife (не клиента) — COMPANY.md
+Ты — операционный помощник Ярослава и ассистента Кати по плану забега. Правила — раздел «Чат „Стратегия“ компании» в CLAUDE.md.
+Все цифры и задачи — в COMPANY.md (обновлён сейчас). Поставить / перенести / закрыть задачи — только если человек просит или сам сообщил, что сделано:
+out/{mid}/strategy_actions.json → [{{"op":"create","text":"…","direction":"Продажи","planned_for":"2026-11-10","owner":"Катя","priority":"A","description":"…"}},
+{{"op":"done","id":123,"result":"что получилось"}}, {{"op":"update","id":123,"planned_for":"2026-11-12","owner":"Менеджер (EN)"}}, {{"op":"cancel","id":123,"result":"почему"}}]
+"""
 
 
 AVATAR_HINT = """
@@ -513,6 +528,15 @@ def handle(job):
             except Exception as e:
                 log("образы не сохранились", e)
                 reply = (reply or "") + f"\n\n⚠ Образы не сохранились в CRM: {str(e)[:200]}"
+        sa = out / "strategy_actions.json"   # чат «Стратегия» компании: поставить / закрыть задачи
+        if sa.exists() and job.get("company"):
+            try:
+                r = api_post(op="strategy_apply", id=mid, actions=json.loads(sa.read_text()))
+                if r.get("done"):
+                    reply = (reply or "Готово.") + "\n\n📋 Задачи: " + "; ".join(r["done"])
+            except Exception as e:
+                log("задачи стратегии не записались", e)
+                reply = (reply or "") + f"\n\n⚠ Задачи не записались: {str(e)[:200]}"
         meta = None
         aj = out / "avatar.json"            # чат «Аватар»: карточка-заказ или итог генерации HeyGen
         gen_id = (((job.get("avatar") or {}).get("job")) or {}).get("gen_id")
@@ -584,6 +608,28 @@ def heygen_sync_once(since_days=2):
         r = api_post(op="heygen_videos", videos=vids[i:i + 200])
         log("выгрузка HeyGen:", r)
     return len(vids)
+
+
+def company_md(c):
+    """Снимок компании для чата «Стратегия» (служебная карточка EasyLife)."""
+    sp = c.get("sprint") or {}
+    cl = c.get("clients") or {}
+    t = c.get("tasks") or {}
+    def tl(rows):
+        return "\n".join(f"- [{x['id']}] {x.get('planned_for') or 'без срока'} · {x.get('owner') or '—'} · {x.get('priority') or ''} · {x['text']}" + (f"\n  итог: {x['result']}" if x.get('result') else "") for x in rows) or "- нет"
+    L = [f"# Компания на {c.get('today')} (день по Бали)", "",
+         f"## Забег: {sp.get('title', '—')} ({sp.get('start_date', '')} → {sp.get('end_date', '')})", sp.get("goals") or "", "",
+         f"## Клиенты: {cl.get('counted')} платящих проектов по правилу счёта · цель {cl.get('target')}",
+         "Активные карточки: " + ", ".join(f"{a['name']} (с {a.get('since') or '?'}, пакет {a.get('package')})" for a in cl.get("active") or []),
+         "Новые с начала забега: " + (", ".join(cl.get("newSinceSprint") or []) or "нет"),
+         "На паузе: " + (", ".join(cl.get("paused") or []) or "нет"),
+         "Продления в ближайшие 7 дней: " + ("; ".join(f"{r['client']} M{r['month']} до {r['ends']}" for r in cl.get("renewals7d") or []) or "нет"),
+         "", f"## Задачи забега: выполнено {t.get('doneTotal')} из {t.get('total')}",
+         "### Просрочено", tl(t.get("overdue") or []), "### Сегодня", tl(t.get("today") or []),
+         "### Ближайшие 7 дней", tl(t.get("next7") or []), f"(дальше ещё {t.get('later')} задач)",
+         "### Сделано за 7 дней", tl(t.get("done7") or []),
+         "", "Лиды, Zoom и продажи живут в Sales CRM — их сюда пишут люди (Катя в пятницу). Цифр, которых нет здесь и в переписке, не выдумывай."]
+    return "\n".join(L) + "\n"
 
 
 def wait_heygen_video(ws, out, mid, job):

@@ -47,10 +47,11 @@ const THREADS: { id: ChatThread; label: string; hint: string; placeholder: strin
     empty: "Вставьте текст или отправьте сценарий кнопкой «Озвучить сценарий» — ИИ подготовит заказ." },
 ];
 
-export default function ClientChatTab({ clientId, aiEnabled, draft, initialThread, isOwner, avatar, canGenerate, clientPackage }: {
+export default function ClientChatTab({ clientId, aiEnabled, draft, initialThread, isOwner, avatar, canGenerate, clientPackage, threadsOnly }: {
   clientId: number; aiEnabled: boolean; draft?: string; initialThread?: ChatThread; isOwner?: boolean;
-  avatar?: ClientAvatar | null; canGenerate?: boolean; clientPackage?: number | null }) {
-  const threads = THREADS.filter((t) => t.id !== "avatar" || !!avatar);
+  avatar?: ClientAvatar | null; canGenerate?: boolean; clientPackage?: number | null;
+  threadsOnly?: ChatThread[] }) {   // чат стратегии компании — только «Стратегия»
+  const threads = THREADS.filter((t) => (t.id !== "avatar" || !!avatar) && (!threadsOnly || threadsOnly.includes(t.id)));
   const [thread, setThread] = useState<ChatThread>(initialThread || "reels");
   useEffect(() => { if (initialThread) setThread(initialThread); }, [initialThread]);
   const T = THREADS.find((t) => t.id === thread)!;
