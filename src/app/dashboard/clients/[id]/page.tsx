@@ -412,7 +412,8 @@ export default function ClientDetailPage() {
       {ctab === "stats" && (statsView === "stats" || isMont) && <ClientStatsTab clientId={clientId} hasMetricool={!!c.metricool_blog_id} />}
       {ctab === "stats" && statsView === "planfact" && !isMont && <PlanFactTab clientId={clientId} />}
       {ctab === "chat" && <ClientChatTab clientId={clientId} aiEnabled={!!c.ai_chat} isOwner={userRole === "owner" || userRole === "admin"}
-        avatar={avatar} canGenerate={canGenerate(userRole, myTeamId, c)} clientPackage={c.package} draft={chatDraft} initialThread={chatThread} />}
+        avatar={avatar} canGenerate={canGenerate(userRole, myTeamId, c)} clientPackage={c.package} draft={chatDraft} initialThread={chatThread}
+        onAvatarChanged={setAvatar} />}
       {ctab === "plan" && <ClientPlanTab client={c} scripts={scripts}
         monthOptions={clientMonths.filter(m => m.status !== "cancelled").map(m => m.month_number).sort((a, b) => a - b)}
         canEdit={userRole !== "montager"} canEditReadyAt={userRole === "owner" || userRole === "admin"}

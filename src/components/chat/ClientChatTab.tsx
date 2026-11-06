@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase-browser";
 import { fileUrl, guessType, when } from "@/components/strategy/files";
 import { Paperclip, Send, X, Sparkles, Loader2, AlertTriangle, CheckCircle2, Download, RotateCw, UploadCloud, ArrowRightCircle, Smartphone, CornerUpLeft, ExternalLink, EyeOff, Eye, Mic, Film } from "lucide-react";
 import LookPicker from "@/components/avatar/LookPicker";
+import SyncLooksButton from "@/components/avatar/SyncLooksButton";
 import { estimate, monthStart, monthUsage, videoLimit, type AvatarGen, type ClientAvatar } from "@/lib/avatar";
 import SendToPipelineModal, { PipeAtt } from "@/components/chat/SendToPipelineModal";
 import { uploadClientFileWithProgress } from "@/lib/upload";
@@ -47,9 +48,10 @@ const THREADS: { id: ChatThread; label: string; hint: string; placeholder: strin
     empty: "Вставьте текст или отправьте сценарий кнопкой «Озвучить сценарий» — ИИ подготовит заказ." },
 ];
 
-export default function ClientChatTab({ clientId, aiEnabled, draft, initialThread, isOwner, avatar, canGenerate, clientPackage, threadsOnly }: {
+export default function ClientChatTab({ clientId, aiEnabled, draft, initialThread, isOwner, avatar, canGenerate, clientPackage, threadsOnly, onAvatarChanged }: {
   clientId: number; aiEnabled: boolean; draft?: string; initialThread?: ChatThread; isOwner?: boolean;
   avatar?: ClientAvatar | null; canGenerate?: boolean; clientPackage?: number | null;
+  onAvatarChanged?: (a: ClientAvatar) => void;   // «Обновить образы из HeyGen» — новые образы сразу в выборе
   threadsOnly?: ChatThread[] }) {   // чат стратегии компании — только «Стратегия»
   const threads = THREADS.filter((t) => (t.id !== "avatar" || !!avatar) && (!threadsOnly || threadsOnly.includes(t.id)));
   const [thread, setThread] = useState<ChatThread>(initialThread || "reels");
@@ -274,7 +276,10 @@ export default function ClientChatTab({ clientId, aiEnabled, draft, initialThrea
           <div><b>2.</b> В карточке поправьте текст, выберите <b>образ</b> в списке и нажмите <b>«Озвучить»</b> → придёт аудио, прослушайте. Не нравится — правьте текст и «Озвучить» ещё раз.</div>
           <div><b>3.</b> Под аудио выберите образ и нажмите <b>«Сделать видео»</b> → придёт видео аватара.</div>
           <div><b>4.</b> Под видео — <b>«В монтаж →»</b>: задача уйдёт в чат «Рилсы».</div>
-          <div style={{ color: "var(--t3)" }}>Образы клиента (★ — основной; список меняет Ярослав в «Настройках»):</div>
+          <div style={{ color: "var(--t3)", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <span>Образы клиента (★ — основной). Загрузили новый образ в HeyGen — нажмите, и он появится в выборе:</span>
+            {(canGenerate || isOwner) && onAvatarChanged && <SyncLooksButton clientId={clientId} onSynced={onAvatarChanged} small />}
+          </div>
           <LookPicker avatar={avatar} value={avatar.default_look_id || ""} onChange={() => {}} readOnly />
         </div>
       )}

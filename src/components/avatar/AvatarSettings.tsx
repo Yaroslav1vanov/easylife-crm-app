@@ -2,8 +2,9 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase-browser";
 import { ENGINES, videoLimit, type ClientAvatar } from "@/lib/avatar";
-import { Plus, Trash2, Check, RefreshCw, Loader2 } from "lucide-react";
+import { Plus, Trash2, Check } from "lucide-react";
 import LookPicker, { LookCard } from "./LookPicker";
+import SyncLooksButton from "./SyncLooksButton";
 
 /* «Настройки» → «Аватар HeyGen». Какой аватар закреплён за клиентом: исполнитель генерирует только
    из этих луков и этим голосом (проверка кодом на сервере). Менять привязку может только владелец,
@@ -23,15 +24,7 @@ export default function AvatarSettings({ clientId, avatar, isOwner, clientPackag
   const [err, setErr] = useState("");
   const [dict, setDict] = useState<Dict[]>([]);
   const [nw, setNw] = useState({ written: "", spoken: "" });
-  const [syncing, setSyncing] = useState(false);
   const groupLooks = avatar?.group_looks || [];
-  async function syncLooks() {
-    setSyncing(true);
-    const r = await fetch("/api/avatar/sync-looks", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ clientId }) });
-    const j = await r.json().catch(() => ({}));
-    setSyncing(false);
-    alert(r.ok ? "Задача ушла в чат «Аватар»: ИИ заберёт образы с картинками (1–3 минуты, кредиты не тратятся). Потом обновите страницу." : j.error || `ошибка ${r.status}`);
-  }
 
   async function loadDict() {
     const { data } = await supabase.from("client_avatar_dictionary").select("id, written, spoken, note").eq("client_id", clientId).order("written");
@@ -89,8 +82,7 @@ export default function AvatarSettings({ clientId, avatar, isOwner, clientPackag
         <b style={{ fontSize: 13.5 }}>🧑‍💼 Аватар HeyGen</b>
         <span style={{ fontSize: 11.5, color: "var(--t3)" }}>{avatar ? "чат «Аватар» включён" : "не привязан"}</span>
         <div style={{ flex: 1 }} />
-        {isOwner && !edit && avatar && <button className="v2-act ghost" style={{ height: 30, fontSize: 12 }} disabled={syncing} onClick={syncLooks} title="Забрать все образы группы с картинками. Только просмотр, кредиты не тратятся">
-          {syncing ? <Loader2 size={12} className="spin" /> : <RefreshCw size={12} />} Обновить образы из HeyGen</button>}
+        {!edit && avatar && <SyncLooksButton clientId={clientId} onSynced={onSaved} />}
         {isOwner && !edit && <button className="v2-act ghost" style={{ height: 30, fontSize: 12 }} onClick={startEdit}>{avatar ? "Изменить" : "Привязать аватар"}</button>}
       </div>
 
