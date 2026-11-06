@@ -72,6 +72,11 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     return await publishViaUploadPost(sb, pub, client, force);
   }
 
+  // метка Instagram «Сделано с помощью ИИ»: своя у ролика или по умолчанию клиента.
+  // Отдельным запросом — пока колонки нет в базе, публикация не должна ломаться.
+  const { data: lbl } = await sb.from("clients").select("ai_label").eq("id", pub.client_id).maybeSingle();
+  const aiLabel = typeof pub.ai_label === "boolean" ? pub.ai_label : !!lbl?.ai_label;
+
   const blogId = client?.metricool_blog_id;
   if (!blogId) return NextResponse.json({ error: "У клиента не задан бренд Metricool (карточка клиента → Настройки)" }, { status: 400 });
 
@@ -159,6 +164,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       // соавторы (Collab): пост появится и в их ленте, когда они примут приглашение
       if (network === "instagram" && !isStory && Array.isArray(pub.ig_collaborators) && pub.ig_collaborators.length)
         body.instagramData = { ...body.instagramData, collaborators: pub.ig_collaborators.slice(0, 3).map((u: string) => ({ username: u })) };
+      if (network === "instagram" && !isStory && aiLabel) body.instagramData = { ...body.instagramData, isAiGenerated: true };
       if (network === "youtube") body.youtubeData = { title: ytTitle, type: "SHORT", tags: pub.yt_tags || [], madeForKids: false, privacy: "public" };
       if (network === "tiktok") body.tiktokData = { privacyOption: "PUBLIC_TO_EVERYONE", disableComment: false, disableDuet: false, disableStitch: false, commercialContentThirdParty: false, commercialContentOwnBrand: false };
       try {

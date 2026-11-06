@@ -496,6 +496,10 @@ export default function ClientDetailPage() {
                   onClick={() => updateClientField("ai_chat", !c.ai_chat)}>{c.ai_chat ? "✓ включён" : "выключен"}</button></div>
               <div className="v2-hint">задачи из вкладки «Чат» выполняет ИИ на сервере (монтаж, сторис, правки)</div>
             </>)}
+            <div className="v2-fr"><span>Метка «Сделано с ИИ» в Instagram</span>
+              <button style={{ ...selStyle, cursor: "pointer", color: c.ai_label ? "#a8e063" : undefined }}
+                onClick={() => updateClientField("ai_label", !c.ai_label)}>{c.ai_label ? "✓ ставим" : "не ставим"}</button></div>
+            <div className="v2-hint">по умолчанию для всех рилсов и каруселей клиента; в окне публикации можно поменять для конкретного ролика</div>
             <AvatarSettings clientId={clientId} avatar={avatar} isOwner={userRole === "owner" || userRole === "admin"} clientPackage={c.package} onSaved={setAvatar} />
             {c.metricool_blog_id ? (
               <div className="v2-fr"><span>Отчёт за неделю</span>

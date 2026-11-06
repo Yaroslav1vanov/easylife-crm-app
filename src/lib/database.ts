@@ -13,6 +13,7 @@ export type Client = {
   brand_voice?: string | null; timezone?: string | null; default_post_time?: string | null;
   telegram_topic_id?: number | null;
   ai_chat?: boolean | null;      // в чате карточки отвечает ИИ-исполнитель
+  ai_label?: boolean | null;     // Instagram-метка «Сделано с помощью ИИ» по умолчанию для всех публикаций
   delivery_day?: number | null;  // день сдачи партии видео клиенту (1=Пн…7=Вс)
   weekly_quota?: number | null;  // роликов в неделю (null = авто из пакета)
   review_day?: number | null;    // день сдачи рефов/сценариев на проверку
@@ -118,6 +119,7 @@ export type Publication = {
   ig_trial?: boolean;              // пробный рилс Instagram (Trial Reel): сначала только не-подписчикам
   ig_trial_share?: boolean;        // зашёл за 72 часа — Instagram сам покажет подписчикам
   ig_collaborators?: string[] | null; // соавторы Instagram (Collab): ники, до 3
+  ai_label?: boolean | null;       // метка Instagram «Сделано с помощью ИИ»: null = как у клиента
   video_url: string | null;        // файл смонтированного ролика (R2)
   published_url?: string | null;   // ссылка на вышедший пост в соцсети
   video_thumbnail_url: string | null;

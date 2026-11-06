@@ -338,6 +338,21 @@ export default function PublicationModal({ pub, client, script, onClose, onUpdat
                   {isScheduled && <div className="v2-hint" style={{ marginTop: 4 }}>Чтобы поменять — «Переотправить».</div>}
                 </div>
               )}
+              {!isStory && channels.includes("ig") && service === "Metricool" && (() => {
+                const aiOn = typeof f.ai_label === "boolean" ? f.ai_label : !!client?.ai_label;
+                return (
+                <div style={{ marginTop: 10, padding: "9px 11px", borderRadius: 10, border: `1px solid ${aiOn ? "var(--pu)" : "var(--brd)"}`, background: aiOn ? "var(--pud)" : "transparent" }}>
+                  <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13, fontWeight: 700, cursor: locked || isScheduled ? "default" : "pointer" }}>
+                    <input type="checkbox" checked={aiOn} disabled={locked || isScheduled} onChange={e => save({ ai_label: e.target.checked })} />
+                    Пометить в Instagram «Сделано с помощью ИИ»
+                  </label>
+                  <div className="v2-hint" style={{ marginTop: 4 }}>
+                    Instagram покажет у поста метку «AI info». {typeof f.ai_label === "boolean" ? "Задано для этого ролика." : `Как у клиента (${client?.ai_label ? "ставим" : "не ставим"}) — меняется в Настройках карточки.`}
+                  </div>
+                  {isScheduled && <div className="v2-hint" style={{ marginTop: 4 }}>Чтобы поменять — «Переотправить».</div>}
+                </div>
+                );
+              })()}
               {!isStory && !isCarousel && channels.includes("ig") && service === "Metricool" && (
                 <div style={{ marginTop: 10, padding: "9px 11px", borderRadius: 10, border: `1px solid ${f.ig_trial ? "var(--pu)" : "var(--brd)"}`, background: f.ig_trial ? "var(--pud)" : "transparent" }}>
                   <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13, fontWeight: 700, cursor: locked || isScheduled ? "default" : "pointer" }}>
