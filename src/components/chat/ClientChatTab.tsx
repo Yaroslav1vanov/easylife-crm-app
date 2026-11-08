@@ -5,6 +5,7 @@ import { fileUrl, guessType, when } from "@/components/strategy/files";
 import { Paperclip, Send, X, Sparkles, Loader2, AlertTriangle, CheckCircle2, Download, RotateCw, UploadCloud, ArrowRightCircle, Smartphone, CornerUpLeft, ExternalLink, EyeOff, Eye, Mic, Film } from "lucide-react";
 import LookPicker from "@/components/avatar/LookPicker";
 import SyncLooksButton from "@/components/avatar/SyncLooksButton";
+import VoiceInput from "./VoiceInput";
 import { estimate, monthStart, monthUsage, videoLimit, type AvatarGen, type ClientAvatar } from "@/lib/avatar";
 import SendToPipelineModal, { PipeAtt } from "@/components/chat/SendToPipelineModal";
 import { uploadClientFileWithProgress } from "@/lib/upload";
@@ -369,6 +370,7 @@ export default function ClientChatTab({ clientId, aiEnabled, draft, initialThrea
             <Paperclip size={14} /> Файлы
             <input type="file" multiple disabled={sending} onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} style={{ display: "none" }} />
           </label>
+          <VoiceInput disabled={sending} onText={(t) => { setText((cur) => (cur.trim() ? `${cur.trimEnd()} ${t}` : t)); input.current?.focus(); }} />
           <span style={{ fontSize: 11, color: uploading ? "var(--cy)" : failed ? "var(--rd)" : "var(--t3)" }}>
             {uploading ? `Загружаю файлы: ${files.length - uploading - failed} из ${files.length} готово — дождитесь, потом «Отправить»`
               : failed ? "Файл не загрузился — нажмите «ещё раз» или уберите его"
