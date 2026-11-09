@@ -87,7 +87,9 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
   const scriptById = useMemo(() => Object.fromEntries(scripts.map(s => [s.id, s])) as Record<number, Script>, [scripts]);
 
   async function updatePub(id: number, patch: Partial<Publication>) {
-    await db.updatePublication(supabase, id, patch);
+    const { error } = await db.updatePublication(supabase, id, patch);
+    // раньше ошибка глоталась: галочка «Сделано с ИИ» менялась на экране, а в базу не писалась (09.11)
+    if (error) { alert(`Не сохранилось: ${error.message}`); return; }
     setPubs(arr => arr.map(p => p.id === id ? { ...p, ...patch } : p));
   }
   async function approve(id: number) {

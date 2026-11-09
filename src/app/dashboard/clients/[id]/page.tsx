@@ -146,7 +146,8 @@ export default function ClientDetailPage() {
   }
 
   async function updateClientField(field: string, value: any) {
-    await db.updateClient(supabase, clientId, { [field]: value } as any);
+    const { error } = await db.updateClient(supabase, clientId, { [field]: value } as any);
+    if (error) { alert(`Не сохранилось: ${error.message}`); return; }
     // добавили соцсеть, а фото нет — сразу подтягиваем
     if (["instagram", "tiktok", "youtube"].includes(field) && value && client && !client.avatar_url) {
       await tryAutoAvatar({ ...client, [field]: value, id: clientId }, true);
