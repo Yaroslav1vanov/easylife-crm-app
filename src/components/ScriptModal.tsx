@@ -157,7 +157,7 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
   const router = useRouter();
   const [chatBusy, setChatBusy] = useState(false);
   const [chatErr, setChatErr] = useState("");
-  // «Озвучить сценарий» — только у клиентов с привязанным аватаром HeyGen
+  // «Озвучить сценарий» — только у клиентов с привязанным аватаром HeyGen; видят и монтажёры (сценарий у них только для чтения)
   const [hasAvatar, setHasAvatar] = useState(false);
   useEffect(() => {
     createClient().from("client_avatars").select("client_id").eq("client_id", s.client_id).maybeSingle()
@@ -332,7 +332,7 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
                 {chatBusy ? <Loader2 size={13} className="spin" /> : <Sparkles size={13} />} {chatBusy ? "Отправляю…" : "Уникализировать в чате ИИ"}
               </button>
             )}
-            {!ro && hasAvatar && (
+            {hasAvatar && (
               <button onClick={() => sendToChat("avatar")} disabled={chatBusy} title="Сценарий уйдёт в «Чат · ИИ» → «Аватар»: ИИ разметит эмоции, применит словарь произношения и предложит лук. Генерация — только после кнопки «Озвучить»."
                 style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 11px", borderRadius: 8, border: "1px solid rgba(66,212,244,.45)", background: "rgba(66,212,244,.10)", color: "var(--t1)", fontSize: 11.5, fontWeight: 700, cursor: chatBusy ? "default" : "pointer" }}>
                 <Mic size={13} /> Озвучить сценарий

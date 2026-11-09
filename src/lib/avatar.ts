@@ -57,9 +57,10 @@ export function monthUsage(gens: AvatarGen[]) {
 }
 
 /** Может ли сотрудник тратить кредиты на этого клиента. */
-export function canGenerate(role: string | null | undefined, myTeamId: number | null | undefined, client: { teamlead_id?: number | null; montager_id?: number | null }) {
+export function canGenerate(role: string | null | undefined, myTeamId: number | null | undefined, client: { teamlead_id?: number | null; montager_id?: number | null; extra_montager_ids?: number[] | null }) {
   if (role === "owner" || role === "admin") return true;
-  return !!myTeamId && (client.teamlead_id === myTeamId || client.montager_id === myTeamId);
+  // второй монтажёр клиента (extra_montager_ids) — тоже свой, как в списке клиентов
+  return !!myTeamId && (client.teamlead_id === myTeamId || client.montager_id === myTeamId || (client.extra_montager_ids || []).includes(myTeamId));
 }
 
 /** Какие образы можно брать: основные клиента + все образы его группы HeyGen (чужие группы — никогда). */

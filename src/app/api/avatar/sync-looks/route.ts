@@ -18,7 +18,7 @@ export async function POST(req: Request) {
   const [{ data: prof }, { data: tm }, { data: c }, { data: av }] = await Promise.all([
     sb.from("profiles").select("role, name").eq("id", user.id).maybeSingle(),
     sb.from("team_members").select("id, name").eq("profile_id", user.id).maybeSingle(),
-    sb.from("clients").select("ai_chat, teamlead_id, montager_id").eq("id", cid).maybeSingle(),
+    sb.from("clients").select("ai_chat, teamlead_id, montager_id, extra_montager_ids").eq("id", cid).maybeSingle(),
     sb.from("client_avatars").select("heygen_group_id, looks_synced_at").eq("client_id", cid).maybeSingle(),
   ]);
   if (!c) return NextResponse.json({ error: "клиент не найден" }, { status: 404 });

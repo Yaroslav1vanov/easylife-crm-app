@@ -24,7 +24,7 @@ export async function POST(req: Request) {
   const [{ data: prof }, { data: tm }, { data: client }, av] = await Promise.all([
     sb.from("profiles").select("role, name").eq("id", user.id).maybeSingle(),
     sb.from("team_members").select("id, name").eq("profile_id", user.id).maybeSingle(),
-    sb.from("clients").select("id, package, teamlead_id, montager_id, ai_chat").eq("id", cid).maybeSingle(),
+    sb.from("clients").select("id, package, teamlead_id, montager_id, extra_montager_ids, ai_chat").eq("id", cid).maybeSingle(),
     loadAvatar(sb, cid),
   ]);
   if (!client) return bad("клиент не найден", 404);
