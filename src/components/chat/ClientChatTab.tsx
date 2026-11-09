@@ -88,11 +88,12 @@ export default function ClientChatTab({ clientId, aiEnabled, draft, initialThrea
   const threadRef = useRef(thread); threadRef.current = thread;
   async function load() {
     const asked = thread;
+    // последние 500 (не первые!): у LACCURA Medical в «Рилсах» за 500 — новые сообщения сохранялись, но не показывались (08.11)
     const { data, error } = await supabase.from("client_chat_messages").select("*")
-      .eq("client_id", clientId).eq("thread", thread).order("id", { ascending: true }).limit(500);
+      .eq("client_id", clientId).eq("thread", thread).order("id", { ascending: false }).limit(500);
     if (error) { if (/does not exist|schema cache/i.test(error.message)) setMissing(true); setLoading(false); return; }
     if (asked !== threadRef.current) return;   // пока грузили, переключились на другой чат
-    const rows = (data || []) as Msg[];
+    const rows = ((data || []) as Msg[]).reverse();
     // опрос раз в 4 с: перерисовываем только при изменениях (на телефоне перерисовка дёргала прокрутку)
     const s2 = rows.map((r) => `${r.id}:${r.ai_status || ""}:${r.hidden_at || ""}:${(r.attachments || []).length}`).join(",");
     if (s2 !== sig.current) { sig.current = s2; setMsgs(rows); }
