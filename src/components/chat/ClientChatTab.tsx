@@ -83,16 +83,22 @@ export default function ClientChatTab({ clientId, aiEnabled, draft, initialThrea
   const bottom = useRef<HTMLDivElement>(null);
   const box = useRef<HTMLDivElement>(null);   // окно переписки (прокручивается само, не вся страница)
   const lastId = useRef(0);
+  // показываем последние 100, «Показать ранние» добавляет ещё по 100 (большие чаты с видео тормозили)
+  const PAGE = 100;
+  const limitRef = useRef(PAGE);
+  const [hasMore, setHasMore] = useState(false);
+  const [olderBusy, setOlderBusy] = useState(false);
   const sig = useRef("");                     // отпечаток переписки: не перерисовываем, если ничего не изменилось
 
   const threadRef = useRef(thread); threadRef.current = thread;
   async function load() {
     const asked = thread;
-    // последние 500 (не первые!): у LACCURA Medical в «Рилсах» за 500 — новые сообщения сохранялись, но не показывались (08.11)
+    // последние сообщения (не первые!): у LACCURA Medical в «Рилсах» за 500 — новые сохранялись, но не показывались (08.11)
     const { data, error } = await supabase.from("client_chat_messages").select("*")
-      .eq("client_id", clientId).eq("thread", thread).order("id", { ascending: false }).limit(500);
+      .eq("client_id", clientId).eq("thread", thread).order("id", { ascending: false }).limit(limitRef.current);
     if (error) { if (/does not exist|schema cache/i.test(error.message)) setMissing(true); setLoading(false); return; }
     if (asked !== threadRef.current) return;   // пока грузили, переключились на другой чат
+    setHasMore((data || []).length >= limitRef.current);
     const rows = ((data || []) as Msg[]).reverse();
     // опрос раз в 4 с: перерисовываем только при изменениях (на телефоне перерисовка дёргала прокрутку)
     const s2 = rows.map((r) => `${r.id}:${r.ai_status || ""}:${r.hidden_at || ""}:${(r.attachments || []).length}`).join(",");
@@ -131,7 +137,7 @@ export default function ClientChatTab({ clientId, aiEnabled, draft, initialThrea
       }
       setMe({ id: uid, name });
     })();
-    lastId.current = 0; sig.current = ""; setLoading(true); setMsgs([]); setReplyTo(null);
+    lastId.current = 0; sig.current = ""; limitRef.current = PAGE; setHasMore(false); setLoading(true); setMsgs([]); setReplyTo(null);
     load();
     // пока вкладка открыта — подтягиваем новые сообщения; ИИ отвечает с сервера
     const t = setInterval(() => { if (document.visibilityState === "visible") load(); }, 4000);
@@ -229,6 +235,16 @@ export default function ClientChatTab({ clientId, aiEnabled, draft, initialThrea
     return () => window.removeEventListener("beforeunload", h);
   }, [uploading]);
 
+  async function loadOlder() {
+    const el = box.current; if (!el) return;
+    const fromBottom = el.scrollHeight - el.scrollTop;   // держим на месте то, что человек сейчас читает
+    setOlderBusy(true);
+    limitRef.current += PAGE;
+    await load();
+    setOlderBusy(false);
+    requestAnimationFrame(() => { if (box.current) box.current.scrollTop = box.current.scrollHeight - fromBottom; });
+  }
+
   async function send() {
     const body = text.trim();
     if (!body && !files.length) return;
@@ -304,11 +320,16 @@ export default function ClientChatTab({ clientId, aiEnabled, draft, initialThrea
       <div ref={box} className="v2-card" style={{ padding: 14, minHeight: 360, maxHeight: "62vh", overflowY: "auto", overscrollBehavior: "contain", display: "flex", flexDirection: "column", gap: 12 }}>
         {loading ? <div style={{ color: "var(--t3)", fontSize: 13 }}>Загружаю…</div>
           : !msgs.length ? <div style={{ color: "var(--t3)", fontSize: 13, margin: "auto", textAlign: "center" }}>Сообщений пока нет.<br />{aiEnabled ? T.empty : "Здесь команда ведёт работу по клиенту."}</div>
-          : msgs.map((m) => <Bubble key={m.id} m={m} mine={m.author_type === "user" && m.author_name === me.name}
+          : <>{hasMore && (
+              <button className="v2-act ghost" onClick={loadOlder} disabled={olderBusy} style={{ alignSelf: "center", height: 30, fontSize: 12 }}>
+                {olderBusy ? <Loader2 size={12} className="spin" /> : null} Показать ранние сообщения
+              </button>
+            )}
+            {msgs.map((m) => <Bubble key={m.id} m={m} mine={m.author_type === "user" && m.author_name === me.name}
               // сценарий, над которым шла работа к этому моменту чата («Уникализировать в чате ИИ»)
               onPipe={(p) => setPipe({ ...p, scriptId: [...msgs].reverse().find((x) => x.id <= m.id && x.script_id)?.script_id ?? null })}
               quoted={m.quote_id ? byId.get(m.quote_id) || null : null} onReply={startReply} onJump={jumpTo}
-              onHide={isOwner ? toggleHidden : undefined} av={avatarCtx} />)}
+              onHide={isOwner ? toggleHidden : undefined} av={avatarCtx} />)}</>}
         {working && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "var(--pu)" }}>
             <Loader2 size={14} className="spin" /> {ahead > 0
@@ -476,7 +497,7 @@ function Bubble({ m, mine, onPipe, quoted, onReply, onJump, onHide, av }: { m: M
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: m.body ? 10 : 0 }}>
             {m.attachments.map((a) => (
               <div key={a.key} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                {isVideo(a) ? <video src={fileUrl(a.key)} controls playsInline preload="metadata" style={{ width: 220, height: 391, objectFit: "contain", borderRadius: 10, background: "#000", display: "block" }} />
+                {isVideo(a) ? <LazyVideo src={fileUrl(a.key)} />
                   : isAudio(a) ? <audio src={fileUrl(a.key)} controls preload="metadata" style={{ width: 300, maxWidth: "100%", height: 54, display: "block" }} />
                   : isImage(a) ? <a href={fileUrl(a.key)} target="_blank" rel="noreferrer"><img src={fileUrl(a.key)} alt={a.name} loading="lazy" style={{ width: 160, height: 284, objectFit: "cover", borderRadius: 10, display: "block", background: "#000" }} /></a>
                   : null}
@@ -556,4 +577,20 @@ function AvatarVideoOrder({ m, a, av }: { m: Msg; a: Att; av: AvatarCtx }) {
       </button>
     </div>
   );
+}
+
+/* Видео в переписке грузится, только когда до него долистали: в больших чатах (100+ роликов)
+   браузер иначе сразу тянул всё и страница подвисала, особенно на телефоне. */
+function LazyVideo({ src }: { src: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    const el = ref.current; if (!el || show) return;
+    if (typeof IntersectionObserver === "undefined") { setShow(true); return; }
+    const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) { setShow(true); io.disconnect(); } }, { rootMargin: "600px" });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [show]);
+  const st: React.CSSProperties = { width: 220, height: 391, objectFit: "contain", borderRadius: 10, background: "#000", display: "block" };
+  return show ? <video src={src} controls playsInline preload="metadata" style={st} /> : <div ref={ref} style={st} />;
 }
