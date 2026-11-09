@@ -38,11 +38,16 @@ const bad = (error: string, status = 400) => NextResponse.json({ error }, { stat
    С этим ИИ не только монтирует, но и обсуждает сторис и стратегию, зная цифры клиента. */
 async function folder(sb: ReturnType<typeof createAdmin>, cid: number) {
   const cut = (t: any, n: number) => (t ? String(t).replace(/\s+/g, " ").trim().slice(0, n) : null);
-  const [scripts, pubs, weekly, snaps, assets, docs] = await Promise.all([
+  const since = new Date(Date.now() - 45 * 86400e3).toISOString();
+  const [scripts, pubs, stories, weekly, snaps, assets, docs] = await Promise.all([
     sb.from("scripts").select("id, month_number, order_num, hook, hook_text, body_text, cta, script_status, video_status, pub_date, published_url, video_url, ref_views, our_views, our_likes, our_comments, content_type")
       .eq("client_id", cid).order("id", { ascending: false }).limit(90),
     sb.from("publications").select("id, script_id, content_type, publish_at, pub_status, base_text, published_url")
-      .eq("client_id", cid).order("id", { ascending: false }).limit(80),
+      .eq("client_id", cid).neq("content_type", "story").order("id", { ascending: false }).limit(60),
+    // календарь сторис отдельно и целиком (45 дней назад и всё вперёд): раньше они тонули в общих 80 публикациях,
+    // а текста кадров в базе нет — ИИ смотрит картинки по ссылкам (STORIES.md на сервере)
+    sb.from("publications").select("id, publish_at, pub_status, base_text, media_urls, published_url")
+      .eq("client_id", cid).eq("content_type", "story").gte("publish_at", since).order("publish_at", { ascending: true }).limit(500),
     sb.from("client_weekly_stats").select("week_start, week_end, reels_count, views, reach, likes, comments, saves, shares, er, avg_retention, followers_end, followers_gained, top_post")
       .eq("client_id", cid).order("week_start", { ascending: false }).limit(8),
     sb.from("reel_snapshots").select("network, post_url, published_at, snapshot_date, age_days, views, reach, likes, comments, saves, shares, avg_watch_sec")
@@ -58,6 +63,7 @@ async function folder(sb: ReturnType<typeof createAdmin>, cid: number) {
   return {
     plan: (scripts.data || []).map((x: any) => ({ ...x, hook_text: cut(x.hook_text || x.hook, 200), hook: undefined, body_text: cut(x.body_text, 500), cta: cut(x.cta, 160) })),
     publications: (pubs.data || []).map((x: any) => ({ ...x, base_text: cut(x.base_text, 160) })),
+    stories: (stories.data || []).map((x: any) => ({ ...x, base_text: cut(x.base_text, 300) })),
     weekly: weekly.data || [],
     reels,
     assets: assets.data || [],

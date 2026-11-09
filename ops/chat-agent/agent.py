@@ -352,7 +352,39 @@ def write_folder(ws, job):
     for x in job.get("publications") or []:
         L.append(f"- [{(x.get('publish_at') or 'без даты')[:16].replace('T', ' ')}] {x.get('content_type')} · {PS.get(x.get('pub_status'), x.get('pub_status'))}"
                  + (f" · сценарий id {x['script_id']}" if x.get("script_id") else "") + (f" · {x['base_text']}" if x.get("base_text") else ""))
+    L += ["", "Сторис — в STORIES.md (календарь по дням, ссылки на кадры)."]
     (ws / "PLAN.md").write_text("\n".join(L) + "\n")
+
+    # --- STORIES.md: календарь сторис. Текста кадров в CRM нет — только картинки; что на кадре,
+    # ИИ один раз смотрит сам и записывает в stories_seen.json (папка клиента), дальше берёт оттуда
+    seen_f = ws / "stories_seen.json"
+    try:
+        seen = json.loads(seen_f.read_text()) if seen_f.exists() else {}
+    except Exception:
+        seen = {}
+    tzname = (job.get("client") or {}).get("timezone") or "America/New_York"
+    try:
+        from zoneinfo import ZoneInfo
+        from datetime import datetime as _dt
+        tz = ZoneInfo(tzname)
+        loc = lambda iso: _dt.fromisoformat(iso.replace("Z", "+00:00")).astimezone(tz).strftime("%Y-%m-%d %H:%M") if iso else "без даты"
+    except Exception:
+        loc = lambda iso: (iso or "без даты")[:16].replace("T", " ")
+    stories = job.get("stories") or []
+    L = [f"# Календарь сторис (из CRM, время — {tzname}, 45 дней назад и всё запланированное)", "",
+         f"Всего кадров: {len(stories)}. Один кадр = одна строка. «что на кадре» — из stories_seen.json; если пусто — открой картинку по ссылке.", ""]
+    day = None
+    for x in stories:
+        t = loc(x.get("publish_at"))
+        if t[:10] != day:
+            day = t[:10]
+            L += ["", f"## {day}"]
+        url = ((x.get("media_urls") or []) + [""])[0]
+        desc = seen.get(str(x.get("id"))) or ""
+        L.append(f"- {t[11:] or '—'} · {PS.get(x.get('pub_status'), x.get('pub_status'))} · id {x.get('id')} · {url}"
+                 + (f"\n  заметка команды: {x['base_text']}" if x.get("base_text") else "")
+                 + (f"\n  что на кадре: {desc}" if desc else ""))
+    (ws / "STORIES.md").write_text("\n".join(L) + "\n")
 
     # --- STATS.md
     L = ["# Статистика клиента (из CRM)", "", "## По неделям (свежие сверху)", ""]
