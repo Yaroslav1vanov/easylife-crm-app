@@ -21,6 +21,9 @@ const COLUMNS: { id: RefStatus; label: string; color: string }[] = [
   { id: "new", label: "Все референсы", color: "#9d6bff" },
   { id: "approved", label: "Перенести в сценарии", color: "#a8e063" },
 ];
+// Один клиент — две карточки (Ваня: Инстаграм + Тик-ток, LACCURA: Medical + MedSpa). Тот же список, что «склеивает»
+// клиентов в «Стратегии» (app_settings.strategy_client_count.merge): реф из одной карточки можно отдать в идеи другой.
+const DEFAULT_MERGE = [[14, 15], [40, 41]];
 const fmtNum = (n: number | null) => n == null ? "—" : n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(1) + "K" : String(n);
 // Битые транскрибации из объектов («[object Object]») показываем как пусто, чтобы можно было вписать заново
 const cleanTranscript = (t: string | null | undefined) => {
@@ -44,6 +47,8 @@ export default function ReferencesPage() {
   const [draggedId, setDraggedId] = useState<number | null>(null);
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
   const [tourOpen, setTourOpen] = useState(false);
+  const [merge, setMerge] = useState<number[][]>(DEFAULT_MERGE);
+  const [pick, setPick] = useState<{ refId: number; targets: number[] } | null>(null);   // «в какую карточку создать идею»
 
   useEffect(() => { load(); }, []);
   async function load() {
@@ -55,6 +60,8 @@ export default function ReferencesPage() {
     setClientId(active[0]?.id ?? cls[0]?.id ?? null);
     const { data, error } = await supabase.from("reference_videos").select("*").order("created_at", { ascending: false });
     if (error) setTableMissing(true); else setRefs((data || []) as Reference[]);
+    const { data: rule } = await supabase.from("app_settings").select("value").eq("key", "strategy_client_count").maybeSingle();
+    if (Array.isArray(rule?.value?.merge)) setMerge(rule.value.merge);
     setLoading(false);
   }
 
@@ -67,6 +74,11 @@ export default function ReferencesPage() {
     return m;
   }, [refs, clientId]);
   const openRef = openId != null ? refs.find(r => r.id === openId) || null : null;
+  // карточки того же клиента (включая текущую), только активные
+  const siblingsOf = (cid: number) => {
+    const g = merge.find(m => m.includes(cid)) || [cid];
+    return g.map(id => clientById[id]).filter((c): c is Client => !!c && c.stage === "active");
+  };
 
   async function addRef() {
     const url = urlInput.trim(); if (!url || !clientId) return;
@@ -87,26 +99,48 @@ export default function ReferencesPage() {
     if (isMontager) return; // монтажёр не меняет статусы
     setDraggedId(null); setDragOverCol(null);
     const ref = refs.find(r => r.id === id); if (!ref || ref.status === status) return;
-    if (status === "approved" && !ref.script_id) { await createScript(ref); return; }
+    if (status === "approved" && !ref.script_id) {
+      // у клиента две карточки — спрашиваем, куда создать идею (по умолчанию — в текущую)
+      if (siblingsOf(ref.client_id).length > 1) { setPick({ refId: ref.id, targets: [ref.client_id] }); return; }
+      await createScript(ref); return;
+    }
     await db.updateReference(supabase, id, { status }); patchRef(id, { status });
   }
 
   // Утверждён → создаём сценарий клиенту (активный месяц), с реф-ссылкой + транскрибацией + разбором
-  async function createScript(ref: Reference) {
-    const { data: months } = await supabase.from("client_months").select("month_number,status").eq("client_id", ref.client_id);
+  async function createScript(ref: Reference, target: number = ref.client_id, markRef = true) {
+    const { data: months } = await supabase.from("client_months").select("month_number,status").eq("client_id", target);
     const sorted = (months || []).sort((a: any, b: any) => b.month_number - a.month_number);
     const mn = (sorted.find((m: any) => m.status === "active") || sorted[0])?.month_number || 1;
     // order_num = 0 → «Идея» без номера; номер присвоится при «Взято в работу»
     const { data: sc, error } = await supabase.from("scripts").insert({
-      client_id: ref.client_id, month_number: mn, order_num: 0,
+      client_id: target, month_number: mn, order_num: 0,
       hook: "", ref_url: ref.url, ref_text: ref.transcript || "", transcription: ref.transcript || "",
       ref_views: ref.views, ref_likes: ref.likes, ref_comments: ref.comments,
       hook_text: ref.caption ? ref.caption.slice(0, 80) : "", body_text: "", cta: "",
       description: ref.analysis || "", script_status: "notStarted", video_status: "notStarted", pub_date: null, ready_at: null,
     }).select().single();
-    if (error) { alert("Не удалось создать сценарий: " + error.message); return; }
-    await db.updateReference(supabase, ref.id, { status: "approved", script_id: sc.id });
-    patchRef(ref.id, { status: "approved", script_id: sc.id });
+    if (error) { alert("Не удалось создать сценарий: " + error.message); return false; }
+    if (markRef) {
+      await db.updateReference(supabase, ref.id, { status: "approved", script_id: sc.id });
+      patchRef(ref.id, { status: "approved", script_id: sc.id });
+    }
+    return true;
+  }
+  // идеи по выбранным карточкам: реф помечаем по первой созданной
+  async function createInTargets(refId: number, targets: number[]) {
+    const ref = refs.find(r => r.id === refId); if (!ref || !targets.length) return;
+    let first = !ref.script_id;
+    for (const t of targets) { const ok = await createScript(ref, t, first); if (ok) first = false; }
+    setPick(null);
+  }
+  // уже перенесённый реф — «+ идея ещё в …» (у карточек одного клиента)
+  async function addToSibling(refId: number, target: number) {
+    const ref = refs.find(r => r.id === refId); if (!ref) return;
+    const { data: dup } = await supabase.from("scripts").select("id").eq("client_id", target).eq("ref_url", ref.url).limit(1);
+    const c = clientById[target];
+    if (dup?.length && !confirm(`В карточке «${c?.name} ${c?.surname || ""}» уже есть сценарий по этому рефу. Создать ещё одну идею?`)) return;
+    if (await createScript(ref, target, false)) alert(`Идея создана в «${c?.name} ${c?.surname || ""}» → колонка «Идея».`);
   }
 
   const refCloseModal = () => setOpenId(null);
@@ -207,15 +241,36 @@ export default function ReferencesPage() {
       )}
 
       {openRef && <RefModal ref0={openRef} client={clientById[openRef.client_id]} onClose={() => setOpenId(null)} onNote={saveNote} onTranscript={saveTranscript} onDelete={del} readOnly={isMontager}
-        onMove={(status) => { const id = openRef.id; setOpenId(null); moveTo(status, id); }} />}
+        onMove={(status) => { const id = openRef.id; setOpenId(null); moveTo(status, id); }}
+        siblings={siblingsOf(openRef.client_id).filter(c => c.id !== openRef.client_id)} onAddTo={(cid) => addToSibling(openRef.id, cid)} />}
+      {pick && (
+        <div onClick={() => setPick(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.72)", zIndex: 210, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 16, width: "100%", maxWidth: 420, padding: 20, display: "flex", flexDirection: "column", gap: 12 }}>
+            <b style={{ fontSize: 15 }}>В какую карточку создать идею?</b>
+            {siblingsOf(refs.find(r => r.id === pick.refId)?.client_id || 0).map(c => (
+              <label key={c.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10, border: `1px solid ${pick.targets.includes(c.id) ? "var(--gr)" : "var(--brd)"}`, cursor: "pointer", fontSize: 13.5, fontWeight: 700 }}>
+                <input type="checkbox" checked={pick.targets.includes(c.id)}
+                  onChange={e => setPick({ ...pick, targets: e.target.checked ? [...pick.targets, c.id] : pick.targets.filter(x => x !== c.id) })} />
+                <Avatar name={c.name} src={c.avatar_url} size={22} /> {c.name} {c.surname || ""}
+              </label>
+            ))}
+            <div style={{ fontSize: 11.5, color: "var(--t3)" }}>Отметьте обе — появится по идее в каждой карточке.</div>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button className="v2-act ghost" onClick={() => setPick(null)}>Отмена</button>
+              <button className="v2-act pri" disabled={!pick.targets.length} onClick={() => createInTargets(pick.refId, pick.targets)}>Создать идею</button>
+            </div>
+          </div>
+        </div>
+      )}
       <Tour steps={REF_TOUR} open={tourOpen} onClose={() => { setTourOpen(false); setOpenId(null); }} />
       <style>{`.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
 }
 
-function RefModal({ ref0, client, onClose, onNote, onTranscript, onDelete, onMove, readOnly = false }: {
+function RefModal({ ref0, client, onClose, onNote, onTranscript, onDelete, onMove, readOnly = false, siblings = [], onAddTo }: {
   ref0: Reference; client?: Client; onClose: () => void; onNote: (id: number, n: string) => void; onTranscript: (id: number, t: string | null) => void; onDelete: (id: number) => void; onMove: (status: RefStatus) => void; readOnly?: boolean;
+  siblings?: Client[]; onAddTo?: (clientId: number) => void;
 }) {
   const p = PLAT[ref0.platform || ""] || { label: ref0.platform || "?", Icon: FileText, color: "var(--t3)" };
   const ta: React.CSSProperties = { width: "100%", padding: "10px 12px", borderRadius: 9, background: "var(--inset2)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 13, outline: "none", resize: "vertical", fontFamily: "inherit", lineHeight: 1.5 };
@@ -280,7 +335,12 @@ function RefModal({ ref0, client, onClose, onNote, onTranscript, onDelete, onMov
         </div>
 
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 4, borderTop: "1px solid var(--brd)" }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           {ref0.script_id ? <span style={{ fontSize: 12, fontWeight: 700, color: "var(--gr)", display: "inline-flex", alignItems: "center", gap: 6 }}><CheckCircle2 size={14} /> Сценарий создан</span> : <span style={{ fontSize: 11, color: "var(--t3)" }}>{readOnly ? "" : "Перетащи в «Перенести в сценарии» → создастся сценарий"}</span>}
+          {!readOnly && ref0.script_id && onAddTo && siblings.map(c => (
+            <button key={c.id} className="v2-act ghost" style={{ height: 28, fontSize: 11.5 }} onClick={() => onAddTo(c.id)}><Plus size={12} /> идея ещё в «{c.surname || c.name}»</button>
+          ))}
+          </span>
           {!readOnly && (
           <button onClick={() => onDelete(ref0.id)} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 8, background: "transparent", border: "1px solid rgba(255,92,122,0.4)", color: "var(--rd)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}><Trash2 size={13} /> Удалить</button>
           )}
