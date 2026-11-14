@@ -16,7 +16,7 @@ const PARTS = [
   { id: "unpacking", label: "Распаковка" },
   { id: "forecast", label: "Прогноз" },
   { id: "strategy", label: "Контент-стратегия" },
-  { id: "brand", label: "Бренд" },
+  { id: "brand", label: "Бренд клиента" },
   { id: "media", label: "Медиатека" },
 ] as const;
 type Part = (typeof PARTS)[number]["id"];
