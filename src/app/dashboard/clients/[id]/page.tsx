@@ -10,6 +10,8 @@ import { WEEKDAYS_RU, weeklyQuotaOf, BATCH_BUFFER_DAYS } from "@/lib/batches";
 import ClientMonthsTimeline from "@/components/ClientMonthsTimeline";
 import ClientAttention from "@/components/ClientAttention";
 import KanbanBoard from "@/components/KanbanBoard";
+import TrialBadge from "@/components/TrialBadge";
+import { isMain, isTrial } from "@/lib/scriptType";
 import Avatar from "@/components/Avatar";
 import Sheet, { SheetOption } from "@/components/Sheet";
 import { useIsMobile } from "@/lib/useMedia";
@@ -243,13 +245,16 @@ export default function ClientDetailPage() {
   const currentMonthNum = computeCurrentMonth(clientMonths, todayIso);
   const currentM = clientMonths.find(m => m.month_number === currentMonthNum) || null;
   const currentMonthScripts = scripts.filter(s => s.month_number === currentMonthNum);
-  const pub = scripts.filter(s => s.video_status === "published").length;
+  // счёт против пакета — только основные ролики; пробные (тест сверх пакета) — отдельной цифрой
+  const pub = scripts.filter(s => isMain(s) && s.video_status === "published").length;
+  const trialPubAll = scripts.filter(s => isTrial(s) && s.video_status === "published").length;
+  const trialAll = scripts.filter(isTrial).length;
   const ready = scripts.filter(s => s.video_status === "ready").length;
   const editVids = scripts.filter(s => s.video_status === "inProgress" && s.script_status === "approved").length;
-  const scrApp = scripts.filter(s => s.script_status === "approved").length;
+  const scrApp = scripts.filter(s => isMain(s) && s.script_status === "approved").length;
   // Total scripts across all contract months for this client (replaces c.package as the
   // denominator for cards/progress, so a 2-month client shows 53/60 not 53/30).
-  const totalScripts = scripts.length;
+  const totalScripts = scripts.filter(isMain).length;
   // Знаменатель по ПАКЕТУ (сумма пакетов всех контрактных месяцев), а не по числу карточек.
   const contractPlan = clientMonths.reduce((s, m) => s + (m.package || 0), 0) || totalScripts;
   const viewMonthPkg = clientMonths.find(m => m.month_number === viewMonth)?.package || 0;
@@ -313,9 +318,9 @@ export default function ClientDetailPage() {
   const reviewVids = scripts.filter(s => s.video_status === "review").length;
 
   const tabs = [
-    { id: "scripts", label: `Сценарии (${scrApp}/${contractPlan})` },
+    { id: "scripts", label: `Сценарии (${scrApp}/${contractPlan}${trialAll ? ` · +${trialAll} пробн.` : ""})` },
     { id: "montage", label: `Монтаж (${inMontage + reviewVids + ready})` },
-    { id: "published", label: `Опубликовано (${pub}/${contractPlan})` },
+    { id: "published", label: `Опубликовано (${pub}/${contractPlan}${trialPubAll ? ` · +${trialPubAll} пробн.` : ""})` },
   ];
 
   const teamlead = team.find(t => t.id === c.teamlead_id);
@@ -327,7 +332,8 @@ export default function ClientDetailPage() {
     writing: curScr.filter(s => s.script_status === "inProgress" || s.script_status === "review").length,
     montage: curScr.filter(s => s.script_status === "approved" && ["inProgress", "review"].includes(s.video_status)).length,
     ready: curScr.filter(s => s.video_status === "ready").length,
-    published: curScr.filter(s => s.video_status === "published").length,
+    published: curScr.filter(s => isMain(s) && s.video_status === "published").length,   // против пакета — только основные
+    trialPub: curScr.filter(s => isTrial(s) && s.video_status === "published").length,
   };
   const monthDaysLeft = currentM ? Math.round((new Date(`${currentM.end_date}T00:00:00`).getTime() - new Date(`${todayIso}T00:00:00`).getTime()) / 86400000) : null;
   const selStyle: React.CSSProperties = { padding: "7px 10px", borderRadius: 8, background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 13, outline: "none", cursor: "pointer", maxWidth: "100%" };
@@ -558,7 +564,7 @@ export default function ClientDetailPage() {
         <div><b style={{ color: "var(--pu)" }}>{pipe.writing}</b><span>пишутся</span></div>
         <div><b style={{ color: "var(--or)" }}>{pipe.montage}</b><span>монтаж</span></div>
         <div><b style={{ color: "var(--cy)" }}>{pipe.ready}</b><span>готов</span></div>
-        <div><b style={{ color: "var(--gr)" }}>{pipe.published}</b><span>вышло</span></div>
+        <div><b style={{ color: "var(--gr)" }}>{pipe.published}</b><span>вышло{pipe.trialPub > 0 && <em style={{ color: "var(--or)", fontStyle: "normal" }}> · +{pipe.trialPub} пробн.</em>}</span></div>
       </div>
       {/* Онбординг — пока не закрыт, это главная работа по клиенту: держим на виду */}
       {onbProgress && onbProgress.pending_tasks > 0 && (
@@ -587,7 +593,7 @@ export default function ClientDetailPage() {
       {currentM && (
         <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
           <button className="v2-act pri" onClick={() => router.push(`/dashboard/plan?client=${clientId}&m=${currentM.month_number}`)}>📅 Контент-план M{currentM.month_number} →</button>
-          <span className="v2-chip mut" style={{ height: 36 }}>{pipe.published} / {currentM.package} за месяц · {monthDaysLeft != null && monthDaysLeft >= 0 ? `осталось ${monthDaysLeft} дн.` : `просрочка ${-(monthDaysLeft || 0)} дн.`}</span>
+          <span className="v2-chip mut" style={{ height: 36 }}>{pipe.published} / {currentM.package} за месяц{pipe.trialPub > 0 ? ` · +${pipe.trialPub} пробных` : ""} · {monthDaysLeft != null && monthDaysLeft >= 0 ? `осталось ${monthDaysLeft} дн.` : `просрочка ${-(monthDaysLeft || 0)} дн.`}</span>
         </div>
       )}
 
@@ -678,8 +684,9 @@ export default function ClientDetailPage() {
           columns={SCRIPT_COLUMNS}
           onUpdate={async (id, patch) => {
             // Кап: согласованных не больше пакета месяца (идей — сколько угодно).
-            if (patch.script_status === "approved") {
-              const approvedNow = monthScripts.filter(s => s.script_status === "approved" && s.id !== id).length;
+            // Пробные (тест сверх пакета) в кап не входят и сами им не ограничены.
+            if (patch.script_status === "approved" && !monthScripts.find(s => s.id === id)?.is_trial) {
+              const approvedNow = monthScripts.filter(s => isMain(s) && s.script_status === "approved" && s.id !== id).length;
               if (viewMonthPkg && approvedNow >= viewMonthPkg) {
                 alert(`Согласовано уже ${approvedNow} из пакета ${viewMonthPkg}. Пакет укомплектован — увеличь пакет месяца или согласуй этот ролик в следующем M.`);
                 return;
@@ -714,8 +721,9 @@ export default function ClientDetailPage() {
           <div>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
               <div style={{ fontSize: 13, fontWeight: 800, color: "var(--t1)" }}>
-                Опубликовано за Месяц {viewMonth}: <span style={{ color: "var(--gr)", fontFamily: "'Unbounded', sans-serif" }}>{pubList.length}</span>
+                Опубликовано за Месяц {viewMonth}: <span style={{ color: "var(--gr)", fontFamily: "'Unbounded', sans-serif" }}>{pubList.filter(isMain).length}</span>
                 {viewMonthPkg ? <span style={{ color: "var(--t3)", fontWeight: 600 }}> из {viewMonthPkg}</span> : null} видео
+                {pubList.some(isTrial) && <span title="Пробные ролики — тест сверх пакета" style={{ color: "var(--or)", fontWeight: 700 }}> · +{pubList.filter(isTrial).length} пробных</span>}
               </div>
               <span style={{ fontSize: 10, color: "var(--t3)" }}>по дате публикации ↑</span>
             </div>
@@ -731,7 +739,7 @@ export default function ClientDetailPage() {
                     <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 11, background: "var(--inset2)", border: "1px solid var(--track)" }}>
                       <div style={{ flexShrink: 0, width: 34, height: 34, borderRadius: 9, background: "rgba(168,224,99,0.14)", border: "1px solid rgba(168,224,99,0.35)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Unbounded', sans-serif", fontSize: 13, fontWeight: 800, color: "var(--gr)" }}>{i + 1}</div>
                       <div style={{ flexShrink: 0, width: 74, fontSize: 11, fontWeight: 700, color: "var(--t2)" }}>{s.pub_date ? fmtDateShort(s.pub_date) : "без даты"}</div>
-                      <div style={{ flex: 1, minWidth: 0, fontSize: 12, color: "var(--t1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.hook_text || s.hook || `Сценарий #${s.order_num || "—"}`}</div>
+                      <div style={{ flex: 1, minWidth: 0, fontSize: 12, color: "var(--t1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.is_trial && <><TrialBadge /> </>}{s.hook_text || s.hook || `Сценарий #${s.order_num || "—"}`}</div>
                       {vurl
                         ? <a href={vurl} target="_blank" rel="noopener noreferrer" style={{ flexShrink: 0, fontSize: 11, fontWeight: 700, color: "var(--gr)", textDecoration: "none", padding: "5px 10px", borderRadius: 8, background: "rgba(168,224,99,0.1)", border: "1px solid rgba(168,224,99,0.3)" }}>▶ видео</a>
                         : <span style={{ flexShrink: 0, fontSize: 10, color: "var(--t3)", fontStyle: "italic" }}>нет ссылки</span>}

@@ -4,6 +4,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
 import db, { Client, ClientMonth, Script, TeamMember, CalendarTarget } from "@/lib/database";
 import ClientPicker from "@/components/ClientPicker";
+import TrialBadge from "@/components/TrialBadge";
+import { isMain, isTrial } from "@/lib/scriptType";
 import Sheet, { SheetOption } from "@/components/Sheet";
 import ScriptModal, { fmtDateShort, addDaysIso, SCRIPT_LEAD, VIDEO_LEAD } from "@/components/ScriptModal";
 import { spreadDates } from "@/components/PublicationScheduler";
@@ -106,7 +108,10 @@ function PlanInner() {
   const withDate = mScripts.filter(s => s.pub_date);
   const noDate = mScripts.filter(s => !s.pub_date).sort((a, b) => (a.order_num || 999) - (b.order_num || 999) || a.id - b.id);
   const byDate = useMemo(() => { const m: Record<string, Script[]> = {}; for (const s of withDate) (m[s.pub_date!] ||= []).push(s); return m; }, [withDate]);
-  const published = mScripts.filter(s => s.video_status === "published").length;
+  // пакет считаем только по основным роликам; пробные (тест сверх пакета) — отдельной цифрой
+  const published = mScripts.filter(s => isMain(s) && s.video_status === "published").length;
+  const trialAll = mScripts.filter(isTrial).length;
+  const trialPub = mScripts.filter(s => isTrial(s) && s.video_status === "published").length;
   const inMontage = mScripts.filter(s => s.script_status === "approved" && s.video_status === "inProgress").length;
   const plan = month?.package || 0;
   const pct = plan ? Math.min(100, Math.round(published / plan * 100)) : 0;
@@ -127,7 +132,7 @@ function PlanInner() {
   const calRows = useMemo(() => {
     if (!month) return [] as { ym: string; pub: number; target: number | null }[];
     const yms = Array.from(new Set(days.map(d => d.slice(0, 7))));
-    return yms.map(ym => ({ ym, pub: withDate.filter(s => s.video_status === "published" && s.pub_date!.startsWith(ym)).length, target: targets.find(t => t.client_id === clientId && t.ym === ym)?.target ?? null }));
+    return yms.map(ym => ({ ym, pub: withDate.filter(s => isMain(s) && s.video_status === "published" && s.pub_date!.startsWith(ym)).length, target: targets.find(t => t.client_id === clientId && t.ym === ym)?.target ?? null }));
   }, [month, days, withDate, targets, clientId]);
 
   function flash(m: string) { setToast(m); setTimeout(() => setToast(null), 1800); }
@@ -154,9 +159,11 @@ function PlanInner() {
     if (!n || n < 1) { alert("Сколько роликов расставить?"); return; }
     const dates = spreadDates(month.start_date, month.end_date, n, distWd);
     if (!dates.length) { alert("В выбранные дни недели не попал ни один день месяца"); return; }
-    if (withDate.length && !confirm(`Расставить ${dates.length} дат заново? Даты у ${withDate.length} роликов будут перезаписаны.`)) return;
+    // расставляем только основные ролики (пакет); у пробных даты не трогаем
+    const mainWithDate = withDate.filter(isMain);
+    if (mainWithDate.length && !confirm(`Расставить ${dates.length} дат заново? Даты у ${mainWithDate.length} роликов будут перезаписаны.`)) return;
     setBusy(true);
-    const ordered = [...mScripts].sort((a, b) => (a.order_num || 999) - (b.order_num || 999) || a.id - b.id);
+    const ordered = mScripts.filter(isMain).sort((a, b) => (a.order_num || 999) - (b.order_num || 999) || a.id - b.id);
     for (let i = 0; i < dates.length; i++) {
       const s = ordered[i];
       if (s) { if (s.pub_date !== dates[i]) await db.updateScript(supabase, s.id, { pub_date: dates[i] }); }
@@ -178,6 +185,7 @@ function PlanInner() {
         style={{ opacity: dragId === s.id ? 0.4 : 1 }}>
         <i className="v2-dot" style={{ background: ST_COLOR[st] }} />
         <span className="tx" style={compact ? { WebkitLineClamp: 2 } : undefined}>{titleOf(s)}</span>
+        {s.is_trial && <TrialBadge />}
         {s.order_num ? <span className="n">#{s.order_num}</span> : null}
       </button>
     );
@@ -201,7 +209,7 @@ function PlanInner() {
           <h1>Контент-план</h1>
           <p>{client.name} {client.surname || ""}{month ? ` · M${month.month_number} · ${fmtDateShort(month.start_date)} → ${fmtDateShort(month.end_date)}` : " · нет контрактного месяца"}</p>
         </div>
-        {canEdit && month && <button className="v2-act pri" onClick={() => { setDistCount(String(plan || mScripts.length || 20)); setDistOpen(true); }}><Wand2 size={14} /> Распределить по месяцу</button>}
+        {canEdit && month && <button className="v2-act pri" onClick={() => { setDistCount(String(plan || mScripts.filter(isMain).length || 20)); setDistOpen(true); }}><Wand2 size={14} /> Распределить по месяцу</button>}
       </div>
 
       <ClientPicker clients={clientList} value={client.id} onChange={(id) => { setClientId(id); setMNum(null); }} />
@@ -222,7 +230,7 @@ function PlanInner() {
             <span className={`v2-chip ${published >= plan && plan ? "gr" : daysLeft < 0 ? "rd" : "pu"}`}>{published >= plan && plan ? "выполнен" : `${pct}%`}</span>
           </div>
           <div className="v2-prog"><i style={{ width: `${pct}%` }} /></div>
-          <div className="v2-kv"><span><b>{published}</b> / {plan} опубликовано</span>
+          <div className="v2-kv"><span><b>{published}</b> / {plan} опубликовано{trialAll > 0 && <span title={`Пробные ролики — тест сверх пакета: всего ${trialAll}, опубликовано ${trialPub}`} style={{ color: "var(--or)" }}> · +{trialPub} {trialPub === 1 ? "пробный" : "пробных"}{trialAll > trialPub ? ` (в плане ${trialAll})` : ""}</span>}</span>
             {calRows.map(r => <span key={r.ym}>{ymLabel(r.ym).split(" ")[0]} <b>{r.pub}</b>{r.target != null ? ` / ${r.target}` : ""}</span>)}</div>
           <div className="v2-split">
             <div>Без даты<b>{noDate.length} <em>роликов</em></b></div>

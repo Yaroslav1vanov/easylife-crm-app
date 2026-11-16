@@ -50,6 +50,9 @@ export type Script = {
   our_views?: number | null; our_likes?: number | null; our_comments?: number | null; our_stats_at?: string | null;
   autolink_off?: boolean | null; autolink_prev_status?: string | null;   // ссылку на вышедший ролик правили руками / статус до автопривязки
   our_retention_pct?: number | null; our_skip_rate?: number | null;   // удержание нашего ролика (аналитика): досмотр %, пролистали в первые секунды %
+  // Тип ролика: false/null = основной (в счёт пакета, в ЗП), true = пробный (тест сверх пакета, не оплачивается).
+  // НЕ путать с publications.ig_trial — это режим публикации в Instagram, а не тип ролика.
+  is_trial?: boolean | null;
 };
 export type ChecklistTask = {
   id: number; client_id: number; phase: string; task_name: string; task_order: number;
@@ -273,7 +276,7 @@ const db = {
    *  Для мест, где нужны только статусы и даты: уведомления, счётчики. В 5–6 раз легче полной выборки. */
   async getScriptsLite(sb: SupabaseClient, clientIds: number[]) {
     if (clientIds.length === 0) return [] as Script[];
-    const cols = "id, client_id, month_number, order_num, hook, hook_text, script_status, video_status, pub_date, ready_at, stopcheck, stopcheck_at";
+    const cols = "id, client_id, month_number, order_num, hook, hook_text, script_status, video_status, pub_date, ready_at, stopcheck, stopcheck_at, is_trial";
     const all: Script[] = [];
     for (let from = 0; ; from += 1000) {
       const { data, error } = await sb.from("scripts").select(cols).in("client_id", clientIds)
@@ -564,6 +567,8 @@ const db = {
       target_channels: client?.platforms ?? [],
       base_text: script.post_caption || script.body_text || null,
       pub_status: "adapting" as PubStatus,
+      // пробный ролик по умолчанию выкладываем пробным рилсом IG (только в эту сторону; галку можно снять)
+      ...(script.is_trial ? { ig_trial: true } : {}),
     };
     const { error } = await sb.from("publications").upsert(row, { onConflict: "script_id", ignoreDuplicates: true });
     return { error };

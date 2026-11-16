@@ -11,6 +11,8 @@ type Args = {
   raw: { posts: any[]; reels: any[] };
   monthLabel: string; ym: string;
   narrative: { worked: string[]; plan: string[] };
+  /** Счёт по пакету из CRM: основные ролики (в счёт пакета) и пробные (тест сверх пакета, дополнительно). */
+  pkg?: { main: number; trial: number; package: number | null; period: { from: string; to: string } | null } | null;
 };
 
 const esc = (s: any) => String(s ?? "").replace(/[&<>"]/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[m] as string));
@@ -68,6 +70,9 @@ export function buildReportHtml(a: Args): string {
   const medals = ["🥇", "🥈", "🥉"];
   const handle = (c.instagram || "").replace(/^https?:\/\/(www\.)?instagram\.com\//i, "").replace(/\/$/, "").replace(/^@?/, "@") || "";
   const fullName = [c.name, c.surname].filter(Boolean).join(" ");
+  const pk = a.pkg || null;
+  const dm = (d: string) => `${d.slice(8, 10)}.${d.slice(5, 7)}`;
+  const pkPeriod = pk?.period ? ` (${dm(pk.period.from)}–${dm(pk.period.to)})` : "";
   const hasFollowers = cur.followers_end != null;
 
   const kpiFollowers = hasFollowers ? `
@@ -198,7 +203,7 @@ footer{border-top:1px solid var(--line);padding:34px 0;text-align:center;color:v
     <div class="ba">
       <div class="ba-card before"><h4>Прошлый месяц</h4><ul><li>${prev?.reels_count ?? "—"} Reels</li><li>охват ${compact(prev?.reach)}</li><li>ER ${pct(prev?.engagement_rate)}</li></ul></div>
       <div class="ba-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
-      <div class="ba-card after"><h4>${esc(monthLabel)} с EasyLife</h4><ul><li><b>${reels} Reels</b> за месяц</li><li>охват <b>${compact(reach)}</b> · <b>${compact(views)}</b> просмотров</li><li>вовлечённость <b>${pct(er)}</b></li>${tops[0] ? `<li>топ-ролик собрал <b>${compact(tops[0].reach)}</b> охвата</li>` : ""}</ul></div>
+      <div class="ba-card after"><h4>${esc(monthLabel)} с EasyLife</h4><ul><li><b>${reels} Reels</b> за месяц</li><li>охват <b>${compact(reach)}</b> · <b>${compact(views)}</b> просмотров</li><li>вовлечённость <b>${pct(er)}</b></li>${pk ? `<li>основные ролики: <b>${pk.main}${pk.package ? ` из ${pk.package}` : ""}</b>${pk.trial ? ` · пробные (дополнительно): <b>${pk.trial}</b>` : ""}</li>` : ""}${tops[0] ? `<li>топ-ролик собрал <b>${compact(tops[0].reach)}</b> охвата</li>` : ""}</ul></div>
     </div>
   </div>
 </div></div></section>
@@ -212,6 +217,8 @@ ${weeks.map(w => `<div class="bar"><span class="top">${compact(w.reach)}</span><
 <section style="padding:20px 0"><div class="wrap"><div class="cols">
   <div class="panel"><h3>Объём</h3>
     <div class="rowline"><span>Reels (видео)</span><span>${reels}</span></div>
+    ${pk ? `<div class="rowline"><span>Основные ролики по пакету${esc(pkPeriod)}</span><span>${pk.main}${pk.package ? ` из ${pk.package}` : ""}</span></div>` : ""}
+    ${pk && pk.trial ? `<div class="rowline"><span>Пробные ролики (дополнительно, тест сверх пакета)</span><span>+${pk.trial}</span></div>` : ""}
     <div class="rowline"><span>Средний охват на Reels</span><span>${ru(avgReach)}</span></div>
     <div class="rowline"><span>Суммарные просмотры</span><span>${compact(views)}</span></div>
     <div class="rowline"><span>Всего единиц контента</span><span>${cur.content_units ?? all.length}</span></div>

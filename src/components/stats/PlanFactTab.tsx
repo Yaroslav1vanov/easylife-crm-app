@@ -26,7 +26,8 @@ type Data = {
   months: { month_number: number; start_date: string; end_date: string }[]; month: { month_number: number; start_date: string; end_date: string };
   today: string; plan: { metrics: Plan; source: string; updated_by: string | null; updated_at: string } | null; weeks: Week[];
   daily: Record<string, number>; viewsNote: string; followers: Record<string, number>; reels: Record<string, number>;
-  monthReels: { date: string; net: string; url: string | null; title: string; views: number }[]; reelsSource: string;
+  monthReels: { date: string; net: string; url: string | null; title: string; views: number; trial?: boolean }[]; reelsSource: string;
+  trialReels?: number;   // пробные ролики (тест сверх пакета) — в факт «Роликов» не входят
   forecast: { version: number; status: string | null; months: any[] } | null;
 };
 
@@ -225,7 +226,7 @@ export default function PlanFactTab({ clientId }: { clientId: number }) {
                 {plan ? (p != null ? `${Math.round(p * 100)}% от плана на сегодня` : m.auto ? "нет данных" : "не внесено") : "плана нет"}
               </div>
               {plan && pace != null && <div style={{ fontSize: 11, color: "var(--t3)", marginTop: 2 }}>темп к концу месяца: {fmt(pace)}</div>}
-              <div style={{ fontSize: 10.5, color: "var(--t3)", marginTop: 4 }}>{m.auto ? "авто · " : "вносит тимлид · "}{m.hint}{m.k === "reels" ? ` · по ${d.reelsSource}` : ""}</div>
+              <div style={{ fontSize: 10.5, color: "var(--t3)", marginTop: 4 }}>{m.auto ? "авто · " : "вносит тимлид · "}{m.hint}{m.k === "reels" ? ` · по ${d.reelsSource}` : ""}{m.k === "reels" && d.trialReels ? <span style={{ color: "var(--or)" }}> · +{d.trialReels} пробных сверх пакета (не в счёт)</span> : null}</div>
             </div>
           );
         })}

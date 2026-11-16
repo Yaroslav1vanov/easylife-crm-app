@@ -50,11 +50,35 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   const raw = { posts: rawRes?.posts || [], reels: rawRes?.reels || [] };
   if (!cur) return new Response(htmlError("Metricool не вернул данные за этот месяц. Проверь, что бренд привязан и период корректен."), { status: 502, headers: htmlHeaders() });
 
-  // AI-черновик выводов (с фолбэком на цифры)
-  const narrative = await aiNarrative(c, cur, prev, b.label);
+  // Основные (в счёт пакета) и пробные (тест сверх пакета) ролики — из CRM, отдельно: клиент видит дополнительную работу
+  const pkg = await packageSplit(sb, id, c.package, b.from, b.to);
 
-  const html = buildReportHtml({ client: c, cur, prev, raw, monthLabel: b.label, ym, narrative });
+  // AI-черновик выводов (с фолбэком на цифры)
+  const narrative = await aiNarrative(c, cur, prev, b.label, pkg);
+
+  const html = buildReportHtml({ client: c, cur, prev, raw, monthLabel: b.label, ym, narrative, pkg });
   return new Response(html, { headers: htmlHeaders() });
+}
+
+/** Счёт по пакету за контрактный месяц, который больше всего пересекается с календарным:
+ *  основные ролики (в счёт пакета) и пробные (тест сверх пакета). Без контрактного месяца — по датам календарного. */
+async function packageSplit(sb: ReturnType<typeof createClient>, cid: number, clientPkg: number | null, from: string, to: string) {
+  try {
+    const { data: months } = await sb.from("client_months").select("month_number, start_date, end_date, package, status")
+      .eq("client_id", cid).neq("status", "cancelled").lte("start_date", to).gte("end_date", from);
+    const overlap = (m: any) => Math.min(Date.parse(m.end_date), Date.parse(to)) - Math.max(Date.parse(m.start_date), Date.parse(from));
+    const cm = (months || []).sort((x: any, y: any) => overlap(y) - overlap(x))[0] || null;
+    let q = sb.from("scripts").select("is_trial").eq("client_id", cid).eq("video_status", "published");
+    q = cm ? q.eq("month_number", cm.month_number) : q.gte("pub_date", from).lte("pub_date", to);
+    const { data: scr } = await q;
+    const list = (scr || []) as { is_trial: boolean | null }[];
+    return {
+      main: list.filter(s => !s.is_trial).length,
+      trial: list.filter(s => !!s.is_trial).length,
+      package: (cm?.package || clientPkg || null) as number | null,
+      period: cm ? { from: cm.start_date as string, to: cm.end_date as string } : null,
+    };
+  } catch { return null; }
 }
 
 function htmlHeaders() { return { "content-type": "text/html; charset=utf-8" }; }
@@ -62,7 +86,7 @@ function htmlError(msg: string) {
   return `<!doctype html><meta charset="utf-8"><body style="background:#070526;color:#f3f2ff;font-family:system-ui;display:flex;align-items:center;justify-content:center;height:100vh;text-align:center;padding:40px"><div><h2 style="color:#b6f500">Отчёт не собран</h2><p style="color:#7a78a3;margin-top:12px">${msg}</p></div></body>`;
 }
 
-async function aiNarrative(c: any, cur: any, prev: any, monthLabel: string): Promise<{ worked: string[]; plan: string[] }> {
+async function aiNarrative(c: any, cur: any, prev: any, monthLabel: string, pkg: Awaited<ReturnType<typeof packageSplit>>): Promise<{ worked: string[]; plan: string[] }> {
   const fallback = {
     worked: [
       cur.reels_count ? `Выпущено ${cur.reels_count} Reels за месяц${prev?.reels_count ? ` (было ${prev.reels_count})` : ""}` : "Системный поток контента на AI-аватаре",
@@ -83,7 +107,8 @@ Reels: ${cur.reels_count ?? "—"}${prev?.reels_count != null ? ` (прошлы�
 Показы: ${cur.impressions ?? "—"}
 Взаимодействия: ${cur.interactions ?? "—"}
 ER: ${cur.engagement_rate ?? "—"}%${prev?.engagement_rate != null ? ` (прошлый ${prev.engagement_rate}%)` : ""}
-Подписчики: ${cur.followers_end ?? "—"}${cur.followers_delta != null ? ` (изм. ${cur.followers_delta >= 0 ? "+" : ""}${cur.followers_delta})` : ""}`;
+Подписчики: ${cur.followers_end ?? "—"}${cur.followers_delta != null ? ` (изм. ${cur.followers_delta >= 0 ? "+" : ""}${cur.followers_delta})` : ""}${pkg ? `
+Основные ролики по пакету: ${pkg.main}${pkg.package ? ` из ${pkg.package}` : ""}${pkg.trial ? `; пробные (дополнительно, тест сверх пакета): ${pkg.trial}` : ""}` : ""}`;
   const sys = `Ты — аккаунт-менеджер агентства EasyLife AI (контент без съёмок на AI-аватаре). Пишешь короткие деловые формулировки для месячного отчёта клиенту: без воды, конкретика с цифрами, уверенно, на «вы» опускаем — просто факты. Верни ТОЛЬКО валидный JSON.`;
   const user = `Цифры за месяц:\n${facts}\n\nВерни JSON:\n{"worked":["3 пункта «что сработало» с цифрами"],"plan":["3 пункта плана на следующий месяц"]}`;
   try {

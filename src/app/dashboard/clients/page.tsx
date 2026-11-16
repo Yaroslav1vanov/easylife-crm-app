@@ -5,10 +5,11 @@ import { createClient } from "@/lib/supabase-browser";
 import { myClients } from "@/lib/scope";
 import { useRole } from "@/components/RoleContext";
 import db, { Client, ClientMonth, Script, SocialSnapshot, TeamMember, OnboardingProgress } from "@/lib/database";
+import { isMain, isTrial } from "@/lib/scriptType";
 import Tour, { TourButton, type TourStep } from "@/components/Tour";
 
 type Platform = "ig" | "tt" | "yt";
-type ClientProduction = { pub: number; ready: number; scr: number; total: number; month: ClientMonth | null };
+type ClientProduction = { pub: number; ready: number; scr: number; total: number; trialPub: number; month: ClientMonth | null };
 
 const platformMeta: Record<Platform, { short: string; label: string; color: string }> = {
   ig: { short: "IG", label: "Instagram", color: "#e1306c" },
@@ -191,7 +192,7 @@ function ClientCard({
       )}
 
       <div className="client-v2-production">
-        <div><b><em>{production.pub}</em>/{plan}</b><span>вышло</span></div>
+        <div><b><em>{production.pub}</em>/{plan}</b><span>вышло{production.trialPub > 0 && <span style={{ color: "var(--or)" }}> · +{production.trialPub} пробн.</span>}</span></div>
         <div><b><strong>{production.scr}</strong>/{plan}</b><span>сценарии</span></div>
         <div><b>{production.month?.package || client.package}</b><span>пакет</span></div>
       </div>
@@ -362,7 +363,9 @@ export default function ClientsPage() {
       || months.find((m) => m.status === "onboarding")
       || months.sort((a, b) => b.month_number - a.month_number)[0]
       || null;
-    const rows = scripts.filter((script) => script.client_id === clientId && (!month || script.month_number === month.month_number));
+    const monthRows = scripts.filter((script) => script.client_id === clientId && (!month || script.month_number === month.month_number));
+    // против пакета — только основные ролики; пробные (тест сверх пакета) — отдельной цифрой
+    const rows = monthRows.filter(isMain);
     // Считаем РЕАЛЬНУЮ работу, а не висячие идеи:
     // сценарии = взяты в работу и дальше; ролики = взяты в монтаж и дальше.
     const inWork = ["inProgress", "review", "approved"];
@@ -372,6 +375,7 @@ export default function ClientsPage() {
       ready: rows.filter((script) => inMontage.includes(script.video_status)).length,
       scr: rows.filter((script) => inWork.includes(script.script_status)).length,
       total: rows.length,
+      trialPub: monthRows.filter((script) => isTrial(script) && script.video_status === "published").length,
       month,
     };
   }

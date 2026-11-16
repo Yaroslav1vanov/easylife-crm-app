@@ -119,6 +119,15 @@ export default function PayrollPage() {
             </div>
           )}
 
+          {/* ПРОБНЫЕ РОЛИКИ — тест сверх пакета, в ЗП не идут (справка) */}
+          {data.trial && (data.trial.done > 0 || data.trial.published > 0) && (
+            <div title={data.trial.byClient.map(t => `${t.clientName}: смонтировано ${t.done}, опубликовано ${t.published}`).join("\n")}
+              style={{ padding: "10px 16px", borderRadius: 12, background: "var(--ord)", border: "1px solid var(--brd)", fontSize: 12, color: "var(--t2)", marginBottom: 16, lineHeight: 1.6 }}>
+              <b style={{ color: "var(--or)" }}>Пробные ролики не оплачиваются:</b> смонтировано {data.trial.done}, опубликовано {data.trial.published} в этом месяце
+              <span style={{ color: "var(--t3)" }}> · {data.trial.byClient.slice(0, 6).map(t => `${t.clientName} ${t.done}/${t.published}`).join(", ")}{data.trial.byClient.length > 6 ? "…" : ""}</span>
+            </div>
+          )}
+
           {/* ПРОБЛЕМЫ ДАННЫХ */}
           <div data-tour="pr-issues" style={{ marginBottom: 16 }}>
             {data.issues.length === 0 ? (

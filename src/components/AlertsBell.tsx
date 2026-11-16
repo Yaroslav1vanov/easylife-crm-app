@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
 import db, { Client, Script, ClientMonth, TeamMember } from "@/lib/database";
+import { isMain } from "@/lib/scriptType";
 import { myClients } from "@/lib/scope";
 import { SCRIPT_LEAD, VIDEO_LEAD } from "@/components/ScriptModal";
 import { Bell } from "lucide-react";
@@ -118,7 +119,8 @@ export default function AlertsBell({ role, align = "right" }: { role: string; al
       if (m.status !== "active" && m.status !== "onboarding") continue;
       const left = daysBetween(today, m.end_date);
       if (left > 5) continue;
-      const pub = scripts.filter(s => s.client_id === m.client_id && s.month_number === m.month_number && s.video_status === "published").length;
+      // пакет — только основные ролики (пробные — тест сверх пакета)
+      const pub = scripts.filter(s => s.client_id === m.client_id && s.month_number === m.month_number && isMain(s) && s.video_status === "published").length;
       const pkg = m.package || 0;
       if (pkg && pub >= pkg) continue;
       out.push({

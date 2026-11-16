@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Client, Script, stopHash } from "@/lib/database";
 import Avatar from "@/components/Avatar";
+import TrialBadge from "@/components/TrialBadge";
 import ScriptModal, { fmtDateShort, addDaysIso } from "@/components/ScriptModal";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import Sheet, { SheetOption } from "@/components/Sheet";
@@ -467,11 +468,11 @@ function KanbanCardPreview({ script: s, client: c, color, dragging, moving, show
           <Avatar name={`${c.name} ${c.surname || ""}`} src={c.avatar_url} size={22} />
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: "var(--t1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name} {c.surname || ""}</div>
-            <div style={{ fontSize: 8, color: "var(--t3)", fontFamily: "monospace" }}>M{s.month_number} · {numLabel}</div>
+            <div style={{ fontSize: 8, color: "var(--t3)", fontFamily: "monospace" }}>M{s.month_number} · {numLabel}{s.is_trial && <> <TrialBadge /></>}</div>
           </div>
         </div>
       ) : (
-        <div style={{ fontSize: 9, color: "var(--t3)", fontFamily: "monospace" }}>{numLabel} · M{s.month_number}</div>
+        <div style={{ fontSize: 9, color: "var(--t3)", fontFamily: "monospace" }}>{numLabel} · M{s.month_number}{s.is_trial && <> <TrialBadge /></>}</div>
       )}
       <div style={{ fontSize: 12.5, color: "var(--t1)", lineHeight: 1.35, fontWeight: 600 }}>{titleShort}</div>
       {(s.montage_note || "").trim() && (

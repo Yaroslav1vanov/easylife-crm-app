@@ -79,6 +79,10 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
   };
   const [duelBusy, setDuelBusy] = useState(false);
   const [upBusy, setUpBusy] = useState(false);
+  // Тип ролика: основной (в счёт пакета) / пробный (тест сверх пакета). Меняет тот, у кого есть права на карточку.
+  const [trial, setTrial] = useState(!!s.is_trial);
+  useEffect(() => { setTrial(!!s.is_trial); }, [s.is_trial]);
+  const setType = (v: boolean) => { if (ro || v === trial) return; setTrial(v); save({ is_trial: v }); };
 
   // Загрузка готового ролика в CRM (R2). Разрешена и монтажёру — по файлу считается сдача.
   async function uploadVideo(file: File) {
@@ -253,7 +257,22 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
               ) : (
                 <span>· M{s.month_number}</span>
               )}
+              {ro ? (
+                trial && <span title="Пробный ролик: тест сверх пакета" style={{ padding: "1px 6px", borderRadius: 5, background: "var(--ord)", color: "var(--or)", fontWeight: 800, fontSize: 9.5 }}>пробный</span>
+              ) : (
+                <span title="Тип ролика" style={{ display: "inline-flex", borderRadius: 6, border: "1px solid var(--brd)", overflow: "hidden", marginLeft: 2 }}>
+                  {([[false, "Основной"], [true, "Пробный"]] as const).map(([v, t]) => (
+                    <button key={t} type="button" onClick={() => setType(v)}
+                      style={{ padding: "2px 8px", fontSize: 10, fontWeight: 800, fontFamily: "monospace", border: "none", cursor: "pointer",
+                        background: trial === v ? (v ? "var(--ord)" : "var(--inset2)") : "transparent",
+                        color: trial === v ? (v ? "var(--or)" : "var(--t1)") : "var(--t3)" }}>{t}</button>
+                  ))}
+                </span>
+              )}
             </div>
+            {!ro && trial && (
+              <div style={{ fontSize: 9.5, color: "var(--or)", marginBottom: 4 }}>Пробный — тест сверх пакета: в пакет и ЗП не идёт, в отчётах считается отдельно</div>
+            )}
             <input ref={refs.hook_text}
               value={hookText} onChange={(e) => setHookText(e.target.value)} readOnly={ro}
               onBlur={() => { if (!ro && hookText !== (s.hook_text || "")) save({ hook_text: hookText }); }}

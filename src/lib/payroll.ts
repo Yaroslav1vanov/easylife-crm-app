@@ -1,4 +1,5 @@
 import { Client, ClientMonth, Script, TeamMember } from "@/lib/database";
+import { isTrial } from "@/lib/scriptType";
 
 // ============================================================
 // РАСЧЁТ ЗП ПО ФАКТУ РАБОТЫ (источник правды — CRM).
@@ -165,6 +166,8 @@ export type PayrollResult = {
   totalTeamleads: number;
   total: number;
   issues: PayrollIssue[];
+  /** Пробные ролики (scripts.is_trial) — тест сверх пакета, в ЗП не идут. Только для информации. */
+  trial: { done: number; published: number; byClient: { clientId: number; clientName: string; done: number; published: number }[] };
 };
 
 type Input = {
@@ -196,8 +199,16 @@ export function computePayroll(ym: string, { clients, clientMonths, scripts, tea
   type Stat = { pubM: number; montM: number; pubCum: number; montCum: number; pubBefore: number; ahead: number; montNoDate: number };
   const stat: Record<string, Stat> = {};
   const issues: PayrollIssue[] = [];
+  // пробные ролики: не платим ни монтажёру, ни тимлиду, в пакет/бонусы не идут — считаем отдельно для справки
+  const trialBy: Record<number, { done: number; published: number }> = {};
 
   for (const s of scripts) {
+    if (isTrial(s)) {
+      const t = (trialBy[s.client_id] ||= { done: 0, published: 0 });
+      if (s.video_status === "published" && inMonth(s.pub_date)) t.published++;
+      if (s.script_status === "approved" && ["inProgress", "ready", "published"].includes(s.video_status) && inMonth(s.ready_at || s.pub_date)) t.done++;
+      continue;
+    }
     const key = `${s.client_id}_${s.month_number || 1}`;
     const st = (stat[key] ||= { pubM: 0, montM: 0, pubCum: 0, montCum: 0, pubBefore: 0, ahead: 0, montNoDate: 0 });
     const pd = d10(s.pub_date), rd = d10(s.ready_at);
@@ -331,6 +342,12 @@ export function computePayroll(ym: string, { clients, clientMonths, scripts, tea
   const totalEditors = people.filter(p => p.type === "editor").reduce((s, p) => s + p.total, 0);
   const totalTeamleads = people.filter(p => p.type === "teamlead").reduce((s, p) => s + p.total, 0);
 
+  const trialByClient = Object.entries(trialBy)
+    .filter(([, t]) => t.done > 0 || t.published > 0)
+    .map(([cid, t]) => { const c = clientById[Number(cid)]; return { clientId: Number(cid), clientName: c ? `${c.name} ${c.surname || ""}`.trim() : `#${cid}`, ...t }; })
+    .sort((a, b) => b.done + b.published - a.done - a.published);
+  const trial = { done: trialByClient.reduce((x, t) => x + t.done, 0), published: trialByClient.reduce((x, t) => x + t.published, 0), byClient: trialByClient };
+
   return { ym, rates: R, ratesVersion: ym >= NEW_MOTIVATION_FROM ? "new" : "old",
-    rows, people, totalEditors, totalTeamleads, total: totalEditors + totalTeamleads, issues };
+    rows, people, totalEditors, totalTeamleads, total: totalEditors + totalTeamleads, issues, trial };
 }

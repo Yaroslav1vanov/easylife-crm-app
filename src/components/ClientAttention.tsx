@@ -1,5 +1,6 @@
 "use client";
 import { ClientMonth, Script } from "@/lib/database";
+import { isMain } from "@/lib/scriptType";
 import { Target, Scissors, UserCheck, CheckCircle2, CalendarClock, AlertTriangle, type LucideIcon } from "lucide-react";
 
 function daysBetween(a: string, b: string) {
@@ -11,7 +12,8 @@ type Item = { Icon: LucideIcon; color: string; text: string };
 
 export default function ClientAttention({ currentM, scripts, todayIso }: Props) {
   const plan = currentM?.package || 0;
-  const published = scripts.filter(s => s.video_status === "published").length;
+  // план/дедлайн — только по основным роликам (пробные — тест сверх пакета); задачи производства — по всем
+  const published = scripts.filter(s => isMain(s) && s.video_status === "published").length;
   const review = scripts.filter(s => s.script_status === "review").length;
   const inMontage = scripts.filter(s => s.script_status === "approved" && s.video_status === "inProgress").length;
   const readyToPublish = scripts.filter(s => s.video_status === "ready").length;

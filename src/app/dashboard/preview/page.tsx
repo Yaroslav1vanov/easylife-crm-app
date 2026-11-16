@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
 import db, { Client, ClientMonth, Script, TeamMember } from "@/lib/database";
+import { isMain, isTrial } from "@/lib/scriptType";
 import Avatar from "@/components/Avatar";
 import { VIDEO_LEAD, SCRIPT_LEAD, addDaysIso } from "@/components/ScriptModal";
 import { Flame, TrendingUp, ArrowRight, Eye } from "lucide-react";
@@ -52,7 +53,11 @@ export default function DashboardPreview() {
     const mine = scripts.filter(s => wid.has(s.client_id));
 
     // ---- ПЛАН/ФАКТ МЕСЯЦА (по вчерашний день: сегодня ещё заполняют) ----
-    const planned = mine.filter(s => s.pub_date && s.pub_date.slice(0, 7) === ym);
+    // план/факт и отставание — только основные ролики; пробные (тест сверх пакета) — отдельной цифрой
+    const inYm = (s: Script) => !!s.pub_date && s.pub_date.slice(0, 7) === ym;
+    const planned = mine.filter(s => isMain(s) && inYm(s));
+    const trialPlanned = mine.filter(s => isTrial(s) && inYm(s)).length;
+    const trialDone = mine.filter(s => isTrial(s) && inYm(s) && s.video_status === "published" && (s.pub_date || "") <= yest).length;
     const doneByYest = planned.filter(s => s.video_status === "published" && (s.pub_date || "") <= yest);
     const dueByYest = planned.filter(s => (s.pub_date || "") <= yest);
     const lag = dueByYest.length - doneByYest.length;          // отставание от графика
@@ -80,7 +85,7 @@ export default function DashboardPreview() {
       // 3) месяц скоро закрывается, а пакет не добран
       const cm = months.find(m => m.client_id === c.id && m.status === "active");
       if (cm) {
-        const pub = cs.filter(s => s.month_number === cm.month_number && s.video_status === "published").length;
+        const pub = cs.filter(s => s.month_number === cm.month_number && isMain(s) && s.video_status === "published").length;
         const need = (cm.package || 0) - pub;
         const dl = Math.round((Date.parse(cm.end_date) - Date.parse(today)) / 86400000);
         if (need > 0 && dl >= 0 && dl <= 7 && need > dl)
@@ -102,7 +107,7 @@ export default function DashboardPreview() {
       .map(s => ({ s, c: work.find(x => x.id === s.client_id)!, due: addDaysIso(s.pub_date!, -(isMg ? VIDEO_LEAD : SCRIPT_LEAD)) }))
       .sort((a, b) => a.due.localeCompare(b.due));
 
-    return { work, planned, doneByYest, dueByYest, lag, left, daysLeft, perDay, issues, me, isMg, myTasks };
+    return { work, planned, trialPlanned, trialDone, doneByYest, dueByYest, lag, left, daysLeft, perDay, issues, me, isMg, myTasks };
   }, [clients, months, scripts, today, yest, ym, viewAs, team]);
 
   if (loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--t2)" }}>Загрузка…</div>;
@@ -178,7 +183,7 @@ export default function DashboardPreview() {
           <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 10 }}>
             <span style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 34, fontWeight: 800, color: "var(--t1)" }}>{v.doneByYest.length}</span>
             <span style={{ fontSize: 16, color: "var(--t3)", fontWeight: 700 }}>из {v.dueByYest.length} к вчерашнему дню</span>
-            <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--t3)" }}>всего в плане месяца: <b style={{ color: "var(--t2)" }}>{v.planned.length}</b></span>
+            <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--t3)" }}>всего в плане месяца: <b style={{ color: "var(--t2)" }}>{v.planned.length}</b>{v.trialPlanned > 0 && <span title="Пробные ролики — тест сверх пакета, в план не входят" style={{ color: "var(--or)" }}> · +{v.trialPlanned} пробных (вышло {v.trialDone})</span>}</span>
           </div>
 
           <div style={{ height: 10, borderRadius: 6, background: "var(--track)", overflow: "hidden" }}>

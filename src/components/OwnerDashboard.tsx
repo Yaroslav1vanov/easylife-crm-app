@@ -8,6 +8,7 @@ import { upcomingBirthdays, daysLabel } from "@/lib/birthdays";
 import { ChevronLeft, ChevronRight, Plus, CalendarCheck, Rocket, RefreshCw, Cake } from "lucide-react";
 import ClientsTable from "@/components/ClientsTable";
 import { isPlaceholder } from "@/lib/scriptFlags";
+import { isMain, isTrial } from "@/lib/scriptType";
 
 /* ============================================================
    Дашборд владельца v2 — «где мы по каждому клиенту»:
@@ -24,6 +25,7 @@ type Row = {
   c: Client; cm: ClientMonth | null; tl: TeamMember | null; mg: TeamMember | null;
   pkg: number; pub: number; pct: number; daysLeft: number | null;
   pubYm: number; target: number | null; dueByToday: number; delta: number;
+  trialPub: number; trialPubYm: number;   // пробные (тест сверх пакета) — в план/факт не идут, показываем отдельно
   writing: number; montage: number; ready: number; noDate: number; overdueVideos: number;
   daysSincePub: number | null; problems: Problem[]; sev: "red" | "or" | "gr";
 };
@@ -53,12 +55,16 @@ export default function OwnerDashboard({ clients, clientMonths, scripts, team, o
       const all = scripts.filter(s => s.client_id === c.id);
       const ms = cm ? all.filter(s => s.month_number === cm.month_number) : [];
       const pkg = cm?.package || 0;
-      const pub = ms.filter(s => s.video_status === "published").length;
+      // план/факт и темп — только основные ролики; пробные считаем отдельно
+      const allMain = all.filter(isMain), msMain = ms.filter(isMain);
+      const pub = msMain.filter(s => s.video_status === "published").length;
+      const trialPub = ms.filter(s => isTrial(s) && s.video_status === "published").length;
+      const trialPubYm = all.filter(s => isTrial(s) && s.video_status === "published" && (s.pub_date || "").startsWith(selectedMonth)).length;
       const pct = pkg ? Math.min(100, Math.round(pub / pkg * 100)) : 0;
       const daysLeft = cm ? daysBetween(todayIso, cm.end_date) : null;
-      const pubYm = all.filter(s => s.video_status === "published" && (s.pub_date || "").startsWith(selectedMonth)).length;
+      const pubYm = allMain.filter(s => s.video_status === "published" && (s.pub_date || "").startsWith(selectedMonth)).length;
       const target = calTargets[`${c.id}:${selectedMonth}`] ?? null;
-      const dueByToday = all.filter(s => s.pub_date && s.pub_date.startsWith(selectedMonth) && s.pub_date <= todayIso).length;
+      const dueByToday = allMain.filter(s => s.pub_date && s.pub_date.startsWith(selectedMonth) && s.pub_date <= todayIso).length;
       const delta = pubYm - dueByToday;
       const writing = ms.filter(s => s.script_status === "inProgress" || s.script_status === "review").length;
       const montage = ms.filter(s => s.script_status === "approved" && (s.video_status === "inProgress" || s.video_status === "review")).length;
@@ -79,7 +85,7 @@ export default function OwnerDashboard({ clients, clientMonths, scripts, team, o
       if (stalePlaceholders) problems.push({ txt: `${stalePlaceholders} пустых слотов в прошлом`, sev: "or" });
       const sev: Row["sev"] = problems.some(p => p.sev === "red") ? "red" : problems.length ? "or" : "gr";
       return { c, cm, tl: team.find(t => t.id === c.teamlead_id) || null, mg: team.find(t => t.id === c.montager_id) || null,
-        pkg, pub, pct, daysLeft, pubYm, target, dueByToday, delta, writing, montage, ready, noDate, overdueVideos, daysSincePub, problems, sev };
+        pkg, pub, pct, daysLeft, pubYm, target, dueByToday, delta, trialPub, trialPubYm, writing, montage, ready, noDate, overdueVideos, daysSincePub, problems, sev };
     }).sort((a, b) => (a.sev === "red" ? 0 : a.sev === "or" ? 1 : 2) - (b.sev === "red" ? 0 : b.sev === "or" ? 1 : 2) || a.delta - b.delta || (a.daysLeft ?? 999) - (b.daysLeft ?? 999));
   }, [clients, clientMonths, scripts, team, overdueTasks, calTargets, selectedMonth, todayIso, currentYM]);
 
@@ -87,13 +93,14 @@ export default function OwnerDashboard({ clients, clientMonths, scripts, team, o
 
   const tot = useMemo(() => {
     const pubYm = rows.reduce((s, r) => s + r.pubYm, 0);
+    const trialYm = rows.reduce((s, r) => s + r.trialPubYm, 0);
     const target = rows.reduce((s, r) => s + (r.target || 0), 0);
     const due = rows.reduce((s, r) => s + r.dueByToday, 0);
     const overdue = rows.reduce((s, r) => s + r.overdueVideos, 0);
     const overdueClients = rows.filter(r => r.overdueVideos > 0).length;
     const onb = rows.filter(r => (onbByClient[r.c.id]?.pending_tasks || 0) > 0).length;
     const behind = rows.filter(r => r.sev === "red").length;
-    return { pubYm, target, due, overdue, overdueClients, onb, behind };
+    return { pubYm, trialYm, target, due, overdue, overdueClients, onb, behind };
   }, [rows, onbByClient]);
 
   // «Что делать сейчас» — по этапам, с клиентами (текущие контрактные месяцы, срок ≤ сегодня)
@@ -133,7 +140,7 @@ export default function OwnerDashboard({ clients, clientMonths, scripts, team, o
     const plan = mine.reduce((s, r) => s + r.pkg, 0);
     let done = 0, a = 0, b = 0;
     for (const r of mine) {
-      const ms = r.cm ? scripts.filter(s => s.client_id === r.c.id && s.month_number === r.cm!.month_number) : [];
+      const ms = r.cm ? scripts.filter(s => s.client_id === r.c.id && s.month_number === r.cm!.month_number && isMain(s)) : [];   // done/plan — по пакету
       if (isMg) { done += ms.filter(s => s.video_status === "ready" || s.video_status === "published").length; a += r.montage; b += r.ready; }
       else { done += ms.filter(s => s.script_status === "approved").length; a += r.writing; b += ms.filter(s => s.script_status === "review").length; }
     }
@@ -184,7 +191,7 @@ export default function OwnerDashboard({ clients, clientMonths, scripts, team, o
       {/* ===== KPI ===== */}
       <div className="v2-stat v2-stat4">
         <div><b>{tot.pubYm}<em>/{tot.target || "—"}</em></b><span>вышло в {ymLabel(selectedMonth).split(" ")[0]} · план</span>
-          <div className="v2-hint" style={{ color: tot.pubYm >= tot.due ? "var(--gr)" : "var(--or)" }}>к сегодня должно быть {tot.due}{tot.pubYm - tot.due !== 0 ? ` · ${tot.pubYm - tot.due > 0 ? "+" : ""}${tot.pubYm - tot.due}` : " · по плану"}</div></div>
+          <div className="v2-hint" style={{ color: tot.pubYm >= tot.due ? "var(--gr)" : "var(--or)" }}>к сегодня должно быть {tot.due}{tot.pubYm - tot.due !== 0 ? ` · ${tot.pubYm - tot.due > 0 ? "+" : ""}${tot.pubYm - tot.due}` : " · по плану"}{tot.trialYm > 0 && <span style={{ color: "var(--or)" }}> · +{tot.trialYm} пробных сверх плана</span>}</div></div>
         <div className={tot.overdue ? "rd" : ""}><b>{tot.overdue}</b><span>роликов просрочено</span><div className="v2-hint">{tot.overdueClients ? `у ${tot.overdueClients} клиентов` : "чисто"}</div></div>
         <div className={tot.behind ? "rd" : ""}><b>{tot.behind}</b><span>клиентов проседают</span><div className="v2-hint">{rows.filter(r => r.sev === "or").length} с предупреждением</div></div>
         <div className="pu"><b>{todo.nowTotal}</b><span>действий на сегодня</span><div className="v2-hint">просроченные и сегодняшние</div></div>
@@ -266,7 +273,7 @@ export default function OwnerDashboard({ clients, clientMonths, scripts, team, o
             <div className="v2-list">{renewals.map(r => (
               <button key={r.c.id} className="v2-row" onClick={() => router.push(`/dashboard/clients/${r.c.id}`)}>
                 <Avatar name={r.c.name} src={r.c.avatar_url} size={32} />
-                <div><div className="t">{r.c.name} {r.c.surname || ""}</div><div className="s">M{r.cm!.month_number} {r.daysLeft! < 0 ? `просрочен ${-r.daysLeft!} дн` : r.daysLeft === 0 ? "заканчивается сегодня" : `заканчивается через ${r.daysLeft} дн`} · {r.pub}/{r.pkg}</div></div>
+                <div><div className="t">{r.c.name} {r.c.surname || ""}</div><div className="s">M{r.cm!.month_number} {r.daysLeft! < 0 ? `просрочен ${-r.daysLeft!} дн` : r.daysLeft === 0 ? "заканчивается сегодня" : `заканчивается через ${r.daysLeft} дн`} · {r.pub}/{r.pkg}{r.trialPub > 0 ? ` · +${r.trialPub} пробн.` : ""}</div></div>
                 <span className="v2-chip cy">Продлить →</span>
               </button>
             ))}</div>

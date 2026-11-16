@@ -7,6 +7,7 @@ import { myClients } from "@/lib/scope";
 import { getStore, setStore, patchScriptInStore } from "@/lib/store";
 import Avatar from "@/components/Avatar";
 import KanbanBoard from "@/components/KanbanBoard";
+import TrialBadge from "@/components/TrialBadge";
 import ScriptModal, { VIDEO_LEAD, fmtDateShort, addDaysIso } from "@/components/ScriptModal";
 import { MONTAGE_COLUMNS } from "@/components/kanbanConfigs";
 import { useIsMontager, useCanEditReadyAt, useRole } from "@/components/RoleContext";
@@ -262,7 +263,7 @@ export default function MontagePage() {
     return (
       <div key={sl.s.id} onClick={() => setOpenId(sl.s.id)} title={txt}
         style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 6px", borderRadius: 6, background: `${col}1f`, border: `1px solid ${col}55`, color: col, fontSize: 10, fontWeight: 700, cursor: "pointer", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", maxWidth: "100%" }}>
-        {sl.status === "done" ? "✓" : sl.status === "overdue" ? "⚠" : sl.status === "frozen" ? "❄" : ""} {txt}
+        {sl.status === "done" ? "✓" : sl.status === "overdue" ? "⚠" : sl.status === "frozen" ? "❄" : ""} {sl.s.is_trial && <TrialBadge />} {txt}
       </div>
     );
   };
@@ -376,7 +377,7 @@ export default function MontagePage() {
                   <div style={{ height: 5, borderRadius: 3, background: "var(--track)", overflow: "hidden", marginBottom: 7 }}>
                     <div style={{ width: `${pct}%`, height: "100%", background: color, borderRadius: 3, transition: "width .3s" }} />
                   </div>
-                  <div style={{ fontSize: 10, fontWeight: 700, color }}>{stateTxt}</div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color }}>{stateTxt}{b.trial > 0 && <span style={{ fontWeight: 600, color: "var(--or)" }}> · +{b.trial} пробн. сверх партии</span>}</div>
                   {underplanned && (
                     <div style={{ fontSize: 9, color: "#ffae42", marginTop: 4 }}>⚠ запланировано {b.planned.length}/{b.quota} — тимлиду добавить слоты на неделю {fmtDateShort(b.weekStart)}–{fmtDateShort(b.weekEnd)}</div>
                   )}
@@ -407,7 +408,7 @@ export default function MontagePage() {
                   style={{ width: "100%", display: "grid", gridTemplateColumns: "1.5fr 1.4fr auto auto", gap: 12, alignItems: "center", padding: "11px 16px", borderBottom: "1px solid var(--brd)", background: "transparent", borderLeft: "none", borderRight: "none", borderTop: "none", cursor: "pointer", textAlign: "left", color: "var(--t1)" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}>
                     <Avatar name={`${c.name} ${c.surname || ""}`} src={c.avatar_url} size={28} />
-                    <div style={{ minWidth: 0 }}><div style={{ fontSize: 12, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name} {c.surname || ""}</div><div style={{ fontSize: 9, color: "var(--t3)" }}>M{sl.s.month_number} · #{sl.s.order_num} · монтаж: {team.find(t => t.id === c.montager_id)?.name || "—"}</div></div>
+                    <div style={{ minWidth: 0 }}><div style={{ fontSize: 12, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name} {c.surname || ""}</div><div style={{ fontSize: 9, color: "var(--t3)" }}>M{sl.s.month_number} · #{sl.s.order_num}{sl.s.is_trial && <> <TrialBadge /></>} · монтаж: {team.find(t => t.id === c.montager_id)?.name || "—"}</div></div>
                   </div>
                   <div style={{ fontSize: 12, color: "var(--t2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{(sl.s.montage_note || "").trim() && <span title={sl.s.montage_note || ""} style={{ color: "var(--rd)", fontWeight: 900, marginRight: 6 }}>⚠️ важно</span>}{sl.s.hook_text || sl.s.hook || "— без темы —"}</div>
                   <div style={{ fontSize: 11, fontWeight: 700, color: "var(--t1)", whiteSpace: "nowrap" }}>📅 {fmtDateShort(sl.due)}</div>
@@ -430,7 +431,7 @@ export default function MontagePage() {
                   {slots.map(sl => { const c = clientById[sl.s.client_id]; const col = statusCol(sl.status); return (
                     <button key={sl.s.id} className={`v2-slot ${sl.status === "overdue" ? "late" : ""}`} onClick={() => setOpenId(sl.s.id)}>
                       <Avatar name={`${c.name} ${c.surname || ""}`} src={c.avatar_url} size={22} />
-                      <span className="tx"><b style={{ color: "var(--t1)" }}>{c.name}</b> · {sl.s.hook_text || sl.s.hook || `#${sl.s.order_num}`}</span>
+                      <span className="tx"><b style={{ color: "var(--t1)" }}>{c.name}</b> · {sl.s.is_trial && <><TrialBadge /> </>}{sl.s.hook_text || sl.s.hook || `#${sl.s.order_num}`}</span>
                       <i className="v2-dot" style={{ background: col }} />
                     </button>
                   ); })}
@@ -496,7 +497,7 @@ export default function MontagePage() {
                       <div style={{ fontSize: 11, fontWeight: 700, color: isToday ? "var(--cy)" : "var(--t2)" }}>{parseInt(d.split("-")[2], 10)}{isToday ? " · сегодня" : ""}</div>
                       {slots.slice(0, 4).map(sl => {
                         const col = statusCol(sl.status);
-                        return <div key={sl.s.id} onClick={() => setOpenId(sl.s.id)} title={`${cname(sl.s.client_id)} · #${sl.s.order_num}`} style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 5px", borderRadius: 6, background: `${col}1c`, border: `1px solid ${col}44`, color: col, fontSize: 9, fontWeight: 700, cursor: "pointer", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}><span style={{ width: 5, height: 5, borderRadius: "50%", background: col, flexShrink: 0 }} />{cname(sl.s.client_id)}</div>;
+                        return <div key={sl.s.id} onClick={() => setOpenId(sl.s.id)} title={`${cname(sl.s.client_id)} · #${sl.s.order_num}${sl.s.is_trial ? " · пробный" : ""}`} style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 5px", borderRadius: 6, background: `${col}1c`, border: `1px solid ${col}44`, color: col, fontSize: 9, fontWeight: 700, cursor: "pointer", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}><span style={{ width: 5, height: 5, borderRadius: "50%", background: col, flexShrink: 0 }} />{cname(sl.s.client_id)}</div>;
                       })}
                       {slots.length > 4 && <span style={{ fontSize: 8, color: "var(--t3)" }}>+{slots.length - 4}</span>}
                     </div>

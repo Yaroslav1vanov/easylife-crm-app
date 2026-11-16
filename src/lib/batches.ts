@@ -1,4 +1,5 @@
 import { Client, Script } from "@/lib/database";
+import { isMain, isTrial } from "@/lib/scriptType";
 
 // ============================================================
 // Недельные партии: клиенту сдаём готовые видео пачкой раз в
@@ -45,8 +46,9 @@ export type Batch = {
   weekStart: string;     // покрываемая неделя публикаций [weekStart..weekEnd]
   weekEnd: string;
   quota: number;         // сколько роликов должно быть в партии
-  planned: Script[];     // ролики с pub_date в этой неделе
+  planned: Script[];     // ОСНОВНЫЕ ролики с pub_date в этой неделе (пробные в квоту и сроки партии не идут)
   done: number;          // из них готово (ready/published)
+  trial: number;         // пробных роликов на этой неделе — сверх партии, для справки
 };
 
 /** Партия клиента на ближайшую сдачу. Партия покрывает публикации недели [сдача .. сдача+6]. */
@@ -54,15 +56,17 @@ export function batchFor(client: Client, scripts: Script[], todayIso: string): B
   if (!client.delivery_day) return null;
   const deliveryIso = nextDeliveryIso(client.delivery_day, todayIso);
   const weekStart = deliveryIso, weekEnd = addDays(deliveryIso, 6);
-  const planned = scripts.filter(s =>
+  const inWeek = scripts.filter(s =>
     s.client_id === client.id && s.pub_date && s.pub_date >= weekStart && s.pub_date <= weekEnd
-  ).sort((a, b) => (a.pub_date || "").localeCompare(b.pub_date || ""));
+  );
+  const planned = inWeek.filter(isMain).sort((a, b) => (a.pub_date || "").localeCompare(b.pub_date || ""));
+  const trial = inWeek.filter(isTrial).length;
   const done = planned.filter(s => s.video_status === "ready" || s.video_status === "published").length;
   return {
     client, deliveryIso,
     readyByIso: addDays(deliveryIso, -BATCH_BUFFER_DAYS),
     weekStart, weekEnd,
     quota: weeklyQuotaOf(client),
-    planned, done,
+    planned, done, trial,
   };
 }

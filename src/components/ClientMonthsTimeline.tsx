@@ -2,6 +2,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { createClient } from "@/lib/supabase-browser";
 import db, { ClientMonth, Script } from "@/lib/database";
+import { isMain, isTrial } from "@/lib/scriptType";
 import { Check, RotateCcw, PlusCircle, CalendarCheck, Edit2, CalendarDays } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -85,7 +86,9 @@ export default function ClientMonthsTimeline({ clientId, clientName, clientMonth
 
   const sortedMonths = useMemo(() => [...clientMonths].sort((a, b) => a.month_number - b.month_number), [clientMonths]);
   const totalPlan = sortedMonths.reduce((s, m) => s + (m.package || 0), 0);
-  const totalPublished = scripts.filter(s => s.video_status === "published").length;
+  // пакет — только основные ролики; пробные (тест сверх пакета) считаем отдельно
+  const totalPublished = scripts.filter(s => isMain(s) && s.video_status === "published").length;
+  const totalTrialPub = scripts.filter(s => isTrial(s) && s.video_status === "published").length;
 
   async function updateField(cmId: number, patch: Partial<ClientMonth>) {
     setBusy(cmId);
@@ -214,13 +217,16 @@ export default function ClientMonthsTimeline({ clientId, clientName, clientMonth
         </h3>
         <div style={{ fontSize: 11, color: "var(--t2)", fontWeight: 600 }}>
           Всего по контракту: <span style={{ color: "var(--t1)", fontFamily: "monospace", fontWeight: 800 }}>{totalPublished} / {totalPlan}</span>
+          {totalTrialPub > 0 && <span title="Пробные ролики — тест сверх пакета" style={{ color: "var(--or)", fontWeight: 700 }}> · +{totalTrialPub} пробных</span>}
         </div>
       </div>
 
       {/* Month cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: 12 }}>
         {sortedMonths.map((m) => {
-          const list = scripts.filter(s => s.month_number === m.month_number);
+          const all = scripts.filter(s => s.month_number === m.month_number);
+          const list = all.filter(isMain);
+          const trialPub = all.filter(s => isTrial(s) && s.video_status === "published").length;
           const published = list.filter(s => s.video_status === "published").length;
           const plan = m.package || 0;
           const pct = plan > 0 ? Math.round((published / plan) * 100) : 0;
@@ -308,6 +314,7 @@ export default function ClientMonthsTimeline({ clientId, clientName, clientMonth
                   </span>
                   <span style={{ fontSize: 12, color: barColor, fontWeight: 800 }}>{pct}%</span>
                 </div>
+                {trialPub > 0 && <div title="Пробные ролики — тест сверх пакета, в пакет не идут" style={{ fontSize: 10, color: "var(--or)", fontWeight: 700, marginTop: 3 }}>+{trialPub} {trialPub === 1 ? "пробный" : "пробных"} сверх пакета</div>}
               </div>
 
               {/* План публикаций по календарным месяцам — та цифра, что видна на дашборде */}

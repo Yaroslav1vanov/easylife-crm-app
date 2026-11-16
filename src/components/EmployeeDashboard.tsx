@@ -3,6 +3,8 @@ import { useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Client, ClientMonth, Script, TeamMember, OnboardingProgress } from "@/lib/database";
 import Avatar from "@/components/Avatar";
+import TrialBadge from "@/components/TrialBadge";
+import { isMain, isTrial } from "@/lib/scriptType";
 import { VIDEO_LEAD, SCRIPT_LEAD, addDaysIso, fmtDateShort } from "@/components/ScriptModal";
 import { batchFor, BATCH_BUFFER_DAYS, wdName } from "@/lib/batches";
 import { AlertTriangle, CheckCircle2, Film, Users, ArrowRight, Package } from "lucide-react";
@@ -59,9 +61,12 @@ export default function EmployeeDashboard({ member, clients, clientMonths, scrip
 
     // Сделано за текущий месяц: монтажёр — по дате сдачи, тимлид — по публикациям
     const ym = todayIso.slice(0, 7);
-    const doneMonth = isMg
-      ? scr.filter(s => ["ready", "published"].includes(s.video_status) && (s.ready_at || s.pub_date || "").slice(0, 7) === ym).length
-      : scr.filter(s => s.video_status === "published" && (s.pub_date || "").slice(0, 7) === ym).length;
+    // сравнивается с планом (пакетом) → только основные; пробные (тест сверх пакета) — отдельной цифрой
+    const doneIn = (s: Script) => isMg
+      ? ["ready", "published"].includes(s.video_status) && (s.ready_at || s.pub_date || "").slice(0, 7) === ym
+      : s.video_status === "published" && (s.pub_date || "").slice(0, 7) === ym;
+    const doneMonth = scr.filter(s => isMain(s) && doneIn(s)).length;
+    const trialMonth = scr.filter(s => isTrial(s) && doneIn(s)).length;
 
     // План месяца по моим клиентам
     const planMonth = mine.reduce((sum, c) => {
@@ -77,7 +82,7 @@ export default function EmployeeDashboard({ member, clients, clientMonths, scrip
     // строки таблицы «Мои клиенты в работе»
     const rows = mine.map(c => {
       const cm = clientMonths.find(m => m.client_id === c.id && (m.status === "active" || m.status === "onboarding")) || null;
-      const cs = scr.filter(s => s.client_id === c.id && (!cm || s.month_number === cm.month_number));
+      const cs = scr.filter(s => s.client_id === c.id && (!cm || s.month_number === cm.month_number) && isMain(s));
       const plan = (cm?.package ?? c.package) || 0;
       const pub = cs.filter(s => s.video_status === "published").length;
       const inWork = isMg
@@ -101,7 +106,7 @@ export default function EmployeeDashboard({ member, clients, clientMonths, scrip
     }).filter(Boolean) as { c: Client; pr: OnboardingProgress; day: number | null; dl: string | null; left: number | null }[];
     onboarding.sort((a, b) => (a.left ?? 999) - (b.left ?? 999));
 
-    return { mine, tasks, overdue, todayTasks, doneMonth, planMonth, batches, rows, onboarding };
+    return { mine, tasks, overdue, todayTasks, doneMonth, trialMonth, planMonth, batches, rows, onboarding };
   }, [member, clients, clientMonths, scripts, todayIso, isMg, onbProgresses]);
 
   const KPI = ({ icon: I, label, value, sub, color, attention }: any) => (
@@ -142,7 +147,7 @@ export default function EmployeeDashboard({ member, clients, clientMonths, scrip
         <KPI icon={CheckCircle2} label="Сегодня" value={v.todayTasks.length} color="#ffae42"
           sub={isMg ? "сдать сегодня" : "написать сегодня"} />
         <KPI icon={Film} label={isMg ? "Смонтировано в месяце" : "Опубликовано в месяце"} value={v.doneMonth} color="#a8e063"
-          sub={`план по моим клиентам: ${v.planMonth}`} />
+          sub={`план по моим клиентам: ${v.planMonth}${v.trialMonth ? ` · +${v.trialMonth} пробных сверх плана` : ""}`} />
         <KPI icon={Users} label="Мои клиенты" value={v.mine.length} color="#42d4f4" sub="в работе" />
       </div>
 
@@ -262,7 +267,7 @@ export default function EmployeeDashboard({ member, clients, clientMonths, scrip
                           <div style={{ minWidth: 0, flex: 1 }}>
                             <div style={{ fontSize: 12, fontWeight: 700, color: "var(--t1)" }}>{c.name} {c.surname || ""}</div>
                             <div style={{ fontSize: 10, color: "var(--t3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                              M{s.month_number} · {s.hook_text || s.hook || "без темы"}
+                              M{s.month_number} · {s.is_trial && <><TrialBadge /> </>}{s.hook_text || s.hook || "без темы"}
                             </div>
                           </div>
                           <div style={{ flexShrink: 0, textAlign: "right" }}>

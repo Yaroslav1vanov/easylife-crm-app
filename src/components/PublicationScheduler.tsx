@@ -3,6 +3,8 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { createClient } from "@/lib/supabase-browser";
 import db, { ClientMonth, Script } from "@/lib/database";
+import TrialBadge from "@/components/TrialBadge";
+import { isMain, isTrial } from "@/lib/scriptType";
 import { X, Wand2, Trash2, CalendarDays, Eraser, Plus } from "lucide-react";
 
 const WD = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
@@ -38,13 +40,14 @@ type Props = {
 export default function PublicationScheduler({ clientId, month, scripts, onClose, onChange }: Props) {
   const supabase = createClient();
   const [busy, setBusy] = useState(false);
-  const [count, setCount] = useState(String(month.package || scripts.length || 20));
+  const [count, setCount] = useState(String(month.package || scripts.filter(isMain).length || 20));
   const [weekdays, setWeekdays] = useState<boolean[]>([true, true, true, true, true, true, true]);
   const [dragId, setDragId] = useState<number | null>(null);
   const [dragOver, setDragOver] = useState<string | null>(null);
 
   const withDate = scripts.filter(s => s.pub_date);
   const noDate = scripts.filter(s => !s.pub_date);
+  const trialCount = scripts.filter(isTrial).length;   // пробные — тест сверх пакета
   const isEmptySlot = (s: Script) =>
     !((s.hook_text || "").trim() || (s.body_text || "").trim() || (s.hook || "").trim().replace(/^Сценарий #\d+$/, ""));
   // Удалять можно только заглушку: без текста И никто не брал в работу. Опубликованный ролик без текста
@@ -75,10 +78,12 @@ export default function PublicationScheduler({ clientId, month, scripts, onClose
     if (!n || n < 1) { alert("Укажи, сколько роликов расставить"); return; }
     const dates = spreadDates(month.start_date, month.end_date, n, weekdays);
     if (!dates.length) { alert("В выбранные дни недели не попал ни один день месяца"); return; }
-    if (withDate.length && !confirm(`Расставить ${dates.length} дат заново? Текущие даты у ${withDate.length} роликов будут перезаписаны.`)) return;
+    // расставляем только основные ролики (пакет); у пробных даты не трогаем
+    const mainWithDate = withDate.filter(isMain);
+    if (mainWithDate.length && !confirm(`Расставить ${dates.length} дат заново? Текущие даты у ${mainWithDate.length} роликов будут перезаписаны.`)) return;
     setBusy(true);
     // Порядок: сначала уже существующие сценарии (по номеру), потом добираем слотами
-    const ordered = [...scripts].sort((a, b) => (a.order_num || 999) - (b.order_num || 999) || a.id - b.id);
+    const ordered = scripts.filter(isMain).sort((a, b) => (a.order_num || 999) - (b.order_num || 999) || a.id - b.id);
     for (let i = 0; i < dates.length; i++) {
       const s = ordered[i];
       if (s) {
@@ -159,7 +164,7 @@ export default function PublicationScheduler({ clientId, month, scripts, onClose
             </h3>
             <p style={{ fontSize: 11.5, color: "var(--t3)", marginTop: 4 }}>
               {month.start_date.split("-").reverse().slice(0, 2).join(".")} → {month.end_date.split("-").reverse().slice(0, 2).join(".")} ·
-              план {month.package} · с датой {withDate.length} · без даты {noDate.length}
+              план {month.package} · с датой {withDate.length} · без даты {noDate.length}{trialCount > 0 ? ` · из них пробных ${trialCount} (сверх пакета, «Распределить» их не трогает)` : ""}
             </p>
           </div>
           <button onClick={onClose} style={{ background: "transparent", border: "none", color: "var(--t3)", cursor: "pointer" }}><X size={18} /></button>
@@ -237,7 +242,7 @@ export default function PublicationScheduler({ clientId, month, scripts, onClose
                       title={empty ? "Пустой слот — сценарий ещё не написан" : (s.hook_text || s.hook || "")}
                       style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 5px", borderRadius: 6, background: c.bg, border: `1px solid ${c.br}`, cursor: "grab" }}>
                       <span style={{ flex: 1, fontSize: 9.5, fontWeight: 700, color: c.fg, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {empty ? "слот" : (s.hook_text || s.hook || `#${s.order_num}`)}
+                        {s.is_trial && <><TrialBadge /> </>}{empty ? "слот" : (s.hook_text || s.hook || `#${s.order_num}`)}
                       </span>
                       {s.video_status !== "published" && <button onClick={() => isPlaceholder(s) ? removeSlot(s.id) : clearDate(s.id)}
                         title={isPlaceholder(s) ? "Удалить пустой слот" : "Снять дату (сценарий останется)"}
@@ -260,7 +265,7 @@ export default function PublicationScheduler({ clientId, month, scripts, onClose
                 <div key={s.id} draggable onDragStart={() => setDragId(s.id)} onDragEnd={() => setDragId(null)}
                   title="Перетащи на день в календаре"
                   style={{ padding: "4px 8px", borderRadius: 7, background: "var(--inset)", border: "1px solid var(--brd)", fontSize: 10.5, fontWeight: 700, color: "var(--t2)", cursor: "grab", maxWidth: 190, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {isEmptySlot(s) ? "слот" : (s.hook_text || s.hook || `#${s.order_num}`)}
+                  {s.is_trial && <><TrialBadge /> </>}{isEmptySlot(s) ? "слот" : (s.hook_text || s.hook || `#${s.order_num}`)}
                 </div>
               ))}
             </div>

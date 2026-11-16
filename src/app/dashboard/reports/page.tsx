@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase-browser";
 import db, { Client, Script } from "@/lib/database";
+import { isTrial } from "@/lib/scriptType";
 
 type MonthData = {
   key: string; // "2026-03"
@@ -102,6 +103,7 @@ export default function ReportsPage() {
   const clientStats = new Map<number, {
     name: string; montager: string; teamlead: string; package: number;
     published: number; ready: number; editing: number; approved: number;
+    trial: number;   // опубликовано пробных (тест сверх пакета) — в «опубликовано / пакет» не входят
     pubDates: string[];
   }>();
 
@@ -111,7 +113,7 @@ export default function ReportsPage() {
       montager: c.montager?.name || "—",
       teamlead: c.teamlead?.name || "—",
       package: c.package,
-      published: 0, ready: 0, editing: 0, approved: 0,
+      published: 0, ready: 0, editing: 0, approved: 0, trial: 0,
       pubDates: [],
     });
   });
@@ -120,7 +122,10 @@ export default function ReportsPage() {
   monthScripts.forEach(s => {
     const cs = clientStats.get(s.client_id);
     if (!cs) return;
-    if (s.video_status === "published") { cs.published++; cs.pubDates.push(s.pub_date || ""); }
+    if (s.video_status === "published") {
+      if (isTrial(s)) { cs.trial++; return; }   // пробные считаем отдельно
+      cs.published++; cs.pubDates.push(s.pub_date || "");
+    }
   });
 
   // Also count current status for all scripts per client (regardless of month)
@@ -134,6 +139,7 @@ export default function ReportsPage() {
 
   const clientList = Array.from(clientStats.values()).sort((a, b) => b.published - a.published);
   const totalPublished = clientList.reduce((a, c) => a + c.published, 0);
+  const totalTrial = clientList.reduce((a, c) => a + c.trial, 0);
 
   // Group by teamlead
   const tlMap = new Map<string, { clients: typeof clientList; totalPub: number }>();
@@ -216,7 +222,7 @@ export default function ReportsPage() {
         <div className="card">
           <div className="text-[9px] font-semibold tracking-wider" style={{ color: "var(--gr)" }}>ОПУБЛИКОВАНО</div>
           <div className="text-3xl font-extrabold font-mono" style={{ color: "var(--gr)" }}>{totalPublished}</div>
-          <div className="text-[10px]" style={{ color: "var(--t2)" }}>роликов за {getMonthLabel(selectedMonth).toLowerCase()}</div>
+          <div className="text-[10px]" style={{ color: "var(--t2)" }}>основных роликов за {getMonthLabel(selectedMonth).toLowerCase()}{totalTrial > 0 && <span style={{ color: "var(--or)" }}> · +{totalTrial} пробных</span>}</div>
         </div>
         <div className="card">
           <div className="text-[9px] font-semibold tracking-wider" style={{ color: "var(--cy)" }}>КЛИЕНТОВ</div>
@@ -286,6 +292,7 @@ export default function ReportsPage() {
                   <div>
                     <span className="text-lg font-extrabold font-mono" style={{ color: c.published > 0 ? "var(--gr)" : "var(--t3)" }}>{c.published}</span>
                     <span className="text-[10px]" style={{ color: "var(--t3)" }}> / {c.package}</span>
+                    {c.trial > 0 && <div className="text-[9px]" style={{ color: "var(--or)" }}>+{c.trial} пробн.</div>}
                   </div>
                   <span className="text-sm font-bold font-mono" style={{ color: c.editing > 0 ? "var(--or)" : "var(--t3)" }}>{c.editing}</span>
                   <span className="text-sm font-bold font-mono" style={{ color: c.ready > 0 ? "var(--cy)" : "var(--t3)" }}>{c.ready}</span>
@@ -302,7 +309,7 @@ export default function ReportsPage() {
                     </div>
                     <div className="text-right">
                       <div className="text-lg font-extrabold font-mono" style={{ color: c.published > 0 ? "var(--gr)" : "var(--t3)" }}>{c.published}</div>
-                      <div className="text-[9px]" style={{ color: "var(--t3)" }}>из {c.package}</div>
+                      <div className="text-[9px]" style={{ color: "var(--t3)" }}>из {c.package}{c.trial > 0 && <span style={{ color: "var(--or)" }}> · +{c.trial} пробн.</span>}</div>
                     </div>
                   </div>
                   <div className="h-1.5 rounded-full" style={{ background: "var(--brd)" }}>
@@ -343,7 +350,7 @@ export default function ReportsPage() {
                   <span className="text-xs font-medium flex-1" style={{ color: "var(--t1)" }}>{c.name}</span>
                   <span className="text-[10px]" style={{ color: "var(--t3)" }}>монт. {c.montager}</span>
                   <span className="text-sm font-extrabold font-mono" style={{ color: c.published > 0 ? "var(--gr)" : "var(--t3)" }}>{c.published}</span>
-                  <span className="text-[10px]" style={{ color: "var(--t3)" }}>/ {c.package}</span>
+                  <span className="text-[10px]" style={{ color: "var(--t3)" }}>/ {c.package}{c.trial > 0 && <span style={{ color: "var(--or)" }}> · +{c.trial} пробн.</span>}</span>
                 </div>
               ))}
             </div>
@@ -382,7 +389,7 @@ export default function ReportsPage() {
                     <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold"
                       style={{ background: "var(--ord)", color: "var(--or)" }}>{c.editing} в монт.</span>
                     <span className="text-sm font-extrabold font-mono" style={{ color: c.published > 0 ? "var(--gr)" : "var(--t3)" }}>{c.published}</span>
-                    <span className="text-[10px]" style={{ color: "var(--t3)" }}>/ {c.package}</span>
+                    <span className="text-[10px]" style={{ color: "var(--t3)" }}>/ {c.package}{c.trial > 0 && <span style={{ color: "var(--or)" }}> · +{c.trial} пробн.</span>}</span>
                   </div>
                 </div>
               ))}

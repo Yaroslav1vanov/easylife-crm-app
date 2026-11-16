@@ -1,5 +1,6 @@
 "use client";
 import { ClientMonth, Script } from "@/lib/database";
+import { isMain, isTrial } from "@/lib/scriptType";
 import { Pen, Scissors, Send } from "lucide-react";
 
 const RU_MONTHS_GEN = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
@@ -13,7 +14,11 @@ function fmtDateShort(s: string | null | undefined) {
 
 type Props = { currentM: ClientMonth | null; scripts: Script[] };
 
-export default function ClientProduction({ currentM, scripts }: Props) {
+export default function ClientProduction({ currentM, scripts: all }: Props) {
+  // полосы считаются от пакета → только основные ролики; пробные (тест сверх пакета) — отдельной строкой
+  const scripts = all.filter(isMain);
+  const trial = all.filter(isTrial);
+  const trialPub = trial.filter(s => s.video_status === "published").length;
   const plan = currentM?.package || 0;
   const pct = (n: number) => plan > 0 ? Math.round((n / plan) * 100) : 0;
 
@@ -58,6 +63,7 @@ export default function ClientProduction({ currentM, scripts }: Props) {
       <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 16 }}>
         <h3 style={{ fontSize: 14, fontWeight: 800, color: "var(--t1)" }}>Производство</h3>
         {currentM && <span style={{ fontSize: 11, color: "var(--t3)", fontWeight: 600 }}>M{currentM.month_number}: {fmtDateShort(currentM.start_date)} → {fmtDateShort(currentM.end_date)}</span>}
+        {trial.length > 0 && <span title="Пробные ролики — тест сверх пакета, в цифры ниже не входят" style={{ marginLeft: "auto", fontSize: 11, color: "var(--or)", fontWeight: 700 }}>+{trial.length} пробных · опубликовано {trialPub}</span>}
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }} className="prod-grid">
         {blocks.map(b => {

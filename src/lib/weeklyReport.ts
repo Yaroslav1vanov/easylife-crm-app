@@ -19,7 +19,7 @@ export type WeeklyArgs = {
   excluded: { views: number }[];         // тестовые/нерасходившиеся — только сноской
   norm: number;                          // обычный уровень аккаунта (медиана последних 30)
   ourVideos: number | null;              // сколько роликов недели сделали мы (по CRM)
-  month: { published: number; package: number; from: string; to: string } | null;
+  month: { published: number; trial?: number; package: number; from: string; to: string } | null;   // published — только основные (в счёт пакета), trial — пробные сверх пакета
   followers: { value: number; delta: number | null; deltaPrev?: number | null; gained?: number | null; lost?: number | null } | null;
   account: {
     ready: boolean; views: number; reach: number; likes: number; comments: number; saved: number; shares: number;
@@ -49,7 +49,7 @@ const T = {
     watchRate: "Досматривают ролик", saveRate: "Сохраняют", everyNth: "каждый", viewer: "-й зритель",
     shareRate: "Пересылают друзьям", shareHint: "самый сильный сигнал для охвата",
     allReels: "Все ролики недели", normIs: "обычный уровень аккаунта", noCaption: "без подписи",
-    still: "ещё набирает", days: "дн.", plan: "Контент-план месяца", planDone: "Опубликовано в этом месяце",
+    still: "ещё набирает", days: "дн.", plan: "Контент-план месяца", planDone: "Основные ролики (в счёт пакета)", trialDone: "Пробные ролики (дополнительно, тест сверх пакета)",
     of: "из", left: "осталось", planLeft: "роликов", conclusions: "Выводы недели",
     nextWeek: "План на следующую неделю", ours: "из них наших",
     sources: (d: string) => `Данные — Metricool на ${d}. Неделя — с понедельника по воскресенье. «Обычный уровень аккаунта» — медиана просмотров последних 30 роликов. Досмотр — средняя доля ролика, которую смотрит зритель. Ролики последних двух-трёх дней ещё набирают просмотры.`,
@@ -80,7 +80,7 @@ const T = {
     watchRate: "Watch-through rate", saveRate: "Save rate", everyNth: "every", viewer: "th viewer",
     shareRate: "Shared with friends", shareHint: "the strongest signal for reach",
     allReels: "All videos of the week", normIs: "account's usual level", noCaption: "no caption",
-    still: "still gaining", days: "d", plan: "Monthly content plan", planDone: "Published this month",
+    still: "still gaining", days: "d", plan: "Monthly content plan", planDone: "Main videos (in the package)", trialDone: "Trial videos (extra tests on top of the package)",
     of: "of", left: "left", planLeft: "videos", conclusions: "Takeaways",
     nextWeek: "Plan for next week", ours: "produced by us",
     sources: (d: string) => `Data — Metricool as of ${d}. Week runs Monday to Sunday. "Usual level" is the median views of the last 30 videos. Watch-through is the average share of the video a viewer watches. Videos posted in the last two or three days are still gaining views.`,
@@ -322,6 +322,7 @@ ${a.month ? `
 <div class="pkg">
   <div class="row"><span class="muted">${t.planDone}</span><span class="v">${a.month.published} ${t.of} ${a.month.package}</span></div>
   <div class="track"><i style="width:${planPct}%"></i></div>
+  ${a.month.trial ? `<div class="row" style="margin-top:10px"><span class="muted">${t.trialDone}</span><span class="v">+${a.month.trial}</span></div>` : ""}
   <div class="muted small" style="margin-top:10px">${long(a.month.from)} — ${long(a.month.to)} · ${t.left} ${Math.max(0, a.month.package - a.month.published)} ${t.planLeft}</div>
 </div>` : ""}
 

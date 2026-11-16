@@ -40,7 +40,7 @@ async function folder(sb: ReturnType<typeof createAdmin>, cid: number) {
   const cut = (t: any, n: number) => (t ? String(t).replace(/\s+/g, " ").trim().slice(0, n) : null);
   const since = new Date(Date.now() - 45 * 86400e3).toISOString();
   const [scripts, pubs, stories, weekly, snaps, assets, docs] = await Promise.all([
-    sb.from("scripts").select("id, month_number, order_num, hook, hook_text, body_text, cta, script_status, video_status, pub_date, published_url, video_url, ref_views, our_views, our_likes, our_comments, content_type")
+    sb.from("scripts").select("id, month_number, order_num, hook, hook_text, body_text, cta, script_status, video_status, pub_date, published_url, video_url, ref_views, our_views, our_likes, our_comments, content_type, is_trial")
       .eq("client_id", cid).order("id", { ascending: false }).limit(90),
     sb.from("publications").select("id, script_id, content_type, publish_at, pub_status, base_text, published_url")
       .eq("client_id", cid).neq("content_type", "story").order("id", { ascending: false }).limit(60),

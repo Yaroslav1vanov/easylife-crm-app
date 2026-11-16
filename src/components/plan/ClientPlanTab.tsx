@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase-browser";
 import db, { Client, Script, Publication } from "@/lib/database";
 import ScriptModal from "@/components/ScriptModal";
+import TrialBadge from "@/components/TrialBadge";
 import { DEFAULT_TZ, tzShort, utcToZonedInput, zonedInputToUtc, fmtInTz } from "@/lib/tz";
 import { useIsMobile } from "@/lib/useMedia";
 import { ChevronLeft, ChevronRight, Film, Smartphone, Images, Plus, Sparkles, Trash2, ExternalLink, CalendarDays } from "lucide-react";
@@ -90,15 +91,16 @@ export default function ClientPlanTab({ client, scripts, monthOptions, canEdit, 
 
   const monthDays = cells.filter(Boolean) as string[];
   const sum = useMemo(() => {
-    let reels = 0, out = 0, storyDays = 0, empty = 0;
+    let reels = 0, out = 0, trial = 0, storyDays = 0, empty = 0;
     for (const d of monthDays) {
       const x = byDay[d];
       reels += (x?.reels.length || 0) + (x?.extra.length || 0);
       out += x?.reels.filter((s) => s.video_status === "published").length || 0;
+      trial += x?.reels.filter((s) => s.is_trial).length || 0;
       if (x?.stories.length) storyDays++;
       if (d >= today && d <= soon && !(x && (x.reels.length || x.stories.length || x.extra.length))) empty++;
     }
-    return { reels, out, storyDays, empty };
+    return { reels, out, trial, storyDays, empty };
   }, [monthDays, byDay, today, soon]);
 
   const undated = useMemo(() => scripts.filter((s) => !s.pub_date && s.video_status !== "published").slice(0, 40), [scripts]);
@@ -153,6 +155,7 @@ export default function ClientPlanTab({ client, scripts, monthOptions, canEdit, 
         style={{ display: "flex", gap: 5, alignItems: "center", padding: "3px 6px", borderRadius: 7, background: st.bg, borderLeft: `3px solid ${st.c}`, cursor: "pointer", minWidth: 0 }}>
         <Film size={10} style={{ color: st.c, flexShrink: 0 }} />
         <span style={{ fontSize: 10.5, color: "var(--t1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{title(s)}</span>
+        {s.is_trial && <TrialBadge style={{ flexShrink: 0 }} />}
         <span style={{ fontSize: 8.5, fontWeight: 800, color: st.c, flexShrink: 0 }}>{st.l}</span>
       </div>
     );
@@ -191,7 +194,7 @@ export default function ClientPlanTab({ client, scripts, monthOptions, canEdit, 
         <button className="v2-iconbtn" onClick={() => shift(1)} aria-label="Следующий месяц"><ChevronRight size={16} /></button>
         {ym !== today.slice(0, 7) && <button className="v2-act ghost" style={{ height: 30 }} onClick={() => { setYm(today.slice(0, 7)); setDay(today); }}>Сегодня</button>}
         <div style={{ flex: 1 }} />
-        <span className="v2-chip pu"><Film size={11} /> рилсов {sum.reels} · вышло {sum.out}</span>
+        <span className="v2-chip pu"><Film size={11} /> рилсов {sum.reels} · вышло {sum.out}{sum.trial > 0 && <span title="Пробные ролики — тест сверх пакета" style={{ color: "var(--or)" }}> · из них пробных {sum.trial}</span>}</span>
         <span className="v2-chip" style={{ background: "rgba(236,72,153,.12)", color: "var(--pk)" }}><Smartphone size={11} /> дней со сторис {sum.storyDays}</span>
         {sum.empty > 0 && <span className="v2-chip or">пустых дней за 2 недели: {sum.empty}</span>}
       </div>
@@ -287,7 +290,7 @@ export default function ClientPlanTab({ client, scripts, monthOptions, canEdit, 
             <div key={s.id} style={{ display: "flex", gap: 10, alignItems: "center", padding: "8px 10px", borderRadius: 10, background: "var(--v2-inset)", borderLeft: `3px solid ${st.c}` }}>
               <Film size={14} style={{ color: st.c, flexShrink: 0 }} />
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.order_num ? `#${s.order_num} · ` : ""}{title(s)}</div>
+                <div style={{ fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.order_num ? `#${s.order_num} · ` : ""}{s.is_trial && <><TrialBadge /> </>}{title(s)}</div>
                 <div style={{ fontSize: 11, color: "var(--t3)" }}>рилс · М{s.month_number} · {st.l}{s.video_url ? " · ролик загружен" : ""}</div>
               </div>
               {canEdit && s.video_status !== "published" && <button className="v2-act ghost" style={{ height: 30, fontSize: 12 }} onClick={() => moveReel(s.id, null)}>Снять с даты</button>}

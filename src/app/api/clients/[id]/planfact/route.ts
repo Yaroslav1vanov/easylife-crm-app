@@ -12,7 +12,8 @@ import { mcFetch } from "@/lib/mcFetch";
                ссылки на них проставляются в карточки сценариев (linkPublishedReels);
      daily   — ВСЕ просмотры аккаунта по дням (старые ролики, посты, сторис) — только для контекста;
      followers — подписчики по дням (сумма сетей) из social_snapshots;
-     reels   — вышедшие ролики по дням (по аналитике; без бренда — по CRM);
+     reels   — вышедшие ОСНОВНЫЕ ролики по дням (по аналитике; без бренда — по CRM); пробные (scripts.is_trial —
+               тест сверх пакета) в план/факт не идут: trialReels — сколько их, в monthReels помечены trial: true;
      weeks   — ручной факт тимлида по неделям (кодовые слова, заявки, консультации, продажи);
      forecast — месяцы из актуального прогноза (для «Взять из прогноза»). */
 export const dynamic = "force-dynamic";
@@ -70,7 +71,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     sb.from("client_fact_weeks").select("week_start, codewords, leads, calls, sales, note, entered_by, updated_at").eq("client_id", cid).gte("week_start", month.start_date).lte("week_start", month.end_date),
     sb.from("social_snapshots").select("platform, snapshot_date, followers").eq("client_id", cid)
       .gte("snapshot_date", ymd(new Date(Date.parse(from) - 3 * 864e5))).lte("snapshot_date", to).order("snapshot_date"),
-    sb.from("scripts").select("id, pub_date").eq("client_id", cid).eq("video_status", "published").gte("pub_date", from).lte("pub_date", to),
+    sb.from("scripts").select("id, pub_date, is_trial").eq("client_id", cid).eq("video_status", "published").gte("pub_date", from).lte("pub_date", to),
     sb.from("publications").select("publish_at, script_id, content_type").eq("client_id", cid).eq("pub_status", "published").is("script_id", null)
       .eq("content_type", "reel").gte("publish_at", `${from}T00:00:00`).lte("publish_at", `${to}T23:59:59`),
     sb.from("client_documents").select("data, version, status").eq("client_id", cid).eq("kind", "forecast").eq("is_current", true).maybeSingle(),
@@ -87,20 +88,36 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   // ролики месяца — по факту в соцсетях; один ролик в Instagram и TikTok считается одним роликом
   let monthReels: any[] = [];
   try { monthReels = (await linkPublishedReels(sb, client as any)).reels.filter(r => r.date >= from && r.date <= to); } catch {}
+  // пробные ролики узнаём по ссылке в карточке сценария (её только что проставила автопривязка)
+  const code = (u: string | null | undefined) => String(u || "").match(/(?:reel|reels|p|video|shorts)\/([A-Za-z0-9_-]+)/)?.[1] || null;
+  let trialReels = 0;
+  if (monthReels.length) {
+    const { data: tr } = await sb.from("scripts").select("published_url").eq("client_id", cid).eq("is_trial", true).not("published_url", "is", null);
+    const trialCodes = new Set((tr || []).map((x: any) => code(x.published_url)).filter(Boolean));
+    if (trialCodes.size) monthReels = monthReels.map(r => (trialCodes.has(code(r.url)) ? { ...r, trial: true } : r));
+  }
   const reels: Record<string, number> = {};
   if (monthReels.length) {
-    const perNet: Record<string, Record<string, number>> = {};
-    for (const r of monthReels) { (perNet[r.net] ||= {})[r.date] = ((perNet[r.net] ||= {})[r.date] || 0) + 1; }
-    const main = perNet.instagram ? "instagram" : Object.keys(perNet).sort((a, b) => Object.keys(perNet[b]).length - Object.keys(perNet[a]).length)[0];
-    Object.assign(reels, perNet[main]);
+    const perNet: Record<string, Record<string, number>> = {}, trialNet: Record<string, number> = {};
+    for (const r of monthReels) {
+      if (r.trial) { trialNet[r.net] = (trialNet[r.net] || 0) + 1; continue; }
+      (perNet[r.net] ||= {})[r.date] = ((perNet[r.net] ||= {})[r.date] || 0) + 1;
+    }
+    const nets = Array.from(new Set(monthReels.map(r => r.net)));
+    const main = nets.includes("instagram") ? "instagram" : nets.sort((a, b) => Object.keys(perNet[b] || {}).length - Object.keys(perNet[a] || {}).length)[0];
+    Object.assign(reels, perNet[main] || {});
+    trialReels = trialNet[main] || 0;
   } else {
-    for (const s of scr || []) if (s.pub_date) reels[s.pub_date.slice(0, 10)] = (reels[s.pub_date.slice(0, 10)] || 0) + 1;
+    for (const s of scr || []) {
+      if (s.is_trial) { trialReels++; continue; }
+      if (s.pub_date) reels[s.pub_date.slice(0, 10)] = (reels[s.pub_date.slice(0, 10)] || 0) + 1;
+    }
     for (const p of pubs || []) if (p.publish_at) reels[p.publish_at.slice(0, 10)] = (reels[p.publish_at.slice(0, 10)] || 0) + 1;
   }
 
   return NextResponse.json({
     months, month, today, plan: plan || null, weeks: weeks || [],
-    daily: views.byDate, viewsNote: views.note, followers, reels, monthReels,
+    daily: views.byDate, viewsNote: views.note, followers, reels, monthReels, trialReels,
     reelsSource: monthReels.length ? "соцсети" : "CRM",
     forecast: fc?.data?.months ? { version: fc.version, status: fc.status, months: fc.data.months } : null,
     packageSize: month.package || client.package || null,

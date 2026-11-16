@@ -2,6 +2,7 @@
 import React, { useMemo, useState } from "react";
 import { Client, Script, ClientMonth, TeamMember } from "@/lib/database";
 import Avatar from "@/components/Avatar";
+import { isMain, isTrial } from "@/lib/scriptType";
 import { VIDEO_LEAD, SCRIPT_LEAD } from "@/components/ScriptModal";
 import { isEmptySlot } from "@/components/KanbanBoard";
 import {
@@ -117,6 +118,7 @@ type ClientRow = {
   isOverdue: boolean; isPaused: boolean;
   status: "overdue" | "working" | "paused" | "done";
   pace: ReturnType<typeof paceOf>;
+  trialPub: number;                 // опубликовано пробных (тест сверх пакета) — в пакет не идут, показываем отдельно
   // календарно-месячная статистика (по плановым датам публикаций)
   publishedInMonth: number; plannedInMonth: number; dueByToday: number; factByToday: number;
   onboardingUntil: string | null;   // пока идёт онбординг — дата начала публикаций
@@ -138,7 +140,10 @@ function ClientsBlock(p: ClientsBlockProps) {
       // период. Иначе в августе висят закрытые M1–M3 с марта — лишний шум.
       if ((cm.status === "closed" || cm.status === "cancelled")
         && !(cm.start_date <= periodEnd && cm.end_date >= periodStart)) continue;
-      const list = p.scripts.filter(s => s.client_id === c.id && s.month_number === cm.month_number);
+      // пакет и темп — только по основным роликам; пробные (тест сверх пакета) считаем отдельно
+      const all = p.scripts.filter(s => s.client_id === c.id && s.month_number === cm.month_number);
+      const list = all.filter(isMain);
+      const trialPub = all.filter(s => isTrial(s) && s.video_status === "published").length;
       const plan = cm.package || list.length || 1;
       const scrApproved = list.filter(s => s.script_status === "approved").length;
       const scrInProgress = list.filter(s => s.script_status === "inProgress").length;
@@ -215,7 +220,7 @@ function ClientsBlock(p: ClientsBlockProps) {
             label: `онбординг · публикации с ${obEnd!.slice(8, 10)}.${obEnd!.slice(5, 7)}`,
             color: "var(--cy)", icon: "neutral" as const }
         : paceOf(paceStart, cm.end_date, p.todayIso, published, plan);
-      out.push({ c, cm, plan, scrApproved, scrInProgress, montage, montageInProgress, ready, published, remaining, progressPct, daysToEnd, daysTotal, isOverdue, isPaused, status, pace, publishedInMonth, plannedInMonth, dueByToday, factByToday, onboardingUntil: inOnboardingNow ? publishFrom : null });
+      out.push({ c, cm, plan, scrApproved, scrInProgress, montage, montageInProgress, ready, published, remaining, progressPct, daysToEnd, daysTotal, isOverdue, isPaused, status, pace, trialPub, publishedInMonth, plannedInMonth, dueByToday, factByToday, onboardingUntil: inOnboardingNow ? publishFrom : null });
     }
     // Сортируем: клиент.id, потом по month_number — соседние месяцы одного клиента рядом
     out.sort((a, b) => a.c.id - b.c.id || a.cm.month_number - b.cm.month_number);
@@ -613,7 +618,7 @@ function ClientsBlock(p: ClientsBlockProps) {
                     {/* Опубл. в этом месяце */}
                     <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 110 }}><MonthCell pubInMonth={r.publishedInMonth} planned={r.plannedInMonth} clientId={r.c.id} /></td>
                     {/* Сделано за этот месяц (текущий M-период): опубликовано / пакет */}
-                    <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 110 }}><StageCell done={r.published} plan={r.plan} color="#9d6bff" /></td>
+                    <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 110 }}><StageCell done={r.published} plan={r.plan} color="#9d6bff" />{r.trialPub > 0 && <div title="Пробные ролики — тест сверх пакета" style={{ fontSize: 9, color: "var(--or)", fontWeight: 700, marginTop: 2 }}>+{r.trialPub} пробн.</div>}</td>
                     {/* Темп к сегодня */}
                     <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 110 }}><DueCell fact={r.factByToday} due={r.dueByToday} onboardingUntil={r.onboardingUntil} remaining={r.isPaused ? undefined : r.remaining} daysToEnd={r.daysToEnd} /></td>
                     {/* Дедлайн */}
@@ -697,7 +702,7 @@ function ClientsBlock(p: ClientsBlockProps) {
                 </div>
                 <div>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                    <span style={{ fontSize: 10, color: "var(--t2)", fontWeight: 600 }}>{r.published}/{r.plan}</span>
+                    <span style={{ fontSize: 10, color: "var(--t2)", fontWeight: 600 }}>{r.published}/{r.plan}{r.trialPub > 0 && <span style={{ color: "var(--or)" }}> · +{r.trialPub} пробн.</span>}</span>
                     <span style={{ fontSize: 10, color: r.progressPct >= 70 ? "var(--gr)" : r.progressPct >= 40 ? "var(--cy)" : "var(--or)", fontWeight: 700 }}>{r.progressPct}%</span>
                   </div>
                   <div style={{ height: 5, borderRadius: 3, background: "var(--track)", overflow: "hidden", position: "relative" }}>

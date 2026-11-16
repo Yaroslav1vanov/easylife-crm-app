@@ -1,6 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import { Client, Script, ClientMonth, TeamMember } from "@/lib/database";
+import { isMain, isTrial } from "@/lib/scriptType";
 import Avatar from "@/components/Avatar";
 import AvatarUploader from "@/components/AvatarUploader";
 import {
@@ -42,8 +43,11 @@ export default function ClientOverview({ client: c, clientMonths, scripts, team,
 
   const monthScripts = useMemo(() => currentM ? scripts.filter(s => s.month_number === currentM.month_number) : [], [scripts, currentM]);
   const plan = currentM?.package || 0;
-  const ready = monthScripts.filter(s => s.video_status === "ready" || s.video_status === "published").length;
-  const published = monthScripts.filter(s => s.video_status === "published").length;
+  // пакет — только основные ролики; пробные (тест сверх пакета) — отдельной цифрой
+  const mainScripts = monthScripts.filter(isMain);
+  const ready = mainScripts.filter(s => s.video_status === "ready" || s.video_status === "published").length;
+  const published = mainScripts.filter(s => s.video_status === "published").length;
+  const trialPub = monthScripts.filter(s => isTrial(s) && s.video_status === "published").length;
   const overallPct = plan > 0 ? Math.round((published / plan) * 100) : 0;
   const complete = plan > 0 && published >= plan;
   const daysToEnd = currentM ? daysBetween(todayIso, currentM.end_date) : null;
@@ -185,7 +189,7 @@ export default function ClientOverview({ client: c, clientMonths, scripts, team,
             </div>
             <div>
               <div style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 20, fontWeight: 800, color: "var(--gr)", lineHeight: 1 }}>{published} <span style={{ fontSize: 13, color: "var(--t3)" }}>/ {plan}</span></div>
-              <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 600, marginTop: 3 }}>опубликовано</div>
+              <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 600, marginTop: 3 }}>опубликовано{trialPub > 0 && <span title="Пробные ролики — тест сверх пакета" style={{ color: "var(--or)", fontWeight: 700 }}> · +{trialPub} пробн.</span>}</div>
             </div>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>

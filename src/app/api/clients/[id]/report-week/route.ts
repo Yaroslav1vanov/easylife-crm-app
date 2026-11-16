@@ -128,12 +128,14 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   ]);
 
   const m = monthsRes.data?.[0] || null;
-  let month: { published: number; package: number; from: string; to: string } | null = null;
+  let month: { published: number; trial: number; package: number; from: string; to: string } | null = null;
   if (m) {
-    const { count } = await sb.from("scripts").select("id", { count: "exact", head: true })
-      .eq("client_id", id).eq("month_number", m.month_number).eq("video_status", "published")
+    // в счёт пакета — только основные ролики; пробные (тест сверх пакета) показываем клиенту отдельной строкой
+    const pubCount = (trial: boolean) => sb.from("scripts").select("id", { count: "exact", head: true })
+      .eq("client_id", id).eq("month_number", m.month_number).eq("video_status", "published").eq("is_trial", trial)
       .gte("pub_date", m.start_date).lte("pub_date", m.end_date);
-    month = { published: count || 0, package: m.package || c.package || 0, from: m.start_date, to: m.end_date };
+    const [{ count }, { count: trialCount }] = await Promise.all([pubCount(false), pubCount(true)]);
+    month = { published: count || 0, trial: trialCount || 0, package: m.package || c.package || 0, from: m.start_date, to: m.end_date };
   }
   // подписчики: число — из наших ежедневных снимков, прирост за неделю — из метрик аккаунта Metricool
   const snaps = snapsRes.data || [];
