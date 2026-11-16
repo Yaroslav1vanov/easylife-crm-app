@@ -76,9 +76,11 @@ async function scriptContext(sb: ReturnType<typeof createAdmin>, sid: number, ci
   const { data: s } = await sb.from("scripts").select("id, client_id, month_number, order_num, hook_text, hook, body_text, cta, post_caption, description, ref_url, ref_text, transcription, ref_views, ref_likes, ref_comments, script_status, video_status, video_url")
     .eq("id", sid).eq("client_id", cid).maybeSingle();
   if (!s) return null;
+  // отдельным запросом: если колонки ещё нет (миграция не прогнана), просто пусто
+  const { data: mn } = await sb.from("scripts").select("montage_note").eq("id", sid).maybeSingle();
   const { data: refs } = await sb.from("reference_videos").select("url, platform, author, caption, transcript, views, likes, comments, analysis, note")
     .eq("script_id", sid).order("id", { ascending: false }).limit(1);
-  return { ...s, reference: refs?.[0] || null };
+  return { ...s, montage_note: (mn as any)?.montage_note || null, reference: refs?.[0] || null };
 }
 
 export async function GET(req: Request) {

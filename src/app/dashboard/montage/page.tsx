@@ -409,7 +409,7 @@ export default function MontagePage() {
                     <Avatar name={`${c.name} ${c.surname || ""}`} src={c.avatar_url} size={28} />
                     <div style={{ minWidth: 0 }}><div style={{ fontSize: 12, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name} {c.surname || ""}</div><div style={{ fontSize: 9, color: "var(--t3)" }}>M{sl.s.month_number} · #{sl.s.order_num} · монтаж: {team.find(t => t.id === c.montager_id)?.name || "—"}</div></div>
                   </div>
-                  <div style={{ fontSize: 12, color: "var(--t2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sl.s.hook_text || sl.s.hook || "— без темы —"}</div>
+                  <div style={{ fontSize: 12, color: "var(--t2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{(sl.s.montage_note || "").trim() && <span title={sl.s.montage_note || ""} style={{ color: "var(--rd)", fontWeight: 900, marginRight: 6 }}>⚠️ важно</span>}{sl.s.hook_text || sl.s.hook || "— без темы —"}</div>
                   <div style={{ fontSize: 11, fontWeight: 700, color: "var(--t1)", whiteSpace: "nowrap" }}>📅 {fmtDateShort(sl.due)}</div>
                   <span style={{ fontSize: 10, fontWeight: 700, color: col, background: `${col}1f`, border: `1px solid ${col}55`, padding: "3px 8px", borderRadius: 6, whiteSpace: "nowrap" }}>{reason}</span>
                 </button>

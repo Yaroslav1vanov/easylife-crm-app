@@ -52,6 +52,7 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
   const [bodyText, setBodyText] = useState(s.body_text || "");
   const [cta, setCta] = useState(s.cta || "");
   const [postCaption, setPostCaption] = useState(s.post_caption || "");
+  const [montageNote, setMontageNote] = useState(s.montage_note || "");
   const [videoUrl, setVideoUrl] = useState(s.video_url || "");
   const [pubUrl, setPubUrl] = useState(s.published_url || "");
   const [pubDate, setPubDate] = useState(s.pub_date || "");
@@ -133,6 +134,7 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
       if (bodyText !== (s.body_text || "")) diff.body_text = bodyText;
       if (cta !== (s.cta || "")) diff.cta = cta;
       if (postCaption !== (s.post_caption || "")) diff.post_caption = postCaption;
+      if (montageNote !== (s.montage_note || "")) diff.montage_note = montageNote || null;
     }
     if (Object.keys(diff).length) save(diff);
     await Promise.allSettled(pending.current);
@@ -174,6 +176,7 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
       if (bodyText !== (s.body_text || "")) diff.body_text = bodyText;
       if (cta !== (s.cta || "")) diff.cta = cta;
       if (postCaption !== (s.post_caption || "")) diff.post_caption = postCaption;
+      if (montageNote !== (s.montage_note || "")) diff.montage_note = montageNote || null;
     }
     if (Object.keys(diff).length) save(diff);
     await Promise.allSettled(pending.current);
@@ -198,6 +201,7 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
       if (bodyText !== (s.body_text || "")) diff.body_text = bodyText;
       if (cta !== (s.cta || "")) diff.cta = cta;
       if (postCaption !== (s.post_caption || "")) diff.post_caption = postCaption;
+      if (montageNote !== (s.montage_note || "")) diff.montage_note = montageNote || null;
     }
     if (videoUrl !== (s.video_url || "")) diff.video_url = videoUrl;
     if (pubUrl !== (s.published_url || "")) diff.published_url = pubUrl;
@@ -261,6 +265,27 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
             <X size={16} />
           </button>
         </div>
+
+        {/* Рекомендация к монтажу — первое, что видит монтажёр. Пишет тимлид, у монтажёра только чтение. */}
+        {(!ro || (s.montage_note || "").trim()) && (
+          <div style={{ padding: 14, borderRadius: 12, border: `1.5px solid ${montageNote.trim() ? "var(--rd)" : "var(--brd)"}`, background: montageNote.trim() ? "rgba(255,92,122,0.09)" : "var(--inset)" }}>
+            <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: 0.4, color: montageNote.trim() ? "var(--rd)" : "var(--t2)", marginBottom: 8 }}>
+              ⚠️ РЕКОМЕНДАЦИЯ К МОНТАЖУ — ВАЖНО!
+            </div>
+            {ro ? (
+              <div style={{ fontSize: 14, color: "var(--t1)", lineHeight: 1.5, whiteSpace: "pre-wrap", fontWeight: 600 }}>{s.montage_note}</div>
+            ) : (
+              <>
+                <textarea value={montageNote} onChange={(e) => setMontageNote(e.target.value)}
+                  onBlur={() => { if (montageNote !== (s.montage_note || "")) save({ montage_note: montageNote || null }); }}
+                  rows={montageNote.trim() ? 3 : 2}
+                  placeholder="Что обязательно учесть в монтаже: какие вставки, где пауза, что не показывать, на какой реф смотреть…"
+                  style={{ ...ta, background: "var(--inset2)", fontSize: 13.5 }} />
+                <div style={{ fontSize: 9.5, color: "var(--t3)", marginTop: 4 }}>Монтажёр увидит это первым в карточке, а на доске у ролика появится пометка ⚠️. ИИ-монтаж тоже это учитывает.</div>
+              </>
+            )}
+          </div>
+        )}
 
         {/* Сроки */}
         <div style={{ display: "grid", gridTemplateColumns: "auto auto 1fr 1fr", gap: 12, alignItems: "end", padding: 14, borderRadius: 12, background: "var(--inset)", border: "1px solid var(--brd)" }}>

@@ -304,7 +304,10 @@ def write_script(ws, sc):
                                                  ("комментарии", sc.get("ref_comments") or ref.get("comments"))) if v)
     f.write_text(f"""# Сценарий из CRM: #{sc.get('order_num') or '—'} (id {sc['id']}), месяц M{sc.get('month_number')}
 Статус: сценарий {sc.get('script_status')} · монтаж {sc.get('video_status')}{' · ролик уже смонтирован: ' + sc['video_url'] if sc.get('video_url') else ''}
-
+{('''
+## ⚠️ РЕКОМЕНДАЦИЯ К МОНТАЖУ — ВАЖНО (от тимлида, выполнить обязательно)
+''' + sc['montage_note'].strip() + '''
+''') if (sc.get('montage_note') or '').strip() else ''}
 ## Наш текст сейчас
 - Тема: {sc.get('hook_text') or '—'}
 - Хук: {sc.get('hook') or '—'}

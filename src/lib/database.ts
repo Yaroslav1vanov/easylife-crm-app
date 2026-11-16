@@ -42,6 +42,7 @@ export type Script = {
   description: string; script_status: string; video_status: string; pub_date: string | null;
   ready_at: string | null; video_url?: string | null; published_url?: string | null; content_type?: string | null;
   post_caption?: string | null;   // описание к рилсу — пишется вместе со сценарием
+  montage_note?: string | null;   // «Рекомендация к монтажу — ВАЖНО!»: пишет тимлид, монтажёр видит первым делом
   // проверка на стоп-слова Instagram (ИИ, по кнопке): результат и время
   stopcheck?: StopCheck | null; stopcheck_at?: string | null;
   // «Дуэль» статистики: исходник (реф) vs наше опубликованное видео

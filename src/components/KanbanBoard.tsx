@@ -474,6 +474,11 @@ function KanbanCardPreview({ script: s, client: c, color, dragging, moving, show
         <div style={{ fontSize: 9, color: "var(--t3)", fontFamily: "monospace" }}>{numLabel} · M{s.month_number}</div>
       )}
       <div style={{ fontSize: 12.5, color: "var(--t1)", lineHeight: 1.35, fontWeight: 600 }}>{titleShort}</div>
+      {(s.montage_note || "").trim() && (
+        <div title={s.montage_note || ""} style={{ display: "inline-flex", alignSelf: "flex-start", alignItems: "center", gap: 5, padding: "3px 8px", borderRadius: 7, fontSize: 10, fontWeight: 900, background: "rgba(255,92,122,0.14)", color: "var(--rd)", border: "1px solid rgba(255,92,122,0.4)" }}>
+          ⚠️ рекомендация к монтажу
+        </div>
+      )}
       {deadline && (
         <div style={{ display: "inline-flex", alignSelf: "flex-start", alignItems: "center", gap: 5, padding: "3px 8px", borderRadius: 7, fontSize: 10, fontWeight: 800, background: `${deadline.color}1f`, color: deadline.color }}>
           🎬 сдать {fmtDateShort(deadline.due)} · {deadline.text}
