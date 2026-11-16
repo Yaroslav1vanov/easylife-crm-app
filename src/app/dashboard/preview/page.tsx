@@ -183,7 +183,7 @@ export default function DashboardPreview() {
           <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 10 }}>
             <span style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 34, fontWeight: 800, color: "var(--t1)" }}>{v.doneByYest.length}</span>
             <span style={{ fontSize: 16, color: "var(--t3)", fontWeight: 700 }}>из {v.dueByYest.length} к вчерашнему дню</span>
-            <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--t3)" }}>всего в плане месяца: <b style={{ color: "var(--t2)" }}>{v.planned.length}</b>{v.trialPlanned > 0 && <span title="Пробные ролики — тест сверх пакета, в план не входят" style={{ color: "var(--or)" }}> · +{v.trialPlanned} пробных (вышло {v.trialDone})</span>}</span>
+            <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--t3)" }}>всего в плане месяца: <b style={{ color: "var(--t2)" }}>{v.planned.length}</b>{v.trialPlanned > 0 && <span title="Пробные ролики" style={{ color: "var(--or)" }}> · +{v.trialPlanned} пробных (вышло {v.trialDone})</span>}</span>
           </div>
 
           <div style={{ height: 10, borderRadius: 6, background: "var(--track)", overflow: "hidden" }}>

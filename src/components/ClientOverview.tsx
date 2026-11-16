@@ -189,7 +189,7 @@ export default function ClientOverview({ client: c, clientMonths, scripts, team,
             </div>
             <div>
               <div style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 20, fontWeight: 800, color: "var(--gr)", lineHeight: 1 }}>{published} <span style={{ fontSize: 13, color: "var(--t3)" }}>/ {plan}</span></div>
-              <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 600, marginTop: 3 }}>опубликовано{trialPub > 0 && <span title="Пробные ролики — тест сверх пакета" style={{ color: "var(--or)", fontWeight: 700 }}> · +{trialPub} пробн.</span>}</div>
+              <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 600, marginTop: 3 }}>опубликовано{trialPub > 0 && <span title="Пробные ролики" style={{ color: "var(--or)", fontWeight: 700 }}> · +{trialPub} пробн.</span>}</div>
             </div>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>

@@ -164,7 +164,7 @@ export default function PublicationScheduler({ clientId, month, scripts, onClose
             </h3>
             <p style={{ fontSize: 11.5, color: "var(--t3)", marginTop: 4 }}>
               {month.start_date.split("-").reverse().slice(0, 2).join(".")} → {month.end_date.split("-").reverse().slice(0, 2).join(".")} ·
-              план {month.package} · с датой {withDate.length} · без даты {noDate.length}{trialCount > 0 ? ` · из них пробных ${trialCount} (сверх пакета, «Распределить» их не трогает)` : ""}
+              план {month.package} · с датой {withDate.length} · без даты {noDate.length}{trialCount > 0 ? ` · из них пробных ${trialCount}` : ""}
             </p>
           </div>
           <button onClick={onClose} style={{ background: "transparent", border: "none", color: "var(--t3)", cursor: "pointer" }}><X size={18} /></button>

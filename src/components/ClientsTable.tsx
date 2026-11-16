@@ -618,7 +618,7 @@ function ClientsBlock(p: ClientsBlockProps) {
                     {/* Опубл. в этом месяце */}
                     <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 110 }}><MonthCell pubInMonth={r.publishedInMonth} planned={r.plannedInMonth} clientId={r.c.id} /></td>
                     {/* Сделано за этот месяц (текущий M-период): опубликовано / пакет */}
-                    <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 110 }}><StageCell done={r.published} plan={r.plan} color="#9d6bff" />{r.trialPub > 0 && <div title="Пробные ролики — тест сверх пакета" style={{ fontSize: 9, color: "var(--or)", fontWeight: 700, marginTop: 2 }}>+{r.trialPub} пробн.</div>}</td>
+                    <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 110 }}><StageCell done={r.published} plan={r.plan} color="#9d6bff" />{r.trialPub > 0 && <div title="Пробные ролики" style={{ fontSize: 9, color: "var(--or)", fontWeight: 700, marginTop: 2 }}>+{r.trialPub} пробн.</div>}</td>
                     {/* Темп к сегодня */}
                     <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 110 }}><DueCell fact={r.factByToday} due={r.dueByToday} onboardingUntil={r.onboardingUntil} remaining={r.isPaused ? undefined : r.remaining} daysToEnd={r.daysToEnd} /></td>
                     {/* Дедлайн */}

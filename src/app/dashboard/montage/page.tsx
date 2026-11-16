@@ -377,7 +377,7 @@ export default function MontagePage() {
                   <div style={{ height: 5, borderRadius: 3, background: "var(--track)", overflow: "hidden", marginBottom: 7 }}>
                     <div style={{ width: `${pct}%`, height: "100%", background: color, borderRadius: 3, transition: "width .3s" }} />
                   </div>
-                  <div style={{ fontSize: 10, fontWeight: 700, color }}>{stateTxt}{b.trial > 0 && <span style={{ fontWeight: 600, color: "var(--or)" }}> · +{b.trial} пробн. сверх партии</span>}</div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color }}>{stateTxt}{b.trial > 0 && <span style={{ fontWeight: 600, color: "var(--or)" }}> · +{b.trial} пробн.</span>}</div>
                   {underplanned && (
                     <div style={{ fontSize: 9, color: "#ffae42", marginTop: 4 }}>⚠ запланировано {b.planned.length}/{b.quota} — тимлиду добавить слоты на неделю {fmtDateShort(b.weekStart)}–{fmtDateShort(b.weekEnd)}</div>
                   )}

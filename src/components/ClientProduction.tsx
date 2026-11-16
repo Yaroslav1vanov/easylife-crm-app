@@ -63,7 +63,7 @@ export default function ClientProduction({ currentM, scripts: all }: Props) {
       <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 16 }}>
         <h3 style={{ fontSize: 14, fontWeight: 800, color: "var(--t1)" }}>Производство</h3>
         {currentM && <span style={{ fontSize: 11, color: "var(--t3)", fontWeight: 600 }}>M{currentM.month_number}: {fmtDateShort(currentM.start_date)} → {fmtDateShort(currentM.end_date)}</span>}
-        {trial.length > 0 && <span title="Пробные ролики — тест сверх пакета, в цифры ниже не входят" style={{ marginLeft: "auto", fontSize: 11, color: "var(--or)", fontWeight: 700 }}>+{trial.length} пробных · опубликовано {trialPub}</span>}
+        {trial.length > 0 && <span title="Пробные ролики" style={{ marginLeft: "auto", fontSize: 11, color: "var(--or)", fontWeight: 700 }}>+{trial.length} пробных · опубликовано {trialPub}</span>}
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }} className="prod-grid">
         {blocks.map(b => {

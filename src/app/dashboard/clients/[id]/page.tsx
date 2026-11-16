@@ -723,7 +723,7 @@ export default function ClientDetailPage() {
               <div style={{ fontSize: 13, fontWeight: 800, color: "var(--t1)" }}>
                 Опубликовано за Месяц {viewMonth}: <span style={{ color: "var(--gr)", fontFamily: "'Unbounded', sans-serif" }}>{pubList.filter(isMain).length}</span>
                 {viewMonthPkg ? <span style={{ color: "var(--t3)", fontWeight: 600 }}> из {viewMonthPkg}</span> : null} видео
-                {pubList.some(isTrial) && <span title="Пробные ролики — тест сверх пакета" style={{ color: "var(--or)", fontWeight: 700 }}> · +{pubList.filter(isTrial).length} пробных</span>}
+                {pubList.some(isTrial) && <span title="Пробные ролики" style={{ color: "var(--or)", fontWeight: 700 }}> · +{pubList.filter(isTrial).length} пробных</span>}
               </div>
               <span style={{ fontSize: 10, color: "var(--t3)" }}>по дате публикации ↑</span>
             </div>

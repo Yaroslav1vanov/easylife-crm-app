@@ -194,7 +194,7 @@ export default function ClientPlanTab({ client, scripts, monthOptions, canEdit, 
         <button className="v2-iconbtn" onClick={() => shift(1)} aria-label="Следующий месяц"><ChevronRight size={16} /></button>
         {ym !== today.slice(0, 7) && <button className="v2-act ghost" style={{ height: 30 }} onClick={() => { setYm(today.slice(0, 7)); setDay(today); }}>Сегодня</button>}
         <div style={{ flex: 1 }} />
-        <span className="v2-chip pu"><Film size={11} /> рилсов {sum.reels} · вышло {sum.out}{sum.trial > 0 && <span title="Пробные ролики — тест сверх пакета" style={{ color: "var(--or)" }}> · из них пробных {sum.trial}</span>}</span>
+        <span className="v2-chip pu"><Film size={11} /> рилсов {sum.reels} · вышло {sum.out}{sum.trial > 0 && <span title="Пробные ролики" style={{ color: "var(--or)" }}> · из них пробных {sum.trial}</span>}</span>
         <span className="v2-chip" style={{ background: "rgba(236,72,153,.12)", color: "var(--pk)" }}><Smartphone size={11} /> дней со сторис {sum.storyDays}</span>
         {sum.empty > 0 && <span className="v2-chip or">пустых дней за 2 недели: {sum.empty}</span>}
       </div>

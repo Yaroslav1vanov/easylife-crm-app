@@ -191,7 +191,7 @@ export default function OwnerDashboard({ clients, clientMonths, scripts, team, o
       {/* ===== KPI ===== */}
       <div className="v2-stat v2-stat4">
         <div><b>{tot.pubYm}<em>/{tot.target || "—"}</em></b><span>вышло в {ymLabel(selectedMonth).split(" ")[0]} · план</span>
-          <div className="v2-hint" style={{ color: tot.pubYm >= tot.due ? "var(--gr)" : "var(--or)" }}>к сегодня должно быть {tot.due}{tot.pubYm - tot.due !== 0 ? ` · ${tot.pubYm - tot.due > 0 ? "+" : ""}${tot.pubYm - tot.due}` : " · по плану"}{tot.trialYm > 0 && <span style={{ color: "var(--or)" }}> · +{tot.trialYm} пробных сверх плана</span>}</div></div>
+          <div className="v2-hint" style={{ color: tot.pubYm >= tot.due ? "var(--gr)" : "var(--or)" }}>к сегодня должно быть {tot.due}{tot.pubYm - tot.due !== 0 ? ` · ${tot.pubYm - tot.due > 0 ? "+" : ""}${tot.pubYm - tot.due}` : " · по плану"}{tot.trialYm > 0 && <span style={{ color: "var(--or)" }}> · +{tot.trialYm} пробных</span>}</div></div>
         <div className={tot.overdue ? "rd" : ""}><b>{tot.overdue}</b><span>роликов просрочено</span><div className="v2-hint">{tot.overdueClients ? `у ${tot.overdueClients} клиентов` : "чисто"}</div></div>
         <div className={tot.behind ? "rd" : ""}><b>{tot.behind}</b><span>клиентов проседают</span><div className="v2-hint">{rows.filter(r => r.sev === "or").length} с предупреждением</div></div>
         <div className="pu"><b>{todo.nowTotal}</b><span>действий на сегодня</span><div className="v2-hint">просроченные и сегодняшние</div></div>

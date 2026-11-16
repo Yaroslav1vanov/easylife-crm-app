@@ -147,7 +147,7 @@ export default function EmployeeDashboard({ member, clients, clientMonths, scrip
         <KPI icon={CheckCircle2} label="Сегодня" value={v.todayTasks.length} color="#ffae42"
           sub={isMg ? "сдать сегодня" : "написать сегодня"} />
         <KPI icon={Film} label={isMg ? "Смонтировано в месяце" : "Опубликовано в месяце"} value={v.doneMonth} color="#a8e063"
-          sub={`план по моим клиентам: ${v.planMonth}${v.trialMonth ? ` · +${v.trialMonth} пробных сверх плана` : ""}`} />
+          sub={`план по моим клиентам: ${v.planMonth}${v.trialMonth ? ` · +${v.trialMonth} пробных` : ""}`} />
         <KPI icon={Users} label="Мои клиенты" value={v.mine.length} color="#42d4f4" sub="в работе" />
       </div>
 

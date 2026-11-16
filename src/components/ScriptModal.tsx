@@ -258,7 +258,7 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
                 <span>· M{s.month_number}</span>
               )}
               {ro ? (
-                trial && <span title="Пробный ролик: тест сверх пакета" style={{ padding: "1px 6px", borderRadius: 5, background: "var(--ord)", color: "var(--or)", fontWeight: 800, fontSize: 9.5 }}>пробный</span>
+                trial && <span title="Пробный ролик" style={{ padding: "1px 6px", borderRadius: 5, background: "var(--ord)", color: "var(--or)", fontWeight: 800, fontSize: 9.5 }}>пробный</span>
               ) : (
                 <span title="Тип ролика" style={{ display: "inline-flex", borderRadius: 6, border: "1px solid var(--brd)", overflow: "hidden", marginLeft: 2 }}>
                   {([[false, "Основной"], [true, "Пробный"]] as const).map(([v, t]) => (
@@ -270,9 +270,6 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
                 </span>
               )}
             </div>
-            {!ro && trial && (
-              <div style={{ fontSize: 9.5, color: "var(--or)", marginBottom: 4 }}>Пробный — тест сверх пакета: в пакет и ЗП не идёт, в отчётах считается отдельно</div>
-            )}
             <input ref={refs.hook_text}
               value={hookText} onChange={(e) => setHookText(e.target.value)} readOnly={ro}
               onBlur={() => { if (!ro && hookText !== (s.hook_text || "")) save({ hook_text: hookText }); }}

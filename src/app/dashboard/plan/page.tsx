@@ -230,7 +230,7 @@ function PlanInner() {
             <span className={`v2-chip ${published >= plan && plan ? "gr" : daysLeft < 0 ? "rd" : "pu"}`}>{published >= plan && plan ? "выполнен" : `${pct}%`}</span>
           </div>
           <div className="v2-prog"><i style={{ width: `${pct}%` }} /></div>
-          <div className="v2-kv"><span><b>{published}</b> / {plan} опубликовано{trialAll > 0 && <span title={`Пробные ролики — тест сверх пакета: всего ${trialAll}, опубликовано ${trialPub}`} style={{ color: "var(--or)" }}> · +{trialPub} {trialPub === 1 ? "пробный" : "пробных"}{trialAll > trialPub ? ` (в плане ${trialAll})` : ""}</span>}</span>
+          <div className="v2-kv"><span><b>{published}</b> / {plan} опубликовано{trialAll > 0 && <span title={`Пробные ролики: всего ${trialAll}, опубликовано ${trialPub}`} style={{ color: "var(--or)" }}> · +{trialPub} {trialPub === 1 ? "пробный" : "пробных"}{trialAll > trialPub ? ` (в плане ${trialAll})` : ""}</span>}</span>
             {calRows.map(r => <span key={r.ym}>{ymLabel(r.ym).split(" ")[0]} <b>{r.pub}</b>{r.target != null ? ` / ${r.target}` : ""}</span>)}</div>
           <div className="v2-split">
             <div>Без даты<b>{noDate.length} <em>роликов</em></b></div>
