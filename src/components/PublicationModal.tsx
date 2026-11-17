@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { Client, Script, Publication } from "@/lib/database";
 import Avatar from "@/components/Avatar";
+import { createClient as sbBrowser } from "@/lib/supabase-browser";
 import { DEFAULT_TZ, tzShort, nowInTz, utcToZonedInput, zonedInputToUtc, fmtInTz } from "@/lib/tz";
 import { Camera, Play, Music2, AtSign, Wand2, X, ExternalLink, Rocket, RefreshCw, Trash2, Check, AlertTriangle, type LucideIcon } from "lucide-react";
 
@@ -85,7 +86,43 @@ export default function PublicationModal({ pub, client, script, onClose, onUpdat
     return () => { live = false; };
   }, [f.metricool_post_id, f.video_thumbnail_url, f.pub_status]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const save = (patch: Partial<Publication>) => { if (locked) return; setF(p => ({ ...p, ...patch })); onUpdate(pub.id, patch); };
+  /* Файл ролика в карточке сценария — свежий из базы (список сценариев на странице мог устареть).
+     Если он отличается от файла публикации — показываем предупреждение: так 17.11 у Beniakoff
+     вышел ролик про Барби с текстом про библиотеку. */
+  const [scriptVideo, setScriptVideo] = useState<string | null>(script?.video_url ?? null);
+  useEffect(() => {
+    if (!pub.script_id || isCarousel || isStory) return;
+    let live = true;
+    sbBrowser().from("scripts").select("video_url").eq("id", pub.script_id).maybeSingle()
+      .then(({ data }) => { if (live && data) setScriptVideo(data.video_url || null); });
+    return () => { live = false; };
+  }, [pub.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const videoMismatch = !isPublished && !isCarousel && !isStory && !!pub.script_id && !!scriptVideo && scriptVideo !== (f.video_url || null);
+
+  const save = (patch: Partial<Publication>) => {
+    if (locked) return;
+    setF(p => ({ ...p, ...patch })); onUpdate(pub.id, patch);
+    // один ролик = один файл: поменяли файл в публикации → тот же файл и в карточке сценария
+    if (typeof patch.video_url === "string" && patch.video_url.trim() && pub.script_id && !isCarousel && !isStory) {
+      const u = patch.video_url.trim();
+      setScriptVideo(u);
+      sbBrowser().from("scripts").update({ video_url: u }).eq("id", pub.script_id).then(() => {});
+    }
+  };
+  /** Взять файл ролика из карточки сценария (если в графике — пост пересоздаётся с ним на то же время). */
+  async function takeScriptVideo() {
+    if (!scriptVideo) return;
+    if (!isScheduled) { setPreviewErr(false); save({ video_url: scriptVideo }); return; }
+    if (!confirm(`Подставить файл из сценария? Пост в ${service} пересоздастся с ним на то же время — ${fmtInTz(f.publish_at, tz)} (${tzShort(tz)}).`)) return;
+    setUpBusy(true);
+    try {
+      const r = await fetch(`/api/publications/${pub.id}/media`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ video_url: scriptVideo }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || j.error) { alert("Не получилось заменить: " + (j.error || r.status)); return; }
+      const patch: Partial<Publication> = { video_url: scriptVideo, ...(j.ids ? { metricool_post_id: Object.entries(j.ids).map(([k, x]) => `${k}:${x}`).join(",") } : {}) };
+      setPreviewErr(false); setF(p => ({ ...p, ...patch })); onUpdate(pub.id, patch);
+    } finally { setUpBusy(false); }
+  }
   /** Вернуть опубликованный пост в «Готово к публикации», чтобы отправить заново.
    *  Сценарий в «Монтаже» не трогаем: ролик уже сделан и оплачен — переопубликация
    *  это правка поста в соцсетях, а не новый ролик, ЗП и счётчики не меняются. */
@@ -125,6 +162,7 @@ export default function PublicationModal({ pub, client, script, onClose, onUpdat
       if (!r.ok || j.error) { alert("Не получилось заменить: " + (j.error || r.status)); return; }
       const patch: Partial<Publication> = { ...body, ...(j.ids ? { metricool_post_id: Object.entries(j.ids).map(([k, x]) => `${k}:${x}`).join(",") } : {}) };
       setPreviewErr(false); setF(p => ({ ...p, ...patch })); onUpdate(pub.id, patch);
+      if (kind === "video") setScriptVideo(u);
     } catch (e: any) { alert(String(e)); }
     finally { setUpBusy(false); }
   }
@@ -245,6 +283,16 @@ export default function PublicationModal({ pub, client, script, onClose, onUpdat
             </>
           ) : (
             <div className="pub-media">
+              {videoMismatch && (
+                <div style={{ gridColumn: "1 / -1", padding: "10px 12px", borderRadius: 10, background: "rgba(255,92,122,.12)", border: "1px solid rgba(255,92,122,.5)", display: "flex", gap: 10, alignItems: "flex-start", flexWrap: "wrap" }}>
+                  <AlertTriangle size={16} style={{ color: "var(--rd, #ff5c7a)", flexShrink: 0, marginTop: 2 }} />
+                  <div style={{ flex: "1 1 260px", fontSize: 13, lineHeight: 1.45 }}>
+                    <b>В карточке сценария другой файл ролика.</b> Сейчас отправится тот, что ниже. Проверь, какой правильный: обычно это последний загруженный в сценарий.
+                    {" "}<a href={scriptVideo!} target="_blank" rel="noreferrer" style={{ color: "inherit", textDecoration: "underline" }}>Открыть файл из сценария</a>
+                  </div>
+                  {!locked && <button className="v2-act pri" disabled={upBusy} onClick={takeScriptVideo} style={{ flexShrink: 0 }}>{upBusy ? "…" : "Взять файл из сценария"}</button>}
+                </div>
+              )}
               <div>
                 {f.video_url && !previewErr
                   ? <video key={f.video_url} src={f.video_url} controls playsInline preload="metadata" onError={() => setPreviewErr(true)} style={{ width: "100%", maxHeight: 260, borderRadius: 10, background: "#000", display: "block" }} />

@@ -343,7 +343,36 @@ const db = {
     if (error && typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("crm:notice", { detail: { text: `Не сохранилось: ${error.message}`, kind: "error" } }));
     }
+    // Файл ролика в сценарии заменили → та же замена в публикации. Раньше публикация навсегда
+    // запоминала ПЕРВЫЙ загруженный файл: 14.11 у Beniakoff в сценарий «Библиотека» сначала по ошибке
+    // залили ролик про Барби, 16.11 заменили на правильный, а в соцсети ушёл первый (текст и обложка — про библиотеку).
+    if (!error && typeof updates.video_url === "string" && updates.video_url.trim()) {
+      try { await db.syncPublicationVideo(sb, id, updates.video_url.trim()); } catch {}
+    }
     return { error, patch: merged as Partial<Script> };
+  },
+  /** Подставляет новый файл ролика из сценария в его публикацию.
+   *  Ещё не отправлена → просто меняем файл. Стоит в графике Metricool → пост пересоздаётся с новым файлом
+   *  на то же время. Уже вышла → ничего не меняем, предупреждаем (в соцсети файл не заменить). */
+  async syncPublicationVideo(sb: SupabaseClient, scriptId: number, url: string) {
+    const { data: pub } = await sb.from("publications").select("id, pub_status, video_url, content_type").eq("script_id", scriptId).maybeSingle();
+    if (!pub || (pub.content_type && pub.content_type !== "reel") || pub.video_url === url) return;
+    const say = (text: string, kind: "error" | "ok" | "info") => {
+      if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("crm:notice", { detail: { text, kind } }));
+    };
+    if (pub.pub_status === "published") {
+      say("Новый файл сохранён в сценарии, но этот ролик уже опубликован с прежним файлом. Если в соцсетях вышел не тот ролик — удали его там и верни публикацию на переопубликацию.", "info");
+      return;
+    }
+    if (pub.pub_status === "scheduled") {
+      if (typeof window === "undefined") return;
+      const r = await fetch(`/api/publications/${pub.id}/media`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ video_url: url }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || j.error) say(`Публикация: ролик уже стоял в графике, новый файл туда не подставился (${j.error || r.status}). Открой карточку публикации и замени ролик там, иначе выйдет старый файл.`, "error");
+      else say("Ролик уже стоял в графике публикаций — пост пересоздан с новым файлом на то же время.", "ok");
+      return;
+    }
+    await sb.from("publications").update({ video_url: url }).eq("id", pub.id);
   },
   async addMonthScripts(sb: SupabaseClient, clientId: number) {
     const { error } = await sb.rpc("add_month_scripts", { p_client_id: clientId });

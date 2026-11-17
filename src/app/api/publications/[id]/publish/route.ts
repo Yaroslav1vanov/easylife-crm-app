@@ -67,6 +67,14 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   if (!pub) return NextResponse.json({ error: "публикация не найдена" }, { status: 404 });
   const { data: client } = await sb.from("clients").select("name, surname, metricool_blog_id, timezone, platforms, publisher, uploadpost_profile").eq("id", pub.client_id).maybeSingle();
 
+  // Файл в публикации должен совпадать с файлом в карточке сценария. Иначе выходит не тот ролик
+  // с правильным текстом (Beniakoff, 17.11: «Библиотека» вышла с роликом про Барби).
+  if ((pub.content_type || "reel") === "reel" && pub.script_id) {
+    const { data: sc } = await sb.from("scripts").select("video_url").eq("id", pub.script_id).maybeSingle();
+    if (sc?.video_url && sc.video_url !== pub.video_url) {
+      return NextResponse.json({ error: "В карточке сценария лежит другой файл ролика, чем в публикации. Открой публикацию и нажми «Взять файл из сценария» (или загрузи правильный файл), потом отправь.", code: "video_mismatch" }, { status: 409 });
+    }
+  }
   // ---- Upload-Post: клиент публикуется через свой аккаунт
   if (client?.publisher === "uploadpost") {
     return await publishViaUploadPost(sb, pub, client, force);
