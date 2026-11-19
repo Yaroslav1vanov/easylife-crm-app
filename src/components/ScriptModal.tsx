@@ -5,6 +5,7 @@ import { Client, Script, StopCheck, StopIssue, stopHash } from "@/lib/database";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import { ExternalLink, X, Trash2, Eye, Heart, MessageCircle, RefreshCw, Swords, ShieldCheck, ShieldAlert, Loader2, Sparkles, Mic } from "lucide-react";
 import { createClient } from "@/lib/supabase-browser";
+import { isPortal } from "@/lib/portalMode";
 
 const fmtNum = (n: number | null | undefined) => n == null ? "—" : n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(1) + "K" : String(n);
 
@@ -44,6 +45,7 @@ type Props = {
 
 export default function ScriptModal({ script: s, client: c, onClose, onUpdate, onDelete, canEdit = true, canEditReadyAt = false, monthOptions }: Props) {
   const ro = !canEdit; // read-only для монтажёра
+  const pv = isPortal(); // кабинет клиента: без внутренних блоков (референс, стоп-проверка, дуэль, ИИ)
   const roReady = !canEditReadyAt; // дату сдачи меняет только владелец/админ
   const [hookText, setHookText] = useState(s.hook_text || "");
   const [refUrl, setRefUrl] = useState(s.ref_url || "");
@@ -330,6 +332,7 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
           </div>
         </div>
 
+        {!pv && (<>
         {/* Референс — ссылка */}
         <div data-tour="sm-ref">
           {label("🎬 Референс — ссылка на исходник")}
@@ -362,6 +365,8 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
           </div>
         )}
 
+        </>)}
+
         {/* Наш сценарий — 3 части, пишем вручную */}
         <div data-tour="sm-parts" style={{ padding: 14, borderRadius: 12, background: "rgba(157,107,255,0.05)", border: "1px solid var(--brd)", display: "flex", flexDirection: "column", gap: 12 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
@@ -373,21 +378,23 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
                 {chatBusy ? <Loader2 size={13} className="spin" /> : <Sparkles size={13} />} {chatBusy ? "Отправляю…" : "Уникализировать в чате ИИ"}
               </button>
             )}
-            {hasAvatar && (
+            {hasAvatar && !pv && (
               <button onClick={() => sendToChat("avatar")} disabled={chatBusy} title="Сценарий уйдёт в «Чат · ИИ» → «Аватар»: ИИ разметит эмоции, применит словарь произношения и предложит лук. Генерация — только после кнопки «Озвучить»."
                 style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 11px", borderRadius: 8, border: "1px solid rgba(66,212,244,.45)", background: "rgba(66,212,244,.10)", color: "var(--t1)", fontSize: 11.5, fontWeight: 700, cursor: chatBusy ? "default" : "pointer" }}>
                 <Mic size={13} /> Озвучить сценарий
               </button>
             )}
+            {!pv && (
             <button onClick={runStopCheck} disabled={stopBusy} title="ИИ подсветит фразы, из-за которых Instagram может занизить показы. Ничего не меняет — решаете вы."
               style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 11px", borderRadius: 8, border: "1px solid var(--brd)", background: "var(--card)", color: "var(--t1)", fontSize: 11.5, fontWeight: 700, cursor: stopBusy ? "default" : "pointer" }}>
               {stopBusy ? <Loader2 size={13} className="spin" /> : <ShieldCheck size={13} />} {stopBusy ? "Проверяю…" : stop ? "Проверить снова" : "Проверить на стоп-слова"}
             </button>
+            )}
             </span>
           </div>
           {chatErr && <div style={{ fontSize: 12, color: "var(--rd)" }}>Не отправилось в чат: {chatErr}</div>}
           {stopErr && <div style={{ fontSize: 12, color: "var(--rd)" }}>Проверка не прошла: {stopErr}</div>}
-          {stop && !stopBusy && (
+          {!pv && stop && !stopBusy && (
             <div style={{ padding: 11, borderRadius: 10, border: `1px solid ${stop.issues.length ? (stop.issues.some(i => i.severity === "high") ? "rgba(220,38,38,.4)" : "rgba(234,88,12,.4)") : "rgba(22,163,74,.35)"}`, background: "var(--card)", display: "flex", flexDirection: "column", gap: 8 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, fontWeight: 700, color: stop.issues.length ? "var(--t1)" : "var(--gr)" }}>
                 {stop.issues.length ? <ShieldAlert size={15} style={{ color: stop.issues.some(i => i.severity === "high") ? "var(--rd)" : "var(--or)" }} /> : <ShieldCheck size={15} />}
@@ -484,7 +491,7 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
         )}
 
         {/* ⚔ Дуэль: исходник vs наше видео */}
-        {(s.ref_url || s.ref_views != null || isPublished) && (() => {
+        {!pv && (s.ref_url || s.ref_views != null || isPublished) && (() => {
           const rV = s.ref_views ?? null, oV = s.our_views ?? null;
           const ratio = rV && oV != null ? oV / rV : null;
           const verdict = ratio == null ? null

@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Client, Script, stopHash } from "@/lib/database";
 import Avatar from "@/components/Avatar";
+import { isPortal } from "@/lib/portalMode";
 import TrialBadge from "@/components/TrialBadge";
 import ScriptModal, { fmtDateShort, addDaysIso } from "@/components/ScriptModal";
 import ConfirmDialog from "@/components/ConfirmDialog";
@@ -443,7 +444,7 @@ function KanbanCardPreview({ script: s, client: c, color, dragging, moving, show
   const titleShort = title.length > 70 ? title.slice(0, 67) + "..." : title;
   return (
     <div
-      draggable={!selectMode}
+      draggable={!selectMode && !isPortal()}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onClick={onClick}

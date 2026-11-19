@@ -6,6 +6,7 @@ import ScriptModal from "@/components/ScriptModal";
 import TrialBadge from "@/components/TrialBadge";
 import { DEFAULT_TZ, tzShort, utcToZonedInput, zonedInputToUtc, fmtInTz } from "@/lib/tz";
 import { useIsMobile } from "@/lib/useMedia";
+import { isPortal } from "@/lib/portalMode";
 import { ChevronLeft, ChevronRight, Film, Smartphone, Images, Plus, Sparkles, Trash2, ExternalLink, CalendarDays } from "lucide-react";
 
 /* План клиента по дням: когда какой рилс выходит и на каком он этапе, какие сторис стоят рядом.
@@ -306,7 +307,7 @@ export default function ClientPlanTab({ client, scripts, monthOptions, canEdit, 
           {sel && sel.stories.length > 0 && (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               <div style={{ fontSize: 12, color: "var(--t3)", display: "flex", alignItems: "center", gap: 6 }}><Smartphone size={13} style={{ color: "var(--pk)" }} /> Сторис этого дня
-                <a href="/dashboard/publications" className="v2-act ghost" style={{ height: 26, fontSize: 11, marginLeft: "auto", textDecoration: "none" }}><ExternalLink size={11} /> в «Публикациях»</a></div>
+                {!isPortal() && <a href="/dashboard/publications" className="v2-act ghost" style={{ height: 26, fontSize: 11, marginLeft: "auto", textDecoration: "none" }}><ExternalLink size={11} /> в «Публикациях»</a>}</div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {sel.stories.map((p) => { const u = (p.media_urls || [])[0]; return (
                   <div key={p.id} style={{ width: u ? 92 : 240, display: "flex", flexDirection: "column", gap: 4 }}>
