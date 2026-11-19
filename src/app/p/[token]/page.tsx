@@ -65,7 +65,7 @@ function stage(s: any): { label: string; tone: "mut" | "vio" | "amb" | "blu" | "
   return { label: "Идея", tone: "mut" };
 }
 // внутренние пометки команды в начале названия («РЕФ», «АВАТАР») клиенту не показываем
-const clean = (t: string) => String(t || "").replace(/^\s*(?:(?:РЕФ|REF|АВАТАР|AVATAR)(?=[\s.:\-—|/])[\s.:\-—|/]*)+/iu, "").trim();
+const clean = (t: string) => String(t || "").replace(/^\s*(?:(?:РЕФ|REF|АВАТАР|AVATAR)(?=[\s.:\-—|/])[\s.:\-—|/]*)+/i, "").trim();
 const titleOf = (s: any) => clean(String(s.hook_text || s.hook || "").replace(/^Сценарий #\d+$/, "")) || `Ролик #${s.order_num || s.id}`;
 
 const reelsCached = (c: any, ym: string) => unstable_cache(
