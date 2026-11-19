@@ -466,7 +466,7 @@ html,body{background:var(--paper)!important;color:var(--ink)}
 .pt-mini b{color:var(--ink);font-family:var(--disp)}
 .pt-actions{display:flex;gap:8px;flex-wrap:wrap}
 .pt-btn{display:inline-block;background:var(--neon);color:#0b1200!important;text-decoration:none;font-family:var(--disp);font-weight:700;font-size:14px;padding:10px 14px;border-radius:14px}
-.pt-video{display:block;margin-top:12px;max-width:320px;width:100%;border-radius:12px;background:#000}
+.pt-video{display:block;margin-top:12px;width:240px;max-width:100%;aspect-ratio:9/16;object-fit:contain;border-radius:12px;background:#000}
 .pt-empty{background:var(--card);border:1px dashed var(--brd);border-radius:14px;padding:22px;color:var(--mut);text-align:center}
 .pt-monthnav{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
 .pt-monthnav a{text-decoration:none;font-weight:700;color:var(--vio);font-size:15px}
