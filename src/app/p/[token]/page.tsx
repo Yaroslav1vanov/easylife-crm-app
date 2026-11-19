@@ -4,7 +4,7 @@ import { unstable_cache } from "next/cache";
 import { createAdmin } from "@/lib/supabase-admin";
 import { resolvePortal } from "@/lib/portal";
 import { clientReels, type ClientReel } from "@/lib/clientReels";
-import { utcToZonedInput } from "@/lib/tz";
+import { utcToZonedInput, tzShort } from "@/lib/tz";
 
 /* Кабинет клиента: только его проект, только чтение, без входа в CRM.
    Вкладки: «Работа» (идеи → сценарии → монтаж → вышло), «План» (что и в какой день выходит),
@@ -64,7 +64,9 @@ function stage(s: any): { label: string; tone: "mut" | "vio" | "amb" | "blu" | "
   if (s.script_status === "inProgress") return { label: "Пишем сценарий", tone: "blu" };
   return { label: "Идея", tone: "mut" };
 }
-const titleOf = (s: any) => String(s.hook_text || s.hook || "").replace(/^Сценарий #\d+$/, "").trim() || `Ролик #${s.order_num || s.id}`;
+// внутренние пометки команды в начале названия («РЕФ», «АВАТАР») клиенту не показываем
+const clean = (t: string) => String(t || "").replace(/^\s*(?:(?:РЕФ|REF|АВАТАР|AVATAR)\b[\s.:\-—|/]*)+/i, "").trim();
+const titleOf = (s: any) => clean(String(s.hook_text || s.hook || "").replace(/^Сценарий #\d+$/, "")) || `Ролик #${s.order_num || s.id}`;
 
 const reelsCached = (c: any, ym: string) => unstable_cache(
   async () => {
@@ -132,7 +134,7 @@ export default async function PortalPage({ params, searchParams }: { params: { t
       <main className="pt-wrap pt-main">
         {tab === "work" && <WorkTab scripts={scripts} months={months} today={today} sel={searchParams.m} href={href} />}
         {tab === "plan" && <PlanTab scripts={scripts} pubs={pubs} tz={tz} ym={/^\d{4}-\d{2}$/.test(searchParams.ym || "") ? searchParams.ym! : nowYm} nowYm={nowYm} today={today} href={href} />}
-        {tab === "stats" && <StatsTab c={c} rows={(statsRaw || []) as any[]} ymParam={searchParams.ym} nowYm={nowYm} href={href} />}
+        {tab === "stats" && <StatsTab c={c} rows={(statsRaw || []) as any[]} ymParam={searchParams.ym} nowYm={nowYm} startDate={months[0]?.start_date || null} href={href} />}
       </main>
       <footer className="pt-wrap pt-foot">Ссылка личная — не пересылайте её посторонним.</footer>
     </div>
@@ -299,13 +301,13 @@ function PlanTab({ scripts, pubs, tz, ym, nowYm, today, href }: { scripts: any[]
           </div>
         ))}
       </div>
-      <p className="pt-note">Время — по вашему часовому поясу.</p>
+      <p className="pt-note">Время публикаций указано {tzShort(tz)}.</p>
     </>
   );
 }
 
 /* ---------------- Статистика ---------------- */
-async function StatsTab({ c, rows, ymParam, nowYm, href }: { c: any; rows: any[]; ymParam?: string; nowYm: string; href: (q: any) => string }) {
+async function StatsTab({ c, rows, ymParam, nowYm, startDate, href }: { c: any; rows: any[]; ymParam?: string; nowYm: string; startDate: string | null; href: (q: any) => string }) {
   const add = (a: number | null, b: number | null) => (a == null && b == null ? null : (a || 0) + (b || 0));
   const yms = Array.from(new Set(rows.map(r => r.ym))).sort();
   if (!yms.length) return <div className="pt-empty">Статистика появится после первого месяца публикаций.</div>;
@@ -316,10 +318,13 @@ async function StatsTab({ c, rows, ymParam, nowYm, href }: { c: any; rows: any[]
   }), { posts: null, views: null, reach: null, likes: null, comments: null, saves: null, shares: null, fStart: null, fEnd: null } as any);
   const ym = ymParam && yms.includes(ymParam) ? ymParam : yms[yms.length - 1];
   const i = yms.indexOf(ym);
-  const cur = agg(ym), prev = i > 0 ? agg(yms[i - 1]) : null;
+  // первый месяц работы неполный (начали не 1-го) — сравнивать с ним в процентах некорректно
+  const partialStart = startDate && Number(startDate.slice(8, 10)) > 1 ? startDate.slice(0, 7) : null;
+  const prevYm = i > 0 ? yms[i - 1] : null;
+  const cur = agg(ym), prev = prevYm && prevYm !== partialStart ? agg(prevYm) : null;
   const gain = (x: any) => (x && x.fEnd != null && x.fStart != null ? x.fEnd - x.fStart : null);
   const maxV = Math.max(1, ...yms.map(y => agg(y).views || 0));
-  const nets = Array.from(new Set(rows.filter(r => r.ym === ym).map(r => r.network)));
+  const nets = Array.from(new Set(rows.filter(r => r.ym === ym && ((r.views || 0) + (r.posts_count || 0) + (r.followers_end || 0)) > 0).map(r => r.network)));
   const reels = c.metricool_blog_id ? await reelsCached(c, ym) : [];
   const sorted = [...reels].sort((a, b) => b.views - a.views);
   const topCut = sorted.length >= 5 ? sorted[Math.min(4, sorted.length - 1)].views : Infinity;
@@ -338,6 +343,7 @@ async function StatsTab({ c, rows, ymParam, nowYm, href }: { c: any; rows: any[]
         {yms.map(y => <a key={y} className={y === ym ? "on" : ""} href={href({ tab: "stats", ym: y })}>{ymLabel(y)}{y === nowYm ? " · идёт" : ""}</a>)}
       </div>
       {ym === nowYm && <p className="pt-note">Месяц ещё идёт — цифры на сегодня и будут расти.</p>}
+      {prevYm && prevYm === partialStart && <p className="pt-note">{ymLabel(prevYm)[0].toUpperCase() + ymLabel(prevYm).slice(1)} — неполный месяц (работа началась {dShort(startDate)}), поэтому сравнение в процентах не показываем.</p>}
 
       <div className="pt-tiles">
         <Tile t="Просмотры" v={cur.views} p={pct(cur.views, prev?.views ?? null)} />
@@ -386,7 +392,7 @@ async function StatsTab({ c, rows, ymParam, nowYm, href }: { c: any; rows: any[]
               <tr key={k} className={r.views >= topCut && r.views > 0 ? "top" : ""}>
                 <td>{dShort(r.date)}</td>
                 <td>{NET[r.net] || r.net}</td>
-                <td className="pt-rt">{r.url ? <a href={r.url} target="_blank" rel="noreferrer">{r.title}</a> : r.title}{r.views >= topCut && r.views > 0 && <span className="pt-top">топ</span>}</td>
+                <td className="pt-rt">{r.url ? <a href={r.url} target="_blank" rel="noreferrer">{clean(r.title) || "Ролик"}</a> : (clean(r.title) || "Ролик")}{r.views >= topCut && r.views > 0 && <span className="pt-top">топ</span>}</td>
                 <td className="num">{fmt(r.views)}</td><td className="num">{fmt(r.likes)}</td><td className="num">{fmt(r.comments)}</td>
                 <td className="num">{fmt(r.saves)}</td><td className="num">{fmt(r.shares)}</td>
                 <td className="num">{r.retention != null ? `${Math.round(r.retention)}%` : "—"}</td>
