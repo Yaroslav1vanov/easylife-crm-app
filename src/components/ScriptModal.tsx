@@ -332,12 +332,11 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
           </div>
         </div>
 
-        {!pv && (<>
-        {/* Референс — ссылка */}
-        <div data-tour="sm-ref">
+        {/* Референс — ссылка (в кабинете клиента — только если есть, и только чтение) */}
+        {(!pv || !!s.ref_url) && <div data-tour="sm-ref">
           {label("🎬 Референс — ссылка на исходник")}
           <div style={{ display: "flex", gap: 6 }}>
-            <input value={refUrl} onChange={(e) => setRefUrl(e.target.value)} readOnly={ro}
+            <input value={refUrl} onChange={(e) => setRefUrl(e.target.value)} readOnly={ro || pv}
               onBlur={() => { if (!ro && refUrl !== (s.ref_url || "")) save({ ref_url: refUrl }); }}
               placeholder="https://…" style={{ ...ta, fontSize: 12 }} />
             {s.ref_url && (
@@ -347,8 +346,9 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
               </a>
             )}
           </div>
-        </div>
+        </div>}
 
+        {!pv && (<>
         {/* Транскрибация */}
         <div>
           {label("📝 Транскрибация референса")}
