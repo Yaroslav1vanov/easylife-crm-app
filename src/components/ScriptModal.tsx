@@ -449,8 +449,8 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
           <div data-tour="sm-video" style={{ padding: 12, borderRadius: 12, background: s.video_url ? "rgba(168,224,99,0.06)" : "rgba(255,174,66,0.06)", border: `1px solid ${s.video_url ? "rgba(168,224,99,0.3)" : "rgba(255,174,66,0.35)"}` }}>
             {label("🎬 Смонтированный ролик — файл от монтажёра", s.video_url ? "var(--gr)" : "var(--or)")}
             <div style={{ display: "flex", gap: 6 }}>
-              <input value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)}
-                onBlur={() => { if (videoUrl !== (s.video_url || "")) save({ video_url: videoUrl }); }}
+              <input value={videoUrl} readOnly={pv} onChange={(e) => setVideoUrl(e.target.value)}
+                onBlur={() => { if (!pv && videoUrl !== (s.video_url || "")) save({ video_url: videoUrl }); }}
                 placeholder="Загрузи файл справа → или вставь ссылку" style={{ ...ta, fontSize: 12 }} />
               {s.video_url && (
                 <a href={s.video_url.startsWith("http") ? s.video_url : `https://${s.video_url}`} target="_blank" rel="noopener noreferrer"
@@ -458,10 +458,12 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
                   <ExternalLink size={15} />
                 </a>
               )}
+              {!pv && (
               <label style={{ flexShrink: 0, padding: "0 14px", borderRadius: 9, background: "rgba(66,212,244,0.12)", border: "1px solid var(--brd)", color: "var(--cy)", display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 800, cursor: upBusy ? "default" : "pointer", whiteSpace: "nowrap" }}>
                 {upBusy ? "Загружаю…" : "⬆ Файл"}
                 <input type="file" accept="video/*" disabled={upBusy} onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadVideo(f); e.target.value = ""; }} style={{ display: "none" }} />
               </label>
+              )}
             </div>
             {s.video_url
               ? <video src={s.video_url.startsWith("http") ? s.video_url : `https://${s.video_url}`} controls playsInline preload="metadata" style={{ width: "100%", maxHeight: 240, marginTop: 8, borderRadius: 10, background: "#000", display: "block" }} />
@@ -474,8 +476,8 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
           <div style={{ padding: 12, borderRadius: 12, background: s.published_url ? "rgba(66,212,244,0.06)" : "rgba(157,107,255,0.05)", border: `1px solid ${s.published_url ? "rgba(66,212,244,0.3)" : "var(--brd)"}` }}>
             {label("🔗 Ссылка на публикацию в соцсети", s.published_url ? "var(--cy)" : "var(--t3)")}
             <div style={{ display: "flex", gap: 6 }}>
-              <input value={pubUrl} onChange={(e) => setPubUrl(e.target.value)}
-                onBlur={() => { if (pubUrl !== (s.published_url || "")) save({ published_url: pubUrl }); }}
+              <input value={pubUrl} readOnly={pv} onChange={(e) => setPubUrl(e.target.value)}
+                onBlur={() => { if (!pv && pubUrl !== (s.published_url || "")) save({ published_url: pubUrl }); }}
                 placeholder="https://www.instagram.com/reel/… — берётся из соцсети после выхода" style={{ ...ta, fontSize: 12 }} />
               {s.published_url && (
                 <a href={s.published_url.startsWith("http") ? s.published_url : `https://${s.published_url}`} target="_blank" rel="noopener noreferrer"
