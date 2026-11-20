@@ -10,6 +10,9 @@ export type ClientReel = {
   views: number; reach: number | null; likes: number | null; comments: number | null;
   saves: number | null; shares: number | null; er: number | null; retention: number | null; retLoop?: boolean; retRaw?: number | null;
   duration: number | null; skip: number | null; x: number; isOurs: boolean;
+  watch: number | null;                                  // средний просмотр, сек
+  paidViews: number | null; paidReach: number | null; spend: number | null;   // продвижение; органика = views − paidViews
+  follows: number | null;                                // подписки с ролика, если сеть отдаёт
 };
 
 const code = (u: string | null | undefined) => {
@@ -62,6 +65,8 @@ export async function clientReels(
         retention: f.ret, retLoop: f.retLoop, retRaw: f.retRaw, duration: f.dur, skip: f.skip,
         x: Math.round((f.views / (netNorm[net] || normAll)) * 100) / 100,
         isOurs: !!sc,
+        watch: f.watch != null ? Math.round(f.watch * 10) / 10 : null,
+        paidViews: f.paidViews, paidReach: f.paidReach, spend: f.spend, follows: f.follows,
       };
     });
 }

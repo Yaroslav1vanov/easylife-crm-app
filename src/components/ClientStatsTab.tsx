@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import { isPortal } from "@/lib/portalMode";
 import { createClient } from "@/lib/supabase-browser";
 import { RefreshCw, TrendingUp, TrendingDown, ExternalLink } from "lucide-react";
 import WeeklyStatsTable from "@/components/WeeklyStatsTable";
@@ -32,6 +33,7 @@ type Reel = {
   date: string; net: string; title: string; ourTitle: string | null; url: string | null; image: string | null;
   views: number; reach: number | null; likes: number | null; comments: number | null; saves: number | null;
   shares: number | null; er: number | null; retention: number | null; retLoop?: boolean; retRaw?: number | null; duration: number | null; skip?: number | null; x: number; isOurs: boolean;
+  watch?: number | null; paidViews?: number | null; paidReach?: number | null; spend?: number | null; follows?: number | null;
 };
 
 export default function ClientStatsTab({ clientId, hasMetricool }: { clientId: number; hasMetricool: boolean }) {
@@ -104,7 +106,7 @@ export default function ClientStatsTab({ clientId, hasMetricool }: { clientId: n
   if (loading) return <div style={{ padding: 30, color: "var(--t3)", textAlign: "center" }}>Загрузка…</div>;
   if (!hasMetricool) return (
     <div className="card" style={{ padding: 22, borderRadius: 14, color: "var(--t2)", fontSize: 13 }}>
-      Клиент не привязан к Metricool — статистику собирать не из чего. Привяжи бренд во вкладке «Настройки».
+      {isPortal() ? "Статистика по аккаунту ещё не подключена." : "Клиент не привязан к Metricool — статистику собирать не из чего. Привяжи бренд во вкладке «Настройки»."}
     </div>
   );
 
@@ -137,7 +139,7 @@ export default function ClientStatsTab({ clientId, hasMetricool }: { clientId: n
 
       {!months.length ? (
         <div className="card" style={{ padding: 22, borderRadius: 14, color: "var(--t2)", fontSize: 13, lineHeight: 1.6 }}>
-          Статистики пока нет. Нажми «Обновить» — CRM соберёт текущий и прошлый месяц из Metricool.
+          {isPortal() ? "Статистики пока нет — она появится после первых публикаций." : "Статистики пока нет. Нажми «Обновить» — CRM соберёт текущий и прошлый месяц из Metricool."}
         </div>
       ) : (<>
         {/* график просмотров по месяцам */}
@@ -237,11 +239,16 @@ export default function ClientStatsTab({ clientId, hasMetricool }: { clientId: n
                         {reels[m.ym] === "loading" ? (
                           <div style={{ padding: "14px 16px", fontSize: 12, color: "var(--t3)" }}>Загружаю ролики месяца…</div>
                         ) : !reels[m.ym] || (reels[m.ym] as Reel[]).length === 0 ? (
-                          <div style={{ padding: "14px 16px", fontSize: 12, color: "var(--t3)" }}>Роликов за этот месяц Metricool не отдал.</div>
+                          <div style={{ padding: "14px 16px", fontSize: 12, color: "var(--t3)" }}>{isPortal() ? "Роликов за этот месяц нет." : "Роликов за этот месяц Metricool не отдал."}</div>
                         ) : (
+                          (() => { const list = reels[m.ym] as Reel[];
+                            // колонки «Реклама» и «Подписки» — только если в месяце есть такие данные
+                            const hasPaid = list.some(r => (r.paidViews || 0) > 0 || (r.spend || 0) > 0);
+                            const hasFollows = list.some(r => r.follows != null);
+                            return (
                           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
                             <thead><tr style={{ color: "var(--t3)", fontSize: 9.5, textTransform: "uppercase", letterSpacing: .4 }}>
-                              {["Дата", "Ролик", "Просмотры", "Охват", "Лайки", "Комм.", "Сохр.", "Репосты", "ER", "Досмотр", "Пролистали"].map(h => (
+                              {["Дата", "Ролик", "Просмотры", ...(hasPaid ? ["Органика / реклама"] : []), "Охват", "Лайки", "Комм.", "Сохр.", "Репосты", ...(hasFollows ? ["Подписки"] : []), "ER", "Досмотр", "Пролистали"].map(h => (
                                 <th key={h} style={{ textAlign: h === "Дата" || h === "Ролик" ? "left" : "right", padding: "8px 12px", fontWeight: 800 }}>{h}</th>
                               ))}
                             </tr></thead>
@@ -261,18 +268,25 @@ export default function ClientStatsTab({ clientId, hasMetricool }: { clientId: n
                                     </div>
                                   </td>
                                   <td style={{ padding: "8px 12px", textAlign: "right", fontWeight: 700, color: "var(--t1)" }}>{fmt(r.views)}</td>
+                                  {hasPaid && <td style={{ padding: "8px 12px", textAlign: "right", whiteSpace: "nowrap" }} title="Органические просмотры / просмотры с продвижения (реклама) и потраченная сумма">
+                                    {(r.paidViews || 0) > 0 || (r.spend || 0) > 0
+                                      ? <>{fmt(Math.max(0, r.views - (r.paidViews || 0)))} / <span style={{ color: "var(--or)" }}>{fmt(r.paidViews || 0)}</span>{r.spend ? <div style={{ fontSize: 9.5, color: "var(--t3)" }}>реклама ${Math.round(r.spend)}</div> : null}</>
+                                      : <span style={{ color: "var(--t3)" }}>вся органика</span>}
+                                  </td>}
                                   <td style={{ padding: "8px 12px", textAlign: "right" }}>{fmt(r.reach)}</td>
                                   <td style={{ padding: "8px 12px", textAlign: "right" }}>{fmt(r.likes)}</td>
                                   <td style={{ padding: "8px 12px", textAlign: "right" }}>{fmt(r.comments)}</td>
                                   <td style={{ padding: "8px 12px", textAlign: "right" }}>{fmt(r.saves)}</td>
                                   <td style={{ padding: "8px 12px", textAlign: "right" }}>{fmt(r.shares)}</td>
+                                  {hasFollows && <td style={{ padding: "8px 12px", textAlign: "right" }} title="Подписались прямо с этого ролика (как отдаёт Instagram)">{fmt(r.follows ?? null)}</td>}
                                   <td style={{ padding: "8px 12px", textAlign: "right" }}>{r.er != null ? `${String(r.er).replace(".", ",")}%` : "—"}</td>
-                                  <td style={{ padding: "8px 12px", textAlign: "right" }} title={r.retLoop ? "Средний просмотр длиннее самого ролика: часть зрителей смотрела его по кругу. В средних по отчётам такой ролик считается как 100%" : "Средняя доля ролика, которую смотрят"}>{r.retention != null ? (r.retLoop ? `${r.retRaw ?? 100}% ↻` : `${r.retention}%`) : "—"}</td>
+                                  <td style={{ padding: "8px 12px", textAlign: "right" }} title={r.retLoop ? "Средний просмотр длиннее самого ролика: часть зрителей смотрела его по кругу. В средних по отчётам такой ролик считается как 100%" : "Средняя доля ролика, которую смотрят"}>{r.retention != null ? (r.retLoop ? `${r.retRaw ?? 100}% ↻` : `${r.retention}%`) : "—"}{r.watch != null && <div style={{ fontSize: 9.5, color: "var(--t3)" }}>{String(r.watch).replace(".", ",")} сек</div>}</td>
                                   <td style={{ padding: "8px 12px", textAlign: "right", color: r.skip != null && r.skip >= 50 ? "var(--rd)" : undefined }} title="Сколько зрителей пролистали ролик в первые секунды (Instagram). Высокое — слабый хук">{r.skip != null ? `${String(Math.round(r.skip)).replace(".", ",")}%` : "—"}</td>
                                 </tr>
                               ))}
                             </tbody>
                           </table>
+                            ); })()
                         )}
                       </td>
                     </tr>
@@ -285,7 +299,7 @@ export default function ClientStatsTab({ clientId, hasMetricool }: { clientId: n
         </div>
         <WeeklyStatsTable clientId={clientId} />
         <div style={{ fontSize: 10.5, color: "var(--t3)", lineHeight: 1.6 }}>
-          Данные — из Metricool, с момента подключения бренда. Подписчики — из ежедневных снимков CRM, история по ним с сентября 2026. Прошлый месяц собирается автоматически 1-го числа.
+          {isPortal() ? "Данные — из статистики аккаунта, обновляются автоматически. Прошлый месяц закрывается 1-го числа." : "Данные — из Metricool, с момента подключения бренда. Подписчики — из ежедневных снимков CRM, история по ним с сентября 2026. Прошлый месяц собирается автоматически 1-го числа."}
         </div>
       </>)}
       <style>{`.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}`}</style>

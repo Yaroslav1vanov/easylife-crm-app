@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import { isPortal } from "@/lib/portalMode";
 import { createClient } from "@/lib/supabase-browser";
 import { RefreshCw, FileDown, ExternalLink } from "lucide-react";
 
@@ -180,7 +181,7 @@ export default function WeeklyStatsTable({ clientId }: { clientId: number }) {
         </div>
         <div style={{ fontSize: 10.5, color: "var(--t3)", lineHeight: 1.6 }}>
           Неделя — с понедельника по воскресенье. ER — лайки, комментарии, сохранения и репосты делим на охват.
-          Прирост подписчиков — из метрик аккаунта Metricool (пришло минус ушло).
+          {isPortal() ? "Прирост подписчиков — из статистики аккаунта (пришло минус ушло)." : "Прирост подписчиков — из метрик аккаунта Metricool (пришло минус ушло)."}
         </div>
       </>)}
       <style>{`.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}`}</style>

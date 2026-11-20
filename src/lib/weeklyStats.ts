@@ -60,6 +60,12 @@ export function reelFields(p: any) {
     dur,
     skip: num(pick(p, ...F.skip)),
     full: num(pick(p, ...F.full)),
+    // продвижение: платная часть просмотров/охвата и расход (Instagram). Органика = всё − платное
+    paidViews: num(pick(p, "videoViewsPaid")),
+    paidReach: num(pick(p, "reachPaid")),
+    spend: num(pick(p, "spend")),
+    // подписки с публикации — у постов Instagram есть, у рилсов в схеме нет (если отдаст — покажем)
+    follows: num(pick(p, "follows")),
     // средний просмотр / длина. Instagram считает повторы по кругу, поэтому бывает больше длины ролика
     // (MedSpa 17.10: 95 с при 54 с = 177%). В «досмотре» и средних — максимум 100%, факт повторов — в retLoop.
     ret: dur && watch ? Math.min(100, Math.round((watch / dur) * 100)) : null,
