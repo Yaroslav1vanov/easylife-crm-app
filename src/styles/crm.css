@@ -147,8 +147,8 @@ select option { background: var(--side); color: var(--t1); }
 
 /* --- тёмная шапка страницы: заголовок, подпись, главные кнопки --- */
 .page-head, .cl-head { position: relative; isolation: isolate; margin: calc(-1 * var(--mp-y, 14px)) 0 20px; padding: 20px 0 20px; color: #fff; }
-/* тёмная полоса на всю ширину: тень не создаёт прокрутки, обрезка оставляет только горизонталь */
-.page-head::before, .cl-head::before { content: ""; position: absolute; z-index: -2; inset: 0; background: var(--navy); box-shadow: 0 0 0 100vmax var(--navy); clip-path: inset(0 -100vmax); }
+/* тёмная полоса на всю ширину окна: рисуется «выносом» рамки-картинки, он не создаёт прокрутки и не даёт шва */
+.page-head::before, .cl-head::before { content: ""; position: absolute; z-index: -2; inset: 0; border-image: conic-gradient(var(--navy) 0 0) fill 0 / 0 / 0 100vw; }
 .page-head::after, .cl-head::after { content: ""; position: absolute; z-index: -1; top: 0; bottom: 0; left: calc(-1 * var(--mp-x, 14px)); right: calc(-1 * var(--mp-x, 14px));
   background: radial-gradient(58% 150% at 64% 0%, rgba(107,44,255,.42), transparent 62%), radial-gradient(26% 90% at 13% 0%, rgba(182,245,0,.07), transparent 52%); pointer-events: none; }
 .page-head { z-index: 20; display: flex; align-items: flex-end; justify-content: space-between; gap: 12px 16px; flex-wrap: wrap; }

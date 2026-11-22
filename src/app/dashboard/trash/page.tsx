@@ -41,7 +41,7 @@ export default function TrashPage() {
   const withTrash = useMemo(() => clients.filter(c => !items || clientId || items.some(i => i.client_id === c.id)), [clients, items, clientId]);
 
   return (
-    <div style={{ maxWidth: 980, margin: "0 auto", padding: "8px 0 40px" }}>
+    <div style={{ maxWidth: 980, margin: "0 auto", padding: "0 0 40px" }}>
       <div className="page-head ph-col">
         <h1 style={{ display: "flex", alignItems: "center", gap: 10 }}><Trash2 size={22} style={{ color: "var(--lime)" }} /> Корзина</h1>
         <p>
