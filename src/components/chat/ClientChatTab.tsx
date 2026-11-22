@@ -317,7 +317,9 @@ export default function ClientChatTab({ clientId, aiEnabled, draft, initialThrea
         </div>
       )}
 
-      <div ref={box} className="v2-card" style={{ padding: 14, minHeight: 360, maxHeight: "62vh", overflowY: "auto", overscrollBehavior: "contain", display: "flex", flexDirection: "column", gap: 12 }}>
+      {/* Без overscroll-behavior: когда переписка долистана до конца, колесо продолжает крутить страницу
+          и показывает поле ввода под чатом (раньше прокрутка «запиралась» внутри блока). */}
+      <div ref={box} className="v2-card" style={{ padding: 14, minHeight: 360, maxHeight: "62vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: 12 }}>
         {loading ? <div style={{ color: "var(--t3)", fontSize: 13 }}>Загружаю…</div>
           : !msgs.length ? <div style={{ color: "var(--t3)", fontSize: 13, margin: "auto", textAlign: "center" }}>Сообщений пока нет.<br />{aiEnabled ? T.empty : "Здесь команда ведёт работу по клиенту."}</div>
           : <>{hasMore && (
