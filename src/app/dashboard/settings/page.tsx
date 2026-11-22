@@ -1,6 +1,5 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useTheme } from "@/components/ThemeProvider";
 import { createClient } from "@/lib/supabase-browser";
 import { useIsOwner } from "@/components/RoleContext";
 import { AI_FEATURES, AI_MODEL_OPTIONS, type AiFeature } from "@/lib/aiModels";
@@ -8,10 +7,9 @@ import { PROMPT_FIELDS, PROMPT_KEYS } from "@/lib/adapterPrompts";
 import { DEFAULT_IG_RULES, IG_RULES_KEY } from "@/lib/igRules";
 import { DEFAULT_FORECAST_BENCHMARKS, FORECAST_BENCHMARKS_KEY } from "@/lib/forecast";
 import { AI_VIA_KEY } from "@/lib/aiVia";
-import { Sun, Moon, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
 
 export default function SettingsPage() {
-  const { theme, toggle } = useTheme();
   const supabase = createClient();
   const isOwner = useIsOwner();
   const [models, setModels] = useState<Partial<Record<AiFeature, string>>>({});
@@ -47,15 +45,7 @@ export default function SettingsPage() {
 
   return (
     <div className="v2" style={{ maxWidth: 820 }}>
-      <div className="v2-hdr page-head"><div><h1>Настройки</h1><p>Интерфейс и AI</p></div></div>
-
-      <div className="v2-fg" style={{ marginBottom: 14 }}>
-        <h4>Интерфейс</h4>
-        <div className="v2-fr">
-          <span>Тема</span>
-          <button className="v2-act ghost" onClick={toggle}>{theme === "dark" ? <Sun size={14} /> : <Moon size={14} />} {theme === "dark" ? "Переключить на светлую" : "Переключить на тёмную"}</button>
-        </div>
-      </div>
+      <div className="v2-hdr page-head"><div><h1>Настройки</h1><p>Модели ИИ и подсказки</p></div></div>
 
       <div className="v2-fg">
         <h4><Sparkles size={12} style={{ verticalAlign: -2, marginRight: 4 }} /> AI-модели</h4>

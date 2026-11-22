@@ -270,13 +270,12 @@ export default function ClientChatTab({ clientId, aiEnabled, draft, initialThrea
   if (missing) return <div className="v2-card" style={{ padding: 18, color: "var(--t2)" }}>Нужно прогнать миграцию <code>MIGRATION_2026-09-30_client_chat.sql</code>.</div>;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      <div style={{ display: "grid", gridTemplateColumns: `repeat(${threads.length}, 1fr)`, gap: 4, padding: 4, borderRadius: 12, background: "var(--v2-inset)", border: "1px solid var(--brd)" }}>
+    <div className="ai-dark" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{ display: "grid", gridTemplateColumns: `repeat(${threads.length}, 1fr)`, gap: 4, padding: 4, borderRadius: 12, background: "var(--v2-inset)" }}>
         {threads.map((t) => (
           <button key={t.id} onClick={() => setThread(t.id)} disabled={sending}
             style={{ padding: "9px 0", borderRadius: 9, border: 0, cursor: "pointer", fontSize: 13.5, fontWeight: 800, fontFamily: "inherit",
-              background: thread === t.id ? "var(--card)" : "transparent", color: thread === t.id ? "var(--t1)" : "var(--t3)",
-              boxShadow: thread === t.id ? "0 0 0 1px var(--brd)" : "none" }}>{t.label}</button>
+              background: thread === t.id ? "var(--btn-grad)" : "transparent", color: thread === t.id ? "var(--btn-fg)" : "var(--t2)" }}>{t.label}</button>
         ))}
       </div>
 
@@ -478,14 +477,16 @@ function Bubble({ m, mine, onPipe, quoted, onReply, onJump, onHide, av }: { m: M
           </button>
         )}
       </div>
-      <div style={{
-        padding: "10px 13px", borderRadius: 14, fontSize: 13.5, lineHeight: 1.55, whiteSpace: "pre-wrap", wordBreak: "break-word",
-        background: ai ? "rgba(var(--pu-rgb),.10)" : mine ? "rgba(var(--cy-rgb),.10)" : "var(--v2-inset)",
-        border: `1px solid ${ai ? "rgba(var(--pu-rgb),.3)" : "var(--brd)"}`, color: "var(--t1)",
+      {/* ответ ИИ — светлая «карточка» на тёмном фоне чата; свои сообщения — тёмно-синие */}
+      <div className={ai ? "zone-light" : undefined} style={{
+        padding: "11px 14px", borderRadius: 14, fontSize: 14, lineHeight: 1.55, whiteSpace: "pre-wrap", wordBreak: "break-word",
+        ...(ai ? { borderBottomLeftRadius: 4 } : mine ? { borderBottomRightRadius: 4 } : {}),
+        background: ai ? "#fff" : mine ? "var(--navy-3)" : "var(--v2-inset)",
+        border: `1px solid ${ai || mine ? "transparent" : "var(--brd)"}`, color: "var(--t1)",
       }}>
         {m.quote_id && (
           <button onClick={() => onJump(m.quote_id!)} title="Показать сообщение, на которое ответ"
-            style={{ display: "block", width: "100%", textAlign: "left", marginBottom: 7, padding: "5px 9px", borderRadius: 8, border: 0, borderLeft: "3px solid var(--cy)", background: "rgba(0,0,0,.18)", cursor: "pointer", fontFamily: "inherit" }}>
+            style={{ display: "block", width: "100%", textAlign: "left", marginBottom: 7, padding: "5px 9px", borderRadius: 8, border: 0, borderLeft: "3px solid var(--cy)", background: "rgba(var(--ov-rgb),.07)", cursor: "pointer", fontFamily: "inherit" }}>
             <div style={{ fontSize: 11, fontWeight: 800, color: "var(--cy)" }}>↩ {quoted ? (quoted.author_type === "ai" ? "ИИ" : quoted.author_name || "Сотрудник") : "сообщение"}</div>
             <div style={{ fontSize: 12, color: "var(--t2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{quoted ? snippet(quoted) : "выше в переписке"}</div>
           </button>
