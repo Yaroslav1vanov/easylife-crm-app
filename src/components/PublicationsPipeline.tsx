@@ -1,4 +1,5 @@
 "use client";
+import { tint } from "@/lib/tint";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase-browser";
 import db, { Client, Script, TeamMember, Publication, PubStatus } from "@/lib/database";
@@ -360,7 +361,7 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
                 style={{ background: "rgba(var(--vi-rgb),0.04)", border: `1px solid ${isOver ? col.color : "var(--brd)"}`, borderRadius: 14, padding: 12, minHeight: 360, display: "flex", flexDirection: "column", transition: "border-color .15s" }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, paddingBottom: 10, borderBottom: `2px solid ${col.color}` }}>
                   <h3 style={{ fontSize: 11, fontWeight: 800, color: "var(--t1)", textTransform: "uppercase", letterSpacing: 0.5 }}>{col.label}</h3>
-                  <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 6, background: `color-mix(in srgb, ${col.color} 13%, transparent)`, color: col.color }}>{items.length}</span>
+                  <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 6, background: tint(col.color, 0.1333), color: col.color }}>{items.length}</span>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 7, flex: 1 }}>
                   {items.length === 0 && <div style={{ padding: "26px 8px", textAlign: "center", color: "var(--t3)", fontSize: 10, fontStyle: "italic" }}>Пусто</div>}

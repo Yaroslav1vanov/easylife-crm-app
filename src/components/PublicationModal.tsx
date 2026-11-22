@@ -487,7 +487,7 @@ export default function PublicationModal({ pub, client, script, onClose, onUpdat
           </div>
         </div>
       </div>
-      <style dangerouslySetInnerHTML={{ __html: `.pub-media{display:grid;grid-template-columns:1fr 200px;gap:14px}.pub-when{display:grid;grid-template-columns:1fr 1fr;gap:14px}@media(max-width:640px){.pub-media,.pub-when{grid-template-columns:1fr}}.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}` }} />
+      <style dangerouslySetInnerHTML={{ __html: `.pub-media{display:grid;grid-template-columns:1fr 200px;gap:14px}.pub-when{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}@media(max-width:640px){.pub-media,.pub-when{grid-template-columns:minmax(0,1fr)}}.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}` }} />
     </div>
   );
 }

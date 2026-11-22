@@ -1,4 +1,5 @@
 "use client";
+import { tint } from "@/lib/tint";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase-browser";
 import { fileUrl, guessType, when } from "@/components/strategy/files";
@@ -421,9 +422,9 @@ function FileCard({ a }: { a: Att }) {
   const viewable = /\.(html?|pdf|txt|md|mp3|wav)$/i.test(a.name);
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 12, minWidth: 260, maxWidth: 420,
-      background: "var(--card)", border: `1px solid color-mix(in srgb, ${color} 33%, transparent)` }}>
+      background: "var(--card)", border: `1px solid ${tint(color, 0.3333)}` }}>
       <div style={{ width: 46, height: 52, borderRadius: 9, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
-        background: `color-mix(in srgb, ${color} 13%, transparent)`, color, fontSize: 11.5, fontWeight: 900, letterSpacing: 0.4 }}>{label}</div>
+        background: tint(color, 0.1333), color, fontSize: 11.5, fontWeight: 900, letterSpacing: 0.4 }}>{label}</div>
       <div style={{ minWidth: 0, flex: 1 }}>
         <div style={{ fontSize: 13.5, fontWeight: 800, color: "var(--t1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={a.name}>{a.name}</div>
         <div style={{ fontSize: 11.5, color: "var(--t3)", marginTop: 2 }}>{mb(a.size)}</div>

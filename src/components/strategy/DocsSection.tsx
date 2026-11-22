@@ -183,7 +183,7 @@ export function btn(primary: boolean): React.CSSProperties {
   return {
     height: 36, padding: "0 16px", borderRadius: 10, fontSize: 12.5, fontWeight: 700, cursor: "pointer",
     border: primary ? "1px solid var(--cy)" : "1px solid var(--brd)",
-    background: primary ? "color-mix(in srgb, var(--cy) 14%, transparent)" : "transparent",
+    background: primary ? "rgba(var(--cy-rgb), 0.14)" : "transparent",
     color: primary ? "var(--cy)" : "var(--t2)",
   };
 }

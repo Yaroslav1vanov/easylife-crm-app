@@ -1,4 +1,5 @@
 "use client";
+import { tint } from "@/lib/tint";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
@@ -117,8 +118,8 @@ export default function DashboardPreview() {
 
   return (
     <div style={{ fontFamily: "'Manrope', sans-serif" }}>
-      <div style={{ marginBottom: 18 }}>
-        <h1 style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 22, fontWeight: 800, letterSpacing: -0.5 }}>Черновик дашборда</h1>
+      <div className="page-head ph-col">
+        <h1>Черновик дашборда</h1>
         <p style={{ fontSize: 12, color: "var(--t3)", marginTop: 4 }}>Так это может выглядеть на главной. Главная пока не тронута — смотри и решай.</p>
       </div>
 
@@ -141,7 +142,7 @@ export default function DashboardPreview() {
             return (
               <button key={t.id} onClick={() => setViewAs(t.id)}
                 style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 11px 5px 5px", borderRadius: 999,
-                  border: `1px solid ${on ? col : "var(--brd)"}`, background: on ? `color-mix(in srgb, ${col} 13%, transparent)` : "transparent",
+                  border: `1px solid ${on ? col : "var(--brd)"}`, background: on ? tint(col, 0.1333) : "transparent",
                   color: on ? col : "var(--t2)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
                 <Avatar name={t.name} src={t.avatar_url} size={20} />
                 {t.name}
@@ -226,7 +227,7 @@ export default function DashboardPreview() {
                       </div>
                     </div>
                     <div style={{ flexShrink: 0, textAlign: "right" }}>
-                      <div style={{ display: "inline-flex", padding: "3px 8px", borderRadius: 7, fontSize: 10, fontWeight: 800, background: `color-mix(in srgb, ${col} 12%, transparent)`, color: col }}>сдать {fmt(due)}</div>
+                      <div style={{ display: "inline-flex", padding: "3px 8px", borderRadius: 7, fontSize: 10, fontWeight: 800, background: tint(col, 0.1216), color: col }}>сдать {fmt(due)}</div>
                       <div style={{ fontSize: 9, color: col, marginTop: 2 }}>{txt}</div>
                     </div>
                   </div>

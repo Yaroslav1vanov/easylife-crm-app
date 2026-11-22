@@ -1,4 +1,5 @@
 "use client";
+import { tint } from "@/lib/tint";
 import { ClientMonth, Script } from "@/lib/database";
 import { isMain, isTrial } from "@/lib/scriptType";
 import { Pen, Scissors, Send } from "lucide-react";
@@ -71,7 +72,7 @@ export default function ClientProduction({ currentM, scripts: all }: Props) {
           return (
             <div key={b.title} style={{ padding: 16, borderRadius: 14, background: "var(--inset)", border: "1px solid var(--brd)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 16 }}>
-                <div style={{ width: 30, height: 30, borderRadius: 9, background: `color-mix(in srgb, ${b.color} 13%, transparent)`, color: b.color, display: "flex", alignItems: "center", justifyContent: "center", border: `1px solid color-mix(in srgb, ${b.color} 27%, transparent)` }}>
+                <div style={{ width: 30, height: 30, borderRadius: 9, background: tint(b.color, 0.1333), color: b.color, display: "flex", alignItems: "center", justifyContent: "center", border: `1px solid ${tint(b.color, 0.2667)}` }}>
                   <I size={15} strokeWidth={1.8} />
                 </div>
                 <span style={{ fontSize: 14, fontWeight: 800, color: "var(--t1)" }}>{b.title}</span>

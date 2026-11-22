@@ -1,4 +1,5 @@
 "use client";
+import { tint } from "@/lib/tint";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
@@ -255,14 +256,14 @@ export default function MontagePage() {
 
   if (loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--t2)" }}>Загрузка…</div>;
 
-  const statusCol = (st: Slot["status"]) => st === "done" ? "var(--gr)" : st === "overdue" ? "var(--rd)" : st === "frozen" ? "#8a8f98" : "var(--or)";
+  const statusCol = (st: Slot["status"]) => st === "done" ? "var(--gr)" : st === "overdue" ? "var(--rd)" : st === "frozen" ? "var(--mut)" : "var(--or)";
   const chip = (sl: Slot) => {
     const col = statusCol(sl.status);
     const title = sl.s.hook_text || sl.s.hook || "";
     const txt = `#${sl.s.order_num}${title ? " · " + title : ""}`;
     return (
       <div key={sl.s.id} onClick={() => setOpenId(sl.s.id)} title={txt}
-        style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 6px", borderRadius: 6, background: `color-mix(in srgb, ${col} 12%, transparent)`, border: `1px solid color-mix(in srgb, ${col} 33%, transparent)`, color: col, fontSize: 10, fontWeight: 700, cursor: "pointer", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", maxWidth: "100%" }}>
+        style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 6px", borderRadius: 6, background: tint(col, 0.1216), border: `1px solid ${tint(col, 0.3333)}`, color: col, fontSize: 10, fontWeight: 700, cursor: "pointer", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", maxWidth: "100%" }}>
         {sl.status === "done" ? "✓" : sl.status === "overdue" ? "⚠" : sl.status === "frozen" ? "❄" : ""} {sl.s.is_trial && <TrialBadge />} {txt}
       </div>
     );
@@ -333,7 +334,7 @@ export default function MontagePage() {
       {/* SUMMARY */}
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
         {[{ v: summary.today, l: "видео на сегодня", c: "var(--or)" }, { v: summary.overdue, l: "просрочено", c: "var(--rd)" }, { v: summary.week, l: "за неделю", c: "var(--pu)" }].map((x, i) => (
-          <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", borderRadius: 13, border: `1px solid ${x.v > 0 ? `color-mix(in srgb, ${x.c} 33%, transparent)` : "var(--brd)"}`, background: x.v > 0 ? `color-mix(in srgb, ${x.c} 8%, transparent)` : "var(--card)" }}>
+          <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", borderRadius: 13, border: `1px solid ${x.v > 0 ? tint(x.c, 0.3333) : "var(--brd)"}`, background: x.v > 0 ? tint(x.c, 0.0784) : "var(--card)" }}>
             <span style={{ width: 9, height: 9, borderRadius: 3, background: x.c }} />
             <div><div style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 18, fontWeight: 800, color: x.v > 0 ? "var(--t1)" : "var(--t3)" }}>{x.v}</div><div style={{ fontSize: 10, color: "var(--t3)", fontWeight: 600 }}>{x.l}</div></div>
           </div>
@@ -412,7 +413,7 @@ export default function MontagePage() {
                   </div>
                   <div style={{ fontSize: 12, color: "var(--t2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{(sl.s.montage_note || "").trim() && <span title={sl.s.montage_note || ""} style={{ color: "var(--rd)", fontWeight: 900, marginRight: 6 }}>⚠️ важно</span>}{sl.s.hook_text || sl.s.hook || "— без темы —"}</div>
                   <div style={{ fontSize: 11, fontWeight: 700, color: "var(--t1)", whiteSpace: "nowrap" }}>📅 {fmtDateShort(sl.due)}</div>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: col, background: `color-mix(in srgb, ${col} 12%, transparent)`, border: `1px solid color-mix(in srgb, ${col} 33%, transparent)`, padding: "3px 8px", borderRadius: 6, whiteSpace: "nowrap" }}>{reason}</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: col, background: tint(col, 0.1216), border: `1px solid ${tint(col, 0.3333)}`, padding: "3px 8px", borderRadius: 6, whiteSpace: "nowrap" }}>{reason}</span>
                 </button>
               );
             })
@@ -497,7 +498,7 @@ export default function MontagePage() {
                       <div style={{ fontSize: 11, fontWeight: 700, color: isToday ? "var(--cy)" : "var(--t2)" }}>{parseInt(d.split("-")[2], 10)}{isToday ? " · сегодня" : ""}</div>
                       {slots.slice(0, 4).map(sl => {
                         const col = statusCol(sl.status);
-                        return <div key={sl.s.id} onClick={() => setOpenId(sl.s.id)} title={`${cname(sl.s.client_id)} · #${sl.s.order_num}${sl.s.is_trial ? " · пробный" : ""}`} style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 5px", borderRadius: 6, background: `color-mix(in srgb, ${col} 11%, transparent)`, border: `1px solid color-mix(in srgb, ${col} 27%, transparent)`, color: col, fontSize: 9, fontWeight: 700, cursor: "pointer", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}><span style={{ width: 5, height: 5, borderRadius: "50%", background: col, flexShrink: 0 }} />{cname(sl.s.client_id)}</div>;
+                        return <div key={sl.s.id} onClick={() => setOpenId(sl.s.id)} title={`${cname(sl.s.client_id)} · #${sl.s.order_num}${sl.s.is_trial ? " · пробный" : ""}`} style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 5px", borderRadius: 6, background: tint(col, 0.1098), border: `1px solid ${tint(col, 0.2667)}`, color: col, fontSize: 9, fontWeight: 700, cursor: "pointer", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}><span style={{ width: 5, height: 5, borderRadius: "50%", background: col, flexShrink: 0 }} />{cname(sl.s.client_id)}</div>;
                       })}
                       {slots.length > 4 && <span style={{ fontSize: 8, color: "var(--t3)" }}>+{slots.length - 4}</span>}
                     </div>

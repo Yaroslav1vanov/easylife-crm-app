@@ -1,4 +1,5 @@
 "use client";
+import { tint } from "@/lib/tint";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase-browser";
 import db, { Client, Reference, RefStatus } from "@/lib/database";
@@ -206,7 +207,7 @@ export default function ReferencesPage() {
                   style={{ background: "rgba(var(--vi-rgb),0.04)", border: `1px solid ${isOver ? col.color : "var(--brd)"}`, borderRadius: 14, padding: 10, minHeight: 360, display: "flex", flexDirection: "column", transition: "border-color .15s" }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, paddingBottom: 8, borderBottom: `2px solid ${col.color}` }}>
                     <h3 style={{ fontSize: 11, fontWeight: 800, color: "var(--t1)", textTransform: "uppercase", letterSpacing: 0.4 }}>{col.label}</h3>
-                    <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 6, background: `color-mix(in srgb, ${col.color} 13%, transparent)`, color: col.color }}>{items.length}</span>
+                    <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 6, background: tint(col.color, 0.1333), color: col.color }}>{items.length}</span>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1 }}>
                     {items.length === 0 && <div style={{ padding: "24px 8px", textAlign: "center", color: "var(--t3)", fontSize: 10, fontStyle: "italic" }}>{isOver ? "Отпусти" : "Пусто"}</div>}
@@ -280,7 +281,7 @@ function RefModal({ ref0, client, onClose, onNote, onTranscript, onDelete, onMov
       <div onClick={e => e.stopPropagation()} style={{ background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 18, width: "100%", maxWidth: 700, padding: 22, display: "flex", flexDirection: "column", gap: 14, boxShadow: "0 24px 70px rgba(var(--sh-rgb),calc(0.55 * var(--sh-k)))" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 7, background: `color-mix(in srgb, ${p.color} 12%, transparent)`, color: p.color, fontSize: 12, fontWeight: 700 }}><p.Icon size={13} /> {p.label}</span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 7, background: tint(p.color, 0.1216), color: p.color, fontSize: 12, fontWeight: 700 }}><p.Icon size={13} /> {p.label}</span>
             <span style={{ fontSize: 13, color: "var(--t2)" }}>{ref0.author || ""}</span>
             {client && <span style={{ fontSize: 11, color: "var(--t3)" }}>· {client.name} {client.surname || ""}</span>}
           </div>
@@ -302,7 +303,7 @@ function RefModal({ ref0, client, onClose, onNote, onTranscript, onDelete, onMov
             const active = ref0.status === col.id;
             return (
               <button key={col.id} onClick={() => { if (!active) onMove(col.id); }} disabled={active}
-                style={{ padding: "6px 11px", borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: active ? "default" : "pointer", border: `1px solid ${active ? col.color : "var(--brd)"}`, background: active ? `color-mix(in srgb, ${col.color} 13%, transparent)` : "transparent", color: active ? col.color : "var(--t2)" }}>
+                style={{ padding: "6px 11px", borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: active ? "default" : "pointer", border: `1px solid ${active ? col.color : "var(--brd)"}`, background: active ? tint(col.color, 0.1333) : "transparent", color: active ? col.color : "var(--t2)" }}>
                 {col.label}
               </button>
             );

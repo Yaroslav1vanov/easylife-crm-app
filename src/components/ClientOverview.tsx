@@ -1,4 +1,5 @@
 "use client";
+import { tint } from "@/lib/tint";
 import { useMemo, useState } from "react";
 import { Client, Script, ClientMonth, TeamMember } from "@/lib/database";
 import { isMain, isTrial } from "@/lib/scriptType";
@@ -88,7 +89,7 @@ export default function ClientOverview({ client: c, clientMonths, scripts, team,
               if (!url) return null;
               return (
                 <a key={key} href={url.startsWith("http") ? url : `https://${url}`} target="_blank" rel="noopener noreferrer"
-                  style={{ padding: "5px 11px", borderRadius: 7, background: `color-mix(in srgb, ${colors[key]} 9%, transparent)`, border: `1px solid color-mix(in srgb, ${colors[key]} 27%, transparent)`, color: colors[key], fontSize: 11, fontWeight: 700, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 5 }}>
+                  style={{ padding: "5px 11px", borderRadius: 7, background: tint(colors[key], 0.0941), border: `1px solid ${tint(colors[key], 0.2667)}`, color: colors[key], fontSize: 11, fontWeight: 700, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 5 }}>
                   {labels[key]} <ExternalLink size={9} />
                 </a>
               );

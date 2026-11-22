@@ -1,4 +1,5 @@
 "use client";
+import { tint } from "@/lib/tint";
 import { type LucideIcon } from "lucide-react";
 
 type Props = {
@@ -17,7 +18,7 @@ export default function SoonPage({ title, description, Icon, accent = "var(--pu)
         background: `linear-gradient(135deg, ${accent}, transparent)`,
         display: "flex", alignItems: "center", justifyContent: "center",
         border: "1px solid var(--brd)",
-        boxShadow: `0 12px 40px color-mix(in srgb, ${accent} 20%, transparent)`,
+        boxShadow: `0 12px 40px ${tint(accent, 0.2)}`,
       }}>
         <Icon size={40} strokeWidth={1.6} style={{ color: "#fff" }} />
       </div>
@@ -33,7 +34,7 @@ export default function SoonPage({ title, description, Icon, accent = "var(--pu)
         background: "rgba(var(--pu-rgb),0.1)", border: "1px solid var(--brd)",
         fontSize: 11, fontWeight: 700, color: accent, letterSpacing: 0.6, textTransform: "uppercase",
       }}>
-        <span style={{ width: 6, height: 6, borderRadius: "50%", background: accent, boxShadow: `0 0 0 4px color-mix(in srgb, ${accent} 13%, transparent)` }} />
+        <span style={{ width: 6, height: 6, borderRadius: "50%", background: accent, boxShadow: `0 0 0 4px ${tint(accent, 0.1333)}` }} />
         Скоро
       </div>
     </div>

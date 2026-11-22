@@ -1,4 +1,5 @@
 "use client";
+import { tint } from "@/lib/tint";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { AlertTriangle, Info, CheckCircle2, X } from "lucide-react";
@@ -51,9 +52,9 @@ export default function NoticeHost() {
   const close = () => setItems(a => a.slice(1));
   return createPortal(
     <div onClick={close} style={{ position: "fixed", inset: 0, zIndex: 5000, background: "rgba(0,0,0,.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-      <div onClick={e => e.stopPropagation()} role="alertdialog" style={{ width: "100%", maxWidth: 440, background: "var(--side)", border: `1px solid color-mix(in srgb, ${color} 33%, transparent)`, borderRadius: 16, padding: "18px 18px 16px", boxShadow: "0 24px 70px rgba(var(--sh-rgb),calc(.55 * var(--sh-k)))", fontFamily: "'Manrope', sans-serif" }}>
+      <div onClick={e => e.stopPropagation()} role="alertdialog" style={{ width: "100%", maxWidth: 440, background: "var(--side)", border: `1px solid ${tint(color, 0.3333)}`, borderRadius: 16, padding: "18px 18px 16px", boxShadow: "0 24px 70px rgba(var(--sh-rgb),calc(.55 * var(--sh-k)))", fontFamily: "'Manrope', sans-serif" }}>
         <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-          <span style={{ width: 36, height: 36, borderRadius: 10, background: `color-mix(in srgb, ${color} 13%, transparent)`, color, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon size={18} /></span>
+          <span style={{ width: 36, height: 36, borderRadius: 10, background: tint(color, 0.1333), color, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon size={18} /></span>
           <div style={{ minWidth: 0, flex: 1 }}>
             {title && <div style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 14, fontWeight: 700, color: "var(--t1)", marginBottom: 4, lineHeight: 1.3 }}>{title}</div>}
             <div style={{ fontSize: 13, color: "var(--t2)", lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{text}</div>

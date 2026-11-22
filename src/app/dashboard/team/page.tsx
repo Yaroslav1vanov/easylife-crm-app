@@ -1,4 +1,5 @@
 "use client";
+import { tint } from "@/lib/tint";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
@@ -197,11 +198,11 @@ export default function TeamPage() {
         return (
           <div key={role.type} style={{ marginBottom: 24 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 12 }}>
-              <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, borderRadius: 8, background: `color-mix(in srgb, ${role.color} 12%, transparent)` }}>
+              <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, borderRadius: 8, background: tint(role.color, 0.1216) }}>
                 <role.Icon size={15} style={{ color: role.color }} />
               </span>
               <h2 style={{ fontSize: 13, fontWeight: 800, color: "var(--t1)", textTransform: "uppercase", letterSpacing: 0.5 }}>{role.title}</h2>
-              <span style={{ fontSize: 11, fontWeight: 800, padding: "2px 8px", borderRadius: 7, background: `color-mix(in srgb, ${role.color} 12%, transparent)`, color: role.color }}>{members.length}</span>
+              <span style={{ fontSize: 11, fontWeight: 800, padding: "2px 8px", borderRadius: 7, background: tint(role.color, 0.1216), color: role.color }}>{members.length}</span>
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(330px, 1fr))", gap: 12 }}>

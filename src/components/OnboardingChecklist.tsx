@@ -1,4 +1,5 @@
 "use client";
+import { tint } from "@/lib/tint";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase-browser";
 import db, { ChecklistTask, OnboardingTemplateRow, OnboardingProgress } from "@/lib/database";
@@ -221,7 +222,7 @@ export default function OnboardingChecklist({ clientId, clientName, clientCreate
             <div key={stage.stageId} style={{ borderRadius: 16, border: `1px solid ${stagePct === 100 ? "rgba(var(--gr-rgb),0.3)" : "var(--brd)"}`, background: "var(--card)", overflow: "hidden" }}>
               <button onClick={() => toggleStage(stage.stageId)} style={{ width: "100%", padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", background: "none", border: "none", cursor: "pointer", textAlign: "left", color: "var(--t1)" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 14, flex: 1, minWidth: 0 }}>
-                  <div style={{ minWidth: 36, height: 36, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", background: `color-mix(in srgb, ${stageColor} 13%, transparent)`, color: stageColor, fontWeight: 800, fontSize: 14 }}>
+                  <div style={{ minWidth: 36, height: 36, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", background: tint(stageColor, 0.1333), color: stageColor, fontWeight: 800, fontSize: 14 }}>
                     {stage.stageId}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>

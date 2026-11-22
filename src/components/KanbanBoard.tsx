@@ -1,4 +1,5 @@
 "use client";
+import { tint } from "@/lib/tint";
 import { useEffect, useMemo, useState } from "react";
 import { Client, Script, stopHash } from "@/lib/database";
 import Avatar from "@/components/Avatar";
@@ -24,7 +25,7 @@ function deadlineInfo(s: Script, lead: number, done: boolean, todayIso: string) 
   if (done) tone = "done";
   else if (diff < 0) tone = "overdue";
   else if (diff <= 1) tone = "soon";
-  const color = tone === "done" ? "#8a8f98" : tone === "overdue" ? "var(--rd)" : tone === "soon" ? "var(--or)" : "var(--pu)";
+  const color = tone === "done" ? "var(--mut)" : tone === "overdue" ? "var(--rd)" : tone === "soon" ? "var(--or)" : "var(--pu)";
   const text = done ? "готово"
     : diff < 0 ? `просрочено ${-diff} дн`
     : diff === 0 ? "сегодня"
@@ -278,7 +279,7 @@ export default function KanbanBoard({ scripts, clients, columns, onUpdate, showC
                   <Icon size={13} style={{ color: col.color }} strokeWidth={1.8} />
                   <h3 style={{ fontSize: 11, fontWeight: 800, color: "var(--t1)", textTransform: "uppercase", letterSpacing: 0.5 }}>{col.label}</h3>
                 </div>
-                <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 6, background: `color-mix(in srgb, ${col.color} 13%, transparent)`, color: col.color }}>{itemsAll.length - slotItems.length}</span>
+                <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 6, background: tint(col.color, 0.1333), color: col.color }}>{itemsAll.length - slotItems.length}</span>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 7, flex: 1 }}>
                 {showAdd && (
@@ -482,7 +483,7 @@ function KanbanCardPreview({ script: s, client: c, color, dragging, moving, show
         </div>
       )}
       {deadline && (
-        <div style={{ display: "inline-flex", alignSelf: "flex-start", alignItems: "center", gap: 5, padding: "3px 8px", borderRadius: 7, fontSize: 10, fontWeight: 800, background: `color-mix(in srgb, ${deadline.color} 12%, transparent)`, color: deadline.color }}>
+        <div style={{ display: "inline-flex", alignSelf: "flex-start", alignItems: "center", gap: 5, padding: "3px 8px", borderRadius: 7, fontSize: 10, fontWeight: 800, background: tint(deadline.color, 0.1216), color: deadline.color }}>
           🎬 сдать {fmtDateShort(deadline.due)} · {deadline.text}
         </div>
       )}
@@ -508,7 +509,7 @@ function KanbanCardPreview({ script: s, client: c, color, dragging, moving, show
       {action && (
         <button
           onClick={(e) => { e.stopPropagation(); action.onClick(); }}
-          style={{ marginTop: 2, padding: "6px 10px", borderRadius: 8, background: `color-mix(in srgb, ${action.color} 11%, transparent)`, border: `1px solid color-mix(in srgb, ${action.color} 33%, transparent)`, color: action.color, fontSize: 10, fontWeight: 800, cursor: "pointer" }}>
+          style={{ marginTop: 2, padding: "6px 10px", borderRadius: 8, background: tint(action.color, 0.1098), border: `1px solid ${tint(action.color, 0.3333)}`, color: action.color, fontSize: 10, fontWeight: 800, cursor: "pointer" }}>
           {action.label}
         </button>
       )}

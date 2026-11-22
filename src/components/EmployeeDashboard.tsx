@@ -1,4 +1,5 @@
 "use client";
+import { tint } from "@/lib/tint";
 import { useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Client, ClientMonth, Script, TeamMember, OnboardingProgress } from "@/lib/database";
@@ -110,9 +111,9 @@ export default function EmployeeDashboard({ member, clients, clientMonths, scrip
   }, [member, clients, clientMonths, scripts, todayIso, isMg, onbProgresses]);
 
   const KPI = ({ icon: I, label, value, sub, color, attention }: any) => (
-    <div className="card" style={{ padding: 16, borderRadius: 14, border: attention ? `1px solid color-mix(in srgb, ${color} 40%, transparent)` : undefined, background: attention ? `color-mix(in srgb, ${color} 6%, transparent)` : undefined }}>
+    <div className="card" style={{ padding: 16, borderRadius: 14, border: attention ? `1px solid ${tint(color, 0.4)}` : undefined, background: attention ? tint(color, 0.0588) : undefined }}>
       <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 8 }}>
-        <div style={{ width: 30, height: 30, borderRadius: 9, background: `color-mix(in srgb, ${color} 13%, transparent)`, color, display: "flex", alignItems: "center", justifyContent: "center", border: `1px solid color-mix(in srgb, ${color} 27%, transparent)` }}>
+        <div style={{ width: 30, height: 30, borderRadius: 9, background: tint(color, 0.1333), color, display: "flex", alignItems: "center", justifyContent: "center", border: `1px solid ${tint(color, 0.2667)}` }}>
           <I size={15} strokeWidth={1.9} />
         </div>
         <span style={{ fontSize: 10, color: "var(--t3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4 }}>{label}</span>
@@ -250,7 +251,7 @@ export default function EmployeeDashboard({ member, clients, clientMonths, scrip
                 <div key={k} className="card" style={{ padding: 16, borderRadius: 15, borderLeft: `3px solid ${m.c}` }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 11, flexWrap: "wrap" }}>
                     <span style={{ fontSize: 13.5, fontWeight: 800, color: "var(--t1)" }}>{m.t}</span>
-                    <span style={{ fontSize: 11, fontWeight: 800, padding: "2px 8px", borderRadius: 7, background: `color-mix(in srgb, ${m.c} 13%, transparent)`, color: m.c }}>{list.length}</span>
+                    <span style={{ fontSize: 11, fontWeight: 800, padding: "2px 8px", borderRadius: 7, background: tint(m.c, 0.1333), color: m.c }}>{list.length}</span>
                     {late > 0 && <span style={{ fontSize: 11, fontWeight: 800, color: "var(--rd)" }}>⚠ {late} просрочено</span>}
                     <span style={{ marginLeft: "auto", fontSize: 10, color: "var(--t3)" }}>{m.hint}</span>
                   </div>

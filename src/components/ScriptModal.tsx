@@ -1,4 +1,5 @@
 "use client";
+import { tint } from "@/lib/tint";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Client, Script, StopCheck, StopIssue, stopHash } from "@/lib/database";
@@ -533,7 +534,7 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
                 </div>
               )}
               {verdict && (
-                <div style={{ marginTop: 12, textAlign: "center", padding: "7px", borderRadius: 8, background: `color-mix(in srgb, ${verdict.c} 9%, transparent)`, color: verdict.c, fontSize: 12, fontWeight: 800 }}>
+                <div style={{ marginTop: 12, textAlign: "center", padding: "7px", borderRadius: 8, background: tint(verdict.c, 0.0941), color: verdict.c, fontSize: 12, fontWeight: 800 }}>
                   {verdict.t} · наше = {Math.round((ratio as number) * 100)}% от исходника
                 </div>
               )}

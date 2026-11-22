@@ -1,4 +1,5 @@
 "use client";
+import { tint } from "@/lib/tint";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
@@ -301,7 +302,7 @@ function PlanInner() {
       {/* ---- лист ролика: дата, статус, действия ---- */}
       <Sheet open={!!slot} onClose={() => setSlot(null)}
         title={slot ? titleOf(slot) : ""}
-        sub={slot ? <><span className="v2-chip" style={{ background: `color-mix(in srgb, ${ST_COLOR[stOf(slot)]} 13%, transparent)`, color: ST_COLOR[stOf(slot)], marginRight: 6 }}>{ST_LABEL[stOf(slot)]}</span>{slot.pub_date ? `публикация ${fmtDateShort(slot.pub_date)} · сценарий к ${fmtDateShort(addDaysIso(slot.pub_date, -SCRIPT_LEAD))} · видео к ${fmtDateShort(addDaysIso(slot.pub_date, -VIDEO_LEAD))}` : "без даты публикации"}</> : ""}>
+        sub={slot ? <><span className="v2-chip" style={{ background: tint(ST_COLOR[stOf(slot)], 0.1333), color: ST_COLOR[stOf(slot)], marginRight: 6 }}>{ST_LABEL[stOf(slot)]}</span>{slot.pub_date ? `публикация ${fmtDateShort(slot.pub_date)} · сценарий к ${fmtDateShort(addDaysIso(slot.pub_date, -SCRIPT_LEAD))} · видео к ${fmtDateShort(addDaysIso(slot.pub_date, -VIDEO_LEAD))}` : "без даты публикации"}</> : ""}>
         {slot && (
           <>
             {canEdit && slot.video_status !== "published" && (

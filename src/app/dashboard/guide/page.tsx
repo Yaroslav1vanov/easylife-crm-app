@@ -1,4 +1,5 @@
 "use client";
+import { tint } from "@/lib/tint";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useRole } from "@/components/RoleContext";
@@ -9,12 +10,12 @@ import {
 
 /* ---------- строительные блоки ---------- */
 function Chip({ children, color = "var(--pu)" }: { children: React.ReactNode; color?: string }) {
-  return <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: 6, background: `color-mix(in srgb, ${color} 12%, transparent)`, color, fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}>{children}</span>;
+  return <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: 6, background: tint(color, 0.1216), color, fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}>{children}</span>;
 }
 function Step({ n, title, children, color }: { n: number; title: React.ReactNode; children?: React.ReactNode; color: string }) {
   return (
     <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-      <span style={{ flexShrink: 0, width: 26, height: 26, borderRadius: 8, background: `color-mix(in srgb, ${color} 12%, transparent)`, color, fontFamily: "'Unbounded', sans-serif", fontSize: 12, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center" }}>{n}</span>
+      <span style={{ flexShrink: 0, width: 26, height: 26, borderRadius: 8, background: tint(color, 0.1216), color, fontFamily: "'Unbounded', sans-serif", fontSize: 12, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center" }}>{n}</span>
       <div style={{ flex: 1, minWidth: 0, paddingTop: 1 }}>
         <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--t1)", lineHeight: 1.5 }}>{title}</div>
         {children && <div style={{ fontSize: 12.5, color: "var(--t2)", lineHeight: 1.6, marginTop: 3 }}>{children}</div>}
@@ -29,7 +30,7 @@ function GuideCard({ Icon, color, title, subtitle, tldr, steps, note, cta, onCta
   return (
     <div style={{ background: "rgba(var(--vi-rgb),0.04)", border: "1px solid var(--brd)", borderRadius: 18, padding: 22, borderTop: `3px solid ${color}` }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 6 }}>
-        <span style={{ width: 42, height: 42, borderRadius: 12, background: `color-mix(in srgb, ${color} 12%, transparent)`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon size={21} style={{ color }} /></span>
+        <span style={{ width: 42, height: 42, borderRadius: 12, background: tint(color, 0.1216), display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Icon size={21} style={{ color }} /></span>
         <div>
           <h2 style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 18, fontWeight: 800, color: "var(--t1)" }}>{title}</h2>
           <div style={{ fontSize: 12, color: "var(--t3)" }}>{subtitle}</div>
@@ -39,7 +40,7 @@ function GuideCard({ Icon, color, title, subtitle, tldr, steps, note, cta, onCta
         {tldr.map((t, i) => <span key={i} style={{ fontSize: 11, fontWeight: 700, color: "var(--t2)", background: "var(--inset2)", border: "1px solid var(--track)", borderRadius: 999, padding: "5px 11px" }}>{t}</span>)}
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>{steps}</div>
-      {note && <div style={{ marginTop: 18, padding: "11px 14px", borderRadius: 11, background: `color-mix(in srgb, ${color} 6%, transparent)`, border: `1px solid color-mix(in srgb, ${color} 20%, transparent)`, fontSize: 12, color: "var(--t2)", lineHeight: 1.6 }}>{note}</div>}
+      {note && <div style={{ marginTop: 18, padding: "11px 14px", borderRadius: 11, background: tint(color, 0.0588), border: `1px solid ${tint(color, 0.2)}`, fontSize: 12, color: "var(--t2)", lineHeight: 1.6 }}>{note}</div>}
       {cta && <button onClick={onCta} style={{ marginTop: 16, display: "inline-flex", alignItems: "center", gap: 7, padding: "10px 16px", borderRadius: 11, background: `linear-gradient(135deg, ${color}, var(--pu))`, color: "#fff", border: "none", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>{cta} <ArrowRight size={14} /></button>}
     </div>
   );

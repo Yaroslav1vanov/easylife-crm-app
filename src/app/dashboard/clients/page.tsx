@@ -1,4 +1,5 @@
 "use client";
+import { tint } from "@/lib/tint";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
@@ -137,7 +138,7 @@ function ClientCard({
       </div>
 
       {isOnboarding && obLeft != null && (
-        <div style={{ display: "flex", alignItems: "center", gap: 7, margin: "0 0 10px", padding: "6px 10px", borderRadius: 9, background: `color-mix(in srgb, ${obColor} 8%, transparent)`, border: `1px solid color-mix(in srgb, ${obColor} 33%, transparent)` }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 7, margin: "0 0 10px", padding: "6px 10px", borderRadius: 9, background: tint(obColor, 0.0784), border: `1px solid ${tint(obColor, 0.3333)}` }}>
           <span style={{ fontSize: 11 }}>🚀</span>
           <span style={{ fontSize: 11, fontWeight: 800, color: obColor }}>
             {obLeft < 0 ? `Онбординг просрочен ${-obLeft} дн` : obLeft === 0 ? "Онбординг — дедлайн сегодня" : obLeft === 1 ? "Онбординг — дедлайн завтра" : `До конца онбординга ${obLeft} дн`}
@@ -177,7 +178,7 @@ function ClientCard({
             return (
               <span key={p} title={meta.label}
                 style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 9px", borderRadius: 8, flex: "1 1 auto", justifyContent: "center",
-                  background: on ? `color-mix(in srgb, ${meta.color} 8%, transparent)` : "var(--inset2)", border: `1px solid ${on ? `color-mix(in srgb, ${meta.color} 27%, transparent)` : "var(--track)"}` }}>
+                  background: on ? tint(meta.color, 0.0784) : "var(--inset2)", border: `1px solid ${on ? tint(meta.color, 0.2667) : "var(--track)"}` }}>
                 <i style={{ width: 6, height: 6, borderRadius: "50%", background: on ? meta.color : "var(--t3)", display: "block" }} />
                 <b style={{ fontSize: 10, color: on ? meta.color : "var(--t3)", fontWeight: 800 }}>{meta.short}</b>
                 <span style={{ fontSize: 11, fontWeight: 700, color: on ? "var(--t1)" : "var(--t3)" }}>{row?.reach != null ? compactNumber(row.reach) : "—"}</span>

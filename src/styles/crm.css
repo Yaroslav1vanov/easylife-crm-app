@@ -39,6 +39,7 @@
   --cy-rgb: 0,150,136; --pu-rgb: 107,44,255; --vi-rgb: 107,44,255;
   --or-rgb: 245,165,36; --gr-rgb: 47,143,0; --rd-rgb: 255,91,74; --yl-rgb: 224,170,20; --pk-rgb: 200,30,120;
   --ov-rgb: 12,9,56;               /* лёгкая «вуаль» поверх поверхности */
+  --mut: #63608a; --mut-rgb: 99,96,138; --em-rgb: 8,122,82; --t1-rgb: 12,9,56; --t2-rgb: 74,71,117; --t3-rgb: 99,96,138;
 
   /* кнопки, тени, затемнение */
   --btn-grad: #6b2cff; --btn-fg: #ffffff; --on-accent: #ffffff;
@@ -68,6 +69,7 @@
   --cy-rgb: 46,230,200; --pu-rgb: 143,91,255; --vi-rgb: 143,91,255;
   --or-rgb: 245,165,36; --gr-rgb: 182,245,0; --rd-rgb: 255,91,74; --yl-rgb: 245,196,81; --pk-rgb: 255,122,184;
   --ov-rgb: 255,255,255;
+  --mut: #9e9bc8; --mut-rgb: 158,155,200; --em-rgb: 52,211,153; --t1-rgb: 255,255,255; --t2-rgb: 207,205,240; --t3-rgb: 158,155,200;
 
   --btn-grad: #b6f500; --btn-fg: #070526; --on-accent: #070526;
   --scrim: rgba(3,2,20,.7); --sh-rgb: 0,0,0; --sh-k: 1;
@@ -113,24 +115,24 @@ select option { background: var(--side); color: var(--t1); }
 .app-sidebar { position: fixed; left: 0; top: 0; height: 100vh; width: 232px; display: flex; flex-direction: column; background: var(--navy); z-index: 50; padding: 18px 12px 12px; }
 .app-logo { display: flex; align-items: center; gap: 10px; font-family: var(--sans); font-weight: 800; letter-spacing: .18em; font-size: 13.5px; color: #fff; white-space: nowrap; }
 .app-logo b { color: var(--lime); font-weight: 800; }
-.side-top { display: flex; align-items: center; gap: 8px; padding: 2px 6px 14px; }
+.side-top { display: flex; align-items: center; gap: 8px; padding: 2px 6px 10px; }
 .side-search { margin: 0 2px 6px; display: flex; align-items: center; gap: 8px; padding: 9px 10px; border-radius: 10px; border: 1px solid rgba(255,255,255,.08); background: var(--navy-2); color: #9e9bc8; font-size: 13px; font-weight: 600; cursor: pointer; }
 .side-search:hover { border-color: rgba(255,255,255,.2); color: #fff; }
 .side-search kbd { margin-left: auto; font: 700 10.5px var(--sans); border: 1px solid rgba(255,255,255,.14); border-radius: 5px; padding: 1px 5px; color: #9e9bc8; }
-.side-nav { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; padding: 2px; margin: 0 -2px; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.18) transparent; }
-.v2-grp { font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: #8683b5; padding: 16px 10px 6px; }
+.side-nav { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 1px; padding: 2px 2px 20px; margin: 0 -2px; -webkit-mask-image: linear-gradient(#000 calc(100% - 26px), transparent); mask-image: linear-gradient(#000 calc(100% - 26px), transparent); scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.18) transparent; }
+.v2-grp { font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: #8683b5; padding: 12px 10px 4px; }
 .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 10px; border: none; cursor: pointer; width: 100%; text-align: left; font-size: 14px; font-weight: 600; background: transparent; color: var(--t2); text-decoration: none; transition: background .15s, color .15s; }
 .nav-item:hover { background: rgba(var(--ov-rgb),.06); color: var(--t1); }
 .nav-item.active { background: var(--pud); color: var(--t1); }
 /* в меню: значки приглушённые, активный пункт — лайм */
-.app-sidebar .nav-item { color: #cfcdf0; }
+.app-sidebar .nav-item { color: #cfcdf0; padding: 7px 10px; font-size: 13.5px; }
 .app-sidebar .nav-item svg { color: #8683b5; flex: none; transition: color .15s; }
 .app-sidebar .nav-item:hover { background: rgba(255,255,255,.06); color: #fff; }
 .app-sidebar .nav-item:hover svg { color: #cfcdf0; }
 .app-sidebar .nav-item.active { background: rgba(182,245,0,.12); color: #fff; }
 .app-sidebar .nav-item.active svg { color: var(--lime); }
 .v2-nav-badge { margin-left: auto; font-size: 10px; font-weight: 800; padding: 1px 6px; border-radius: 6px; background: rgba(255,91,74,.2); color: #ff8a7d; }
-.side-me { position: relative; margin-top: 10px; }
+.side-me { position: relative; margin-top: 4px; }
 .side-me-btn { width: 100%; border: 0; cursor: pointer; display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 12px; background: var(--navy-2); text-align: left; transition: background .15s; }
 .side-me-btn:hover, .side-me-btn.open { background: var(--navy-3); }
 .side-me-btn b { display: block; color: #fff; font-size: 13.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -521,3 +523,27 @@ button.cl-pill.add:hover { border-color: var(--lime); color: var(--lime); }
 /* сетки-календари: на узком экране прокручиваются внутри своей карточки */
 .cal-scroll { overflow-x: auto; }
 @media (max-width: 900px) { .cal-scroll > div { min-width: 720px; } }
+
+/* планшет: чуть уже поля, чтобы сетки на 7 колонок не сжимали текст */
+@media (min-width: 768px) and (max-width: 1180px) { .crm-main { --mp-x: 20px; } .v2-wd { padding: 6px; } .v2-wd .v2-slot { padding: 6px; gap: 6px; } }
+
+/* поля дат не шире своей колонки */
+input[type="date"], input[type="datetime-local"], input[type="time"], input[type="month"] { max-width: 100%; min-width: 0; }
+
+/* крупные цифры в отчётах — фирменным шрифтом */
+.crm-main .font-mono { font-family: var(--disp); letter-spacing: -.01em; }
+
+/* телефон: вкладки клиента все на виду, кнопки удобнее для пальца */
+@media (max-width: 620px) {
+  .cl-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; overflow: visible; }
+  .cl-tabs button { padding: 10px 4px; text-align: center; font-size: 14px; }
+}
+@media (max-width: 767px) {
+  .v2-act { min-height: 40px; }
+  .v2-iconbtn { width: 40px; height: 40px; }
+  .page-head button, .cl-head button { min-height: 36px; min-width: 36px; }
+  .page-head button:has(> svg:only-child) { display: inline-flex; align-items: center; justify-content: center; }
+}
+/* невидимое расширение зоны нажатия у маленьких кружков-галочек */
+.ct-chk, .st .chk { position: relative; }
+.ct-chk::after, .st .chk::after { content: ""; position: absolute; inset: -10px; }

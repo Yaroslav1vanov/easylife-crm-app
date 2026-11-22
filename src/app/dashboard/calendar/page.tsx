@@ -1,4 +1,5 @@
 "use client";
+import { tint } from "@/lib/tint";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
@@ -165,7 +166,7 @@ export default function CalendarPage() {
     return (
       <div key={`${e.kind}-${e.id}`} draggable onDragStart={() => setDragEv(e)} onDragEnd={() => { setDragEv(null); setDragOverDay(null); }}
         onClick={() => setModalEv(e)} title={e.label}
-        style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 6px", borderRadius: 6, background: `color-mix(in srgb, ${meta.color} 12%, transparent)`, border: `1px solid ${meta.color}${over ? "" : "55"}`, color: meta.color, fontSize: 10, fontWeight: 700, cursor: "grab", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", opacity: dragEv?.kind === e.kind && dragEv?.id === e.id ? 0.4 : 1 }}>
+        style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 6px", borderRadius: 6, background: tint(meta.color, 0.1216), border: `1px solid ${meta.color}${over ? "" : "55"}`, color: meta.color, fontSize: 10, fontWeight: 700, cursor: "grab", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", opacity: dragEv?.kind === e.kind && dragEv?.id === e.id ? 0.4 : 1 }}>
         <span style={{ width: 6, height: 6, borderRadius: "50%", background: meta.color, flexShrink: 0 }} />
         <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{e.kind === "pub" ? e.label : e.kind === "dl" ? `${cname(e.clientId)} · сдать` : cname(e.clientId)}</span>
       </div>
@@ -173,7 +174,7 @@ export default function CalendarPage() {
   };
   const countChip = (items: { id: number; clientId: number }[] | undefined, kind: "scr" | "vid", day: string) => items && items.length > 0 ? (
     <div onClick={() => setListModal({ kind, date: day, items })} title={groupNames(items)}
-      style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 6px", borderRadius: 6, background: `color-mix(in srgb, ${KIND_META[kind].color} 10%, transparent)`, border: `1px dashed color-mix(in srgb, ${KIND_META[kind].color} 40%, transparent)`, color: KIND_META[kind].color, fontSize: 10, fontWeight: 700, cursor: "pointer" }}>
+      style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 6px", borderRadius: 6, background: tint(KIND_META[kind].color, 0.102), border: `1px dashed ${tint(KIND_META[kind].color, 0.4)}`, color: KIND_META[kind].color, fontSize: 10, fontWeight: 700, cursor: "pointer" }}>
       <span style={{ width: 6, height: 6, borderRadius: "50%", background: KIND_META[kind].color }} />{items.length} {kind === "scr" ? "сцен." : "видео"} ›
     </div>
   ) : null;
@@ -220,8 +221,8 @@ export default function CalendarPage() {
       {/* СВОДКА */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10, marginBottom: 14 }} className="cal-sum">
         {sumCards.map(s => (
-          <div key={s.k} style={{ display: "flex", alignItems: "center", gap: 11, padding: 13, borderRadius: 14, background: s.v > 0 ? `color-mix(in srgb, ${s.c} 8%, transparent)` : "rgba(var(--vi-rgb),0.05)", border: `1px solid ${s.v > 0 ? `color-mix(in srgb, ${s.c} 33%, transparent)` : "var(--brd)"}` }}>
-            <div style={{ width: 34, height: 34, borderRadius: 10, background: `color-mix(in srgb, ${s.c} 13%, transparent)`, color: s.c, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>{s.ic}</div>
+          <div key={s.k} style={{ display: "flex", alignItems: "center", gap: 11, padding: 13, borderRadius: 14, background: s.v > 0 ? tint(s.c, 0.0784) : "rgba(var(--vi-rgb),0.05)", border: `1px solid ${s.v > 0 ? tint(s.c, 0.3333) : "var(--brd)"}` }}>
+            <div style={{ width: 34, height: 34, borderRadius: 10, background: tint(s.c, 0.1333), color: s.c, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>{s.ic}</div>
             <div><div style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 20, fontWeight: 800, color: s.v > 0 ? "var(--t1)" : "var(--t3)", lineHeight: 1 }}>{s.v}</div><div style={{ fontSize: 10, color: "var(--t3)", fontWeight: 600, marginTop: 3 }}>{s.l}</div></div>
           </div>
         ))}

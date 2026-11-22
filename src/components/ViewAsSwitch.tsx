@@ -1,4 +1,5 @@
 "use client";
+import { tint } from "@/lib/tint";
 import { useEffect, useRef, useState } from "react";
 import { TeamMember } from "@/lib/database";
 import Avatar from "@/components/Avatar";
@@ -30,7 +31,7 @@ export default function ViewAsSwitch({ team, viewAs, setViewAs }: {
         <button onClick={() => setOpen(open === kind ? null : kind)}
           style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 11px", borderRadius: 9,
             border: `1px solid ${activeHere ? color : "var(--brd)"}`,
-            background: activeHere ? `color-mix(in srgb, ${color} 12%, transparent)` : "transparent",
+            background: activeHere ? tint(color, 0.1216) : "transparent",
             color: activeHere ? color : "var(--t2)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
           {activeHere && current ? (
             <>
@@ -53,7 +54,7 @@ export default function ViewAsSwitch({ team, viewAs, setViewAs }: {
               return (
                 <button key={t.id} onClick={() => { setViewAs(on ? null : t.id); setOpen(null); }}
                   style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "7px 9px", borderRadius: 8,
-                    background: on ? `color-mix(in srgb, ${color} 12%, transparent)` : "transparent", border: "none", cursor: "pointer",
+                    background: on ? tint(color, 0.1216) : "transparent", border: "none", cursor: "pointer",
                     color: on ? color : "var(--t1)", fontSize: 12, fontWeight: on ? 800 : 600, textAlign: "left" }}
                   onMouseEnter={e => { if (!on) e.currentTarget.style.background = "var(--inset2)"; }}
                   onMouseLeave={e => { if (!on) e.currentTarget.style.background = "transparent"; }}>

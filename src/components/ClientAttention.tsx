@@ -1,4 +1,5 @@
 "use client";
+import { tint } from "@/lib/tint";
 import { ClientMonth, Script } from "@/lib/database";
 import { isMain } from "@/lib/scriptType";
 import { Target, Scissors, UserCheck, CheckCircle2, CalendarClock, AlertTriangle, type LucideIcon } from "lucide-react";
@@ -40,7 +41,7 @@ export default function ClientAttention({ currentM, scripts, todayIso }: Props) 
             const I = it.Icon;
             return (
               <div key={i} style={{ display: "flex", alignItems: "center", gap: 11 }}>
-                <div style={{ width: 26, height: 26, borderRadius: 8, background: `color-mix(in srgb, ${it.color} 12%, transparent)`, color: it.color, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, border: `1px solid color-mix(in srgb, ${it.color} 23%, transparent)` }}>
+                <div style={{ width: 26, height: 26, borderRadius: 8, background: tint(it.color, 0.1216), color: it.color, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, border: `1px solid ${tint(it.color, 0.2275)}` }}>
                   <I size={13} strokeWidth={2} />
                 </div>
                 <span style={{ fontSize: 12.5, color: "var(--t1)", fontWeight: 600 }}>{it.text}</span>

@@ -1,4 +1,5 @@
 "use client";
+import { tint } from "@/lib/tint";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
@@ -286,8 +287,8 @@ export default function PublicationsPage() {
           const I = a.Icon;
           const on = a.val > 0;
           return (
-            <div key={a.label} style={{ display: "flex", alignItems: "center", gap: 12, padding: 14, borderRadius: 14, background: on ? `color-mix(in srgb, ${a.color} 8%, transparent)` : "rgba(var(--vi-rgb),0.05)", border: `1px solid ${on ? `color-mix(in srgb, ${a.color} 33%, transparent)` : "var(--brd)"}` }}>
-              <div style={{ width: 36, height: 36, borderRadius: 10, background: `color-mix(in srgb, ${a.color} 13%, transparent)`, color: a.color, display: "flex", alignItems: "center", justifyContent: "center", border: `1px solid color-mix(in srgb, ${a.color} 27%, transparent)`, flexShrink: 0 }}>
+            <div key={a.label} style={{ display: "flex", alignItems: "center", gap: 12, padding: 14, borderRadius: 14, background: on ? tint(a.color, 0.0784) : "rgba(var(--vi-rgb),0.05)", border: `1px solid ${on ? tint(a.color, 0.3333) : "var(--brd)"}` }}>
+              <div style={{ width: 36, height: 36, borderRadius: 10, background: tint(a.color, 0.1333), color: a.color, display: "flex", alignItems: "center", justifyContent: "center", border: `1px solid ${tint(a.color, 0.2667)}`, flexShrink: 0 }}>
                 <I size={17} strokeWidth={1.9} />
               </div>
               <div>
@@ -410,7 +411,7 @@ export default function PublicationsPage() {
                             return (
                               <div key={s.id} draggable onDragStart={() => setDragId(s.id)} onDragEnd={() => { setDragId(null); setDragOverDay(null); }}
                                 onClick={() => setOpenId(s.id)} title={`${c?.name} · ${s.content_type === "carousel" ? "карусель" : "рилз"} · ${meta.label}${empty ? " — пусто, перетащи сюда сценарий" : ""}`}
-                                style={{ display: "flex", alignItems: "center", gap: 5, padding: "3px 5px", borderRadius: 6, background: `color-mix(in srgb, ${meta.color} 11%, transparent)`, border: `1px ${empty ? "dashed" : "solid"} ${meta.color}${empty ? "66" : "40"}`, cursor: "grab", opacity: dragId === s.id ? 0.4 : 1 }}>
+                                style={{ display: "flex", alignItems: "center", gap: 5, padding: "3px 5px", borderRadius: 6, background: tint(meta.color, 0.1098), border: `1px ${empty ? "dashed" : "solid"} ${meta.color}${empty ? "66" : "40"}`, cursor: "grab", opacity: dragId === s.id ? 0.4 : 1 }}>
                                 <span style={{ fontSize: 10, flexShrink: 0 }}>{tIcon}</span>
                                 <Avatar name={c ? `${c.name} ${c.surname || ""}` : "?"} src={c?.avatar_url} size={14} />
                                 <span style={{ fontSize: 9, color: "var(--t1)", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{empty ? "слот" : c?.name}</span>
@@ -438,7 +439,7 @@ export default function PublicationsPage() {
                               return (
                                 <div key={`st${cid}`} onClick={() => router.push(`/dashboard/metricool?open=${list[0].id}`)}
                                   title={`Сторис · ${c?.name} · ${list.map(p => fmtInTz(p.publish_at, c?.timezone || DEFAULT_TZ)).join(", ")} ${tzShort(c?.timezone || DEFAULT_TZ)}`}
-                                  style={{ display: "flex", alignItems: "center", gap: 5, padding: "3px 5px", borderRadius: 6, background: `color-mix(in srgb, ${col} 11%, transparent)`, border: `1px solid color-mix(in srgb, ${col} 25%, transparent)`, cursor: "pointer" }}>
+                                  style={{ display: "flex", alignItems: "center", gap: 5, padding: "3px 5px", borderRadius: 6, background: tint(col, 0.1098), border: `1px solid ${tint(col, 0.251)}`, cursor: "pointer" }}>
                                   <span style={{ fontSize: 10, flexShrink: 0 }}>📱</span>
                                   <Avatar name={c ? `${c.name} ${c.surname || ""}` : "?"} src={c?.avatar_url} size={14} />
                                   <span style={{ fontSize: 9, color: "var(--t1)", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>сторис{list.length > 1 ? ` ×${list.length}` : ""}</span>
@@ -573,7 +574,7 @@ function PublicationModal({ script: s, client: c, todayIso, onClose, onUpdate, o
 
         <div style={{ fontSize: 12, color: "var(--t1)", fontWeight: 600, lineHeight: 1.4 }}>{s.hook_text || s.hook || "Без темы"}</div>
 
-        <div style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "6px 11px", borderRadius: 8, background: `color-mix(in srgb, ${meta.color} 11%, transparent)`, border: `1px solid color-mix(in srgb, ${meta.color} 27%, transparent)`, alignSelf: "flex-start" }}>
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "6px 11px", borderRadius: 8, background: tint(meta.color, 0.1098), border: `1px solid ${tint(meta.color, 0.2667)}`, alignSelf: "flex-start" }}>
           <span style={{ width: 8, height: 8, borderRadius: "50%", background: meta.color }} />
           <span style={{ fontSize: 11, color: meta.color, fontWeight: 700 }}>{meta.label}</span>
         </div>

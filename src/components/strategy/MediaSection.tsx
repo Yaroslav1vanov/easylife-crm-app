@@ -1,4 +1,5 @@
 "use client";
+import { tint } from "@/lib/tint";
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase-browser";
 import { notify } from "@/components/NoticeHost";
@@ -250,7 +251,7 @@ function Chip({ on, warn, onClick, children }: { on: boolean; warn?: boolean; on
   const color = warn ? "var(--rd)" : "var(--cy)";
   return (
     <button onClick={onClick} style={{ height: 28, padding: "0 11px", borderRadius: 8, fontSize: 11.5, fontWeight: 700, cursor: "pointer",
-      border: `1px solid ${on ? color : "var(--brd)"}`, background: on ? `color-mix(in srgb, ${color} 14%, transparent)` : "transparent",
+      border: `1px solid ${on ? color : "var(--brd)"}`, background: on ? tint(color, 0.14) : "transparent",
       color: on ? color : warn ? color : "var(--t2)" }}>{children}</button>
   );
 }

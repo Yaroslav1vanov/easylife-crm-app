@@ -1,4 +1,5 @@
 "use client";
+import { tint } from "@/lib/tint";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useIsOwner } from "@/components/RoleContext";
@@ -195,7 +196,7 @@ export default function PayrollPage() {
 
 function KPI({ label, value, color, big }: { label: string; value: string; color: string; big?: boolean }) {
   return (
-    <div className="card" style={{ padding: 16, borderRadius: 14, borderColor: `color-mix(in srgb, ${color} 27%, transparent)`, background: `color-mix(in srgb, ${color} 5%, transparent)` }}>
+    <div className="card" style={{ padding: 16, borderRadius: 14, borderColor: tint(color, 0.2667), background: tint(color, 0.051) }}>
       <div style={{ fontFamily: "'Unbounded', sans-serif", fontSize: big ? 28 : 22, fontWeight: 800, color: "var(--t1)", lineHeight: 1.1 }}>{value}</div>
       <div style={{ fontSize: 10, color: "var(--t3)", fontWeight: 600, marginTop: 5 }}>{label}</div>
     </div>
@@ -211,7 +212,7 @@ function PersonColumn({ title, Icon, color, people, openKey, setOpenKey, onSave,
   return (
     <div>
       <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 10 }}>
-        <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 26, height: 26, borderRadius: 8, background: `color-mix(in srgb, ${color} 12%, transparent)` }}>
+        <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 26, height: 26, borderRadius: 8, background: tint(color, 0.1216) }}>
           <Icon size={14} style={{ color }} />
         </span>
         <h2 style={{ fontSize: 12, fontWeight: 800, color: "var(--t1)", textTransform: "uppercase", letterSpacing: 0.5 }}>{title}</h2>
