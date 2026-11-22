@@ -375,7 +375,7 @@ function ClientsBlock(p: ClientsBlockProps) {
     return (
       <div>
         <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginBottom: 3 }}>
-          <span style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 18, fontWeight: 800, color: pubInMonth > 0 ? "#34a853" : "var(--t3)", lineHeight: 1 }}>{pubInMonth}</span>
+          <span style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 18, fontWeight: 800, color: pubInMonth > 0 ? "var(--gr)" : "var(--t3)", lineHeight: 1 }}>{pubInMonth}</span>
           {editing ? (
             <input autoFocus type="number" min={0} max={999} value={editPlan!.val}
               onClick={e => e.stopPropagation()}
@@ -393,7 +393,7 @@ function ClientsBlock(p: ClientsBlockProps) {
         </div>
         {planned > 0 && (
           <div style={{ height: 4, borderRadius: 2, background: "var(--track)", overflow: "hidden" }}>
-            <div style={{ width: `${pct}%`, height: "100%", background: "#34a853", borderRadius: 2 }} />
+            <div style={{ width: `${pct}%`, height: "100%", background: "var(--gr)", borderRadius: 2 }} />
           </div>
         )}
       </div>

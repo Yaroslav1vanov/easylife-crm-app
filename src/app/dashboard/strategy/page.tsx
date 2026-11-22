@@ -28,7 +28,7 @@ type View = { type: "today" | "tomorrow" | "week" | "done" | "brain" | "chat" } 
 const DIRECTIONS = ["Удержание", "Трафик", "Владельцы", "Рекомендации", "Продажи", "Производство", "HR", "Деньги", "Разгрузка", "Итог"];
 const DIR_COLOR: Record<string, string> = {
   "Удержание": "var(--gr)", "Трафик": "var(--cy)", "Продажи": "var(--pu)", "Производство": "var(--or)",
-  "HR": "#ec4899", "Деньги": "var(--yl)", "Разгрузка": "#5b8cff", "Итог": "#a890d0",
+  "HR": "var(--pk)", "Деньги": "var(--yl)", "Разгрузка": "#3f6fe0", "Итог": "var(--t3)",
   "Владельцы": "#2ee6c8", "Рекомендации": "#a98bff",
 };
 const PRI_COLOR: Record<string, string> = { A: "var(--rd)", B: "var(--or)", C: "#77658f" };

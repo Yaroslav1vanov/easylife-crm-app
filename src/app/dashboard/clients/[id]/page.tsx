@@ -479,7 +479,7 @@ export default function ClientDetailPage() {
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                 {([["ig", "Instagram"], ["tt", "TikTok"], ["yt", "YouTube Shorts"], ["threads", "Threads"]] as const).map(([k, l]) => {
                   const cur = (c.platforms || []) as string[]; const on = cur.includes(k);
-                  return <button key={k} className={`v2-chip ${on ? "pu" : "mut"}`} style={{ height: 32, padding: "0 12px", cursor: "pointer", opacity: on ? 1 : .6 }}
+                  return <button key={k} className={`v2-chip ${on ? "pu" : "mut"}`} style={{ height: 32, padding: "0 12px", cursor: "pointer", opacity: on ? 1 : .85 }}
                     onClick={() => updateClientField("platforms", on ? cur.filter(x => x !== k) : [...cur, k])}>{on ? "✓ " : ""}{l}</button>;
                 })}
               </div>

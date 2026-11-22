@@ -40,7 +40,7 @@ function buildCalendar(ym: string): (string | null)[][] {
 
 type SlotStatus = "published" | "overdue" | "today" | "ready_waiting" | "not_ready" | "planned";
 const STATUS_META: Record<SlotStatus, { color: string; label: string }> = {
-  published: { color: "#34a853", label: "Опубликовано" },
+  published: { color: "var(--gr)", label: "Опубликовано" },
   overdue: { color: "var(--rd)", label: "Просрочено" },
   today: { color: "var(--or)", label: "Сегодня" },
   ready_waiting: { color: "var(--cy)", label: "Готово, ждёт" },
@@ -434,7 +434,7 @@ export default function PublicationsPage() {
                               const c = clientById[cid];
                               const done = list.every(p => p.pub_status === "published");
                               const err = list.some(p => p.pub_status === "error");
-                              const col = err ? "var(--rd)" : done ? "#34a853" : "#ec4899";
+                              const col = err ? "var(--rd)" : done ? "var(--gr)" : "var(--pk)";
                               return (
                                 <div key={`st${cid}`} onClick={() => router.push(`/dashboard/metricool?open=${list[0].id}`)}
                                   title={`Сторис · ${c?.name} · ${list.map(p => fmtInTz(p.publish_at, c?.timezone || DEFAULT_TZ)).join(", ")} ${tzShort(c?.timezone || DEFAULT_TZ)}`}

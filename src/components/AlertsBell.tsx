@@ -26,7 +26,7 @@ const KIND: Record<Alert["kind"], { label: string; color: string; icon: string }
   montage:    { label: "Монтаж",     color: "var(--cy)", icon: "✂️" },
   publish:    { label: "Публикация", color: "var(--gr)", icon: "🚀" },
   month:      { label: "Месяц",      color: "var(--or)", icon: "📅" },
-  onboarding: { label: "Онбординг",  color: "#ff6b8b", icon: "🧩" },
+  onboarding: { label: "Онбординг",  color: "var(--pk)", icon: "🧩" },
   task:       { label: "По клиенту",  color: "#2ee6c8", icon: "✅" },
 };
 
@@ -172,7 +172,7 @@ export default function AlertsBell({ role, align = "right" }: { role: string; al
         <Bell size={16} />
         {unread.length > 0 && (
           <span style={{ position: "absolute", top: -5, right: -5, minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9,
-            background: "var(--rd)", color: "#fff", fontSize: 10, fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+            background: "var(--rd)", color: "var(--on-accent)", fontSize: 10, fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
             {unread.length > 99 ? "99+" : unread.length}
           </span>
         )}

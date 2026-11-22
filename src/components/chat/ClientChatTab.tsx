@@ -413,7 +413,7 @@ export default function ClientChatTab({ clientId, aiEnabled, draft, initialThrea
    тип файла, имя, размер и кнопки. HTML и PDF открываются прямо в браузере. */
 const FILE_KIND: [RegExp, string, string][] = [
   [/\.html?$/i, "HTML", "var(--cy)"], [/\.pdf$/i, "PDF", "var(--rd)"], [/\.zip$/i, "ZIP", "var(--or)"],
-  [/\.(docx?|txt|md)$/i, "DOC", "var(--pu)"], [/\.(xlsx?|csv)$/i, "XLS", "#34d399"], [/\.pptx?$/i, "PPT", "#ff8a4c"],
+  [/\.(docx?|txt|md)$/i, "DOC", "var(--pu)"], [/\.(xlsx?|csv)$/i, "XLS", "var(--em)"], [/\.pptx?$/i, "PPT", "var(--or)"],
   [/\.(mp3|wav|m4a)$/i, "AUDIO", "var(--gr)"], [/\.srt$/i, "SRT", "var(--pu)"],
 ];
 function FileCard({ a }: { a: Att }) {

@@ -145,7 +145,7 @@ export default function PublicationScheduler({ clientId, month, scripts, onClose
   }
 
   const chipColor = (s: Script) =>
-    s.video_status === "published" ? { bg: "rgba(52,168,83,0.18)", fg: "#4ade80", br: "rgba(52,168,83,0.5)" }
+    s.video_status === "published" ? { bg: "rgba(var(--gr-rgb),0.16)", fg: "var(--gr)", br: "rgba(var(--gr-rgb),0.5)" }
     : s.video_status === "ready" ? { bg: "rgba(var(--gr-rgb),0.16)", fg: "var(--gr)", br: "rgba(var(--gr-rgb),0.45)" }
     : s.video_status === "inProgress" ? { bg: "rgba(var(--cy-rgb),0.14)", fg: "var(--cy)", br: "rgba(var(--cy-rgb),0.4)" }
     : isEmptySlot(s) ? { bg: "var(--track)", fg: "var(--t3)", br: "var(--brd)" }
