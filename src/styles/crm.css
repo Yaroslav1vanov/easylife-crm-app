@@ -217,7 +217,7 @@ button.cl-pill.add:hover { border-color: var(--lime); color: var(--lime); }
 @media (min-width: 768px) { .v2-stat { grid-template-columns: repeat(3, 200px); } }
 .v2-stat > div { background: var(--card); border: 1px solid var(--brd); border-radius: 16px; padding: 14px 16px; min-width: 0; }
 .v2-stat b { display: block; font-family: var(--disp); font-weight: 700; font-size: 24px; line-height: 1.1; letter-spacing: -.01em; font-variant-numeric: tabular-nums; color: var(--t1); }
-.v2-stat span { display: block; font-size: 13px; color: var(--t3); font-weight: 700; margin-top: 5px; }
+.v2-stat > div > span { display: block; font-size: 13px; color: var(--t3); font-weight: 700; margin-top: 5px; }
 .v2-stat .rd b { color: var(--rd); } .v2-stat .or b { color: var(--or); } .v2-stat .pu b { color: var(--pu); }
 .v2-stat b em { font-style: normal; font-size: 14px; color: var(--t3); font-family: var(--sans); font-weight: 700; }
 .v2-stat4 { grid-template-columns: repeat(2, 1fr); }
