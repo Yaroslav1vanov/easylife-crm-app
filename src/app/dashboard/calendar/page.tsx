@@ -236,13 +236,13 @@ export default function CalendarPage() {
       </div>
 
       {view === "month" ? (
-        <div className="card" style={{ padding: 14, borderRadius: 16 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 6, marginBottom: 6 }}>
+        <div className="card cal-scroll" style={{ padding: 14, borderRadius: 16 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 6, marginBottom: 6 }}>
             {WD.map(d => <div key={d} style={{ fontSize: 10, fontWeight: 700, color: "var(--t3)", textAlign: "center", textTransform: "uppercase", letterSpacing: 0.5 }}>{d}</div>)}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {weeks.map((week, wi) => (
-              <div key={wi} style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 6 }}>
+              <div key={wi} style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 6 }}>
                 {week.map((day, di) => {
                   if (!day) return <div key={di} style={{ minHeight: 116, borderRadius: 11, background: "rgba(var(--ov-rgb),0.035)" }} />;
                   const evs = byDay[day] || [];
