@@ -27,15 +27,13 @@ export default function ClientOnboardingPage() {
   const fullName = `${client.name} ${client.surname || ""}`.trim();
 
   return (
-    <div style={{ padding: "20px 20px 60px", maxWidth: 1080, margin: "0 auto" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-        <button onClick={() => router.push(`/dashboard/clients/${clientId}`)}
-          style={{ background: "none", border: "1px solid var(--brd)", color: "var(--t2)", padding: "8px 14px", borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
-          ← К карточке клиента
-        </button>
-        <div style={{ fontSize: 11, color: "var(--t3)", fontWeight: 700, letterSpacing: 0.8 }}>
-          ОНБОРДИНГ · {fullName}
+    <div style={{ paddingBottom: 60, maxWidth: 1080, margin: "0 auto" }}>
+      <div className="page-head">
+        <div>
+          <h1>Онбординг</h1>
+          <p>{fullName}</p>
         </div>
+        <button className="btn-ghost" onClick={() => router.push(`/dashboard/clients/${clientId}`)}>← К карточке клиента</button>
       </div>
 
       <OnboardingChecklist
