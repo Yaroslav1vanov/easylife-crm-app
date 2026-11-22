@@ -149,7 +149,7 @@ export default function AvatarUploader({ currentUrl, name, pathPrefix, entityId,
         <div style={{ display: "flex", gap: 4, flexWrap: "wrap", justifyContent: "center" }}>
           <button onClick={() => fileRef.current?.click()} disabled={uploading} style={{
             padding: "5px 9px", borderRadius: 7, fontSize: 10, fontWeight: 700,
-            background: "rgba(157,107,255,0.12)", border: "1px solid var(--brd)",
+            background: "rgba(var(--pu-rgb),0.12)", border: "1px solid var(--brd)",
             color: "var(--pu)", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4,
           }}>
             <Upload size={10} strokeWidth={2} /> Файл
@@ -176,7 +176,7 @@ export default function AvatarUploader({ currentUrl, name, pathPrefix, entityId,
       {showUrlInput && (
         <div style={compact
           ? { position: "absolute", top: size + 8, left: 0, zIndex: 60, display: "flex", gap: 4, width: 290,
-              padding: 8, borderRadius: 10, background: "var(--side)", border: "1px solid var(--brd)", boxShadow: "0 12px 34px rgba(0,0,0,0.5)" }
+              padding: 8, borderRadius: 10, background: "var(--side)", border: "1px solid var(--brd)", boxShadow: "0 12px 34px rgba(var(--sh-rgb),calc(0.5 * var(--sh-k)))" }
           : { display: "flex", gap: 4, width: "100%", maxWidth: 240 }}>
           <input
             autoFocus
@@ -205,7 +205,7 @@ export default function AvatarUploader({ currentUrl, name, pathPrefix, entityId,
 
       {error && <div style={compact
         ? { position: "absolute", top: size + (showUrlInput ? 58 : 8), left: 0, zIndex: 60, width: 290, padding: "7px 10px", borderRadius: 9,
-            background: "var(--side)", border: "1px solid rgba(255,92,122,0.4)", fontSize: 11, color: "var(--rd)", boxShadow: "0 12px 34px rgba(0,0,0,0.5)" }
+            background: "var(--side)", border: "1px solid rgba(var(--rd-rgb),0.4)", fontSize: 11, color: "var(--rd)", boxShadow: "0 12px 34px rgba(var(--sh-rgb),calc(0.5 * var(--sh-k)))" }
         : { fontSize: 10, color: "var(--rd)", textAlign: "center" }}>{error}</div>}
     </div>
   );

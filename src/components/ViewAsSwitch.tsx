@@ -30,7 +30,7 @@ export default function ViewAsSwitch({ team, viewAs, setViewAs }: {
         <button onClick={() => setOpen(open === kind ? null : kind)}
           style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 11px", borderRadius: 9,
             border: `1px solid ${activeHere ? color : "var(--brd)"}`,
-            background: activeHere ? `${color}1f` : "transparent",
+            background: activeHere ? `color-mix(in srgb, ${color} 12%, transparent)` : "transparent",
             color: activeHere ? color : "var(--t2)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
           {activeHere && current ? (
             <>
@@ -45,7 +45,7 @@ export default function ViewAsSwitch({ team, viewAs, setViewAs }: {
         {open === kind && (
           <div style={{ position: "absolute", top: "calc(100% + 5px)", left: 0, zIndex: 320, minWidth: 210,
             background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 11, padding: 5,
-            boxShadow: "0 18px 46px rgba(0,0,0,.6)", maxHeight: 320, overflowY: "auto",
+            boxShadow: "0 18px 46px rgba(var(--sh-rgb),calc(.6 * var(--sh-k)))", maxHeight: 320, overflowY: "auto",
             backdropFilter: "none" }}>
             {list.length === 0 && <div style={{ padding: "8px 10px", fontSize: 11, color: "var(--t3)" }}>пусто</div>}
             {list.map(t => {
@@ -53,7 +53,7 @@ export default function ViewAsSwitch({ team, viewAs, setViewAs }: {
               return (
                 <button key={t.id} onClick={() => { setViewAs(on ? null : t.id); setOpen(null); }}
                   style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "7px 9px", borderRadius: 8,
-                    background: on ? `${color}1f` : "transparent", border: "none", cursor: "pointer",
+                    background: on ? `color-mix(in srgb, ${color} 12%, transparent)` : "transparent", border: "none", cursor: "pointer",
                     color: on ? color : "var(--t1)", fontSize: 12, fontWeight: on ? 800 : 600, textAlign: "left" }}
                   onMouseEnter={e => { if (!on) e.currentTarget.style.background = "var(--inset2)"; }}
                   onMouseLeave={e => { if (!on) e.currentTarget.style.background = "transparent"; }}>
@@ -78,12 +78,12 @@ export default function ViewAsSwitch({ team, viewAs, setViewAs }: {
       <button onClick={() => { setViewAs(null); setOpen(null); }}
         style={{ padding: "6px 13px", borderRadius: 9, fontSize: 11, fontWeight: 800, cursor: "pointer",
           border: `1px solid ${viewAs === null ? "var(--pu)" : "var(--brd)"}`,
-          background: viewAs === null ? "rgba(157,107,255,.15)" : "transparent",
+          background: viewAs === null ? "rgba(var(--pu-rgb),.15)" : "transparent",
           color: viewAs === null ? "var(--pu)" : "var(--t3)" }}>
         Я
       </button>
-      <Drop kind="tl" label="Тимлиды" list={leads} color="#9d6bff" />
-      <Drop kind="mg" label="Монтажёры" list={eds} color="#ffae42" />
+      <Drop kind="tl" label="Тимлиды" list={leads} color="var(--pu)" />
+      <Drop kind="mg" label="Монтажёры" list={eds} color="var(--or)" />
       {current && (
         <span style={{ marginLeft: "auto", fontSize: 10, color: "var(--t3)" }}>
           показан экран «{current.name}» · ты просто смотришь

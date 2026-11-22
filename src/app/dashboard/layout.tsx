@@ -6,6 +6,7 @@ import RoleGuard from "@/components/RoleGuard";
 import NoticeHost from "@/components/NoticeHost";
 import ConnectionGuard from "@/components/ConnectionGuard";
 import GlobalSearch from "@/components/GlobalSearch";
+import "@/styles/crm.css";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const sb = createClient();
@@ -21,7 +22,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   if (profileErr || !profile?.role) {
     return (
       <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, background: "var(--bg)" }}>
-        <div style={{ maxWidth: 520, border: "1px solid rgba(255,174,66,0.4)", background: "rgba(255,174,66,0.08)", borderRadius: 16, padding: 22, color: "var(--t1)" }}>
+        <div style={{ maxWidth: 520, border: "1px solid rgba(var(--or-rgb),0.4)", background: "rgba(var(--or-rgb),0.08)", borderRadius: 16, padding: 22, color: "var(--t1)" }}>
           <div style={{ fontWeight: 800, marginBottom: 8 }}>Не удалось определить вашу роль</div>
           <div style={{ fontSize: 13, color: "var(--t2)", lineHeight: 1.6 }}>
             CRM не смогла прочитать вашу учётную запись, поэтому не показывает разделы — чтобы не выдать вам чужой уровень доступа.
@@ -40,10 +41,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <NoticeHost />
       <ConnectionGuard />
       <GlobalSearch />
-      <div className="flex min-h-screen" style={{ background: "var(--bg)" }}>
+      <div className="crm-shell">
         <Sidebar userRole={userRole} />
-        {/* Desktop: margin-left for sidebar. Mobile: margin-top for top bar */}
-        <main className="v2-main flex-1 md:ml-[216px] ml-0 mt-[52px] md:mt-0 p-3 md:p-5 overflow-auto min-w-0">
+        {/* Десктоп: отступ слева под меню. Телефон: отступ сверху под верхнюю полосу. */}
+        <main className="v2-main crm-main">
           {children}
         </main>
       </div>

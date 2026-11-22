@@ -25,8 +25,8 @@ type Totals = { posts: number; views: number; reach: number; likes: number; comm
 const NETS = [
   { id: "all", label: "Все сети", color: "var(--pu)" },
   { id: "instagram", label: "Instagram", color: "#e1306c" },
-  { id: "tiktok", label: "TikTok", color: "#42d4f4" },
-  { id: "youtube", label: "YouTube", color: "#ff5c7a" },
+  { id: "tiktok", label: "TikTok", color: "var(--cy)" },
+  { id: "youtube", label: "YouTube", color: "var(--rd)" },
   { id: "facebook", label: "Facebook", color: "#5b8cff" },
 ];
 const NET_COLOR: Record<string, string> = Object.fromEntries(NETS.map(n => [n.id, n.color]));
@@ -185,7 +185,7 @@ export default function AnalyticsPage() {
   if (loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--t2)" }}>Загрузка…</div>;
 
   const Tile = ({ label, v, p, big }: { label: string; v: number; p: number | null; big?: boolean }) => (
-    <div style={{ padding: big ? "16px 18px" : "13px 14px", borderRadius: 14, background: big ? "linear-gradient(135deg, rgba(66,212,244,0.10), rgba(157,107,255,0.12))" : "var(--inset)", border: `1px solid ${big ? "rgba(157,107,255,0.35)" : "var(--brd)"}`, gridColumn: big ? "span 2" : undefined }}>
+    <div style={{ padding: big ? "16px 18px" : "13px 14px", borderRadius: 14, background: big ? "linear-gradient(135deg, rgba(var(--cy-rgb),0.10), rgba(var(--pu-rgb),0.12))" : "var(--inset)", border: `1px solid ${big ? "rgba(var(--pu-rgb),0.35)" : "var(--brd)"}`, gridColumn: big ? "span 2" : undefined }}>
       <div style={{ fontSize: 10, color: "var(--t3)", fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</div>
       <div style={{ fontFamily: "'Unbounded', sans-serif", fontSize: big ? 30 : 20, fontWeight: 800, color: "var(--t1)", marginTop: 6, lineHeight: 1.05 }}>{fmt(v)}</div>
       <div style={{ fontSize: 11, fontWeight: 700, marginTop: 5, display: "flex", alignItems: "center", gap: 4, color: p == null ? "var(--t3)" : p >= 0 ? "var(--gr)" : "var(--rd)" }}>
@@ -202,7 +202,7 @@ export default function AnalyticsPage() {
 
   return (
     <div style={{ fontFamily: "'Manrope', sans-serif", display: "flex", flexDirection: "column", gap: 16 }}>
-      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+      <div className="page-head" style={{ marginBottom: 4 }}>
         <div>
           <h1 style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 22, fontWeight: 800, letterSpacing: -0.5 }}>Аналитика агентства</h1>
           <p style={{ fontSize: 12, color: "var(--t3)", marginTop: 4 }}>
@@ -272,7 +272,7 @@ export default function AnalyticsPage() {
                   <div style={{ width: "100%", height: h, borderRadius: "7px 7px 3px 3px", overflow: "hidden", display: "flex", flexDirection: "column-reverse",
                     outline: on ? "2px solid var(--pu)" : m.partial ? "1px dashed var(--pu)" : "none", outlineOffset: 2, opacity: on ? 1 : m.partial ? 0.5 : 0.78 }}>
                     {parts.length ? parts.map((x, k) => <div key={k} style={{ height: `${(x.v / Math.max(1, m.t.views)) * 100}%`, background: x.c }} />)
-                      : <div style={{ height: "100%", background: "rgba(157,107,255,0.3)" }} />}
+                      : <div style={{ height: "100%", background: "rgba(var(--pu-rgb),0.3)" }} />}
                   </div>
                   <span style={{ fontSize: 11, fontWeight: 700, color: on ? "var(--pu)" : "var(--t3)" }}>{ymShort(m.ym)}{m.partial ? "*" : ""}</span>
                 </button>
@@ -387,7 +387,7 @@ export default function AnalyticsPage() {
       <style>{`
         .an-split{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:14px;align-items:start}
         @media(max-width:1100px){.an-split{grid-template-columns:1fr}}
-        .an-row:hover{background:rgba(157,107,255,0.06)}
+        .an-row:hover{background:rgba(var(--pu-rgb),0.06)}
       `}</style>
     </div>
   );

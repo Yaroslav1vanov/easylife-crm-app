@@ -11,9 +11,9 @@ import { Crown, Users2, Scissors, Plus, X, UserPlus, AlertTriangle, type LucideI
 
 type RoleDef = { type: string; title: string; color: string; Icon: LucideIcon; roleNoun: string };
 const ROLES: RoleDef[] = [
-  { type: "admin", title: "Админы", color: "#42d4f4", Icon: Crown, roleNoun: "клиентов" },
-  { type: "teamlead", title: "Менеджеры", color: "#9d6bff", Icon: Users2, roleNoun: "клиентов" },
-  { type: "montager", title: "Монтажёры", color: "#ffae42", Icon: Scissors, roleNoun: "в монтаже" },
+  { type: "admin", title: "Админы", color: "var(--cy)", Icon: Crown, roleNoun: "клиентов" },
+  { type: "teamlead", title: "Менеджеры", color: "var(--pu)", Icon: Users2, roleNoun: "клиентов" },
+  { type: "montager", title: "Монтажёры", color: "var(--or)", Icon: Scissors, roleNoun: "в монтаже" },
 ];
 
 export default function TeamPage() {
@@ -136,7 +136,7 @@ export default function TeamPage() {
         <Avatar name={`${c.name} ${c.surname || ""}`} src={c.avatar_url} size={22} />
         <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", minWidth: 0 }}>
           <span style={{ fontSize: 11, fontWeight: 700, color: "var(--t1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 130 }}>{c.name} {c.surname || ""}</span>
-          <span style={{ fontSize: 8, color: counter ? "var(--t3)" : "#ff5c7a", display: "inline-flex", alignItems: "center", gap: 3 }}>
+          <span style={{ fontSize: 8, color: counter ? "var(--t3)" : "var(--rd)", display: "inline-flex", alignItems: "center", gap: 3 }}>
             {counter ? `${counterLabel}: ${counter.name}` : role === "teamlead" ? "нет монтажёра" : `${counterLabel}: —`}
             <span style={{ color: "var(--t3)" }}>· {pkgOfClient(c.id, c.package || 0)} рол.</span>
           </span>
@@ -154,7 +154,7 @@ export default function TeamPage() {
 
   return (
     <div style={{ fontFamily: "'Manrope', sans-serif", maxWidth: 1100 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 14, flexWrap: "wrap", marginBottom: 18 }}>
+      <div className="page-head">
         <div>
           <h1 style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 22, fontWeight: 800, letterSpacing: -0.5 }}>Команда</h1>
           <p style={{ fontSize: 12, color: "var(--t3)", marginTop: 4 }}>
@@ -164,14 +164,14 @@ export default function TeamPage() {
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <TourButton onClick={() => setTourOpen(true)} />
           {seesAll && <button data-tour="team-add" onClick={() => setShowAdd(v => !v)}
-            style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "10px 16px", borderRadius: 11, background: "linear-gradient(135deg, var(--cy), var(--pu))", color: "#fff", border: "none", cursor: "pointer", fontSize: 12, fontWeight: 800 }}>
+            style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "10px 16px", borderRadius: 11, background: "var(--btn-grad)", color: "var(--btn-fg)", border: "none", cursor: "pointer", fontSize: 12, fontWeight: 800 }}>
             <UserPlus size={15} /> Добавить
           </button>}
         </div>
       </div>
 
       {showAdd && (
-        <div style={{ background: "rgba(123,63,228,0.05)", border: "1px solid var(--brd)", borderRadius: 14, padding: 16, marginBottom: 18 }}>
+        <div style={{ background: "rgba(var(--vi-rgb),0.05)", border: "1px solid var(--brd)", borderRadius: 14, padding: 16, marginBottom: 18 }}>
           <div className="v2-form-row" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr auto", gap: 10, alignItems: "end" }}>
             <div><label style={{ fontSize: 9, fontWeight: 800, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 0.5, display: "block", marginBottom: 5 }}>Имя</label>
               <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Имя" style={fld} /></div>
@@ -197,18 +197,18 @@ export default function TeamPage() {
         return (
           <div key={role.type} style={{ marginBottom: 24 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 12 }}>
-              <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, borderRadius: 8, background: `${role.color}1f` }}>
+              <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 28, height: 28, borderRadius: 8, background: `color-mix(in srgb, ${role.color} 12%, transparent)` }}>
                 <role.Icon size={15} style={{ color: role.color }} />
               </span>
               <h2 style={{ fontSize: 13, fontWeight: 800, color: "var(--t1)", textTransform: "uppercase", letterSpacing: 0.5 }}>{role.title}</h2>
-              <span style={{ fontSize: 11, fontWeight: 800, padding: "2px 8px", borderRadius: 7, background: `${role.color}1f`, color: role.color }}>{members.length}</span>
+              <span style={{ fontSize: 11, fontWeight: 800, padding: "2px 8px", borderRadius: 7, background: `color-mix(in srgb, ${role.color} 12%, transparent)`, color: role.color }}>{members.length}</span>
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(330px, 1fr))", gap: 12 }}>
               {members.map(m => {
                 const list = clientsOf(m);
                 return (
-                  <div key={m.id} style={{ background: "rgba(123,63,228,0.04)", border: `1px solid var(--brd)`, borderRadius: 16, padding: 16, borderTop: `3px solid ${role.color}` }}>
+                  <div key={m.id} style={{ background: "rgba(var(--vi-rgb),0.04)", border: `1px solid var(--brd)`, borderRadius: 16, padding: 16, borderTop: `3px solid ${role.color}` }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: list.length ? 14 : 0 }}>
                       <AvatarUploader currentUrl={m.avatar_url} name={m.name} pathPrefix="team" entityId={m.id} size={52} onUploaded={(url) => updateAvatar(m.id, url)} />
                       <div style={{ flex: 1, minWidth: 0 }}>
@@ -255,7 +255,7 @@ export default function TeamPage() {
                           <>
                             <span style={{ fontSize: 10, color: "var(--t3)" }}>нет доступа в CRM</span>
                             <button onClick={() => openAccess(m)} disabled={accessBusy === m.id}
-                              style={{ marginLeft: "auto", padding: "4px 10px", borderRadius: 7, background: "rgba(66,212,244,0.12)", border: "1px solid var(--brd)", color: "var(--cy)", fontSize: 10, fontWeight: 800, cursor: "pointer" }}>
+                              style={{ marginLeft: "auto", padding: "4px 10px", borderRadius: 7, background: "rgba(var(--cy-rgb),0.12)", border: "1px solid var(--brd)", color: "var(--cy)", fontSize: 10, fontWeight: 800, cursor: "pointer" }}>
                               🔑 Выдать доступ
                             </button>
                           </>
@@ -279,8 +279,8 @@ export default function TeamPage() {
       </div>
 
       {noMontager.length > 0 && (
-        <div data-tour="team-nomontager" style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 12, background: "rgba(255,92,122,0.07)", border: "1px solid rgba(255,92,122,0.3)", flexWrap: "wrap" }}>
-          <AlertTriangle size={15} style={{ color: "#ff5c7a", flexShrink: 0 }} />
+        <div data-tour="team-nomontager" style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 12, background: "rgba(var(--rd-rgb),0.07)", border: "1px solid rgba(var(--rd-rgb),0.3)", flexWrap: "wrap" }}>
+          <AlertTriangle size={15} style={{ color: "var(--rd)", flexShrink: 0 }} />
           <span style={{ fontSize: 12, fontWeight: 700, color: "var(--t1)" }}>Активные клиенты без монтажёра ({noMontager.length}):</span>
           {noMontager.map(c => (
             <button key={c.id} onClick={() => router.push(`/dashboard/clients/${c.id}`)} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 9px 4px 4px", borderRadius: 999, background: "var(--inset2)", border: "1px solid var(--track)", cursor: "pointer" }}>
@@ -321,7 +321,7 @@ export default function TeamPage() {
                   <button key={o.v} onClick={() => setAccRole(o.v)} title={o.d}
                     style={{ padding: "7px 12px", borderRadius: 8, fontSize: 11, fontWeight: 800, cursor: "pointer",
                       border: `1px solid ${accRole === o.v ? "var(--cy)" : "var(--brd)"}`,
-                      background: accRole === o.v ? "rgba(66,212,244,0.12)" : "transparent",
+                      background: accRole === o.v ? "rgba(var(--cy-rgb),0.12)" : "transparent",
                       color: accRole === o.v ? "var(--cy)" : "var(--t2)" }}>
                     {o.l}
                   </button>
@@ -333,13 +333,13 @@ export default function TeamPage() {
             </div>
 
             {accHint && (
-              <div style={{ fontSize: 11, color: "var(--or)", background: "rgba(255,174,66,0.08)", border: "1px solid rgba(255,174,66,0.35)", borderRadius: 9, padding: "9px 11px", lineHeight: 1.5 }}>{accHint}</div>
+              <div style={{ fontSize: 11, color: "var(--or)", background: "rgba(var(--or-rgb),0.08)", border: "1px solid rgba(var(--or-rgb),0.35)", borderRadius: 9, padding: "9px 11px", lineHeight: 1.5 }}>{accHint}</div>
             )}
 
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
               <button onClick={() => setAccessFor(null)} style={{ padding: "9px 14px", borderRadius: 9, background: "transparent", border: "1px solid var(--brd)", color: "var(--t2)", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Отмена</button>
               <button onClick={grantAccess} disabled={!emailOk(accEmail) || accessBusy != null}
-                style={{ padding: "9px 18px", borderRadius: 9, background: "linear-gradient(135deg, var(--cy), var(--pu))", border: "none", color: "#fff", fontSize: 12, fontWeight: 800, cursor: "pointer", opacity: !emailOk(accEmail) || accessBusy != null ? 0.6 : 1 }}>
+                style={{ padding: "9px 18px", borderRadius: 9, background: "var(--btn-grad)", border: "none", color: "var(--btn-fg)", fontSize: 12, fontWeight: 800, cursor: "pointer", opacity: !emailOk(accEmail) || accessBusy != null ? 0.6 : 1 }}>
                 {accessBusy != null ? "Выдаю…" : "Выдать доступ"}
               </button>
             </div>

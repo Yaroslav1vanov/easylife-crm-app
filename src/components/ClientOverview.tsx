@@ -61,8 +61,8 @@ export default function ClientOverview({ client: c, clientMonths, scripts, team,
       padding: 22,
       borderRadius: 18,
       marginBottom: 14,
-      background: "linear-gradient(135deg, rgba(123,63,228,0.12), var(--grad-end))",
-      border: "1px solid rgba(157,107,255,0.26)",
+      background: "linear-gradient(135deg, rgba(var(--vi-rgb),0.12), var(--grad-end))",
+      border: "1px solid rgba(var(--pu-rgb),0.26)",
       position: "relative",
     }}>
       <div style={{ display: "grid", gridTemplateColumns: "auto 1fr auto auto auto auto", gap: 22, alignItems: "center" }} className="client-hero-grid">
@@ -75,7 +75,7 @@ export default function ClientOverview({ client: c, clientMonths, scripts, team,
             <h1 style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 24, fontWeight: 800, color: "var(--t1)", letterSpacing: -0.6, lineHeight: 1.15 }}>
               {c.name} {c.surname || ""}
             </h1>
-            <span style={{ padding: "4px 10px", borderRadius: 8, background: "rgba(168,224,99,0.15)", color: "var(--gr)", fontSize: 10, fontWeight: 800, letterSpacing: 0.5, textTransform: "uppercase" }}>
+            <span style={{ padding: "4px 10px", borderRadius: 8, background: "rgba(var(--gr-rgb),0.15)", color: "var(--gr)", fontSize: 10, fontWeight: 800, letterSpacing: 0.5, textTransform: "uppercase" }}>
               {c.stage === "paused" ? "⏸ На паузе" : c.stage === "churned" ? "✕ Ушёл" : "● В работе"}
             </span>
           </div>
@@ -88,7 +88,7 @@ export default function ClientOverview({ client: c, clientMonths, scripts, team,
               if (!url) return null;
               return (
                 <a key={key} href={url.startsWith("http") ? url : `https://${url}`} target="_blank" rel="noopener noreferrer"
-                  style={{ padding: "5px 11px", borderRadius: 7, background: `${colors[key]}18`, border: `1px solid ${colors[key]}44`, color: colors[key], fontSize: 11, fontWeight: 700, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 5 }}>
+                  style={{ padding: "5px 11px", borderRadius: 7, background: `color-mix(in srgb, ${colors[key]} 9%, transparent)`, border: `1px solid color-mix(in srgb, ${colors[key]} 27%, transparent)`, color: colors[key], fontSize: 11, fontWeight: 700, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 5 }}>
                   {labels[key]} <ExternalLink size={9} />
                 </a>
               );
@@ -98,7 +98,7 @@ export default function ClientOverview({ client: c, clientMonths, scripts, team,
 
         {/* Рабочий месяц */}
         <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 9, background: "rgba(66,212,244,0.12)", color: "#42d4f4", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid rgba(66,212,244,0.3)" }}>
+          <div style={{ width: 36, height: 36, borderRadius: 9, background: "rgba(var(--cy-rgb),0.12)", color: "var(--cy)", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid rgba(var(--cy-rgb),0.3)" }}>
             <CalendarIcon size={16} strokeWidth={1.8} />
           </div>
           <div>
@@ -146,9 +146,9 @@ export default function ClientOverview({ client: c, clientMonths, scripts, team,
                           await onUpdateTeam({ extra_montager_ids: next });
                         }}
                         style={{ padding: "3px 8px", borderRadius: 7, fontSize: 10, fontWeight: 700, cursor: "pointer",
-                          border: `1px solid ${on ? "#ffae42" : "var(--brd)"}`,
-                          background: on ? "rgba(255,174,66,0.14)" : "transparent",
-                          color: on ? "#ffae42" : "var(--t3)" }}>
+                          border: `1px solid ${on ? "var(--or)" : "var(--brd)"}`,
+                          background: on ? "rgba(var(--or-rgb),0.14)" : "transparent",
+                          color: on ? "var(--or)" : "var(--t3)" }}>
                         {on ? "✓ " : ""}{t.name}
                       </button>
                     );
@@ -158,8 +158,8 @@ export default function ClientOverview({ client: c, clientMonths, scripts, team,
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-              <TeamRow tm={teamlead} role="Тим Лид" color="#9d6bff" />
-              <TeamRow tm={montager} role="Монтажёр" color="#ffae42" />
+              <TeamRow tm={teamlead} role="Тим Лид" color="var(--pu)" />
+              <TeamRow tm={montager} role="Монтажёр" color="var(--or)" />
               {(c.extra_montager_ids || []).length > 0 && (
                 <div style={{ fontSize: 10, color: "var(--t3)", paddingLeft: 2 }}>
                   + доступ: {(c.extra_montager_ids || []).map(id => team.find(t => t.id === id)?.name || `#${id}`).join(", ")}
@@ -171,7 +171,7 @@ export default function ClientOverview({ client: c, clientMonths, scripts, team,
 
         {/* Пакет */}
         <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 9, background: "rgba(168,224,99,0.12)", color: "#a8e063", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid rgba(168,224,99,0.3)" }}>
+          <div style={{ width: 36, height: 36, borderRadius: 9, background: "rgba(var(--gr-rgb),0.12)", color: "var(--gr)", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid rgba(var(--gr-rgb),0.3)" }}>
             <Package size={16} strokeWidth={1.8} />
           </div>
           <div>
@@ -204,10 +204,10 @@ export default function ClientOverview({ client: c, clientMonths, scripts, team,
 
       {/* Actions */}
       <div style={{ position: "absolute", top: 14, right: 14, display: "flex", gap: 6 }}>
-        <button onClick={onTogglePause} style={{ padding: "6px 12px", borderRadius: 8, background: c.stage === "paused" ? "rgba(168,224,99,0.14)" : "rgba(245,196,81,0.14)", border: `1px solid ${c.stage === "paused" ? "rgba(168,224,99,0.4)" : "rgba(245,196,81,0.4)"}`, color: c.stage === "paused" ? "var(--gr)" : "var(--yl)", fontSize: 10, fontWeight: 700, cursor: "pointer" }}>
+        <button onClick={onTogglePause} style={{ padding: "6px 12px", borderRadius: 8, background: c.stage === "paused" ? "rgba(var(--gr-rgb),0.14)" : "rgba(var(--yl-rgb),0.14)", border: `1px solid ${c.stage === "paused" ? "rgba(var(--gr-rgb),0.4)" : "rgba(var(--yl-rgb),0.4)"}`, color: c.stage === "paused" ? "var(--gr)" : "var(--yl)", fontSize: 10, fontWeight: 700, cursor: "pointer" }}>
           {c.stage === "paused" ? "▶ Снять с паузы" : "⏸ На паузу"}
         </button>
-        <button onClick={onEdit} style={{ padding: "6px 12px", borderRadius: 8, background: "rgba(157,107,255,0.12)", border: "1px solid rgba(157,107,255,0.3)", color: "var(--pu)", fontSize: 10, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5 }}>
+        <button onClick={onEdit} style={{ padding: "6px 12px", borderRadius: 8, background: "rgba(var(--pu-rgb),0.12)", border: "1px solid rgba(var(--pu-rgb),0.3)", color: "var(--pu)", fontSize: 10, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5 }}>
           <Edit2 size={11} strokeWidth={2} /> Редактировать
         </button>
       </div>

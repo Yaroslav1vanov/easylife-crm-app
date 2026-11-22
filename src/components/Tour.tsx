@@ -84,7 +84,7 @@ export default function Tour({ steps, open, onClose }: { steps: TourStep[]; open
       )}
 
       {/* карточка-подсказка */}
-      <div style={{ ...cardStyle, background: "var(--side, #160c38)", border: "1px solid var(--brd)", borderRadius: 16, padding: 18, boxShadow: "0 20px 60px rgba(0,0,0,.6)" }}>
+      <div style={{ ...cardStyle, background: "var(--side, #160c38)", border: "1px solid var(--brd)", borderRadius: 16, padding: 18, boxShadow: "0 20px 60px rgba(var(--sh-rgb),calc(.6 * var(--sh-k)))" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
           <span style={{ fontSize: 10, fontWeight: 800, color: "var(--cy)", letterSpacing: 0.5 }}>ШАГ {i + 1} / {steps.length}</span>
           <button onClick={onClose} style={{ background: "transparent", border: "none", color: "var(--t3)", cursor: "pointer", fontSize: 12, fontWeight: 700 }}>Пропустить ✕</button>
@@ -97,7 +97,7 @@ export default function Tour({ steps, open, onClose }: { steps: TourStep[]; open
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             {i > 0 && <button onClick={() => setI(v => v - 1)} style={{ padding: "8px 14px", borderRadius: 9, background: "transparent", border: "1px solid var(--brd)", color: "var(--t2)", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Назад</button>}
-            <button onClick={next} style={{ padding: "8px 16px", borderRadius: 9, background: "linear-gradient(135deg, var(--cy), var(--pu))", border: "none", color: "#fff", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>{last ? "Готово ✓" : "Далее →"}</button>
+            <button onClick={next} style={{ padding: "8px 16px", borderRadius: 9, background: "var(--btn-grad)", border: "none", color: "var(--btn-fg)", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>{last ? "Готово ✓" : "Далее →"}</button>
           </div>
         </div>
       </div>
@@ -109,7 +109,7 @@ export default function Tour({ steps, open, onClose }: { steps: TourStep[]; open
 export function TourButton({ onClick }: { onClick: () => void }) {
   return (
     <button onClick={onClick} title="Показать, как тут работать"
-      style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 13px", borderRadius: 10, background: "rgba(66,212,244,0.12)", border: "1px solid var(--brd)", color: "var(--cy)", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>
+      style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 13px", borderRadius: 10, background: "rgba(var(--cy-rgb),0.12)", border: "1px solid var(--brd)", color: "var(--cy)", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>
       ❓ Как тут работать?
     </button>
   );

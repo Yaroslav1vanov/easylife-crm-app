@@ -5,11 +5,11 @@
 export type TaskKind = "talk_day15" | "weekly_report" | "payment_notice" | "payment_check" | "month_review";
 
 export const TASK_META: Record<TaskKind, { label: string; color: string; icon: string }> = {
-  talk_day15:     { label: "Разговор 15-й день", color: "#a8e063", icon: "🗣" },
-  weekly_report:  { label: "Недельный отчёт",    color: "#42d4f4", icon: "📊" },
-  payment_notice: { label: "Оплата заранее",     color: "#ffae42", icon: "💳" },
-  payment_check:  { label: "Контроль оплаты",    color: "#ff5c7a", icon: "⏰" },
-  month_review:   { label: "Итоги месяца",       color: "#9d6bff", icon: "🧾" },
+  talk_day15:     { label: "Разговор 15-й день", color: "var(--gr)", icon: "🗣" },
+  weekly_report:  { label: "Недельный отчёт",    color: "var(--cy)", icon: "📊" },
+  payment_notice: { label: "Оплата заранее",     color: "var(--or)", icon: "💳" },
+  payment_check:  { label: "Контроль оплаты",    color: "var(--rd)", icon: "⏰" },
+  month_review:   { label: "Итоги месяца",       color: "var(--pu)", icon: "🧾" },
 };
 
 const dm = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}`;

@@ -164,10 +164,10 @@ export default function ReportsPage() {
   return (
     <div>
       {/* Header */}
-      <div className="flex justify-between items-start mb-3">
+      <div className="page-head">
         <div>
-          <h1 className="text-lg font-extrabold" style={{ color: "var(--t1)" }}>Отчёты</h1>
-          <p className="text-xs mt-0.5" style={{ color: "var(--t2)" }}>Статистика по роликам за месяц</p>
+          <h1>Отчёты</h1>
+          <p>Статистика по роликам за месяц</p>
         </div>
       </div>
 

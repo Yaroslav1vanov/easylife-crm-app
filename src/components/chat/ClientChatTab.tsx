@@ -311,7 +311,7 @@ export default function ClientChatTab({ clientId, aiEnabled, draft, initialThrea
       )}
 
       {!aiEnabled && (
-        <div className="v2-card" style={{ padding: "10px 14px", display: "flex", gap: 10, alignItems: "center", fontSize: 12.5, color: "var(--or)", border: "1px solid rgba(255,174,66,.35)" }}>
+        <div className="v2-card" style={{ padding: "10px 14px", display: "flex", gap: 10, alignItems: "center", fontSize: 12.5, color: "var(--or)", border: "1px solid rgba(var(--or-rgb),.35)" }}>
           <AlertTriangle size={15} style={{ flexShrink: 0 }} />
           <span>ИИ в этом чате выключен: сообщения увидит только команда, задачи никто не выполнит. Включить: вкладка «Настройки» → «ИИ-монтажёр в чате».</span>
         </div>
@@ -349,7 +349,7 @@ export default function ClientChatTab({ clientId, aiEnabled, draft, initialThrea
         {files.length > 0 && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {files.map((p) => (
-              <div key={p.id} style={{ width: 172, border: `1px solid ${p.status === "error" ? "rgba(255,92,122,.5)" : "var(--brd)"}`, borderRadius: 12, overflow: "hidden", background: "var(--v2-inset)" }}>
+              <div key={p.id} style={{ width: 172, border: `1px solid ${p.status === "error" ? "rgba(var(--rd-rgb),.5)" : "var(--brd)"}`, borderRadius: 12, overflow: "hidden", background: "var(--v2-inset)" }}>
                 <div style={{ position: "relative", height: 96, background: "#000", display: "flex", alignItems: "center", justifyContent: "center" }}>
                   {p.preview && p.file.type.startsWith("video/") ? <video src={p.preview} muted preload="metadata" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                     : p.preview ? <img src={p.preview} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
@@ -413,18 +413,18 @@ export default function ClientChatTab({ clientId, aiEnabled, draft, initialThrea
 /* Документ, архив, гайд из чата — заметной карточкой, а не мелкой ссылкой:
    тип файла, имя, размер и кнопки. HTML и PDF открываются прямо в браузере. */
 const FILE_KIND: [RegExp, string, string][] = [
-  [/\.html?$/i, "HTML", "#42d4f4"], [/\.pdf$/i, "PDF", "#ff5c7a"], [/\.zip$/i, "ZIP", "#ffae42"],
-  [/\.(docx?|txt|md)$/i, "DOC", "#9d6bff"], [/\.(xlsx?|csv)$/i, "XLS", "#34d399"], [/\.pptx?$/i, "PPT", "#ff8a4c"],
-  [/\.(mp3|wav|m4a)$/i, "AUDIO", "#a8e063"], [/\.srt$/i, "SRT", "#9d6bff"],
+  [/\.html?$/i, "HTML", "var(--cy)"], [/\.pdf$/i, "PDF", "var(--rd)"], [/\.zip$/i, "ZIP", "var(--or)"],
+  [/\.(docx?|txt|md)$/i, "DOC", "var(--pu)"], [/\.(xlsx?|csv)$/i, "XLS", "#34d399"], [/\.pptx?$/i, "PPT", "#ff8a4c"],
+  [/\.(mp3|wav|m4a)$/i, "AUDIO", "var(--gr)"], [/\.srt$/i, "SRT", "var(--pu)"],
 ];
 function FileCard({ a }: { a: Att }) {
   const [, label, color] = FILE_KIND.find(([re]) => re.test(a.name)) || [null, (a.name.split(".").pop() || "файл").toUpperCase().slice(0, 5), "var(--t2)"];
   const viewable = /\.(html?|pdf|txt|md|mp3|wav)$/i.test(a.name);
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 12, minWidth: 260, maxWidth: 420,
-      background: "var(--card)", border: `1px solid ${color}55` }}>
+      background: "var(--card)", border: `1px solid color-mix(in srgb, ${color} 33%, transparent)` }}>
       <div style={{ width: 46, height: 52, borderRadius: 9, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
-        background: `${color}22`, color, fontSize: 11.5, fontWeight: 900, letterSpacing: 0.4 }}>{label}</div>
+        background: `color-mix(in srgb, ${color} 13%, transparent)`, color, fontSize: 11.5, fontWeight: 900, letterSpacing: 0.4 }}>{label}</div>
       <div style={{ minWidth: 0, flex: 1 }}>
         <div style={{ fontSize: 13.5, fontWeight: 800, color: "var(--t1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={a.name}>{a.name}</div>
         <div style={{ fontSize: 11.5, color: "var(--t3)", marginTop: 2 }}>{mb(a.size)}</div>
@@ -480,8 +480,8 @@ function Bubble({ m, mine, onPipe, quoted, onReply, onJump, onHide, av }: { m: M
       </div>
       <div style={{
         padding: "10px 13px", borderRadius: 14, fontSize: 13.5, lineHeight: 1.55, whiteSpace: "pre-wrap", wordBreak: "break-word",
-        background: ai ? "rgba(157,107,255,.10)" : mine ? "rgba(66,212,244,.10)" : "var(--v2-inset)",
-        border: `1px solid ${ai ? "rgba(157,107,255,.3)" : "var(--brd)"}`, color: "var(--t1)",
+        background: ai ? "rgba(var(--pu-rgb),.10)" : mine ? "rgba(var(--cy-rgb),.10)" : "var(--v2-inset)",
+        border: `1px solid ${ai ? "rgba(var(--pu-rgb),.3)" : "var(--brd)"}`, color: "var(--t1)",
       }}>
         {m.quote_id && (
           <button onClick={() => onJump(m.quote_id!)} title="Показать сообщение, на которое ответ"
@@ -538,7 +538,7 @@ function AvatarOrder({ m, av }: { m: Msg; av: AvatarCtx }) {
   const [busy, setBusy] = useState(false);
   const est = estimate(text, Number(av.avatar.voice_speed) || 1);
   return (
-    <div style={{ marginTop: 10, padding: 10, borderRadius: 10, background: "var(--card)", border: "1px solid rgba(66,212,244,.35)", display: "flex", flexDirection: "column", gap: 8, whiteSpace: "normal" }}>
+    <div style={{ marginTop: 10, padding: 10, borderRadius: 10, background: "var(--card)", border: "1px solid rgba(var(--cy-rgb),.35)", display: "flex", flexDirection: "column", gap: 8, whiteSpace: "normal" }}>
       <div style={{ fontSize: 11.5, fontWeight: 800, color: "var(--cy)" }}>ЗАКАЗ ОЗВУЧКИ · текст можно поправить</div>
       <textarea value={text} onChange={(e) => setText(e.target.value)} rows={Math.min(14, Math.max(4, Math.ceil(text.length / 70)))}
         style={{ width: "100%", padding: "8px 10px", borderRadius: 8, background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 13, fontFamily: "inherit", resize: "vertical" }} />

@@ -152,7 +152,7 @@ export default function TranscribePage() {
 
   return (
     <div style={{ fontFamily: "'Manrope', sans-serif" }}>
-      <div style={{ marginBottom: 14, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+      <div className="page-head">
         <div>
           <h1 style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 22, fontWeight: 800, letterSpacing: -0.5 }}>Транскрибация</h1>
           <p style={{ fontSize: 12, color: "var(--t3)", marginTop: 4 }}>Загрузи ролик — получи текст. Или вставь ссылку на чужое видео</p>
@@ -162,7 +162,7 @@ export default function TranscribePage() {
       <Tour steps={steps} open={tourOpen} onClose={() => setTourOpen(false)} />
 
       {loadErr ? (
-        <div style={{ padding: 24, borderRadius: 14, border: "1px solid rgba(255,92,122,0.4)", background: "rgba(255,92,122,0.08)" }}>
+        <div style={{ padding: 24, borderRadius: 14, border: "1px solid rgba(var(--rd-rgb),0.4)", background: "rgba(var(--rd-rgb),0.08)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 800, marginBottom: 8, color: "var(--t1)" }}><Database size={16} style={{ color: "var(--rd)" }} /> Не удалось загрузить список</div>
           <div style={{ fontSize: 13, color: "var(--t2)", lineHeight: 1.6 }}>
             {isNetworkError(loadErr)
@@ -171,19 +171,19 @@ export default function TranscribePage() {
           </div>
         </div>
       ) : tableMissing ? (
-        <div style={{ padding: 24, borderRadius: 14, border: "1px solid rgba(255,174,66,0.4)", background: "rgba(255,174,66,0.08)" }}>
+        <div style={{ padding: 24, borderRadius: 14, border: "1px solid rgba(var(--or-rgb),0.4)", background: "rgba(var(--or-rgb),0.08)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 800, marginBottom: 8, color: "var(--t1)" }}><Database size={16} style={{ color: "var(--or)" }} /> Таблица транскрибаций не готова</div>
           <div style={{ fontSize: 13, color: "var(--t2)" }}>Прогони <code style={{ background: "var(--inset)", padding: "1px 6px", borderRadius: 5 }}>MIGRATION_2026-08-23_transcriptions.sql</code> в Supabase → SQL Editor.</div>
         </div>
       ) : (
         <>
           <IgBookmarklet />
-          <div style={{ background: "rgba(123,63,228,0.04)", border: "1px solid var(--brd)", borderRadius: 14, padding: 14, marginBottom: 18 }}>
+          <div style={{ background: "rgba(var(--vi-rgb),0.04)", border: "1px solid var(--brd)", borderRadius: 14, padding: 14, marginBottom: 18 }}>
             <div data-tour="tr-mode" style={{ display: "flex", gap: 6, marginBottom: 12 }}>
               {([["file", "Свой файл", Upload], ["link", "Ссылка на ролик", Link2]] as const).map(([v, l, Ic]) => (
                 <button key={v} onClick={() => setMode(v)}
                   style={{ flex: "0 0 auto", padding: "8px 14px", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer",
-                    background: mode === v ? "linear-gradient(135deg, var(--cy), var(--pu))" : "var(--inp)",
+                    background: mode === v ? "var(--btn-grad)" : "var(--inp)",
                     border: "1px solid var(--brd)", color: mode === v ? "#fff" : "var(--t2)", display: "inline-flex", alignItems: "center", gap: 7 }}>
                   <Ic size={13} /> {l}
                 </button>
@@ -196,7 +196,7 @@ export default function TranscribePage() {
                   style={{ height: 40, padding: "0 13px", borderRadius: 10, background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 12.5, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 7 }}>
                   <span style={{ color: "var(--t3)", fontWeight: 500 }}>Язык:</span> {LANGS.find(x => x.v === lang)?.l} <ChevronDown size={13} />
                 </button>
-                {langMenu && <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 40, minWidth: 230, background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 10, padding: 4, boxShadow: "0 12px 40px rgba(0,0,0,0.5)" }}>
+                {langMenu && <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 40, minWidth: 230, background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 10, padding: 4, boxShadow: "0 12px 40px rgba(var(--sh-rgb),calc(0.5 * var(--sh-k)))" }}>
                   {LANGS.map(x => <button key={x.v} onClick={() => { setLang(x.v); setLangMenu(false); }} className="nav-item" style={{ fontSize: 12, padding: "7px 10px" }}>{x.l}</button>)}
                 </div>}
               </div>
@@ -206,7 +206,7 @@ export default function TranscribePage() {
                   style={{ height: 40, padding: "0 13px", borderRadius: 10, background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 12.5, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 7 }}>
                   <Filter size={12} /><span style={{ color: "var(--t3)", fontWeight: 500 }}>Клиент:</span> {curClient ? `${curClient.name} ${curClient.surname || ""}` : "не важно"} <ChevronDown size={13} />
                 </button>
-                {clientMenu && <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 40, minWidth: 240, background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 10, padding: 4, boxShadow: "0 12px 40px rgba(0,0,0,0.5)", maxHeight: 320, overflowY: "auto" }}>
+                {clientMenu && <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 40, minWidth: 240, background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 10, padding: 4, boxShadow: "0 12px 40px rgba(var(--sh-rgb),calc(0.5 * var(--sh-k)))", maxHeight: 320, overflowY: "auto" }}>
                   <button onClick={() => { setClientId(null); setClientMenu(false); }} className="nav-item" style={{ fontSize: 12, padding: "7px 10px" }}>Не важно</button>
                   {activeClients.map(c => <button key={c.id} onClick={() => { setClientId(c.id); setClientMenu(false); }} className="nav-item" style={{ fontSize: 12, padding: "7px 10px", gap: 8 }}><Avatar name={c.name} src={c.avatar_url} size={20} /> {c.name} {c.surname || ""}</button>)}
                 </div>}
@@ -234,7 +234,7 @@ export default function TranscribePage() {
                     onKeyDown={e => { if (e.key === "Enter") submitLink(); }}
                     style={{ flex: 1, height: 44, padding: "0 14px", borderRadius: 10, background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 13, outline: "none" }} />
                   <button onClick={submitLink} disabled={!!busy}
-                    style={{ height: 44, padding: "0 18px", borderRadius: 10, background: "linear-gradient(135deg, var(--cy), var(--pu))", border: "none", color: "#fff", fontSize: 13, fontWeight: 800, cursor: busy ? "default" : "pointer", display: "inline-flex", alignItems: "center", gap: 7, opacity: busy ? 0.7 : 1 }}>
+                    style={{ height: 44, padding: "0 18px", borderRadius: 10, background: "var(--btn-grad)", border: "none", color: "var(--btn-fg)", fontSize: 13, fontWeight: 800, cursor: busy ? "default" : "pointer", display: "inline-flex", alignItems: "center", gap: 7, opacity: busy ? 0.7 : 1 }}>
                     {busy ? <Loader2 size={14} className="spin" /> : <Mic size={14} />} {busy || "Снять текст"}
                   </button>
                 </div>
@@ -247,7 +247,7 @@ export default function TranscribePage() {
             {items.map(i => {
               const cl = clients.find(c => c.id === i.client_id);
               return (
-                <div key={i.id} style={{ background: "rgba(123,63,228,0.04)", border: "1px solid var(--brd)", borderRadius: 14, padding: 14 }}>
+                <div key={i.id} style={{ background: "rgba(var(--vi-rgb),0.04)", border: "1px solid var(--brd)", borderRadius: 14, padding: 14 }}>
                   <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: i.text || i.error ? 10 : 0, flexWrap: "wrap" }}>
                     <div style={{ flex: 1, minWidth: 180 }}>
                       <div style={{ fontSize: 14, fontWeight: 700, color: "var(--t1)", wordBreak: "break-word" }}>{i.title || i.file_name || "Без названия"}</div>
@@ -269,7 +269,7 @@ export default function TranscribePage() {
                     </div>
                   </div>
                   {i.status === "error" && (
-                    <div style={{ display: "flex", gap: 7, alignItems: "flex-start", fontSize: 12, color: "var(--or)", background: "rgba(255,174,66,0.08)", border: "1px solid rgba(255,174,66,0.3)", borderRadius: 10, padding: "8px 10px" }}>
+                    <div style={{ display: "flex", gap: 7, alignItems: "flex-start", fontSize: 12, color: "var(--or)", background: "rgba(var(--or-rgb),0.08)", border: "1px solid rgba(var(--or-rgb),0.3)", borderRadius: 10, padding: "8px 10px" }}>
                       <AlertTriangle size={13} style={{ flexShrink: 0, marginTop: 1 }} /> {i.error || "не получилось"}
                     </div>
                   )}

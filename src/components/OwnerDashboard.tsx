@@ -106,11 +106,11 @@ export default function OwnerDashboard({ clients, clientMonths, scripts, team, o
   // «Что делать сейчас» — по этапам, с клиентами (текущие контрактные месяцы, срок ≤ сегодня)
   const todo = useMemo(() => {
     const kinds: Record<string, { t: string; c: string; items: { s: Script; c: Client; due: string }[] }> = {
-      write: { t: "Написать сценарий", c: "#9d6bff", items: [] },
-      send: { t: "Отправить клиенту", c: "#42d4f4", items: [] },
-      wait: { t: "Ждём согласования", c: "#ffae42", items: [] },
-      montage: { t: "Смонтировать", c: "#ffae42", items: [] },
-      publish: { t: "Опубликовать", c: "#a8e063", items: [] },
+      write: { t: "Написать сценарий", c: "var(--pu)", items: [] },
+      send: { t: "Отправить клиенту", c: "var(--cy)", items: [] },
+      wait: { t: "Ждём согласования", c: "var(--or)", items: [] },
+      montage: { t: "Смонтировать", c: "var(--or)", items: [] },
+      publish: { t: "Опубликовать", c: "var(--gr)", items: [] },
     };
     const byId = Object.fromEntries(rows.map(r => [r.c.id, r]));
     for (const s of scripts) {
@@ -179,7 +179,7 @@ export default function OwnerDashboard({ clients, clientMonths, scripts, team, o
 
   return (
     <div className="v2">
-      <div className="v2-hdr">
+      <div className="v2-hdr page-head">
         <div><h1>{greet}, {meName.split(" ")[0]}</h1><p>{dateRu} · {rows.length} клиентов в работе{tot.onb ? ` · ${tot.onb} на онбординге` : ""}</p></div>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           {monthNav}

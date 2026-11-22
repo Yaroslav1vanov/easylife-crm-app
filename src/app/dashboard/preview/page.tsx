@@ -129,7 +129,7 @@ export default function DashboardPreview() {
         <button onClick={() => setViewAs(null)}
           style={{ padding: "6px 12px", borderRadius: 9, fontSize: 11, fontWeight: 800, cursor: "pointer",
             border: `1px solid ${viewAs === null ? "var(--pu)" : "var(--brd)"}`,
-            background: viewAs === null ? "rgba(157,107,255,.15)" : "transparent",
+            background: viewAs === null ? "rgba(var(--pu-rgb),.15)" : "transparent",
             color: viewAs === null ? "var(--pu)" : "var(--t3)" }}>
           Я (владелец)
         </button>
@@ -137,11 +137,11 @@ export default function DashboardPreview() {
           .sort((a, b) => a.member_type.localeCompare(b.member_type) || a.name.localeCompare(b.name))
           .map(t => {
             const on = viewAs === t.id;
-            const col = t.member_type === "montager" ? "#ffae42" : "#9d6bff";
+            const col = t.member_type === "montager" ? "var(--or)" : "var(--pu)";
             return (
               <button key={t.id} onClick={() => setViewAs(t.id)}
                 style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 11px 5px 5px", borderRadius: 999,
-                  border: `1px solid ${on ? col : "var(--brd)"}`, background: on ? `${col}22` : "transparent",
+                  border: `1px solid ${on ? col : "var(--brd)"}`, background: on ? `color-mix(in srgb, ${col} 13%, transparent)` : "transparent",
                   color: on ? col : "var(--t2)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
                 <Avatar name={t.name} src={t.avatar_url} size={20} />
                 {t.name}
@@ -153,7 +153,7 @@ export default function DashboardPreview() {
 
       {v.me && (
         <div style={{ padding: "10px 14px", borderRadius: 11, marginBottom: 14, fontSize: 12, lineHeight: 1.55,
-          background: "rgba(157,107,255,.08)", border: "1px solid rgba(157,107,255,.35)", color: "var(--t2)" }}>
+          background: "rgba(var(--pu-rgb),.08)", border: "1px solid rgba(var(--pu-rgb),.35)", color: "var(--t2)" }}>
           👁 Показано так, как это видит <b style={{ color: "var(--t1)" }}>{v.me.name}</b> ({v.isMg ? "монтажёр" : "тимлид"}):
           только {v.work.length} {v.work.length === 1 ? "его клиент" : "его клиентов"}. Ты просто смотришь — ничего не меняется.
         </div>
@@ -175,7 +175,7 @@ export default function DashboardPreview() {
               <span style={{ fontSize: 11, color: "var(--t3)" }}>данные по вчера — сегодня ещё заполняется</span>
             </div>
             <span style={{ padding: "4px 11px", borderRadius: 8, fontSize: 11, fontWeight: 800,
-              background: onTrack ? "rgba(168,224,99,.14)" : "rgba(255,174,66,.14)", color: onTrack ? "var(--gr)" : "var(--or)" }}>
+              background: onTrack ? "rgba(var(--gr-rgb),.14)" : "rgba(var(--or-rgb),.14)", color: onTrack ? "var(--gr)" : "var(--or)" }}>
               {onTrack ? "✓ идём по графику" : `⚠ отстаём на ${v.lag}`}
             </span>
           </div>
@@ -202,7 +202,7 @@ export default function DashboardPreview() {
         <div className="card" style={{ padding: 18, borderRadius: 16, marginBottom: 14 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 12, flexWrap: "wrap" }}>
             <span style={{ fontSize: 15, fontWeight: 800 }}>{v.isMg ? "🎬 Его дедлайны · монтаж" : "✍️ Его дедлайны · сценарии"}</span>
-            <span style={{ fontSize: 11, fontWeight: 800, padding: "2px 8px", borderRadius: 7, background: "rgba(157,107,255,.15)", color: "var(--pu)" }}>{v.myTasks.length}</span>
+            <span style={{ fontSize: 11, fontWeight: 800, padding: "2px 8px", borderRadius: 7, background: "rgba(var(--pu-rgb),.15)", color: "var(--pu)" }}>{v.myTasks.length}</span>
             <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--t3)" }}>
               срок = публикация − {v.isMg ? VIDEO_LEAD : SCRIPT_LEAD} дн.
             </span>
@@ -213,11 +213,11 @@ export default function DashboardPreview() {
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {v.myTasks.slice(0, 12).map(({ s, c, due }) => {
                 const diff = Math.round((Date.parse(due) - Date.parse(today)) / 86400000);
-                const col = diff < 0 ? "#ff5c7a" : diff <= 1 ? "#ffae42" : "#9d6bff";
+                const col = diff < 0 ? "var(--rd)" : diff <= 1 ? "var(--or)" : "var(--pu)";
                 const txt = diff < 0 ? `просрочено ${-diff} дн` : diff === 0 ? "сегодня" : diff === 1 ? "завтра" : `через ${diff} дн`;
                 return (
                   <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 11px", borderRadius: 10,
-                    background: diff < 0 ? "rgba(255,92,122,.07)" : "var(--inset2)", border: `1px solid ${diff < 0 ? col : "var(--track)"}` }}>
+                    background: diff < 0 ? "rgba(var(--rd-rgb),.07)" : "var(--inset2)", border: `1px solid ${diff < 0 ? col : "var(--track)"}` }}>
                     <Avatar name={`${c.name} ${c.surname || ""}`} src={c.avatar_url} size={26} />
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div style={{ fontSize: 12, fontWeight: 700, color: "var(--t1)" }}>{c.name} {c.surname || ""}</div>
@@ -226,7 +226,7 @@ export default function DashboardPreview() {
                       </div>
                     </div>
                     <div style={{ flexShrink: 0, textAlign: "right" }}>
-                      <div style={{ display: "inline-flex", padding: "3px 8px", borderRadius: 7, fontSize: 10, fontWeight: 800, background: `${col}1f`, color: col }}>сдать {fmt(due)}</div>
+                      <div style={{ display: "inline-flex", padding: "3px 8px", borderRadius: 7, fontSize: 10, fontWeight: 800, background: `color-mix(in srgb, ${col} 12%, transparent)`, color: col }}>сдать {fmt(due)}</div>
                       <div style={{ fontSize: 9, color: col, marginTop: 2 }}>{txt}</div>
                     </div>
                   </div>
@@ -243,7 +243,7 @@ export default function DashboardPreview() {
         <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 14 }}>
           <Flame size={17} style={{ color: "var(--rd)" }} />
           <h2 style={{ fontSize: 15, fontWeight: 800 }}>Что горит</h2>
-          <span style={{ fontSize: 11, fontWeight: 800, padding: "2px 8px", borderRadius: 7, background: "rgba(255,92,122,.14)", color: "var(--rd)" }}>{v.issues.length}</span>
+          <span style={{ fontSize: 11, fontWeight: 800, padding: "2px 8px", borderRadius: 7, background: "rgba(var(--rd-rgb),.14)", color: "var(--rd)" }}>{v.issues.length}</span>
           <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--t3)" }}>заменяет «Требуют внимания» + «Что нужно сделать» + таблицу</span>
         </div>
 
@@ -252,12 +252,12 @@ export default function DashboardPreview() {
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
             {v.issues.map((it, i) => {
-              const col = it.sev === "red" ? "#ff5c7a" : "#ffae42";
+              const col = it.sev === "red" ? "var(--rd)" : "var(--or)";
               return (
                 <button key={i} onClick={() => router.push(it.go)}
                   style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 13px", borderRadius: 11,
-                    background: it.sev === "red" ? "rgba(255,92,122,.06)" : "var(--inset2)",
-                    border: `1px solid ${it.sev === "red" ? "rgba(255,92,122,.3)" : "var(--track)"}`, cursor: "pointer", textAlign: "left" }}>
+                    background: it.sev === "red" ? "rgba(var(--rd-rgb),.06)" : "var(--inset2)",
+                    border: `1px solid ${it.sev === "red" ? "rgba(var(--rd-rgb),.3)" : "var(--track)"}`, cursor: "pointer", textAlign: "left" }}>
                   <span style={{ width: 6, height: 32, borderRadius: 3, background: col, flexShrink: 0 }} />
                   <Avatar name={`${it.client.name} ${it.client.surname || ""}`} src={it.client.avatar_url} size={30} />
                   <div style={{ minWidth: 0, flex: 1 }}>

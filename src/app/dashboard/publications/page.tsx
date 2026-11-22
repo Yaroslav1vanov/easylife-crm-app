@@ -41,11 +41,11 @@ function buildCalendar(ym: string): (string | null)[][] {
 type SlotStatus = "published" | "overdue" | "today" | "ready_waiting" | "not_ready" | "planned";
 const STATUS_META: Record<SlotStatus, { color: string; label: string }> = {
   published: { color: "#34a853", label: "Опубликовано" },
-  overdue: { color: "#ff5c7a", label: "Просрочено" },
-  today: { color: "#ffae42", label: "Сегодня" },
-  ready_waiting: { color: "#42d4f4", label: "Готово, ждёт" },
+  overdue: { color: "var(--rd)", label: "Просрочено" },
+  today: { color: "var(--or)", label: "Сегодня" },
+  ready_waiting: { color: "var(--cy)", label: "Готово, ждёт" },
   not_ready: { color: "#6b7280", label: "Не готово" },
-  planned: { color: "#9d6bff", label: "Слот (план)" },
+  planned: { color: "var(--pu)", label: "Слот (план)" },
 };
 // «Взят в работу» = сценарий уже начали (не «идея»). Только такие могут быть просрочены.
 const isTaken = (s: Script) => !!s.script_status && s.script_status !== "notStarted";
@@ -235,10 +235,10 @@ export default function PublicationsPage() {
   const openScript = openId != null ? allScripts.find(s => s.id === openId) || null : null;
 
   const alertCards: { Icon: LucideIcon; label: string; val: number; color: string }[] = [
-    { Icon: AlertTriangle, label: "Просрочено", val: alerts.overdue, color: "#ff5c7a" },
-    { Icon: CalendarClock, label: "Сегодня публиковать", val: alerts.todayCnt, color: "#ffae42" },
-    { Icon: CheckCircle2, label: "Готово к публикации", val: alerts.ready, color: "#42d4f4" },
-    { Icon: Clock, label: "Скоро (3 дня), не готово", val: alerts.soon, color: "#9d6bff" },
+    { Icon: AlertTriangle, label: "Просрочено", val: alerts.overdue, color: "var(--rd)" },
+    { Icon: CalendarClock, label: "Сегодня публиковать", val: alerts.todayCnt, color: "var(--or)" },
+    { Icon: CheckCircle2, label: "Готово к публикации", val: alerts.ready, color: "var(--cy)" },
+    { Icon: Clock, label: "Скоро (3 дня), не готово", val: alerts.soon, color: "var(--pu)" },
   ];
 
   const PUB_TOUR: TourStep[] = [
@@ -253,7 +253,7 @@ export default function PublicationsPage() {
   return (
     <div style={{ fontFamily: "'Manrope', sans-serif" }}>
       {/* HEADER */}
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, marginBottom: 20, flexWrap: "wrap" }}>
+      <div className="page-head">
         <div>
           <h1 style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 22, fontWeight: 800, color: "var(--t1)", letterSpacing: -0.5 }}>Публикации</h1>
           <p style={{ fontSize: 12, color: "var(--t3)", marginTop: 4, fontWeight: 500 }}>План публикаций по дням · {ymLabel(ym)}</p>
@@ -263,16 +263,16 @@ export default function PublicationsPage() {
           <div style={{ display: "flex", borderRadius: 10, border: "1px solid var(--brd)", overflow: "hidden" }}>
             {([["calendar", "Календарь", CalendarDays], ["archive", "Архив", List]] as const).map(([v, lbl, Ic]) => (
               <button key={v} onClick={() => setView(v)}
-                style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 12px", background: view === v ? "rgba(157,107,255,0.15)" : "transparent", color: view === v ? "var(--pu)" : "var(--t2)", border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 12px", background: view === v ? "rgba(var(--pu-rgb),0.15)" : "transparent", color: view === v ? "var(--pu)" : "var(--t2)", border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
                 <Ic size={13} /> {lbl}
               </button>
             ))}
           </div>
           <button data-tour="pub-auto" onClick={() => setAutoOpen(true)}
-            style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "8px 14px", borderRadius: 10, background: "linear-gradient(135deg, var(--cy), var(--pu))", color: "#fff", border: "none", fontSize: 11, fontWeight: 800, cursor: "pointer" }}>
+            style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "8px 14px", borderRadius: 10, background: "var(--btn-grad)", color: "var(--btn-fg)", border: "none", fontSize: 11, fontWeight: 800, cursor: "pointer" }}>
             <Wand2 size={13} /> Разложить по дням
           </button>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 10, background: "rgba(123,63,228,0.08)", border: "1px solid var(--brd)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 10, background: "rgba(var(--vi-rgb),0.08)", border: "1px solid var(--brd)" }}>
             <button onClick={() => setYm(s => ymShift(s, -1))} style={{ background: "transparent", border: "none", color: "var(--t2)", cursor: "pointer", display: "flex" }}><ChevronLeft size={14} /></button>
             <span style={{ fontSize: 12, fontWeight: 700, color: "var(--t1)", minWidth: 96, textAlign: "center" }}>{ymLabel(ym)}</span>
             <button onClick={() => setYm(s => ymShift(s, 1))} style={{ background: "transparent", border: "none", color: "var(--t2)", cursor: "pointer", display: "flex" }}><ChevronRight size={14} /></button>
@@ -286,8 +286,8 @@ export default function PublicationsPage() {
           const I = a.Icon;
           const on = a.val > 0;
           return (
-            <div key={a.label} style={{ display: "flex", alignItems: "center", gap: 12, padding: 14, borderRadius: 14, background: on ? `${a.color}14` : "rgba(123,63,228,0.05)", border: `1px solid ${on ? a.color + "55" : "var(--brd)"}` }}>
-              <div style={{ width: 36, height: 36, borderRadius: 10, background: `${a.color}22`, color: a.color, display: "flex", alignItems: "center", justifyContent: "center", border: `1px solid ${a.color}44`, flexShrink: 0 }}>
+            <div key={a.label} style={{ display: "flex", alignItems: "center", gap: 12, padding: 14, borderRadius: 14, background: on ? `color-mix(in srgb, ${a.color} 8%, transparent)` : "rgba(var(--vi-rgb),0.05)", border: `1px solid ${on ? `color-mix(in srgb, ${a.color} 33%, transparent)` : "var(--brd)"}` }}>
+              <div style={{ width: 36, height: 36, borderRadius: 10, background: `color-mix(in srgb, ${a.color} 13%, transparent)`, color: a.color, display: "flex", alignItems: "center", justifyContent: "center", border: `1px solid color-mix(in srgb, ${a.color} 27%, transparent)`, flexShrink: 0 }}>
                 <I size={17} strokeWidth={1.9} />
               </div>
               <div>
@@ -329,7 +329,7 @@ export default function PublicationsPage() {
 
       {view === "calendar" ? (
         <>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 13px", borderRadius: 11, background: "rgba(157,107,255,0.06)", border: "1px solid var(--brd)", marginBottom: 12, fontSize: 12, color: "var(--t2)", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 13px", borderRadius: 11, background: "rgba(var(--pu-rgb),0.06)", border: "1px solid var(--brd)", marginBottom: 12, fontSize: 12, color: "var(--t2)", flexWrap: "wrap" }}>
             🗓️ <b style={{ color: "var(--t1)" }}>План месяца:</b>
             {clientFilter === "all"
               ? <span>выбери клиента в фильтре ↑ — на днях появится «+», чтобы расставить даты выхода рилзов.</span>
@@ -339,7 +339,7 @@ export default function PublicationsPage() {
             <div data-tour="pub-pool" className="card" style={{ padding: 14, borderRadius: 14, marginBottom: 14 }}>
               <button onClick={() => setPoolOpen(v => !v)} style={{ background: "transparent", border: "none", color: "var(--t1)", cursor: "pointer", display: "flex", alignItems: "center", gap: 8, fontSize: 12, fontWeight: 800, marginBottom: poolOpen ? 10 : 0 }}>
                 <ChevronDown size={14} style={{ transform: poolOpen ? "none" : "rotate(-90deg)", transition: ".15s" }} />
-                Не запланировано <span style={{ padding: "2px 7px", borderRadius: 6, background: "rgba(157,107,255,0.15)", color: "var(--pu)", fontSize: 10, fontWeight: 700 }}>{pool.length}</span>
+                Не запланировано <span style={{ padding: "2px 7px", borderRadius: 6, background: "rgba(var(--pu-rgb),0.15)", color: "var(--pu)", fontSize: 10, fontWeight: 700 }}>{pool.length}</span>
                 <span style={{ fontSize: 10, color: "var(--t3)", fontWeight: 500 }}>— перетащи на день или нажми «Разложить»</span>
               </button>
               {poolOpen && (
@@ -381,7 +381,7 @@ export default function PublicationsPage() {
                         onDrop={(e) => { e.preventDefault(); handleDropDay(dayIso); }}
                         style={{
                           minHeight: 96, borderRadius: 10, padding: 7, position: "relative",
-                          background: isOver ? "rgba(157,107,255,0.12)" : isToday ? "rgba(66,212,244,0.06)" : "var(--inset)",
+                          background: isOver ? "rgba(var(--pu-rgb),0.12)" : isToday ? "rgba(var(--cy-rgb),0.06)" : "var(--inset)",
                           border: `1px solid ${isOver ? "var(--pu)" : isToday ? "var(--cy)" : "var(--brd)"}`,
                           display: "flex", flexDirection: "column", gap: 4, transition: "border-color .12s, background .12s",
                         }}>
@@ -391,12 +391,12 @@ export default function PublicationsPage() {
                             {items.length > 0 && <span style={{ fontSize: 9, color: "var(--t3)", fontWeight: 700 }}>{items.length}</span>}
                             {clientFilter !== "all" && (
                               <button onClick={(e) => { e.stopPropagation(); setSlotMenu(m => m === dayIso ? null : dayIso); }}
-                                title="Запланировать на этот день" style={{ width: 18, height: 18, borderRadius: 6, background: "rgba(157,107,255,0.15)", border: "1px solid var(--brd)", color: "var(--pu)", cursor: "pointer", fontSize: 13, fontWeight: 800, lineHeight: 1, padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
+                                title="Запланировать на этот день" style={{ width: 18, height: 18, borderRadius: 6, background: "rgba(var(--pu-rgb),0.15)", border: "1px solid var(--brd)", color: "var(--pu)", cursor: "pointer", fontSize: 13, fontWeight: 800, lineHeight: 1, padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
                             )}
                           </div>
                         </div>
                         {slotMenu === dayIso && clientFilter !== "all" && (
-                          <div onClick={(e) => e.stopPropagation()} style={{ position: "absolute", top: 26, right: 6, zIndex: 40, background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 9, padding: 4, boxShadow: "0 12px 30px rgba(0,0,0,0.5)", display: "flex", flexDirection: "column", gap: 2, minWidth: 120 }}>
+                          <div onClick={(e) => e.stopPropagation()} style={{ position: "absolute", top: 26, right: 6, zIndex: 40, background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 9, padding: 4, boxShadow: "0 12px 30px rgba(var(--sh-rgb),calc(0.5 * var(--sh-k)))", display: "flex", flexDirection: "column", gap: 2, minWidth: 120 }}>
                             <button onClick={() => createSlot(clientFilter as number, dayIso, "reel")} className="nav-item" style={{ fontSize: 11, padding: "6px 8px", gap: 7 }}>🎬 Рилз</button>
                             <button onClick={() => createSlot(clientFilter as number, dayIso, "carousel")} className="nav-item" style={{ fontSize: 11, padding: "6px 8px", gap: 7 }}>🖼 Карусель</button>
                           </div>
@@ -410,7 +410,7 @@ export default function PublicationsPage() {
                             return (
                               <div key={s.id} draggable onDragStart={() => setDragId(s.id)} onDragEnd={() => { setDragId(null); setDragOverDay(null); }}
                                 onClick={() => setOpenId(s.id)} title={`${c?.name} · ${s.content_type === "carousel" ? "карусель" : "рилз"} · ${meta.label}${empty ? " — пусто, перетащи сюда сценарий" : ""}`}
-                                style={{ display: "flex", alignItems: "center", gap: 5, padding: "3px 5px", borderRadius: 6, background: `${meta.color}1c`, border: `1px ${empty ? "dashed" : "solid"} ${meta.color}${empty ? "66" : "40"}`, cursor: "grab", opacity: dragId === s.id ? 0.4 : 1 }}>
+                                style={{ display: "flex", alignItems: "center", gap: 5, padding: "3px 5px", borderRadius: 6, background: `color-mix(in srgb, ${meta.color} 11%, transparent)`, border: `1px ${empty ? "dashed" : "solid"} ${meta.color}${empty ? "66" : "40"}`, cursor: "grab", opacity: dragId === s.id ? 0.4 : 1 }}>
                                 <span style={{ fontSize: 10, flexShrink: 0 }}>{tIcon}</span>
                                 <Avatar name={c ? `${c.name} ${c.surname || ""}` : "?"} src={c?.avatar_url} size={14} />
                                 <span style={{ fontSize: 9, color: "var(--t1)", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{empty ? "слот" : c?.name}</span>
@@ -434,11 +434,11 @@ export default function PublicationsPage() {
                               const c = clientById[cid];
                               const done = list.every(p => p.pub_status === "published");
                               const err = list.some(p => p.pub_status === "error");
-                              const col = err ? "#ff5c7a" : done ? "#34a853" : "#ec4899";
+                              const col = err ? "var(--rd)" : done ? "#34a853" : "#ec4899";
                               return (
                                 <div key={`st${cid}`} onClick={() => router.push(`/dashboard/metricool?open=${list[0].id}`)}
                                   title={`Сторис · ${c?.name} · ${list.map(p => fmtInTz(p.publish_at, c?.timezone || DEFAULT_TZ)).join(", ")} ${tzShort(c?.timezone || DEFAULT_TZ)}`}
-                                  style={{ display: "flex", alignItems: "center", gap: 5, padding: "3px 5px", borderRadius: 6, background: `${col}1c`, border: `1px solid ${col}40`, cursor: "pointer" }}>
+                                  style={{ display: "flex", alignItems: "center", gap: 5, padding: "3px 5px", borderRadius: 6, background: `color-mix(in srgb, ${col} 11%, transparent)`, border: `1px solid color-mix(in srgb, ${col} 25%, transparent)`, cursor: "pointer" }}>
                                   <span style={{ fontSize: 10, flexShrink: 0 }}>📱</span>
                                   <Avatar name={c ? `${c.name} ${c.surname || ""}` : "?"} src={c?.avatar_url} size={14} />
                                   <span style={{ fontSize: 9, color: "var(--t1)", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>сторис{list.length > 1 ? ` ×${list.length}` : ""}</span>
@@ -494,13 +494,13 @@ function FilterDropdown({ label, value, open, onToggle, children }: { label: str
   return (
     <div style={{ position: "relative" }}>
       <button onClick={onToggle}
-        style={{ padding: "8px 12px", borderRadius: 10, background: "rgba(123,63,228,0.08)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 11, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
+        style={{ padding: "8px 12px", borderRadius: 10, background: "rgba(var(--vi-rgb),0.08)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 11, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
         <Filter size={11} strokeWidth={1.8} />
         <span style={{ color: "var(--t3)" }}>{label}:</span>{value}
         <ChevronDown size={11} />
       </button>
       {open && (
-        <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 30, minWidth: 200, background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 10, padding: 4, boxShadow: "0 12px 40px rgba(0,0,0,0.5)", maxHeight: 320, overflowY: "auto" }}>
+        <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 30, minWidth: 200, background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 10, padding: 4, boxShadow: "0 12px 40px rgba(var(--sh-rgb),calc(0.5 * var(--sh-k)))", maxHeight: 320, overflowY: "auto" }}>
           {children}
         </div>
       )}
@@ -559,7 +559,7 @@ function PublicationModal({ script: s, client: c, todayIso, onClose, onUpdate, o
 
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.72)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 18, width: "100%", maxWidth: 460, padding: 22, display: "flex", flexDirection: "column", gap: 14, boxShadow: "0 24px 70px rgba(0,0,0,0.55)" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 18, width: "100%", maxWidth: 460, padding: 22, display: "flex", flexDirection: "column", gap: 14, boxShadow: "0 24px 70px rgba(var(--sh-rgb),calc(0.55 * var(--sh-k)))" }}>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
             <Avatar name={c ? `${c.name} ${c.surname || ""}` : "?"} src={c?.avatar_url} size={38} />
@@ -573,7 +573,7 @@ function PublicationModal({ script: s, client: c, todayIso, onClose, onUpdate, o
 
         <div style={{ fontSize: 12, color: "var(--t1)", fontWeight: 600, lineHeight: 1.4 }}>{s.hook_text || s.hook || "Без темы"}</div>
 
-        <div style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "6px 11px", borderRadius: 8, background: `${meta.color}1c`, border: `1px solid ${meta.color}44`, alignSelf: "flex-start" }}>
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "6px 11px", borderRadius: 8, background: `color-mix(in srgb, ${meta.color} 11%, transparent)`, border: `1px solid color-mix(in srgb, ${meta.color} 27%, transparent)`, alignSelf: "flex-start" }}>
           <span style={{ width: 8, height: 8, borderRadius: "50%", background: meta.color }} />
           <span style={{ fontSize: 11, color: meta.color, fontWeight: 700 }}>{meta.label}</span>
         </div>
@@ -591,7 +591,7 @@ function PublicationModal({ script: s, client: c, todayIso, onClose, onUpdate, o
               onBlur={() => { if (videoUrl !== (s.published_url || "")) onUpdate(s.id, { published_url: videoUrl }); }} placeholder="https://instagram.com/reel/…" style={ta} />
             {s.published_url && (
               <a href={s.published_url.startsWith("http") ? s.published_url : `https://${s.published_url}`} target="_blank" rel="noopener noreferrer"
-                style={{ flexShrink: 0, padding: "0 13px", borderRadius: 9, background: "rgba(168,224,99,0.14)", border: "1px solid rgba(168,224,99,0.3)", color: "var(--gr)", display: "inline-flex", alignItems: "center" }}><ExternalLink size={14} /></a>
+                style={{ flexShrink: 0, padding: "0 13px", borderRadius: 9, background: "rgba(var(--gr-rgb),0.14)", border: "1px solid rgba(var(--gr-rgb),0.3)", color: "var(--gr)", display: "inline-flex", alignItems: "center" }}><ExternalLink size={14} /></a>
             )}
           </div>
         </div>
@@ -657,14 +657,14 @@ function AutoDistributeModal({ clients, allScripts, defaultStart, onClose, onApp
           <input type="checkbox" checked={onlyUnscheduled} onChange={(e) => setOnlyUnscheduled(e.target.checked)} />
           Только без даты (не трогать уже запланированные)
         </label>
-        <div style={{ fontSize: 11, color: "var(--t3)", padding: 10, borderRadius: 9, background: "rgba(157,107,255,0.06)", border: "1px solid var(--brd)" }}>
+        <div style={{ fontSize: 11, color: "var(--t3)", padding: 10, borderRadius: 9, background: "rgba(var(--pu-rgb),0.06)", border: "1px solid var(--brd)" }}>
           {clientId === "" ? "Выбери клиента" : targets.length === 0 ? "Нет роликов для раскладки" :
             `Разложу ${targets.length} ${targets.length === 1 ? "ролик" : "роликов"}: ${fmtDay(preview[0].date)} → ${fmtDay(preview[preview.length - 1].date)}`}
         </div>
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
           <button onClick={onClose} style={{ padding: "9px 14px", borderRadius: 9, background: "transparent", border: "1px solid var(--brd)", color: "var(--t2)", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Отмена</button>
           <button disabled={targets.length === 0 || busy} onClick={async () => { setBusy(true); await onApply(preview); setBusy(false); }}
-            style={{ padding: "9px 18px", borderRadius: 9, background: targets.length === 0 ? "var(--card)" : "linear-gradient(135deg, var(--cy), var(--pu))", border: "none", color: "#fff", fontSize: 12, fontWeight: 800, cursor: targets.length === 0 ? "default" : "pointer", opacity: targets.length === 0 ? 0.5 : 1 }}>
+            style={{ padding: "9px 18px", borderRadius: 9, background: targets.length === 0 ? "var(--card)" : "var(--btn-grad)", border: "none", color: "var(--btn-fg)", fontSize: 12, fontWeight: 800, cursor: targets.length === 0 ? "default" : "pointer", opacity: targets.length === 0 ? 0.5 : 1 }}>
             {busy ? "Раскладываю…" : "Разложить"}
           </button>
         </div>

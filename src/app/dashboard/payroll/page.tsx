@@ -71,21 +71,21 @@ export default function PayrollPage() {
   return (
     <div style={{ fontFamily: "'Manrope', sans-serif" }}>
       {/* HEADER */}
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 14, flexWrap: "wrap", marginBottom: 18 }}>
+      <div className="page-head">
         <div>
           <h1 style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 22, fontWeight: 800, letterSpacing: -0.5, display: "flex", alignItems: "center", gap: 10 }}>
             ЗП команды
-            <span style={{ fontSize: 9, fontWeight: 800, padding: "3px 9px", borderRadius: 6, background: "rgba(255,92,122,0.14)", border: "1px solid rgba(255,92,122,0.35)", color: "#ff5c7a", letterSpacing: 0.5, textTransform: "uppercase", fontFamily: "'Manrope', sans-serif" }}>только владелец</span>
+            <span style={{ fontSize: 9, fontWeight: 800, padding: "3px 9px", borderRadius: 6, background: "rgba(var(--rd-rgb),0.14)", border: "1px solid rgba(var(--rd-rgb),0.35)", color: "var(--rd)", letterSpacing: 0.5, textTransform: "uppercase", fontFamily: "'Manrope', sans-serif" }}>только владелец</span>
           </h1>
           <p style={{ fontSize: 12, color: "var(--t3)", marginTop: 4 }}>Считается по факту работы · монтаж по дате сдачи, публикации по дате выхода</p>
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
           <TourButton onClick={() => setTourOpen(true)} />
           <button onClick={() => load(ym)} disabled={loading}
-            style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 13px", borderRadius: 10, background: "rgba(66,212,244,0.1)", border: "1px solid var(--brd)", color: "var(--cy)", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 13px", borderRadius: 10, background: "rgba(var(--cy-rgb),0.1)", border: "1px solid var(--brd)", color: "var(--cy)", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
             <RefreshCw size={13} className={loading ? "pr-spin" : ""} /> Обновить
           </button>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 10, background: "rgba(123,63,228,0.08)", border: "1px solid var(--brd)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 10, background: "rgba(var(--vi-rgb),0.08)", border: "1px solid var(--brd)" }}>
             <button onClick={() => setYm(s => ymShift(s, -1))} style={{ background: "transparent", border: "none", color: "var(--t2)", cursor: "pointer", display: "flex" }}><ChevronLeft size={14} /></button>
             <span style={{ fontSize: 12, fontWeight: 700, color: "var(--t1)", minWidth: 104, textAlign: "center" }}>{ymLabelRu(ym)}</span>
             <button onClick={() => setYm(s => ymShift(s, 1))} style={{ background: "transparent", border: "none", color: "var(--t2)", cursor: "pointer", display: "flex" }}><ChevronRight size={14} /></button>
@@ -94,7 +94,7 @@ export default function PayrollPage() {
       </div>
 
       {err && (
-        <div style={{ padding: 18, borderRadius: 12, background: "rgba(255,92,122,0.08)", border: "1px solid rgba(255,92,122,0.35)", color: "var(--t1)", fontSize: 13, marginBottom: 16 }}>
+        <div style={{ padding: 18, borderRadius: 12, background: "rgba(var(--rd-rgb),0.08)", border: "1px solid rgba(var(--rd-rgb),0.35)", color: "var(--t1)", fontSize: 13, marginBottom: 16 }}>
           Не удалось загрузить: {err}
         </div>
       )}
@@ -105,14 +105,14 @@ export default function PayrollPage() {
         <>
           {/* ИТОГИ */}
           <div data-tour="pr-total" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 16 }} className="pr-kpi">
-            <KPI label="Всего к выплате" value={money(data.total)} color="#9d6bff" big />
-            <KPI label="Монтажёрам · за монтаж" value={money(data.totalEditors)} color="#ffae42" />
-            <KPI label="Тимлидам · публикации + бонусы" value={money(data.totalTeamleads)} color="#42d4f4" />
+            <KPI label="Всего к выплате" value={money(data.total)} color="var(--pu)" big />
+            <KPI label="Монтажёрам · за монтаж" value={money(data.totalEditors)} color="var(--or)" />
+            <KPI label="Тимлидам · публикации + бонусы" value={money(data.totalTeamleads)} color="var(--cy)" />
           </div>
 
           {/* Миграция правок не прогнана — редактирование не сохранится */}
           {(data as any).adjustmentsReady === false && (
-            <div style={{ padding: "12px 16px", borderRadius: 12, background: "rgba(255,174,66,0.08)", border: "1px solid rgba(255,174,66,0.4)", fontSize: 12, color: "var(--t1)", marginBottom: 16, lineHeight: 1.6 }}>
+            <div style={{ padding: "12px 16px", borderRadius: 12, background: "rgba(var(--or-rgb),0.08)", border: "1px solid rgba(var(--or-rgb),0.4)", fontSize: 12, color: "var(--t1)", marginBottom: 16, lineHeight: 1.6 }}>
               ⚠ Ручные правки пока <b>не сохраняются</b>: не создана таблица. Прогони{" "}
               <code style={{ background: "var(--inset)", padding: "1px 6px", borderRadius: 5 }}>MIGRATION_2026-07-27_payroll_adjustments.sql</code>{" "}
               в Supabase → SQL Editor → Run. Расчёт при этом работает.
@@ -131,11 +131,11 @@ export default function PayrollPage() {
           {/* ПРОБЛЕМЫ ДАННЫХ */}
           <div data-tour="pr-issues" style={{ marginBottom: 16 }}>
             {data.issues.length === 0 ? (
-              <div style={{ padding: "12px 16px", borderRadius: 12, background: "rgba(168,224,99,0.08)", border: "1px solid rgba(168,224,99,0.3)", fontSize: 12, color: "var(--gr)", fontWeight: 700 }}>
+              <div style={{ padding: "12px 16px", borderRadius: 12, background: "rgba(var(--gr-rgb),0.08)", border: "1px solid rgba(var(--gr-rgb),0.3)", fontSize: 12, color: "var(--gr)", fontWeight: 700 }}>
                 ✓ Данные чистые — расчёт точный
               </div>
             ) : (
-              <div style={{ borderRadius: 12, background: "rgba(255,174,66,0.07)", border: "1px solid rgba(255,174,66,0.35)", overflow: "hidden" }}>
+              <div style={{ borderRadius: 12, background: "rgba(var(--or-rgb),0.07)", border: "1px solid rgba(var(--or-rgb),0.35)", overflow: "hidden" }}>
                 <button onClick={() => setIssuesOpen(v => !v)}
                   style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", background: "transparent", border: "none", cursor: "pointer", textAlign: "left" }}>
                   <AlertTriangle size={16} style={{ color: "var(--or)", flexShrink: 0 }} />
@@ -150,7 +150,7 @@ export default function PayrollPage() {
                     {data.issues.slice(0, 60).map((is, i) => (
                       <button key={i} onClick={() => router.push(`/dashboard/clients/${is.clientId}`)}
                         style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 11px", borderRadius: 9, background: "var(--inset2)", border: "1px solid var(--track)", cursor: "pointer", textAlign: "left" }}>
-                        <span style={{ flexShrink: 0, fontSize: 9, fontWeight: 800, padding: "3px 7px", borderRadius: 5, background: is.kind === "no_ready_at" ? "rgba(255,174,66,0.16)" : "rgba(255,92,122,0.16)", color: is.kind === "no_ready_at" ? "var(--or)" : "#ff5c7a" }}>
+                        <span style={{ flexShrink: 0, fontSize: 9, fontWeight: 800, padding: "3px 7px", borderRadius: 5, background: is.kind === "no_ready_at" ? "rgba(var(--or-rgb),0.16)" : "rgba(var(--rd-rgb),0.16)", color: is.kind === "no_ready_at" ? "var(--or)" : "var(--rd)" }}>
                           {is.kind === "no_ready_at" ? "нет даты сдачи" : "нет даты публикации"}
                         </span>
                         <span style={{ fontSize: 11, fontWeight: 700, color: "var(--t1)", flexShrink: 0 }}>{is.clientName}</span>
@@ -166,8 +166,8 @@ export default function PayrollPage() {
 
           {/* ЛЮДИ */}
           <div data-tour="pr-people" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }} className="pr-cols">
-            <PersonColumn title="Монтажёры" Icon={Scissors} color="#ffae42" people={editors} openKey={openPerson} setOpenKey={setOpenPerson} onSave={saveAdj} saving={saving} />
-            <PersonColumn title="Тимлиды" Icon={UserCog} color="#42d4f4" people={leads} openKey={openPerson} setOpenKey={setOpenPerson} onSave={saveAdj} saving={saving} />
+            <PersonColumn title="Монтажёры" Icon={Scissors} color="var(--or)" people={editors} openKey={openPerson} setOpenKey={setOpenPerson} onSave={saveAdj} saving={saving} />
+            <PersonColumn title="Тимлиды" Icon={UserCog} color="var(--cy)" people={leads} openKey={openPerson} setOpenKey={setOpenPerson} onSave={saveAdj} saving={saving} />
           </div>
 
           {/* СТАВКИ */}
@@ -195,7 +195,7 @@ export default function PayrollPage() {
 
 function KPI({ label, value, color, big }: { label: string; value: string; color: string; big?: boolean }) {
   return (
-    <div className="card" style={{ padding: 16, borderRadius: 14, borderColor: `${color}44`, background: `${color}0d` }}>
+    <div className="card" style={{ padding: 16, borderRadius: 14, borderColor: `color-mix(in srgb, ${color} 27%, transparent)`, background: `color-mix(in srgb, ${color} 5%, transparent)` }}>
       <div style={{ fontFamily: "'Unbounded', sans-serif", fontSize: big ? 28 : 22, fontWeight: 800, color: "var(--t1)", lineHeight: 1.1 }}>{value}</div>
       <div style={{ fontSize: 10, color: "var(--t3)", fontWeight: 600, marginTop: 5 }}>{label}</div>
     </div>
@@ -211,7 +211,7 @@ function PersonColumn({ title, Icon, color, people, openKey, setOpenKey, onSave,
   return (
     <div>
       <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 10 }}>
-        <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 26, height: 26, borderRadius: 8, background: `${color}1f` }}>
+        <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 26, height: 26, borderRadius: 8, background: `color-mix(in srgb, ${color} 12%, transparent)` }}>
           <Icon size={14} style={{ color }} />
         </span>
         <h2 style={{ fontSize: 12, fontWeight: 800, color: "var(--t1)", textTransform: "uppercase", letterSpacing: 0.5 }}>{title}</h2>
@@ -280,24 +280,24 @@ function RowLine({ row, amount, type, color, onSave, saving }: {
   const chip = (on: boolean, label: string, onClick: () => void) => (
     <button onClick={onClick} disabled={saving}
       style={{ padding: "4px 9px", borderRadius: 7, fontSize: 10, fontWeight: 800, cursor: "pointer",
-        border: `1px solid ${on ? "var(--gr)" : "var(--brd)"}`, background: on ? "rgba(168,224,99,0.14)" : "transparent", color: on ? "var(--gr)" : "var(--t3)" }}>
+        border: `1px solid ${on ? "var(--gr)" : "var(--brd)"}`, background: on ? "rgba(var(--gr-rgb),0.14)" : "transparent", color: on ? "var(--gr)" : "var(--t3)" }}>
       {on ? "✓ " : ""}{label}
     </button>
   );
 
   return (
-    <div style={{ borderRadius: 9, background: "var(--inset2)", border: `1px solid ${row.edited ? "rgba(157,107,255,0.5)" : "var(--track)"}` }}>
+    <div style={{ borderRadius: 9, background: "var(--inset2)", border: `1px solid ${row.edited ? "rgba(var(--pu-rgb),0.5)" : "var(--track)"}` }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 11px" }}>
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: "var(--t1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {row.clientName} <span style={{ color: "var(--t3)", fontFamily: "monospace", fontWeight: 600 }}>· M{row.m}</span>
-            {row.edited && <span title={row.note || "Есть ручная правка"} style={{ marginLeft: 6, fontSize: 9, fontWeight: 800, padding: "1px 6px", borderRadius: 5, background: "rgba(157,107,255,0.16)", color: "var(--pu)" }}>правлено</span>}
+            {row.edited && <span title={row.note || "Есть ручная правка"} style={{ marginLeft: 6, fontSize: 9, fontWeight: 800, padding: "1px 6px", borderRadius: 5, background: "rgba(var(--pu-rgb),0.16)", color: "var(--pu)" }}>правлено</span>}
           </div>
           <div style={{ fontSize: 10, color: "var(--t3)", marginTop: 2 }}>{parts.join(" · ") || "—"}</div>
         </div>
         <span style={{ flexShrink: 0, fontSize: 12, fontWeight: 800, color }}>{money(amount)}</span>
         <button onClick={() => setEdit(v => !v)} title="Поправить вручную"
-          style={{ flexShrink: 0, width: 24, height: 24, borderRadius: 7, background: edit ? "rgba(157,107,255,0.16)" : "transparent", border: "1px solid var(--brd)", color: edit ? "var(--pu)" : "var(--t3)", cursor: "pointer", fontSize: 11 }}>✎</button>
+          style={{ flexShrink: 0, width: 24, height: 24, borderRadius: 7, background: edit ? "rgba(var(--pu-rgb),0.16)" : "transparent", border: "1px solid var(--brd)", color: edit ? "var(--pu)" : "var(--t3)", cursor: "pointer", fontSize: 11 }}>✎</button>
       </div>
 
       {edit && (
@@ -343,7 +343,7 @@ function RowLine({ row, amount, type, color, onSave, saving }: {
 
           {row.edited && (
             <button onClick={() => onSave({ done: null, published: null, on_time: null, onboarding: null, renewal: null, editor_amount: null, tl_amount: null })} disabled={saving}
-              style={{ alignSelf: "flex-start", padding: "5px 11px", borderRadius: 7, background: "transparent", border: "1px solid rgba(255,92,122,0.4)", color: "var(--rd)", fontSize: 10, fontWeight: 800, cursor: "pointer" }}>
+              style={{ alignSelf: "flex-start", padding: "5px 11px", borderRadius: 7, background: "transparent", border: "1px solid rgba(var(--rd-rgb),0.4)", color: "var(--rd)", fontSize: 10, fontWeight: 800, cursor: "pointer" }}>
               ↺ Вернуть на автомат
             </button>
           )}

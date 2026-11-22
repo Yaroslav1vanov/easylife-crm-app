@@ -240,7 +240,7 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
       <div onClick={(e) => e.stopPropagation()} style={{
         background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 18,
         width: "100%", maxWidth: 680, padding: 24, display: "flex", flexDirection: "column", gap: 16,
-        boxShadow: "0 24px 70px rgba(0,0,0,0.55)",
+        boxShadow: "0 24px 70px rgba(var(--sh-rgb),calc(0.55 * var(--sh-k)))",
       }}>
         {/* Header */}
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
@@ -286,7 +286,7 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
 
         {/* Рекомендация к монтажу — первое, что видит монтажёр. Пишет тимлид, у монтажёра только чтение. */}
         {(!ro || (s.montage_note || "").trim()) && (
-          <div style={{ padding: 14, borderRadius: 12, border: `1.5px solid ${montageNote.trim() ? "var(--rd)" : "var(--brd)"}`, background: montageNote.trim() ? "rgba(255,92,122,0.09)" : "var(--inset)" }}>
+          <div style={{ padding: 14, borderRadius: 12, border: `1.5px solid ${montageNote.trim() ? "var(--rd)" : "var(--brd)"}`, background: montageNote.trim() ? "rgba(var(--rd-rgb),0.09)" : "var(--inset)" }}>
             <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: 0.4, color: montageNote.trim() ? "var(--rd)" : "var(--t2)", marginBottom: 8 }}>
               ⚠️ РЕКОМЕНДАЦИЯ К МОНТАЖУ — ВАЖНО!
             </div>
@@ -341,7 +341,7 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
               placeholder="https://…" style={{ ...ta, fontSize: 12 }} />
             {s.ref_url && (
               <a href={s.ref_url.startsWith("http") ? s.ref_url : `https://${s.ref_url}`} target="_blank" rel="noopener noreferrer"
-                style={{ flexShrink: 0, padding: "0 14px", borderRadius: 9, background: "rgba(157,107,255,0.12)", border: "1px solid var(--brd)", color: "var(--pu)", display: "inline-flex", alignItems: "center" }}>
+                style={{ flexShrink: 0, padding: "0 14px", borderRadius: 9, background: "rgba(var(--pu-rgb),0.12)", border: "1px solid var(--brd)", color: "var(--pu)", display: "inline-flex", alignItems: "center" }}>
                 <ExternalLink size={15} />
               </a>
             )}
@@ -359,7 +359,7 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
 
         {/* Разбор донора — что именно тащило ролик (сохранить при адаптации) */}
         {s.description && (
-          <div style={{ padding: 12, borderRadius: 11, background: "rgba(255,174,66,0.06)", border: "1px solid rgba(255,174,66,0.3)" }}>
+          <div style={{ padding: 12, borderRadius: 11, background: "rgba(var(--or-rgb),0.06)", border: "1px solid rgba(var(--or-rgb),0.3)" }}>
             <div style={{ fontSize: 10, fontWeight: 800, color: "var(--or)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>🔥 Разбор донора — рычаг, который надо сохранить</div>
             <div style={{ fontSize: 12, lineHeight: 1.55, color: "var(--t1)", whiteSpace: "pre-wrap", maxHeight: 220, overflowY: "auto" }}>{s.description}</div>
           </div>
@@ -368,19 +368,19 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
         </>)}
 
         {/* Наш сценарий — 3 части, пишем вручную */}
-        <div data-tour="sm-parts" style={{ padding: 14, borderRadius: 12, background: "rgba(157,107,255,0.05)", border: "1px solid var(--brd)", display: "flex", flexDirection: "column", gap: 12 }}>
+        <div data-tour="sm-parts" style={{ padding: 14, borderRadius: 12, background: "rgba(var(--pu-rgb),0.05)", border: "1px solid var(--brd)", display: "flex", flexDirection: "column", gap: 12 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
             <span style={{ fontSize: 11, fontWeight: 800, color: "var(--pu)", textTransform: "uppercase", letterSpacing: 0.5 }}>✨ Наш сценарий</span>
             <span style={{ display: "inline-flex", gap: 6, flexWrap: "wrap" }}>
             {!ro && (
               <button onClick={() => sendToChat()} disabled={chatBusy} title="Задача уйдёт в «Чат · ИИ» → «Рилсы» клиента: ИИ посмотрит референс и расшифровку и предложит версию под клиента. В сценарий запишет, когда скажете «записывай»."
-                style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 11px", borderRadius: 8, border: "1px solid rgba(157,107,255,.45)", background: "rgba(157,107,255,.12)", color: "var(--t1)", fontSize: 11.5, fontWeight: 700, cursor: chatBusy ? "default" : "pointer" }}>
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 11px", borderRadius: 8, border: "1px solid rgba(var(--pu-rgb),.45)", background: "rgba(var(--pu-rgb),.12)", color: "var(--t1)", fontSize: 11.5, fontWeight: 700, cursor: chatBusy ? "default" : "pointer" }}>
                 {chatBusy ? <Loader2 size={13} className="spin" /> : <Sparkles size={13} />} {chatBusy ? "Отправляю…" : "Уникализировать в чате ИИ"}
               </button>
             )}
             {hasAvatar && !pv && (
               <button onClick={() => sendToChat("avatar")} disabled={chatBusy} title="Сценарий уйдёт в «Чат · ИИ» → «Аватар»: ИИ разметит эмоции, применит словарь произношения и предложит лук. Генерация — только после кнопки «Озвучить»."
-                style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 11px", borderRadius: 8, border: "1px solid rgba(66,212,244,.45)", background: "rgba(66,212,244,.10)", color: "var(--t1)", fontSize: 11.5, fontWeight: 700, cursor: chatBusy ? "default" : "pointer" }}>
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 11px", borderRadius: 8, border: "1px solid rgba(var(--cy-rgb),.45)", background: "rgba(var(--cy-rgb),.10)", color: "var(--t1)", fontSize: 11.5, fontWeight: 700, cursor: chatBusy ? "default" : "pointer" }}>
                 <Mic size={13} /> Озвучить сценарий
               </button>
             )}
@@ -446,7 +446,7 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
 
         {/* Готовый ролик — грузим прямо в CRM на фазе монтажа. По загруженному файлу считается сдача. */}
         {s.script_status === "approved" && (
-          <div data-tour="sm-video" style={{ padding: 12, borderRadius: 12, background: s.video_url ? "rgba(168,224,99,0.06)" : "rgba(255,174,66,0.06)", border: `1px solid ${s.video_url ? "rgba(168,224,99,0.3)" : "rgba(255,174,66,0.35)"}` }}>
+          <div data-tour="sm-video" style={{ padding: 12, borderRadius: 12, background: s.video_url ? "rgba(var(--gr-rgb),0.06)" : "rgba(var(--or-rgb),0.06)", border: `1px solid ${s.video_url ? "rgba(var(--gr-rgb),0.3)" : "rgba(var(--or-rgb),0.35)"}` }}>
             {label("🎬 Смонтированный ролик — файл от монтажёра", s.video_url ? "var(--gr)" : "var(--or)")}
             <div style={{ display: "flex", gap: 6 }}>
               <input value={videoUrl} readOnly={pv} onChange={(e) => setVideoUrl(e.target.value)}
@@ -454,12 +454,12 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
                 placeholder="Загрузи файл справа → или вставь ссылку" style={{ ...ta, fontSize: 12 }} />
               {s.video_url && (
                 <a href={s.video_url.startsWith("http") ? s.video_url : `https://${s.video_url}`} target="_blank" rel="noopener noreferrer"
-                  style={{ flexShrink: 0, padding: "0 14px", borderRadius: 9, background: "rgba(168,224,99,0.14)", border: "1px solid rgba(168,224,99,0.3)", color: "var(--gr)", display: "inline-flex", alignItems: "center" }}>
+                  style={{ flexShrink: 0, padding: "0 14px", borderRadius: 9, background: "rgba(var(--gr-rgb),0.14)", border: "1px solid rgba(var(--gr-rgb),0.3)", color: "var(--gr)", display: "inline-flex", alignItems: "center" }}>
                   <ExternalLink size={15} />
                 </a>
               )}
               {!pv && (
-              <label style={{ flexShrink: 0, padding: "0 14px", borderRadius: 9, background: "rgba(66,212,244,0.12)", border: "1px solid var(--brd)", color: "var(--cy)", display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 800, cursor: upBusy ? "default" : "pointer", whiteSpace: "nowrap" }}>
+              <label style={{ flexShrink: 0, padding: "0 14px", borderRadius: 9, background: "rgba(var(--cy-rgb),0.12)", border: "1px solid var(--brd)", color: "var(--cy)", display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 800, cursor: upBusy ? "default" : "pointer", whiteSpace: "nowrap" }}>
                 {upBusy ? "Загружаю…" : "⬆ Файл"}
                 <input type="file" accept="video/*" disabled={upBusy} onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadVideo(f); e.target.value = ""; }} style={{ display: "none" }} />
               </label>
@@ -473,7 +473,7 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
 
         {/* Ссылка на вышедший пост — её вставляют уже после публикации, по ней тянется статистика */}
         {isPublished && (
-          <div style={{ padding: 12, borderRadius: 12, background: s.published_url ? "rgba(66,212,244,0.06)" : "rgba(157,107,255,0.05)", border: `1px solid ${s.published_url ? "rgba(66,212,244,0.3)" : "var(--brd)"}` }}>
+          <div style={{ padding: 12, borderRadius: 12, background: s.published_url ? "rgba(var(--cy-rgb),0.06)" : "rgba(var(--pu-rgb),0.05)", border: `1px solid ${s.published_url ? "rgba(var(--cy-rgb),0.3)" : "var(--brd)"}` }}>
             {label("🔗 Ссылка на публикацию в соцсети", s.published_url ? "var(--cy)" : "var(--t3)")}
             <div style={{ display: "flex", gap: 6 }}>
               <input value={pubUrl} readOnly={pv} onChange={(e) => setPubUrl(e.target.value)}
@@ -481,7 +481,7 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
                 placeholder="https://www.instagram.com/reel/… — берётся из соцсети после выхода" style={{ ...ta, fontSize: 12 }} />
               {s.published_url && (
                 <a href={s.published_url.startsWith("http") ? s.published_url : `https://${s.published_url}`} target="_blank" rel="noopener noreferrer"
-                  style={{ flexShrink: 0, padding: "0 14px", borderRadius: 9, background: "rgba(66,212,244,0.14)", border: "1px solid rgba(66,212,244,0.3)", color: "var(--cy)", display: "inline-flex", alignItems: "center" }}>
+                  style={{ flexShrink: 0, padding: "0 14px", borderRadius: 9, background: "rgba(var(--cy-rgb),0.14)", border: "1px solid rgba(var(--cy-rgb),0.3)", color: "var(--cy)", display: "inline-flex", alignItems: "center" }}>
                   <ExternalLink size={15} />
                 </a>
               )}
@@ -497,10 +497,10 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
           const rV = s.ref_views ?? null, oV = s.our_views ?? null;
           const ratio = rV && oV != null ? oV / rV : null;
           const verdict = ratio == null ? null
-            : ratio >= 1 ? { t: "🔥 залетело лучше исходника", c: "#a8e063" }
-            : ratio >= 0.5 ? { t: "🟢 хорошо, близко к исходнику", c: "#a8e063" }
-            : ratio >= 0.2 ? { t: "🟡 средне", c: "#ffae42" }
-            : { t: "🔴 слабо зашло", c: "#ff5c7a" };
+            : ratio >= 1 ? { t: "🔥 залетело лучше исходника", c: "var(--gr)" }
+            : ratio >= 0.5 ? { t: "🟢 хорошо, близко к исходнику", c: "var(--gr)" }
+            : ratio >= 0.2 ? { t: "🟡 средне", c: "var(--or)" }
+            : { t: "🔴 слабо зашло", c: "var(--rd)" };
           const Col = ({ title, url, v, l, cm, accent }: { title: string; url?: string | null; v: number | null; l: number | null; cm: number | null; accent: string }) => (
             <div style={{ flex: 1, minWidth: 0, textAlign: "center" }}>
               <div style={{ fontSize: 9, fontWeight: 800, color: accent, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>{title}</div>
@@ -513,18 +513,18 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
             </div>
           );
           return (
-            <div style={{ padding: 14, borderRadius: 12, background: "rgba(66,212,244,0.05)", border: "1px solid var(--brd)" }}>
+            <div style={{ padding: 14, borderRadius: 12, background: "rgba(var(--cy-rgb),0.05)", border: "1px solid var(--brd)" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 12, fontWeight: 800, color: "var(--t1)" }}><Swords size={14} style={{ color: "var(--cy)" }} /> Результат · исходник vs наше</span>
                 <button onClick={refreshDuel} disabled={duelBusy}
-                  style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 11px", borderRadius: 8, background: "rgba(66,212,244,0.12)", border: "1px solid var(--brd)", color: "var(--cy)", fontSize: 10, fontWeight: 800, cursor: duelBusy ? "default" : "pointer" }}>
+                  style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 11px", borderRadius: 8, background: "rgba(var(--cy-rgb),0.12)", border: "1px solid var(--brd)", color: "var(--cy)", fontSize: 10, fontWeight: 800, cursor: duelBusy ? "default" : "pointer" }}>
                   <RefreshCw size={12} className={duelBusy ? "spin" : ""} /> {duelBusy ? "Тяну…" : "обновить"}
                 </button>
               </div>
               <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
-                <Col title="Исходник (реф)" url={s.ref_url} v={rV} l={s.ref_likes ?? null} cm={s.ref_comments ?? null} accent="#9d6bff" />
+                <Col title="Исходник (реф)" url={s.ref_url} v={rV} l={s.ref_likes ?? null} cm={s.ref_comments ?? null} accent="var(--pu)" />
                 <div style={{ alignSelf: "center", fontSize: 18, color: "var(--t3)", fontWeight: 800 }}>→</div>
-                <Col title="Наше видео" url={s.published_url || s.video_url} v={oV} l={s.our_likes ?? null} cm={s.our_comments ?? null} accent="#42d4f4" />
+                <Col title="Наше видео" url={s.published_url || s.video_url} v={oV} l={s.our_likes ?? null} cm={s.our_comments ?? null} accent="var(--cy)" />
               </div>
               {(s.our_retention_pct != null || s.our_skip_rate != null) && (
                 <div style={{ marginTop: 10, display: "flex", justifyContent: "center", gap: 14, flexWrap: "wrap", fontSize: 12, color: "var(--t2)" }}>
@@ -533,7 +533,7 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
                 </div>
               )}
               {verdict && (
-                <div style={{ marginTop: 12, textAlign: "center", padding: "7px", borderRadius: 8, background: `${verdict.c}18`, color: verdict.c, fontSize: 12, fontWeight: 800 }}>
+                <div style={{ marginTop: 12, textAlign: "center", padding: "7px", borderRadius: 8, background: `color-mix(in srgb, ${verdict.c} 9%, transparent)`, color: verdict.c, fontSize: 12, fontWeight: 800 }}>
                   {verdict.t} · наше = {Math.round((ratio as number) * 100)}% от исходника
                 </div>
               )}
@@ -546,12 +546,12 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, paddingTop: 4 }}>
           {onDelete && !ro ? (
             <button onClick={() => setConfirmDel(true)}
-              style={{ padding: "8px 12px", borderRadius: 9, background: "transparent", border: "1px solid rgba(255,92,122,0.4)", color: "var(--rd)", fontSize: 11, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}>
+              style={{ padding: "8px 12px", borderRadius: 9, background: "transparent", border: "1px solid rgba(var(--rd-rgb),0.4)", color: "var(--rd)", fontSize: 11, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}>
               <Trash2 size={13} /> Удалить
             </button>
           ) : <span />}
           <button onClick={requestClose}
-            style={{ padding: "8px 18px", borderRadius: 9, background: "linear-gradient(135deg, var(--cy), var(--pu))", border: "none", color: "#fff", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>
+            style={{ padding: "8px 18px", borderRadius: 9, background: "var(--btn-grad)", border: "none", color: "var(--btn-fg)", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>
             Готово
           </button>
         </div>

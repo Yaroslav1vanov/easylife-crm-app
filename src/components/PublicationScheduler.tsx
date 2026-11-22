@@ -146,10 +146,10 @@ export default function PublicationScheduler({ clientId, month, scripts, onClose
 
   const chipColor = (s: Script) =>
     s.video_status === "published" ? { bg: "rgba(52,168,83,0.18)", fg: "#4ade80", br: "rgba(52,168,83,0.5)" }
-    : s.video_status === "ready" ? { bg: "rgba(168,224,99,0.16)", fg: "var(--gr)", br: "rgba(168,224,99,0.45)" }
-    : s.video_status === "inProgress" ? { bg: "rgba(66,212,244,0.14)", fg: "var(--cy)", br: "rgba(66,212,244,0.4)" }
+    : s.video_status === "ready" ? { bg: "rgba(var(--gr-rgb),0.16)", fg: "var(--gr)", br: "rgba(var(--gr-rgb),0.45)" }
+    : s.video_status === "inProgress" ? { bg: "rgba(var(--cy-rgb),0.14)", fg: "var(--cy)", br: "rgba(var(--cy-rgb),0.4)" }
     : isEmptySlot(s) ? { bg: "var(--track)", fg: "var(--t3)", br: "var(--brd)" }
-    : { bg: "rgba(157,107,255,0.14)", fg: "var(--pu)", br: "rgba(157,107,255,0.4)" };
+    : { bg: "rgba(var(--pu-rgb),0.14)", fg: "var(--pu)", br: "rgba(var(--pu-rgb),0.4)" };
 
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
@@ -171,7 +171,7 @@ export default function PublicationScheduler({ clientId, month, scripts, onClose
         </div>
 
         {/* Панель распределения */}
-        <div style={{ padding: 14, borderRadius: 12, background: "rgba(123,63,228,0.05)", border: "1px solid var(--brd)", marginBottom: 16 }}>
+        <div style={{ padding: 14, borderRadius: 12, background: "rgba(var(--vi-rgb),0.05)", border: "1px solid var(--brd)", marginBottom: 16 }}>
           <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
             <div>
               <label style={{ fontSize: 9, color: "var(--t3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, display: "block", marginBottom: 4 }}>Сколько роликов</label>
@@ -184,13 +184,13 @@ export default function PublicationScheduler({ clientId, month, scripts, onClose
                 {WD.map((w, i) => (
                   <button key={w} onClick={() => setWeekdays(a => a.map((v, j) => j === i ? !v : v))}
                     style={{ width: 34, height: 34, borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: "pointer",
-                      background: weekdays[i] ? "rgba(157,107,255,0.18)" : "var(--bg)",
+                      background: weekdays[i] ? "rgba(var(--pu-rgb),0.18)" : "var(--bg)",
                       border: `1px solid ${weekdays[i] ? "var(--pu)" : "var(--brd)"}`, color: weekdays[i] ? "var(--pu)" : "var(--t3)" }}>{w}</button>
                 ))}
               </div>
             </div>
             <button onClick={distribute} disabled={busy}
-              style={{ height: 38, padding: "0 16px", borderRadius: 9, background: "linear-gradient(135deg, var(--cy), var(--pu))", border: "none", color: "#fff", fontSize: 12.5, fontWeight: 800, cursor: busy ? "default" : "pointer", display: "inline-flex", alignItems: "center", gap: 7, opacity: busy ? 0.6 : 1 }}>
+              style={{ height: 38, padding: "0 16px", borderRadius: 9, background: "var(--btn-grad)", border: "none", color: "var(--btn-fg)", fontSize: 12.5, fontWeight: 800, cursor: busy ? "default" : "pointer", display: "inline-flex", alignItems: "center", gap: 7, opacity: busy ? 0.6 : 1 }}>
               <Wand2 size={13} /> {busy ? "Расставляю…" : "Распределить по месяцу"}
             </button>
             <div style={{ flex: 1 }} />
@@ -221,7 +221,7 @@ export default function PublicationScheduler({ clientId, month, scripts, onClose
                 onDragOver={e => { if (active) { e.preventDefault(); setDragOver(d); } }}
                 onDragLeave={() => setDragOver(null)}
                 onDrop={e => { e.preventDefault(); setDragOver(null); if (active && dragId) moveTo(dragId, d); setDragId(null); }}
-                style={{ minWidth: 0, minHeight: 78, borderRadius: 10, padding: 6, background: active ? (isOver ? "rgba(66,212,244,0.12)" : "var(--inset)") : "transparent",
+                style={{ minWidth: 0, minHeight: 78, borderRadius: 10, padding: 6, background: active ? (isOver ? "rgba(var(--cy-rgb),0.12)" : "var(--inset)") : "transparent",
                   border: `1px solid ${isOver ? "var(--cy)" : active ? "var(--brd)" : "transparent"}`, opacity: active ? 1 : 0.28, display: "flex", flexDirection: "column", gap: 3 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span style={{ fontSize: 10.5, fontWeight: 800, color: dd === 1 ? "var(--pu)" : "var(--t3)" }}>
@@ -258,7 +258,7 @@ export default function PublicationScheduler({ clientId, month, scripts, onClose
         </div>
 
         {noDate.length > 0 && (
-          <div style={{ marginTop: 14, padding: 12, borderRadius: 10, background: "rgba(255,174,66,0.07)", border: "1px solid rgba(255,174,66,0.3)" }}>
+          <div style={{ marginTop: 14, padding: 12, borderRadius: 10, background: "rgba(var(--or-rgb),0.07)", border: "1px solid rgba(var(--or-rgb),0.3)" }}>
             <div style={{ fontSize: 11, fontWeight: 800, color: "var(--or)", marginBottom: 7 }}>Без даты публикации: {noDate.length}</div>
             <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
               {noDate.map(s => (
@@ -274,7 +274,7 @@ export default function PublicationScheduler({ clientId, month, scripts, onClose
         <div style={{ position: "sticky", bottom: -22, marginTop: 16, paddingTop: 12, paddingBottom: 4, background: "var(--side)", borderTop: "1px solid var(--brd)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <span style={{ fontSize: 10.5, color: "var(--t3)" }}>Изменения сохраняются сразу — отдельной кнопки не нужно</span>
           <button onClick={onClose}
-            style={{ padding: "9px 22px", borderRadius: 10, background: "linear-gradient(135deg, var(--cy), var(--pu))", border: "none", color: "#fff", fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}>
+            style={{ padding: "9px 22px", borderRadius: 10, background: "var(--btn-grad)", border: "none", color: "var(--btn-fg)", fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}>
             Готово
           </button>
         </div>

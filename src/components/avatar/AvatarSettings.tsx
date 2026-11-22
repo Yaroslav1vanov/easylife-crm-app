@@ -77,7 +77,7 @@ export default function AvatarSettings({ clientId, avatar, isOwner, clientPackag
   if (!avatar && !isOwner) return null;
 
   return (
-    <div style={{ marginTop: 6, padding: 12, borderRadius: 12, border: "1px solid rgba(66,212,244,.35)", background: "rgba(66,212,244,.05)", display: "flex", flexDirection: "column", gap: 8 }}>
+    <div style={{ marginTop: 6, padding: 12, borderRadius: 12, border: "1px solid rgba(var(--cy-rgb),.35)", background: "rgba(var(--cy-rgb),.05)", display: "flex", flexDirection: "column", gap: 8 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <b style={{ fontSize: 13.5 }}>🧑‍💼 Аватар HeyGen</b>
         <span style={{ fontSize: 11.5, color: "var(--t3)" }}>{avatar ? "чат «Аватар» включён" : "не привязан"}</span>

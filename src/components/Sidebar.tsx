@@ -2,7 +2,6 @@
 import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
-import { useTheme } from "@/components/ThemeProvider";
 import { sectionAllowed, isOwner, seesOverview } from "@/components/RoleContext";
 import Avatar from "@/components/Avatar";
 import AlertsBell from "@/components/AlertsBell";
@@ -11,20 +10,24 @@ import Sheet from "@/components/Sheet";
 import { useIsMobile } from "@/lib/useMedia";
 import {
   LayoutDashboard, Users, FileText, Scissors, Send, Calendar, Rocket, Flame,
-  HandshakeIcon, BarChart3, Mic, Coins, ClipboardList, BookOpen, Settings, LogOut, Moon, Sun, Wallet,
+  HandshakeIcon, BarChart3, Mic, Coins, ClipboardList, BookOpen, Settings, LogOut, Wallet,
   CalendarCheck, CalendarDays, MoreHorizontal, Search, Target, ListChecks, type LucideIcon,
   Trash2, Bot,
 } from "lucide-react";
 
 function BrandMark({ size = 26 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 32 32" style={{ borderRadius: size * 0.28, display: "block", flexShrink: 0 }} aria-hidden>
-      <rect width="32" height="32" rx="9" fill="#7b3fe4" />
-      <rect x="6" y="13" width="20" height="13" rx="2.5" fill="#fff" />
-      <rect x="6" y="8" width="20" height="5" rx="1.5" fill="#fff" />
-      <path d="M10 8 L8.4 13 M15 8 L13.4 13 M20 8 L18.4 13 M25 8 L23.4 13" stroke="#7b3fe4" strokeWidth="1.7" strokeLinecap="round" />
+    <svg width={size} viewBox="0 0 745 605" style={{ display: "block", flexShrink: 0 }} aria-hidden>
+      <g fill="#c6ff1c">
+        <path d="M316 0L745 0L691.6 94Q657 155 587 155L158 155L211.4 61Q246 0 316 0Z" />
+        <path d="M235 225L545 225L491.6 319Q457 380 387 380L77 380L130.4 286Q165 225 235 225Z" />
+        <path d="M158 450L642 450L588.6 544Q554 605 484 605L0 605L53.4 511Q88 450 158 450Z" />
+      </g>
     </svg>
   );
+}
+function Logo({ size = 26 }: { size?: number }) {
+  return <div className="app-logo"><BrandMark size={size} /><span>EASYLIFE <b>AI</b></span></div>;
 }
 
 type NavItem = { id: string; path: string; icon: LucideIcon; label: string; short?: string };
@@ -79,7 +82,6 @@ export function Sidebar({ userRole }: { userRole: string }) {
   const router = useRouter();
   const pathname = usePathname();
   const supabase = createClient();
-  const { theme, toggle } = useTheme();
   const isMobile = useIsMobile();
   const [moreOpen, setMoreOpen] = useState(false);
   const [me, setMe] = useState<{ name: string; avatar_url: string | null } | null>(null);
@@ -113,8 +115,8 @@ export function Sidebar({ userRole }: { userRole: string }) {
     },
   });
 
-  const NavGroups = ({ compact = false }: { compact?: boolean }) => (
-    <nav style={{ flex: 1, padding: compact ? 6 : 8, display: "flex", flexDirection: "column", gap: 1, overflowY: "auto" }}>
+  const NavGroups = () => (
+    <nav className="side-nav">
       {GROUPS.map(g => {
         const items = g.items.filter(it => allowed(it.id));
         if (!items.length) return null;
@@ -124,10 +126,9 @@ export function Sidebar({ userRole }: { userRole: string }) {
             {items.map(item => {
               const Icon = item.icon;
               return (
-                <a key={item.id} {...linkProps(item)} className={`nav-item ${isActive(item.path) ? "active" : ""}`}
-                  style={{ fontSize: 13, padding: "8px 10px", gap: 10, textDecoration: "none" }}>
-                  <Icon size={16} strokeWidth={1.8} />
-                  <span style={{ flex: 1, textAlign: "left" }}>{item.label}</span>
+                <a key={item.id} {...linkProps(item)} className={`nav-item ${isActive(item.path) ? "active" : ""}`} aria-current={isActive(item.path) ? "page" : undefined}>
+                  <Icon size={17} strokeWidth={1.9} />
+                  <span style={{ flex: 1, minWidth: 0, textAlign: "left" }}>{item.label}</span>
                 </a>
               );
             })}
@@ -137,32 +138,25 @@ export function Sidebar({ userRole }: { userRole: string }) {
     </nav>
   );
 
-  const UserBlock = ({ compact = false }: { compact?: boolean }) => {
+  const UserBlock = () => {
     const name = me?.name || "…";
     const role = ROLE_LABEL[userRole] || userRole;
     return (
-      <div style={{ position: "relative", padding: compact ? "10px 8px" : "12px 10px", borderTop: "1px solid var(--brd)" }}>
+      <div className="side-me">
         {userMenuOpen && (
-          <div style={{ position: "absolute", bottom: "calc(100% - 4px)", left: 8, right: 8, background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 12, padding: 6, boxShadow: "0 12px 40px var(--inset2)", zIndex: 60 }}>
-            <button onClick={toggle} className="nav-item" style={{ fontSize: 12, padding: "9px 10px", gap: 10 }}>
-              {theme === "dark" ? <Sun size={15} strokeWidth={1.8} /> : <Moon size={15} strokeWidth={1.8} />}
-              <span style={{ flex: 1, textAlign: "left" }}>{theme === "dark" ? "Светлая тема" : "Тёмная тема"}</span>
-            </button>
-            <button onClick={handleLogout} className="nav-item" style={{ fontSize: 12, padding: "9px 10px", gap: 10, color: "var(--rd)" }}>
-              <LogOut size={15} strokeWidth={1.8} /><span style={{ flex: 1, textAlign: "left" }}>Выйти</span>
+          <div className="side-me-menu">
+            <button onClick={handleLogout} className="nav-item" style={{ color: "#ff9488" }}>
+              <LogOut size={16} strokeWidth={1.9} style={{ color: "#ff9488" }} /><span style={{ flex: 1, textAlign: "left" }}>Выйти</span>
             </button>
           </div>
         )}
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <button onClick={() => setUserMenuOpen(v => !v)}
-            style={{ flex: 1, minWidth: 0, border: "none", background: userMenuOpen ? "rgba(157,107,255,0.1)" : "transparent", cursor: "pointer", padding: 6, borderRadius: 10, display: "flex", alignItems: "center", gap: 10 }}>
-            <Avatar name={name} src={me?.avatar_url} size={32} />
-            <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--t1)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</div>
-              <div style={{ fontSize: 10, color: "var(--t3)", letterSpacing: 0.4, textTransform: "uppercase", fontWeight: 600 }}>{role}</div>
-            </div>
-          </button>
-        </div>
+        <button onClick={() => setUserMenuOpen(v => !v)} className={`side-me-btn ${userMenuOpen ? "open" : ""}`} aria-expanded={userMenuOpen}>
+          <Avatar name={name} src={me?.avatar_url} size={34} />
+          <span style={{ flex: 1, minWidth: 0 }}>
+            <b>{name}</b>
+            <small>{role}</small>
+          </span>
+        </button>
       </div>
     );
   };
@@ -173,10 +167,8 @@ export function Sidebar({ userRole }: { userRole: string }) {
     const moreActive = !tabs.some(t => isActive(t.path));
     return (
       <>
-        <div className="v2-topbar" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-          <div className="app-logo" style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15, fontWeight: 700 }}>
-            <BrandMark size={22} /><span style={{ color: "var(--t1)" }}>Easy</span><span className="brand-gradient">Life</span><span style={{ color: "var(--t1)" }}> AI</span>
-          </div>
+        <div className="v2-topbar">
+          <Logo size={22} />
           <AlertsBell role={userRole} />
         </div>
         <nav className="v2-tabbar">
@@ -211,7 +203,6 @@ export function Sidebar({ userRole }: { userRole: string }) {
             );
           })}
           <div className="v2-opts" style={{ marginTop: 6, paddingTop: 10, borderTop: "1px solid var(--brd)" }}>
-            <button className="v2-opt" onClick={toggle}>{theme === "dark" ? <Sun size={16} /> : <Moon size={16} />} {theme === "dark" ? "Светлая тема" : "Тёмная тема"}</button>
             <button className="v2-opt" onClick={handleLogout} style={{ color: "var(--rd)" }}><LogOut size={16} /> Выйти</button>
           </div>
         </Sheet>
@@ -220,22 +211,17 @@ export function Sidebar({ userRole }: { userRole: string }) {
   }
 
   return (
-    <aside className="app-sidebar" style={{ position: "fixed", left: 0, top: 0, height: "100vh", width: 216, display: "flex", flexDirection: "column", borderRight: "1px solid var(--brd)", background: "var(--side)", zIndex: 50 }}>
-      <div style={{ padding: "16px 14px 10px", borderBottom: "1px solid var(--brd)" }}>
-        <div className="app-logo" style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 16, fontWeight: 700 }}>
-          <BrandMark size={26} />
-          <span style={{ display: "inline-flex" }}><span style={{ color: "var(--t1)" }}>Easy</span><span className="brand-gradient">Life</span><span style={{ color: "var(--t1)" }}> AI</span></span>
-          <span style={{ flex: 1 }} />
-          <AlertsBell role={userRole} align="left" />
-        </div>
+    <aside className="app-sidebar">
+      <div className="side-top">
+        <Logo size={26} />
+        <span style={{ flex: 1 }} />
+        <AlertsBell role={userRole} align="left" />
       </div>
-      <button onClick={openGlobalSearch} title="Поиск по сценариям и роликам (Cmd + K)"
-        style={{ margin: "10px 12px 2px", display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 9, border: "1px solid var(--brd)",
-          background: "var(--inp)", color: "var(--t3)", fontSize: 12.5, cursor: "pointer", fontFamily: "inherit" }}>
-        <Search size={14} /> Поиск <span style={{ marginLeft: "auto", fontSize: 10.5, border: "1px solid var(--brd)", borderRadius: 5, padding: "1px 5px" }}>⌘K</span>
+      <button onClick={openGlobalSearch} title="Поиск по сценариям и роликам (Cmd + K)" className="side-search">
+        <Search size={15} /> Поиск <kbd>⌘K</kbd>
       </button>
-      <NavGroups compact />
-      <UserBlock compact />
+      <NavGroups />
+      <UserBlock />
     </aside>
   );
 }

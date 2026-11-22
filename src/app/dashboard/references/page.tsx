@@ -12,14 +12,14 @@ import {
 } from "lucide-react";
 
 const PLAT: Record<string, { label: string; Icon: any; color: string }> = {
-  tiktok: { label: "TikTok", Icon: Music2, color: "#42d4f4" },
+  tiktok: { label: "TikTok", Icon: Music2, color: "var(--cy)" },
   instagram: { label: "Instagram", Icon: Camera, color: "#e1306c" },
-  youtube: { label: "YouTube", Icon: Play, color: "#ff5c7a" },
+  youtube: { label: "YouTube", Icon: Play, color: "var(--rd)" },
 };
 // Две колонки: всё собранное и то, что уходит в сценарии. Старые статусы selected/review показываются в «Все референсы».
 const COLUMNS: { id: RefStatus; label: string; color: string }[] = [
-  { id: "new", label: "Все референсы", color: "#9d6bff" },
-  { id: "approved", label: "Перенести в сценарии", color: "#a8e063" },
+  { id: "new", label: "Все референсы", color: "var(--pu)" },
+  { id: "approved", label: "Перенести в сценарии", color: "var(--gr)" },
 ];
 // Один клиент — две карточки (Ваня: Инстаграм + Тик-ток, LACCURA: Medical + MedSpa). Тот же список, что «склеивает»
 // клиентов в «Стратегии» (app_settings.strategy_client_count.merge): реф из одной карточки можно отдать в идеи другой.
@@ -159,7 +159,7 @@ export default function ReferencesPage() {
 
   return (
     <div style={{ fontFamily: "'Manrope', sans-serif" }}>
-      <div style={{ marginBottom: 14, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+      <div className="page-head">
         <div>
           <h1 style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 22, fontWeight: 800, letterSpacing: -0.5 }}>Референсы · залётные ролики</h1>
           <p style={{ fontSize: 12, color: "var(--t3)", marginTop: 4 }}>Сначала выбери клиента → потом вставь ссылку на ролик</p>
@@ -168,7 +168,7 @@ export default function ReferencesPage() {
       </div>
 
       {tableMissing ? (
-        <div style={{ padding: 24, borderRadius: 14, border: "1px solid rgba(255,174,66,0.4)", background: "rgba(255,174,66,0.08)" }}>
+        <div style={{ padding: 24, borderRadius: 14, border: "1px solid rgba(var(--or-rgb),0.4)", background: "rgba(var(--or-rgb),0.08)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 800, marginBottom: 8, color: "var(--t1)" }}><Database size={16} style={{ color: "var(--or)" }} /> Таблица референсов не готова</div>
           <div style={{ fontSize: 13, color: "var(--t2)" }}>Прогони <code style={{ background: "var(--inset)", padding: "1px 6px", borderRadius: 5 }}>MIGRATION_2026-06-25_references_pipeline.sql</code> в Supabase → SQL Editor.</div>
         </div>
@@ -177,10 +177,10 @@ export default function ReferencesPage() {
           {!isMontager && (
           <div data-tour="ref-add" style={{ display: "flex", gap: 8, marginBottom: 16, alignItems: "flex-start" }}>
             <div style={{ position: "relative", flexShrink: 0 }}>
-              <button onClick={() => setMenu(m => !m)} style={{ height: 44, padding: "0 14px", borderRadius: 10, background: "rgba(123,63,228,0.1)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
+              <button onClick={() => setMenu(m => !m)} style={{ height: 44, padding: "0 14px", borderRadius: 10, background: "rgba(var(--vi-rgb),0.1)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
                 <Filter size={13} /><span style={{ color: "var(--t3)", fontWeight: 500 }}>Клиент:</span>{curClient ? `${curClient.name} ${curClient.surname || ""}` : "выбери"}<ChevronDown size={13} />
               </button>
-              {menu && <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 30, minWidth: 240, background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 10, padding: 4, boxShadow: "0 12px 40px rgba(0,0,0,0.5)", maxHeight: 360, overflowY: "auto" }}>
+              {menu && <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 30, minWidth: 240, background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 10, padding: 4, boxShadow: "0 12px 40px rgba(var(--sh-rgb),calc(0.5 * var(--sh-k)))", maxHeight: 360, overflowY: "auto" }}>
                 {activeClients.map(c => <button key={c.id} onClick={() => { setClientId(c.id); setMenu(false); }} className="nav-item" style={{ fontSize: 12, padding: "7px 10px", gap: 8 }}><Avatar name={c.name} src={c.avatar_url} size={20} /> {c.name} {c.surname || ""}</button>)}
               </div>}
             </div>
@@ -188,7 +188,7 @@ export default function ReferencesPage() {
               placeholder="Вставь ссылку на TikTok / Instagram-ролик…"
               style={{ flex: 1, height: 44, padding: "0 14px", borderRadius: 10, background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 13, outline: "none" }} />
             <button onClick={addRef} disabled={adding || !urlInput.trim()}
-              style={{ height: 44, padding: "0 18px", borderRadius: 10, background: "linear-gradient(135deg, var(--cy), var(--pu))", border: "none", color: "#fff", fontSize: 13, fontWeight: 800, cursor: adding ? "default" : "pointer", display: "inline-flex", alignItems: "center", gap: 7, opacity: adding ? 0.7 : 1 }}>
+              style={{ height: 44, padding: "0 18px", borderRadius: 10, background: "var(--btn-grad)", border: "none", color: "var(--btn-fg)", fontSize: 13, fontWeight: 800, cursor: adding ? "default" : "pointer", display: "inline-flex", alignItems: "center", gap: 7, opacity: adding ? 0.7 : 1 }}>
               {adding ? <Loader2 size={15} className="spin" /> : <Plus size={15} />} {adding ? "Тяну…" : "Добавить"}
             </button>
           </div>
@@ -203,10 +203,10 @@ export default function ReferencesPage() {
                   onDragOver={e => { e.preventDefault(); if (dragOverCol !== col.id) setDragOverCol(col.id); }}
                   onDragLeave={() => { if (dragOverCol === col.id) setDragOverCol(null); }}
                   onDrop={e => { e.preventDefault(); const id = parseInt(e.dataTransfer.getData("text/plain"), 10); if (id) moveTo(col.id, id); }}
-                  style={{ background: "rgba(123,63,228,0.04)", border: `1px solid ${isOver ? col.color : "var(--brd)"}`, borderRadius: 14, padding: 10, minHeight: 360, display: "flex", flexDirection: "column", transition: "border-color .15s" }}>
+                  style={{ background: "rgba(var(--vi-rgb),0.04)", border: `1px solid ${isOver ? col.color : "var(--brd)"}`, borderRadius: 14, padding: 10, minHeight: 360, display: "flex", flexDirection: "column", transition: "border-color .15s" }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, paddingBottom: 8, borderBottom: `2px solid ${col.color}` }}>
                     <h3 style={{ fontSize: 11, fontWeight: 800, color: "var(--t1)", textTransform: "uppercase", letterSpacing: 0.4 }}>{col.label}</h3>
-                    <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 6, background: `${col.color}22`, color: col.color }}>{items.length}</span>
+                    <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 6, background: `color-mix(in srgb, ${col.color} 13%, transparent)`, color: col.color }}>{items.length}</span>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 1 }}>
                     {items.length === 0 && <div style={{ padding: "24px 8px", textAlign: "center", color: "var(--t3)", fontSize: 10, fontStyle: "italic" }}>{isOver ? "Отпусти" : "Пусто"}</div>}
@@ -222,7 +222,7 @@ export default function ReferencesPage() {
                           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                             <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 700, color: p.color }}><p.Icon size={11} /> {p.label}</span>
                             <span style={{ fontSize: 10, color: "var(--t3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.author || ""}</span>
-                            {r.analysis && <Flame size={12} style={{ color: "#ffae42", marginLeft: "auto" }} />}
+                            {r.analysis && <Flame size={12} style={{ color: "var(--or)", marginLeft: "auto" }} />}
                             {r.script_id && <FileText size={12} style={{ color: "var(--gr)", marginLeft: r.analysis ? 4 : "auto" }} />}
                           </div>
                           <div style={{ display: "flex", gap: 12 }}>
@@ -277,10 +277,10 @@ function RefModal({ ref0, client, onClose, onNote, onTranscript, onDelete, onMov
 
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.72)", zIndex: 200, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "40px 20px", overflowY: "auto" }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 18, width: "100%", maxWidth: 700, padding: 22, display: "flex", flexDirection: "column", gap: 14, boxShadow: "0 24px 70px rgba(0,0,0,0.55)" }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 18, width: "100%", maxWidth: 700, padding: 22, display: "flex", flexDirection: "column", gap: 14, boxShadow: "0 24px 70px rgba(var(--sh-rgb),calc(0.55 * var(--sh-k)))" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 7, background: `${p.color}1f`, color: p.color, fontSize: 12, fontWeight: 700 }}><p.Icon size={13} /> {p.label}</span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 7, background: `color-mix(in srgb, ${p.color} 12%, transparent)`, color: p.color, fontSize: 12, fontWeight: 700 }}><p.Icon size={13} /> {p.label}</span>
             <span style={{ fontSize: 13, color: "var(--t2)" }}>{ref0.author || ""}</span>
             {client && <span style={{ fontSize: 11, color: "var(--t3)" }}>· {client.name} {client.surname || ""}</span>}
           </div>
@@ -302,7 +302,7 @@ function RefModal({ ref0, client, onClose, onNote, onTranscript, onDelete, onMov
             const active = ref0.status === col.id;
             return (
               <button key={col.id} onClick={() => { if (!active) onMove(col.id); }} disabled={active}
-                style={{ padding: "6px 11px", borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: active ? "default" : "pointer", border: `1px solid ${active ? col.color : "var(--brd)"}`, background: active ? `${col.color}22` : "transparent", color: active ? col.color : "var(--t2)" }}>
+                style={{ padding: "6px 11px", borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: active ? "default" : "pointer", border: `1px solid ${active ? col.color : "var(--brd)"}`, background: active ? `color-mix(in srgb, ${col.color} 13%, transparent)` : "transparent", color: active ? col.color : "var(--t2)" }}>
                 {col.label}
               </button>
             );
@@ -312,7 +312,7 @@ function RefModal({ ref0, client, onClose, onNote, onTranscript, onDelete, onMov
 
         {/* Разбор донора — показываем только если он уже сохранён (генерация отключена) */}
         {ref0.analysis && (
-        <div data-tour="rm-analysis" style={{ padding: 14, borderRadius: 12, background: "rgba(255,174,66,0.06)", border: "1px solid rgba(255,174,66,0.3)" }}>
+        <div data-tour="rm-analysis" style={{ padding: 14, borderRadius: 12, background: "rgba(var(--or-rgb),0.06)", border: "1px solid rgba(var(--or-rgb),0.3)" }}>
           <div style={{ fontSize: 12, fontWeight: 800, color: "var(--or)", marginBottom: 10 }}>🔥 Разбор донора</div>
           <div style={{ fontSize: 12.5, lineHeight: 1.6, color: "var(--t1)", whiteSpace: "pre-wrap" }}>{ref0.analysis}</div>
         </div>
@@ -342,7 +342,7 @@ function RefModal({ ref0, client, onClose, onNote, onTranscript, onDelete, onMov
           ))}
           </span>
           {!readOnly && (
-          <button onClick={() => onDelete(ref0.id)} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 8, background: "transparent", border: "1px solid rgba(255,92,122,0.4)", color: "var(--rd)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}><Trash2 size={13} /> Удалить</button>
+          <button onClick={() => onDelete(ref0.id)} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 8, background: "transparent", border: "1px solid rgba(var(--rd-rgb),0.4)", color: "var(--rd)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}><Trash2 size={13} /> Удалить</button>
           )}
         </div>
       </div>

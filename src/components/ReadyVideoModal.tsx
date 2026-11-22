@@ -137,7 +137,7 @@ export default function ReadyVideoModal({ clients, defaultClientId, onClose, onC
     <div onClick={() => !busy && onClose()} className="v2" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.72)", zIndex: 200, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "24px 12px", overflowY: "auto" }}>
       <div onClick={e => e.stopPropagation()} style={{ background: "var(--side)", border: "1px solid var(--v2-brd2)", borderRadius: 18, width: "100%", maxWidth: 820, padding: 18, display: "flex", flexDirection: "column", gap: 14 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ width: 36, height: 36, borderRadius: 10, background: "rgba(168,224,99,.15)", color: "var(--gr)", display: "flex", alignItems: "center", justifyContent: "center" }}><Film size={18} /></span>
+          <span style={{ width: 36, height: 36, borderRadius: 10, background: "rgba(var(--gr-rgb),.15)", color: "var(--gr)", display: "flex", alignItems: "center", justifyContent: "center" }}><Film size={18} /></span>
           <div style={{ flex: 1 }}>
             <div style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 15, fontWeight: 800, color: "var(--t1)" }}>Готовый ролик</div>
             <div style={{ fontSize: 12, color: "var(--t3)" }}>Без сценария и монтажа — просто загрузить видео и поставить в график</div>

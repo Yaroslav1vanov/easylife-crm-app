@@ -110,9 +110,9 @@ export default function EmployeeDashboard({ member, clients, clientMonths, scrip
   }, [member, clients, clientMonths, scripts, todayIso, isMg, onbProgresses]);
 
   const KPI = ({ icon: I, label, value, sub, color, attention }: any) => (
-    <div className="card" style={{ padding: 16, borderRadius: 14, border: attention ? `1px solid ${color}66` : undefined, background: attention ? `${color}0f` : undefined }}>
+    <div className="card" style={{ padding: 16, borderRadius: 14, border: attention ? `1px solid color-mix(in srgb, ${color} 40%, transparent)` : undefined, background: attention ? `color-mix(in srgb, ${color} 6%, transparent)` : undefined }}>
       <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 8 }}>
-        <div style={{ width: 30, height: 30, borderRadius: 9, background: `${color}22`, color, display: "flex", alignItems: "center", justifyContent: "center", border: `1px solid ${color}44` }}>
+        <div style={{ width: 30, height: 30, borderRadius: 9, background: `color-mix(in srgb, ${color} 13%, transparent)`, color, display: "flex", alignItems: "center", justifyContent: "center", border: `1px solid color-mix(in srgb, ${color} 27%, transparent)` }}>
           <I size={15} strokeWidth={1.9} />
         </div>
         <span style={{ fontSize: 10, color: "var(--t3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4 }}>{label}</span>
@@ -126,12 +126,12 @@ export default function EmployeeDashboard({ member, clients, clientMonths, scrip
     <div style={{ fontFamily: "'Manrope', sans-serif" }}>
       {viewedByOwner && (
         <div style={{ padding: "9px 13px", borderRadius: 11, marginBottom: 14, fontSize: 12,
-          background: "rgba(157,107,255,.08)", border: "1px solid rgba(157,107,255,.35)", color: "var(--t2)" }}>
+          background: "rgba(var(--pu-rgb),.08)", border: "1px solid rgba(var(--pu-rgb),.35)", color: "var(--t2)" }}>
           👁 Это экран <b style={{ color: "var(--t1)" }}>{member.name}</b> — ровно то, что видит {isMg ? "монтажёр" : "тимлид"} у себя.
         </div>
       )}
 
-      <div style={{ marginBottom: 16 }}>
+      <div className="page-head ph-col">
         <h1 style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 22, fontWeight: 800, letterSpacing: -0.5 }}>
           {isMg ? "🎬" : "✍️"} {member.name}
         </h1>
@@ -142,13 +142,13 @@ export default function EmployeeDashboard({ member, clients, clientMonths, scrip
 
       {/* KPI — только про него */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 16 }} className="emp-kpi">
-        <KPI icon={AlertTriangle} label="Просрочено" value={v.overdue.length} color="#ff5c7a" attention={v.overdue.length > 0}
+        <KPI icon={AlertTriangle} label="Просрочено" value={v.overdue.length} color="var(--rd)" attention={v.overdue.length > 0}
           sub={v.overdue.length ? "разобрать в первую очередь" : "чисто"} />
-        <KPI icon={CheckCircle2} label="Сегодня" value={v.todayTasks.length} color="#ffae42"
+        <KPI icon={CheckCircle2} label="Сегодня" value={v.todayTasks.length} color="var(--or)"
           sub={isMg ? "сдать сегодня" : "написать сегодня"} />
-        <KPI icon={Film} label={isMg ? "Смонтировано в месяце" : "Опубликовано в месяце"} value={v.doneMonth} color="#a8e063"
+        <KPI icon={Film} label={isMg ? "Смонтировано в месяце" : "Опубликовано в месяце"} value={v.doneMonth} color="var(--gr)"
           sub={`план по моим клиентам: ${v.planMonth}${v.trialMonth ? ` · +${v.trialMonth} пробных` : ""}`} />
-        <KPI icon={Users} label="Мои клиенты" value={v.mine.length} color="#42d4f4" sub="в работе" />
+        <KPI icon={Users} label="Мои клиенты" value={v.mine.length} color="var(--cy)" sub="в работе" />
       </div>
 
       {/* Партии на неделю — монтажёру */}
@@ -163,7 +163,7 @@ export default function EmployeeDashboard({ member, clients, clientMonths, scrip
             {v.batches.map(b => {
               const left = b!.quota - b!.done;
               const hot = b!.readyByIso <= todayIso && left > 0;
-              const col = hot ? "#ff5c7a" : left > 0 ? "#ffae42" : "#a8e063";
+              const col = hot ? "var(--rd)" : left > 0 ? "var(--or)" : "var(--gr)";
               return (
                 <button key={b!.client.id} onClick={() => router.push(`/dashboard/montage`)}
                   style={{ textAlign: "left", padding: 12, borderRadius: 12, background: "var(--inset2)", border: `1px solid ${hot ? col : "var(--track)"}`, cursor: "pointer" }}>
@@ -187,15 +187,15 @@ export default function EmployeeDashboard({ member, clients, clientMonths, scrip
       {/* Онбординг — если у сотрудника есть новые клиенты */}
       {v.onboarding.length > 0 && (
         <div className="card" style={{ padding: 16, borderRadius: 15, marginBottom: 14,
-          borderColor: "rgba(255,174,66,0.3)", background: "linear-gradient(135deg, rgba(255,174,66,0.06), rgba(123,63,228,0.03))" }}>
+          borderColor: "rgba(var(--or-rgb),0.3)", background: "linear-gradient(135deg, rgba(var(--or-rgb),0.06), rgba(var(--vi-rgb),0.03))" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 12, flexWrap: "wrap" }}>
             <span style={{ fontSize: 14, fontWeight: 800 }}>🚀 Онбординг</span>
-            <span style={{ fontSize: 11, fontWeight: 800, padding: "2px 8px", borderRadius: 7, background: "rgba(255,174,66,.18)", color: "var(--or)" }}>{v.onboarding.length}</span>
+            <span style={{ fontSize: 11, fontWeight: 800, padding: "2px 8px", borderRadius: 7, background: "rgba(var(--or-rgb),.18)", color: "var(--or)" }}>{v.onboarding.length}</span>
             <span style={{ marginLeft: "auto", fontSize: 10, color: "var(--t3)" }}>довести до первой публикации — 10 дней</span>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))", gap: 9 }}>
             {v.onboarding.map(({ c, pr, day, dl, left }) => {
-              const col = left == null ? "var(--t3)" : left < 0 ? "#ff5c7a" : left <= 2 ? "#ffae42" : "#a8e063";
+              const col = left == null ? "var(--t3)" : left < 0 ? "var(--rd)" : left <= 2 ? "var(--or)" : "var(--gr)";
               return (
                 <button key={c.id} onClick={() => router.push(`/dashboard/clients/${c.id}/onboarding`)}
                   style={{ textAlign: "left", padding: 12, borderRadius: 12, background: "var(--inset)", border: `1px solid ${left != null && left < 0 ? col : "var(--brd)"}`, cursor: "pointer" }}>
@@ -213,7 +213,7 @@ export default function EmployeeDashboard({ member, clients, clientMonths, scrip
                     задач: {pr.done_tasks}/{pr.total_tasks - pr.skipped_tasks}{pr.overdue_tasks > 0 ? ` · ⚠ ${pr.overdue_tasks} просрочено` : ""}
                   </div>
                   <div style={{ height: 5, borderRadius: 3, background: "var(--track)", overflow: "hidden" }}>
-                    <div style={{ width: `${pr.progress_pct}%`, height: "100%", background: "linear-gradient(90deg, #ffae42, #ff5c7a)" }} />
+                    <div style={{ width: `${pr.progress_pct}%`, height: "100%", background: "linear-gradient(90deg, var(--or), var(--rd))" }} />
                   </div>
                 </button>
               );
@@ -225,12 +225,12 @@ export default function EmployeeDashboard({ member, clients, clientMonths, scrip
       {/* Мои задачи — по этапам, чтобы было понятно, где затык */}
       {(() => {
         const META: Record<string, { t: string; c: string; hint: string }> = {
-          tl_write:   { t: "✍️ Написать сценарий",        c: "#9d6bff", hint: "ещё не начат" },
-          tl_send:    { t: "📤 Отправить клиенту",         c: "#42d4f4", hint: "написан, ждёт отправки на согласование" },
-          tl_wait:    { t: "⏳ У клиента на согласовании",  c: "#ffae42", hint: "ждём ответ — если тянет, напомнить" },
-          tl_publish: { t: "🚀 Принять и опубликовать",    c: "#a8e063", hint: "монтажёр сдал ролик" },
-          mg_montage: { t: "✂️ Смонтировать",              c: "#9d6bff", hint: "сценарий согласован, можно брать" },
-          mg_upload:  { t: "⬆️ Загрузить готовый ролик",   c: "#42d4f4", hint: "в монтаже, файла ещё нет" },
+          tl_write:   { t: "✍️ Написать сценарий",        c: "var(--pu)", hint: "ещё не начат" },
+          tl_send:    { t: "📤 Отправить клиенту",         c: "var(--cy)", hint: "написан, ждёт отправки на согласование" },
+          tl_wait:    { t: "⏳ У клиента на согласовании",  c: "var(--or)", hint: "ждём ответ — если тянет, напомнить" },
+          tl_publish: { t: "🚀 Принять и опубликовать",    c: "var(--gr)", hint: "монтажёр сдал ролик" },
+          mg_montage: { t: "✂️ Смонтировать",              c: "var(--pu)", hint: "сценарий согласован, можно брать" },
+          mg_upload:  { t: "⬆️ Загрузить готовый ролик",   c: "var(--cy)", hint: "в монтаже, файла ещё нет" },
         };
         const order = isMg ? ["mg_upload", "mg_montage"] : ["tl_publish", "tl_wait", "tl_send", "tl_write"];
         const byKind: Record<string, typeof v.tasks> = {};
@@ -250,19 +250,19 @@ export default function EmployeeDashboard({ member, clients, clientMonths, scrip
                 <div key={k} className="card" style={{ padding: 16, borderRadius: 15, borderLeft: `3px solid ${m.c}` }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 11, flexWrap: "wrap" }}>
                     <span style={{ fontSize: 13.5, fontWeight: 800, color: "var(--t1)" }}>{m.t}</span>
-                    <span style={{ fontSize: 11, fontWeight: 800, padding: "2px 8px", borderRadius: 7, background: `${m.c}22`, color: m.c }}>{list.length}</span>
+                    <span style={{ fontSize: 11, fontWeight: 800, padding: "2px 8px", borderRadius: 7, background: `color-mix(in srgb, ${m.c} 13%, transparent)`, color: m.c }}>{list.length}</span>
                     {late > 0 && <span style={{ fontSize: 11, fontWeight: 800, color: "var(--rd)" }}>⚠ {late} просрочено</span>}
                     <span style={{ marginLeft: "auto", fontSize: 10, color: "var(--t3)" }}>{m.hint}</span>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                     {list.slice(0, 8).map(({ s, c, due }) => {
                       const diff = Math.round((Date.parse(due) - Date.parse(todayIso)) / 86400000);
-                      const col = diff < 0 ? "#ff5c7a" : diff <= 1 ? "#ffae42" : "var(--t3)";
+                      const col = diff < 0 ? "var(--rd)" : diff <= 1 ? "var(--or)" : "var(--t3)";
                       const txt = diff < 0 ? `просрочено ${-diff} дн` : diff === 0 ? "сегодня" : diff === 1 ? "завтра" : `через ${diff} дн`;
                       return (
                         <button key={s.id} onClick={() => router.push(`${isMg ? "/dashboard/montage" : "/dashboard/scripts"}?open=${s.id}`)}
                           style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 11px", borderRadius: 10, textAlign: "left", cursor: "pointer",
-                            background: diff < 0 ? "rgba(255,92,122,.06)" : "var(--inset2)", border: `1px solid ${diff < 0 ? "rgba(255,92,122,.3)" : "var(--track)"}` }}>
+                            background: diff < 0 ? "rgba(var(--rd-rgb),.06)" : "var(--inset2)", border: `1px solid ${diff < 0 ? "rgba(var(--rd-rgb),.3)" : "var(--track)"}` }}>
                           <Avatar name={`${c.name} ${c.surname || ""}`} src={c.avatar_url} size={26} />
                           <div style={{ minWidth: 0, flex: 1 }}>
                             <div style={{ fontSize: 12, fontWeight: 700, color: "var(--t1)" }}>{c.name} {c.surname || ""}</div>

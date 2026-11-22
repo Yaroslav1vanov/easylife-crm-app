@@ -24,10 +24,10 @@ const CHANNELS: Channel[] = [
 // Утверждение сценария/ролика происходит раньше — в Монтаже. Сюда попадает уже готовый ролик,
 // который нужно оформить (тексты под соцсети) и опубликовать. Поэтому: Готово к публикации → Запланировано → Опубликовано.
 const COLUMNS: { id: string; label: string; color: string; statuses: PubStatus[] }[] = [
-  { id: "ready", label: "Готово к публикации", color: "#9d6bff", statuses: ["adapting", "review", "queued"] },
-  { id: "scheduled", label: "Запланировано", color: "#42d4f4", statuses: ["scheduled"] },
-  { id: "published", label: "Опубликовано", color: "#a8e063", statuses: ["published"] },
-  { id: "error", label: "Ошибка", color: "#ff5c7a", statuses: ["error"] },
+  { id: "ready", label: "Готово к публикации", color: "var(--pu)", statuses: ["adapting", "review", "queued"] },
+  { id: "scheduled", label: "Запланировано", color: "var(--cy)", statuses: ["scheduled"] },
+  { id: "published", label: "Опубликовано", color: "var(--gr)", statuses: ["published"] },
+  { id: "error", label: "Ошибка", color: "var(--rd)", statuses: ["error"] },
 ];
 
 // время публикации показывается/задаётся в поясе клиента — см. helpers из @/lib/tz
@@ -243,13 +243,13 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
   const Toggle = (
     <div style={{ display: "flex", borderRadius: 10, border: "1px solid var(--brd)", overflow: "hidden" }}>
       <button onClick={onShowPlan} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 12px", background: "transparent", color: "var(--t2)", border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer" }}><CalendarDays size={13} /> Контент-план</button>
-      <button style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 12px", background: "rgba(157,107,255,0.15)", color: "var(--pu)", border: "none", fontSize: 11, fontWeight: 700, cursor: "default" }}><Wand2 size={13} /> Подготовка</button>
+      <button style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 12px", background: "rgba(var(--pu-rgb),0.15)", color: "var(--pu)", border: "none", fontSize: 11, fontWeight: 700, cursor: "default" }}><Wand2 size={13} /> Подготовка</button>
     </div>
   );
 
   return (
     <div style={{ fontFamily: "'Manrope', sans-serif" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 14, flexWrap: "wrap", marginBottom: 16 }}>
+      <div className="page-head">
         <div>
           <h1 style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 22, fontWeight: 800, letterSpacing: -0.5 }}>Публикации · подготовка постов</h1>
           <p style={{ fontSize: 12, color: "var(--t3)", marginTop: 4 }}>Готовое видео → AI-адаптация текста под соцсети → утверждение тимлидом → Metricool</p>
@@ -258,13 +258,13 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
           {onShowPlan && Toggle}
           <div data-tour="pp-client" style={{ position: "relative" }}>
             <button onClick={() => setClientMenu(v => !v)}
-              style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: 10, background: "rgba(123,63,228,0.08)", border: `1px solid ${clientFilter !== "all" ? "var(--pu)" : "var(--brd)"}`, color: "var(--t1)", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+              style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: 10, background: "rgba(var(--vi-rgb),0.08)", border: `1px solid ${clientFilter !== "all" ? "var(--pu)" : "var(--brd)"}`, color: "var(--t1)", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
               {clientFilter !== "all" && clientById[clientFilter] && <Avatar name={`${clientById[clientFilter].name} ${clientById[clientFilter].surname || ""}`} src={clientById[clientFilter].avatar_url} size={18} />}
               <span style={{ color: "var(--t3)", fontWeight: 500 }}>Клиент:</span>{clientFilter === "all" ? "Все" : `${clientById[clientFilter]?.name || ""} ${clientById[clientFilter]?.surname || ""}`}
               <ChevronDown size={13} />
             </button>
             {clientMenu && (
-              <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 50, width: 240, maxHeight: 340, overflowY: "auto", background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 12, padding: 6, boxShadow: "0 16px 40px rgba(0,0,0,0.5)" }}>
+              <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 50, width: 240, maxHeight: 340, overflowY: "auto", background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 12, padding: 6, boxShadow: "0 16px 40px rgba(var(--sh-rgb),calc(0.5 * var(--sh-k)))" }}>
                 <button onClick={() => { setClientFilter("all"); setClientMenu(false); }} className="nav-item" style={{ fontSize: 12, padding: "7px 8px", width: "100%", textAlign: "left" }}>Все клиенты</button>
                 {clients.filter(c => c.stage === "active").sort((a, b) => a.name.localeCompare(b.name)).map(c => (
                   <button key={c.id} onClick={() => { setClientFilter(c.id); setClientMenu(false); }} className="nav-item"
@@ -277,11 +277,11 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
           </div>
           <TourButton onClick={() => setTourOpen(true)} />
           <button data-tour="pp-brands" onClick={loadBrands} disabled={brandsBusy}
-            style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: 10, background: "rgba(66,212,244,0.1)", border: "1px solid var(--brd)", color: "var(--cy)", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+            style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: 10, background: "rgba(var(--cy-rgb),0.1)", border: "1px solid var(--brd)", color: "var(--cy)", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
             <Rocket size={13} /> {brandsBusy ? "Гружу…" : "Мои бренды"}
           </button>
           <button onClick={() => setReadyOpen(true)} disabled={tableMissing} title="Видео уже готово — просто поставить в график, без сценария"
-            style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: 10, background: "rgba(168,224,99,0.12)", border: "1px solid var(--brd)", color: "var(--gr)", fontSize: 12, fontWeight: 700, cursor: tableMissing ? "not-allowed" : "pointer" }}>
+            style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: 10, background: "rgba(var(--gr-rgb),0.12)", border: "1px solid var(--brd)", color: "var(--gr)", fontSize: 12, fontWeight: 700, cursor: tableMissing ? "not-allowed" : "pointer" }}>
             <Film size={13} /> + Готовый ролик
           </button>
           <button onClick={() => setStoryOpen(true)} disabled={tableMissing}
@@ -290,11 +290,11 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
           </button>
           <div data-tour="pp-carousel" style={{ position: "relative" }}>
             <button onClick={() => setCarouselPicker(v => !v)} disabled={tableMissing}
-              style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: 10, background: "rgba(255,174,66,0.12)", border: "1px solid var(--brd)", color: "var(--or)", fontSize: 12, fontWeight: 700, cursor: tableMissing ? "not-allowed" : "pointer" }}>
+              style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: 10, background: "rgba(var(--or-rgb),0.12)", border: "1px solid var(--brd)", color: "var(--or)", fontSize: 12, fontWeight: 700, cursor: tableMissing ? "not-allowed" : "pointer" }}>
               <Images size={13} /> + Карусель
             </button>
             {carouselPicker && (
-              <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 50, width: 240, maxHeight: 320, overflowY: "auto", background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 12, padding: 6, boxShadow: "0 16px 40px rgba(0,0,0,0.5)" }}>
+              <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 50, width: 240, maxHeight: 320, overflowY: "auto", background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 12, padding: 6, boxShadow: "0 16px 40px rgba(var(--sh-rgb),calc(0.5 * var(--sh-k)))" }}>
                 <div style={{ fontSize: 10, fontWeight: 800, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 0.5, padding: "6px 8px" }}>Карусель для клиента</div>
                 {clients.filter(c => c.stage === "active").map(c => (
                   <button key={c.id} onClick={() => createCarousel(c.id)}
@@ -308,7 +308,7 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
             )}
           </div>
           <button data-tour="pp-pull" onClick={pullReady} disabled={pulling || tableMissing}
-            style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: 10, background: "rgba(157,107,255,0.12)", border: "1px solid var(--brd)", color: "var(--pu)", fontSize: 12, fontWeight: 700, cursor: tableMissing ? "not-allowed" : "pointer" }}>
+            style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: 10, background: "rgba(var(--pu-rgb),0.12)", border: "1px solid var(--brd)", color: "var(--pu)", fontSize: 12, fontWeight: 700, cursor: tableMissing ? "not-allowed" : "pointer" }}>
             <RefreshCw size={13} className={pulling ? "spin" : ""} /> {pulling ? "Подтягиваю…" : "Подтянуть готовые видео"}
           </button>
         </div>
@@ -336,15 +336,15 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
       {loading ? (
         <div style={{ padding: 40, textAlign: "center", color: "var(--t2)" }}>Загрузка…</div>
       ) : tableMissing ? (
-        <div style={{ padding: 24, borderRadius: 14, border: "1px solid rgba(255,174,66,0.4)", background: "rgba(255,174,66,0.08)", color: "var(--t1)" }}>
+        <div style={{ padding: 24, borderRadius: 14, border: "1px solid rgba(var(--or-rgb),0.4)", background: "rgba(var(--or-rgb),0.08)", color: "var(--t1)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 800, marginBottom: 8 }}><Database size={16} style={{ color: "var(--or)" }} /> Таблица публикаций ещё не создана</div>
           <div style={{ fontSize: 13, color: "var(--t2)", lineHeight: 1.6 }}>
             Прогони миграцию <code style={{ background: "var(--inset)", padding: "1px 6px", borderRadius: 5 }}>MIGRATION_2026-06-24_publications.sql</code> в Supabase → SQL Editor → Run. После этого появятся колонки, карточки и поля для текстов под каждую соцсеть.
           </div>
         </div>
       ) : errMsg ? (
-        <div style={{ padding: 24, borderRadius: 14, border: "1px solid rgba(255,92,122,0.4)", background: "rgba(255,92,122,0.08)", color: "var(--t1)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 800, marginBottom: 8 }}><AlertTriangle size={16} style={{ color: "#ff5c7a" }} /> Не удалось загрузить публикации</div>
+        <div style={{ padding: 24, borderRadius: 14, border: "1px solid rgba(var(--rd-rgb),0.4)", background: "rgba(var(--rd-rgb),0.08)", color: "var(--t1)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 800, marginBottom: 8 }}><AlertTriangle size={16} style={{ color: "var(--rd)" }} /> Не удалось загрузить публикации</div>
           <div style={{ fontSize: 13, color: "var(--t2)", lineHeight: 1.6 }}>{errMsg}</div>
         </div>
       ) : (
@@ -357,10 +357,10 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
                 onDragOver={e => { e.preventDefault(); if (dragOverCol !== col.id) setDragOverCol(col.id); }}
                 onDragLeave={() => { if (dragOverCol === col.id) setDragOverCol(null); }}
                 onDrop={e => { e.preventDefault(); const id = parseInt(e.dataTransfer.getData("text/plain"), 10); if (id) moveToColumn(col.id, id); }}
-                style={{ background: "rgba(123,63,228,0.04)", border: `1px solid ${isOver ? col.color : "var(--brd)"}`, borderRadius: 14, padding: 12, minHeight: 360, display: "flex", flexDirection: "column", transition: "border-color .15s" }}>
+                style={{ background: "rgba(var(--vi-rgb),0.04)", border: `1px solid ${isOver ? col.color : "var(--brd)"}`, borderRadius: 14, padding: 12, minHeight: 360, display: "flex", flexDirection: "column", transition: "border-color .15s" }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, paddingBottom: 10, borderBottom: `2px solid ${col.color}` }}>
                   <h3 style={{ fontSize: 11, fontWeight: 800, color: "var(--t1)", textTransform: "uppercase", letterSpacing: 0.5 }}>{col.label}</h3>
-                  <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 6, background: `${col.color}22`, color: col.color }}>{items.length}</span>
+                  <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 6, background: `color-mix(in srgb, ${col.color} 13%, transparent)`, color: col.color }}>{items.length}</span>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 7, flex: 1 }}>
                   {items.length === 0 && <div style={{ padding: "26px 8px", textAlign: "center", color: "var(--t3)", fontSize: 10, fontStyle: "italic" }}>Пусто</div>}
@@ -387,10 +387,10 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
                           {isStory
                             ? <span title="Сторис" style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 8, fontWeight: 800, color: "var(--pk)", background: "rgba(236,72,153,0.14)", padding: "2px 5px", borderRadius: 5, flexShrink: 0 }}><Smartphone size={9} />сторис</span>
                             : isCar
-                            ? <span title="Карусель" style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 8, fontWeight: 800, color: "var(--or)", background: "rgba(255,174,66,0.14)", padding: "2px 5px", borderRadius: 5 }}><Images size={9} />{(p.media_urls?.length || 0)}</span>
+                            ? <span title="Карусель" style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 8, fontWeight: 800, color: "var(--or)", background: "rgba(var(--or-rgb),0.14)", padding: "2px 5px", borderRadius: 5 }}><Images size={9} />{(p.media_urls?.length || 0)}</span>
                             : p.video_url
                               ? <Film size={11} style={{ color: "var(--gr)", flexShrink: 0 }} />
-                              : <span title="Ролик не загружен" style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 8, fontWeight: 800, color: "var(--or)", background: "rgba(255,174,66,0.14)", padding: "2px 5px", borderRadius: 5, flexShrink: 0 }}><AlertTriangle size={9} />нет файла</span>}
+                              : <span title="Ролик не загружен" style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 8, fontWeight: 800, color: "var(--or)", background: "rgba(var(--or-rgb),0.14)", padding: "2px 5px", borderRadius: 5, flexShrink: 0 }}><AlertTriangle size={9} />нет файла</span>}
                         </div>
                         {/* Превью загруженного ролика — чтобы видно было, какое именно видео */}
                         {storyUrl && (isVideoUrl(storyUrl)
@@ -405,8 +405,8 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
                         <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
                           {CHANNELS.filter(ch => chans.includes(ch.id)).map(ch => <ch.Icon key={ch.id} size={11} style={{ color: "var(--t3)" }} />)}
                           {p.ai_generated_at && <span style={{ fontSize: 8, color: "var(--pu)", marginLeft: "auto" }}>🤖 AI</span>}
-                          {p.pub_status === "error" && <AlertTriangle size={11} style={{ color: "#ff5c7a", marginLeft: "auto" }} />}
-                          {p.pub_status === "published" && p.error_message && <span title={p.error_message} style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 3, fontSize: 8, fontWeight: 800, color: "var(--or)", background: "rgba(255,174,66,0.14)", padding: "2px 5px", borderRadius: 5 }}><AlertTriangle size={9} />частично</span>}
+                          {p.pub_status === "error" && <AlertTriangle size={11} style={{ color: "var(--rd)", marginLeft: "auto" }} />}
+                          {p.pub_status === "published" && p.error_message && <span title={p.error_message} style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 3, fontSize: 8, fontWeight: 800, color: "var(--or)", background: "rgba(var(--or-rgb),0.14)", padding: "2px 5px", borderRadius: 5 }}><AlertTriangle size={9} />частично</span>}
                         </div>
                       </div>
                     );

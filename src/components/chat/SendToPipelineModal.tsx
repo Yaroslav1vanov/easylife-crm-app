@@ -201,7 +201,7 @@ export default function SendToPipelineModal({ clientId, video, images, onClose, 
                     {!shown.length && <div style={{ fontSize: 12.5, color: "var(--t3)", padding: 6 }}>Ничего не нашлось</div>}
                     {shown.map((s) => (
                       <button key={s.id} onClick={() => setScriptId(s.id)}
-                        style={{ textAlign: "left", padding: "9px 11px", borderRadius: 10, cursor: "pointer", background: s.id === scriptId ? "rgba(66,212,244,.10)" : "var(--v2-inset)", border: `1px solid ${s.id === scriptId ? "var(--cy)" : "var(--brd)"}`, color: "var(--t1)", fontFamily: "inherit" }}>
+                        style={{ textAlign: "left", padding: "9px 11px", borderRadius: 10, cursor: "pointer", background: s.id === scriptId ? "rgba(var(--cy-rgb),.10)" : "var(--v2-inset)", border: `1px solid ${s.id === scriptId ? "var(--cy)" : "var(--brd)"}`, color: "var(--t1)", fontFamily: "inherit" }}>
                         <div style={{ fontSize: 13 }}>{s.order_num ? `#${s.order_num} · ` : ""}{title(s)}</div>
                         <div style={{ fontSize: 11, color: "var(--t3)", marginTop: 2 }}>
                           <span style={{ color: stageOf(s)[0] === 0 ? "var(--cy)" : stageOf(s)[0] === 3 ? "var(--t3)" : "var(--pu)", fontWeight: 700 }}>{stageOf(s)[1]}</span>

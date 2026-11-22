@@ -45,7 +45,7 @@ function stOf(s: Script): St {
   if (s.script_status === "inProgress" || s.script_status === "review") return "scr";
   return "idea";
 }
-const ST_COLOR: Record<St, string> = { pub: "#a8e063", rdy: "#42d4f4", mon: "#ffae42", scr: "#9d6bff", idea: "#77658f" };
+const ST_COLOR: Record<St, string> = { pub: "var(--gr)", rdy: "var(--cy)", mon: "var(--or)", scr: "var(--pu)", idea: "#77658f" };
 const ST_LABEL: Record<St, string> = { pub: "Опубликован", rdy: "Готов к публикации", mon: "В монтаже", scr: "Сценарий в работе", idea: "Идея / слот" };
 const isEmptySlot = (s: Script) => !((s.hook_text || "").trim() || (s.body_text || "").trim() || (s.hook || "").trim().replace(/^Сценарий #\d+$/, ""));
 const titleOf = (s: Script) => isEmptySlot(s) ? "слот без темы" : (s.hook_text || s.hook || `#${s.order_num}`);
@@ -204,7 +204,7 @@ function PlanInner() {
 
   return (
     <div className="v2">
-      <div className="v2-hdr">
+      <div className="v2-hdr page-head">
         <div>
           <h1>Контент-план</h1>
           <p>{client.name} {client.surname || ""}{month ? ` · M${month.month_number} · ${fmtDateShort(month.start_date)} → ${fmtDateShort(month.end_date)}` : " · нет контрактного месяца"}</p>
@@ -301,7 +301,7 @@ function PlanInner() {
       {/* ---- лист ролика: дата, статус, действия ---- */}
       <Sheet open={!!slot} onClose={() => setSlot(null)}
         title={slot ? titleOf(slot) : ""}
-        sub={slot ? <><span className="v2-chip" style={{ background: `${ST_COLOR[stOf(slot)]}22`, color: ST_COLOR[stOf(slot)], marginRight: 6 }}>{ST_LABEL[stOf(slot)]}</span>{slot.pub_date ? `публикация ${fmtDateShort(slot.pub_date)} · сценарий к ${fmtDateShort(addDaysIso(slot.pub_date, -SCRIPT_LEAD))} · видео к ${fmtDateShort(addDaysIso(slot.pub_date, -VIDEO_LEAD))}` : "без даты публикации"}</> : ""}>
+        sub={slot ? <><span className="v2-chip" style={{ background: `color-mix(in srgb, ${ST_COLOR[stOf(slot)]} 13%, transparent)`, color: ST_COLOR[stOf(slot)], marginRight: 6 }}>{ST_LABEL[stOf(slot)]}</span>{slot.pub_date ? `публикация ${fmtDateShort(slot.pub_date)} · сценарий к ${fmtDateShort(addDaysIso(slot.pub_date, -SCRIPT_LEAD))} · видео к ${fmtDateShort(addDaysIso(slot.pub_date, -VIDEO_LEAD))}` : "без даты публикации"}</> : ""}>
         {slot && (
           <>
             {canEdit && slot.video_status !== "published" && (
@@ -311,7 +311,7 @@ function PlanInner() {
               </>
             )}
             <div className="v2-opts">
-              <SheetOption color="#9d6bff" label="Открыть сценарий" hint="текст, реф, файл" onClick={() => { setEditing(slot); setSlot(null); }} />
+              <SheetOption color="var(--pu)" label="Открыть сценарий" hint="текст, реф, файл" onClick={() => { setEditing(slot); setSlot(null); }} />
               {canEdit && slot.pub_date && slot.video_status !== "published" && <SheetOption color="#77658f" label="Снять дату" hint="уйдёт в «без даты»" onClick={() => setDate(slot.id, null, "Дата снята")} disabled={busy} />}
               {canEdit && isEmptySlot(slot) && slot.script_status === "notStarted" && slot.video_status === "notStarted" && <SheetOption danger label="Удалить пустой слот" onClick={() => removeSlot(slot.id)} disabled={busy} />}
             </div>
@@ -330,7 +330,7 @@ function PlanInner() {
         {addDay && (
           <div className="v2-opts" style={{ maxHeight: "50vh", overflowY: "auto" }}>
             {noDate.map(s => <SheetOption key={s.id} color={ST_COLOR[stOf(s)]} label={titleOf(s)} hint={s.order_num ? `#${s.order_num}` : ""} onClick={() => setDate(s.id, addDay, `Поставлен на ${fmtDateShort(addDay)}`)} disabled={busy} />)}
-            <SheetOption active color="#a8e063" label={busy ? "…" : "+ Создать новый слот"} hint="сценарий напишется позже" onClick={() => createSlot(addDay)} disabled={busy} />
+            <SheetOption active color="var(--gr)" label={busy ? "…" : "+ Создать новый слот"} hint="сценарий напишется позже" onClick={() => createSlot(addDay)} disabled={busy} />
           </div>
         )}
       </Sheet>

@@ -47,7 +47,7 @@ export default function SettingsPage() {
 
   return (
     <div className="v2" style={{ maxWidth: 820 }}>
-      <div className="v2-hdr"><div><h1>Настройки</h1><p>Интерфейс и AI</p></div></div>
+      <div className="v2-hdr page-head"><div><h1>Настройки</h1><p>Интерфейс и AI</p></div></div>
 
       <div className="v2-fg" style={{ marginBottom: 14 }}>
         <h4>Интерфейс</h4>

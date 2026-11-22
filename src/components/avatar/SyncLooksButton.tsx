@@ -40,7 +40,7 @@ export default function SyncLooksButton({ clientId, onSynced, small }: { clientI
         title="Забрать все образы группы аватара из HeyGen с картинками. Только просмотр, кредиты не тратятся">
         {state === "wait" ? <Loader2 size={12} className="spin" /> : <RefreshCw size={12} />} Обновить образы из HeyGen
       </button>
-      {note && <span style={{ fontSize: 11.5, color: state === "err" ? "var(--rd)" : state === "done" ? "#a8e063" : "var(--t3)" }}>{note}</span>}
+      {note && <span style={{ fontSize: 11.5, color: state === "err" ? "var(--rd)" : state === "done" ? "var(--gr)" : "var(--t3)" }}>{note}</span>}
     </span>
   );
 }

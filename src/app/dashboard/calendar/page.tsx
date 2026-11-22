@@ -35,11 +35,11 @@ function buildCalendar(ym: string): (string | null)[][] {
 type Kind = "onb" | "pub" | "dl";
 type Ev = { kind: Kind; id: number; clientId: number; date: string; label: string };
 const KIND_META: Record<Kind | "scr" | "vid", { color: string; label: string }> = {
-  onb: { color: "#f5c451", label: "Онбординг" },
-  scr: { color: "#42d4f4", label: "Сценарии к сдаче" },
-  vid: { color: "#ffae42", label: "Видео готово" },
-  pub: { color: "#a8e063", label: "Публикация" },
-  dl: { color: "#ff5c7a", label: "Дедлайн месяца" },
+  onb: { color: "var(--yl)", label: "Онбординг" },
+  scr: { color: "var(--cy)", label: "Сценарии к сдаче" },
+  vid: { color: "var(--or)", label: "Видео готово" },
+  pub: { color: "var(--gr)", label: "Публикация" },
+  dl: { color: "var(--rd)", label: "Дедлайн месяца" },
 };
 
 export default function CalendarPage() {
@@ -152,11 +152,11 @@ export default function CalendarPage() {
 
   const weeks = buildCalendar(ym);
   const sumCards = [
-    { k: "onb", v: summary.onb, ic: "🧩", l: "онбординг сегодня", c: "#f5c451" },
-    { k: "scr", v: summary.scr, ic: "✍️", l: "сценариев к сдаче", c: "#42d4f4" },
-    { k: "vid", v: summary.vid, ic: "🎬", l: "видео готовы", c: "#ffae42" },
-    { k: "pub", v: summary.pub, ic: "🚀", l: "публикации сегодня", c: "#a8e063" },
-    { k: "od", v: summary.overdue, ic: "⚠️", l: "просрочено", c: "#ff5c7a" },
+    { k: "onb", v: summary.onb, ic: "🧩", l: "онбординг сегодня", c: "var(--yl)" },
+    { k: "scr", v: summary.scr, ic: "✍️", l: "сценариев к сдаче", c: "var(--cy)" },
+    { k: "vid", v: summary.vid, ic: "🎬", l: "видео готовы", c: "var(--or)" },
+    { k: "pub", v: summary.pub, ic: "🚀", l: "публикации сегодня", c: "var(--gr)" },
+    { k: "od", v: summary.overdue, ic: "⚠️", l: "просрочено", c: "var(--rd)" },
   ];
 
   const chip = (e: Ev) => {
@@ -165,7 +165,7 @@ export default function CalendarPage() {
     return (
       <div key={`${e.kind}-${e.id}`} draggable onDragStart={() => setDragEv(e)} onDragEnd={() => { setDragEv(null); setDragOverDay(null); }}
         onClick={() => setModalEv(e)} title={e.label}
-        style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 6px", borderRadius: 6, background: `${meta.color}1f`, border: `1px solid ${meta.color}${over ? "" : "55"}`, color: meta.color, fontSize: 10, fontWeight: 700, cursor: "grab", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", opacity: dragEv?.kind === e.kind && dragEv?.id === e.id ? 0.4 : 1 }}>
+        style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 6px", borderRadius: 6, background: `color-mix(in srgb, ${meta.color} 12%, transparent)`, border: `1px solid ${meta.color}${over ? "" : "55"}`, color: meta.color, fontSize: 10, fontWeight: 700, cursor: "grab", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", opacity: dragEv?.kind === e.kind && dragEv?.id === e.id ? 0.4 : 1 }}>
         <span style={{ width: 6, height: 6, borderRadius: "50%", background: meta.color, flexShrink: 0 }} />
         <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{e.kind === "pub" ? e.label : e.kind === "dl" ? `${cname(e.clientId)} · сдать` : cname(e.clientId)}</span>
       </div>
@@ -173,24 +173,24 @@ export default function CalendarPage() {
   };
   const countChip = (items: { id: number; clientId: number }[] | undefined, kind: "scr" | "vid", day: string) => items && items.length > 0 ? (
     <div onClick={() => setListModal({ kind, date: day, items })} title={groupNames(items)}
-      style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 6px", borderRadius: 6, background: `${KIND_META[kind].color}1a`, border: `1px dashed ${KIND_META[kind].color}66`, color: KIND_META[kind].color, fontSize: 10, fontWeight: 700, cursor: "pointer" }}>
+      style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 6px", borderRadius: 6, background: `color-mix(in srgb, ${KIND_META[kind].color} 10%, transparent)`, border: `1px dashed color-mix(in srgb, ${KIND_META[kind].color} 40%, transparent)`, color: KIND_META[kind].color, fontSize: 10, fontWeight: 700, cursor: "pointer" }}>
       <span style={{ width: 6, height: 6, borderRadius: "50%", background: KIND_META[kind].color }} />{items.length} {kind === "scr" ? "сцен." : "видео"} ›
     </div>
   ) : null;
 
   const Drop = ({ label, value, kind, children }: any) => (
     <div style={{ position: "relative" }}>
-      <button onClick={() => setMenu(menu === kind ? null : kind)} style={{ padding: "8px 12px", borderRadius: 10, background: "rgba(123,63,228,0.08)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 11, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
+      <button onClick={() => setMenu(menu === kind ? null : kind)} style={{ padding: "8px 12px", borderRadius: 10, background: "rgba(var(--vi-rgb),0.08)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 11, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
         <Filter size={11} /><span style={{ color: "var(--t3)" }}>{label}:</span>{value}<ChevronDown size={11} />
       </button>
-      {menu === kind && <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 30, minWidth: 190, background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 10, padding: 4, boxShadow: "0 12px 40px rgba(0,0,0,0.5)", maxHeight: 320, overflowY: "auto" }}>{children}</div>}
+      {menu === kind && <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 30, minWidth: 190, background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 10, padding: 4, boxShadow: "0 12px 40px rgba(var(--sh-rgb),calc(0.5 * var(--sh-k)))", maxHeight: 320, overflowY: "auto" }}>{children}</div>}
     </div>
   );
 
   return (
     <div style={{ fontFamily: "'Manrope', sans-serif" }}>
       {/* HEADER */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 14, flexWrap: "wrap", marginBottom: 16 }}>
+      <div className="page-head">
         <div>
           <h1 style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 22, fontWeight: 800, letterSpacing: -0.5 }}>Календарь</h1>
           <p style={{ fontSize: 12, color: "var(--t3)", marginTop: 4 }}>Все дедлайны производства · {ymLabel(ym)}</p>
@@ -198,7 +198,7 @@ export default function CalendarPage() {
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <div style={{ display: "flex", border: "1px solid var(--brd)", borderRadius: 10, overflow: "hidden" }}>
             {([["month", "Месяц", CalendarDays], ["list", "Список", ListIcon]] as const).map(([v, l, Ic]) => (
-              <button key={v} onClick={() => setView(v)} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 12px", background: view === v ? "rgba(157,107,255,0.15)" : "transparent", color: view === v ? "var(--pu)" : "var(--t2)", border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer" }}><Ic size={13} /> {l}</button>
+              <button key={v} onClick={() => setView(v)} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 12px", background: view === v ? "rgba(var(--pu-rgb),0.15)" : "transparent", color: view === v ? "var(--pu)" : "var(--t2)", border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer" }}><Ic size={13} /> {l}</button>
             ))}
           </div>
           <Drop label="Клиент" kind="client" value={clientFilter === "all" ? "Все" : cname(clientFilter)}>
@@ -209,7 +209,7 @@ export default function CalendarPage() {
             <button onClick={() => { setTypeFilter("all"); setMenu(null); }} className="nav-item" style={{ fontSize: 11, padding: "7px 10px" }}>Все типы</button>
             {(["onb", "scr", "vid", "pub", "dl"] as const).map(k => <button key={k} onClick={() => { setTypeFilter(k); setMenu(null); }} className="nav-item" style={{ fontSize: 11, padding: "7px 10px", gap: 7 }}><span style={{ width: 8, height: 8, borderRadius: 3, background: KIND_META[k].color }} />{KIND_META[k].label}</button>)}
           </Drop>
-          <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 10px", borderRadius: 10, background: "rgba(123,63,228,0.08)", border: "1px solid var(--brd)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 10px", borderRadius: 10, background: "rgba(var(--vi-rgb),0.08)", border: "1px solid var(--brd)" }}>
             <button onClick={() => setYm(s => ymShift(s, -1))} style={{ background: "transparent", border: "none", color: "var(--t2)", cursor: "pointer", display: "flex" }}><ChevronLeft size={14} /></button>
             <span style={{ fontSize: 12, fontWeight: 700, minWidth: 92, textAlign: "center" }}>{ymLabel(ym)}</span>
             <button onClick={() => setYm(s => ymShift(s, 1))} style={{ background: "transparent", border: "none", color: "var(--t2)", cursor: "pointer", display: "flex" }}><ChevronRight size={14} /></button>
@@ -220,8 +220,8 @@ export default function CalendarPage() {
       {/* СВОДКА */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10, marginBottom: 14 }} className="cal-sum">
         {sumCards.map(s => (
-          <div key={s.k} style={{ display: "flex", alignItems: "center", gap: 11, padding: 13, borderRadius: 14, background: s.v > 0 ? `${s.c}14` : "rgba(123,63,228,0.05)", border: `1px solid ${s.v > 0 ? s.c + "55" : "var(--brd)"}` }}>
-            <div style={{ width: 34, height: 34, borderRadius: 10, background: `${s.c}22`, color: s.c, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>{s.ic}</div>
+          <div key={s.k} style={{ display: "flex", alignItems: "center", gap: 11, padding: 13, borderRadius: 14, background: s.v > 0 ? `color-mix(in srgb, ${s.c} 8%, transparent)` : "rgba(var(--vi-rgb),0.05)", border: `1px solid ${s.v > 0 ? `color-mix(in srgb, ${s.c} 33%, transparent)` : "var(--brd)"}` }}>
+            <div style={{ width: 34, height: 34, borderRadius: 10, background: `color-mix(in srgb, ${s.c} 13%, transparent)`, color: s.c, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>{s.ic}</div>
             <div><div style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 20, fontWeight: 800, color: s.v > 0 ? "var(--t1)" : "var(--t3)", lineHeight: 1 }}>{s.v}</div><div style={{ fontSize: 10, color: "var(--t3)", fontWeight: 600, marginTop: 3 }}>{s.l}</div></div>
           </div>
         ))}
@@ -251,7 +251,7 @@ export default function CalendarPage() {
                   const shown = evs.slice(0, 3);
                   return (
                     <div key={di} onDragOver={e => { e.preventDefault(); setDragOverDay(day); }} onDragLeave={() => { if (dragOverDay === day) setDragOverDay(null); }} onDrop={e => { e.preventDefault(); if (dragEv) reschedule(dragEv, day); }}
-                      style={{ minHeight: 116, borderRadius: 11, padding: 7, display: "flex", flexDirection: "column", gap: 3, background: isOver ? "rgba(157,107,255,0.12)" : isToday ? "rgba(66,212,244,0.06)" : "var(--inset)", border: `1px solid ${isOver ? "var(--pu)" : isToday ? "var(--cy)" : "var(--brd)"}`, transition: ".12s" }}>
+                      style={{ minHeight: 116, borderRadius: 11, padding: 7, display: "flex", flexDirection: "column", gap: 3, background: isOver ? "rgba(var(--pu-rgb),0.12)" : isToday ? "rgba(var(--cy-rgb),0.06)" : "var(--inset)", border: `1px solid ${isOver ? "var(--pu)" : isToday ? "var(--cy)" : "var(--brd)"}`, transition: ".12s" }}>
                       <div style={{ fontSize: 11, fontWeight: 700, color: isToday ? "var(--cy)" : "var(--t2)" }}>{dnum}{isToday ? " · сегодня" : ""}</div>
                       {countChip(derived.scr[day], "scr", day)}
                       {countChip(derived.vid[day], "vid", day)}
@@ -292,10 +292,10 @@ export default function CalendarPage() {
             <label style={{ fontSize: 10, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 0.4, fontWeight: 700, display: "block", marginBottom: 5 }}>Перенести на дату</label>
             <input type="date" defaultValue={modalEv.date} onChange={async e => { if (e.target.value) { await reschedule(modalEv, e.target.value); setModalEv(null); } }}
               style={{ width: "100%", padding: "9px 11px", borderRadius: 9, background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 13, outline: "none", marginBottom: 14 }} />
-            {modalEv.kind === "pub" && <div style={{ fontSize: 11, color: "var(--t3)", padding: 10, borderRadius: 9, background: "rgba(157,107,255,0.06)", border: "1px solid var(--brd)", marginBottom: 14 }}>Связанные дедлайны (сценарий −{SCRIPT_LEAD} дн., видео −{VIDEO_LEAD} дн.) сдвинутся автоматически.</div>}
+            {modalEv.kind === "pub" && <div style={{ fontSize: 11, color: "var(--t3)", padding: 10, borderRadius: 9, background: "rgba(var(--pu-rgb),0.06)", border: "1px solid var(--brd)", marginBottom: 14 }}>Связанные дедлайны (сценарий −{SCRIPT_LEAD} дн., видео −{VIDEO_LEAD} дн.) сдвинутся автоматически.</div>}
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
               <button onClick={() => router.push(`/dashboard/clients/${modalEv.clientId}`)} style={{ padding: "8px 14px", borderRadius: 9, background: "transparent", border: "1px solid var(--brd)", color: "var(--t2)", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>К карточке →</button>
-              <button onClick={() => setModalEv(null)} style={{ padding: "8px 18px", borderRadius: 9, background: "linear-gradient(135deg, var(--cy), var(--pu))", border: "none", color: "#fff", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>Готово</button>
+              <button onClick={() => setModalEv(null)} style={{ padding: "8px 18px", borderRadius: 9, background: "var(--btn-grad)", border: "none", color: "var(--btn-fg)", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>Готово</button>
             </div>
           </div>
         </div>

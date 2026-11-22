@@ -307,7 +307,7 @@ function ClientsBlock(p: ClientsBlockProps) {
       <button onClick={() => p.setFilterMenuOpen(p.filterMenuOpen === kind ? null : kind)}
         style={{
           padding: "8px 12px", borderRadius: 10,
-          background: "rgba(123,63,228,0.08)", border: "1px solid var(--brd)",
+          background: "rgba(var(--vi-rgb),0.08)", border: "1px solid var(--brd)",
           color: "var(--t1)", fontSize: 11, fontWeight: 600,
           cursor: "pointer", display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap",
         }}>
@@ -318,7 +318,7 @@ function ClientsBlock(p: ClientsBlockProps) {
         <div style={{
           position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 30,
           minWidth: 180, background: "var(--side)", border: "1px solid var(--brd)",
-          borderRadius: 10, padding: 4, boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
+          borderRadius: 10, padding: 4, boxShadow: "0 12px 40px rgba(var(--sh-rgb),calc(0.5 * var(--sh-k)))",
           maxHeight: 280, overflowY: "auto",
         }}>
           {options.map(opt => (
@@ -334,10 +334,10 @@ function ClientsBlock(p: ClientsBlockProps) {
 
   const statusBadge = (s: ClientRow["status"]) => {
     const map = {
-      overdue:  { bg: "rgba(255,92,122,0.15)", fg: "var(--rd)", l: "🔴 Просрочка" },
-      working:  { bg: "rgba(66,212,244,0.12)", fg: "var(--cy)", l: "🟦 В работе" },
-      paused:   { bg: "rgba(245,196,81,0.12)", fg: "var(--yl)", l: "⏸ На паузе" },
-      done:     { bg: "rgba(168,224,99,0.12)", fg: "var(--gr)", l: "✓ Готово" },
+      overdue:  { bg: "rgba(var(--rd-rgb),0.15)", fg: "var(--rd)", l: "🔴 Просрочка" },
+      working:  { bg: "rgba(var(--cy-rgb),0.12)", fg: "var(--cy)", l: "🟦 В работе" },
+      paused:   { bg: "rgba(var(--yl-rgb),0.12)", fg: "var(--yl)", l: "⏸ На паузе" },
+      done:     { bg: "rgba(var(--gr-rgb),0.12)", fg: "var(--gr)", l: "✓ Готово" },
     } as const;
     const m = map[s];
     return (
@@ -452,15 +452,15 @@ function ClientsBlock(p: ClientsBlockProps) {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 10 }}>
           <h3 style={{ fontSize: 14, fontWeight: 800, color: "var(--t1)", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             Клиенты в работе
-            <span style={{ padding: "2px 7px", borderRadius: 6, background: "rgba(157,107,255,0.15)", color: "var(--pu)", fontSize: 10, fontWeight: 700 }}>{new Set(filtered.map(r => r.c.id)).size} клиентов</span>
+            <span style={{ padding: "2px 7px", borderRadius: 6, background: "rgba(var(--pu-rgb),0.15)", color: "var(--pu)", fontSize: 10, fontWeight: 700 }}>{new Set(filtered.map(r => r.c.id)).size} клиентов</span>
             {noPlanCount > 0 && (
               <span title="Тимлид не проставил, сколько роликов должно выйти в этом месяце"
-                style={{ padding: "2px 8px", borderRadius: 6, background: "rgba(255,174,66,0.14)", color: "var(--or)", fontSize: 10, fontWeight: 800 }}>
+                style={{ padding: "2px 8px", borderRadius: 6, background: "rgba(var(--or-rgb),0.14)", color: "var(--or)", fontSize: 10, fontWeight: 800 }}>
                 ⚠ без плана на месяц: {noPlanCount}
               </span>
             )}
             {/* Локальный period picker — синхронизован с глобальным */}
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 8px", borderRadius: 9, background: "rgba(123,63,228,0.08)", border: "1px solid var(--brd)", marginLeft: 4 }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 8px", borderRadius: 9, background: "rgba(var(--vi-rgb),0.08)", border: "1px solid var(--brd)", marginLeft: 4 }}>
               <button onClick={() => p.setSelectedMonth(ymShift(p.selectedMonth, -1))}
                 style={{ background: "transparent", border: "none", color: "var(--t2)", cursor: "pointer", padding: 2, display: "flex", alignItems: "center" }}>
                 <ChevronLeft size={12} />
@@ -477,7 +477,7 @@ function ClientsBlock(p: ClientsBlockProps) {
             </span>
           </h3>
           {/* View toggle */}
-          <div style={{ display: "flex", background: "rgba(123,63,228,0.06)", border: "1px solid var(--brd)", borderRadius: 10, padding: 3 }}>
+          <div style={{ display: "flex", background: "rgba(var(--vi-rgb),0.06)", border: "1px solid var(--brd)", borderRadius: 10, padding: 3 }}>
             <button onClick={() => p.setView("table")}
               style={{ padding: "6px 12px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 700, background: p.view === "table" ? "var(--pu)" : "transparent", color: p.view === "table" ? "#fff" : "var(--t2)" }}>
               ☰ Таблица
@@ -571,8 +571,8 @@ function ClientsBlock(p: ClientsBlockProps) {
                     const groupPkg = inGroup.reduce((s, x) => s + (x.cm.package || 0), 0);
                     const groupRemaining = inGroup.reduce((s, x) => s + x.remaining, 0);
                     out.push(
-                      <tr key={`grp-${r.cm.month_number}`} style={{ background: "rgba(157,107,255,0.10)" }}>
-                        <td colSpan={8} style={{ padding: "10px 8px", fontSize: 11, fontWeight: 800, color: "var(--pu)", letterSpacing: 0.3, borderBottom: "1px solid rgba(157,107,255,0.2)" }}>
+                      <tr key={`grp-${r.cm.month_number}`} style={{ background: "rgba(var(--pu-rgb),0.10)" }}>
+                        <td colSpan={8} style={{ padding: "10px 8px", fontSize: 11, fontWeight: 800, color: "var(--pu)", letterSpacing: 0.3, borderBottom: "1px solid rgba(var(--pu-rgb),0.2)" }}>
                           📅 M{r.cm.month_number} — {inGroup.length} {inGroup.length === 1 ? "клиент" : inGroup.length < 5 ? "клиента" : "клиентов"}
                           <span style={{ marginLeft: 12, color: "var(--t3)", fontWeight: 600 }}>пакет {groupPkg} · осталось {groupRemaining}</span>
                         </td>
@@ -585,8 +585,8 @@ function ClientsBlock(p: ClientsBlockProps) {
                   out.push(
                     <tr key={`row-${r.cm.id}`}
                     onClick={() => p.onOpen(r.c.id)}
-                    style={{ borderBottom: "1px solid rgba(157,107,255,0.08)", cursor: "pointer", transition: "background .12s", opacity: dim ? 0.6 : 1, background: dim ? "var(--inset)" : "transparent" }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(157,107,255,0.04)")}
+                    style={{ borderBottom: "1px solid rgba(var(--pu-rgb),0.08)", cursor: "pointer", transition: "background .12s", opacity: dim ? 0.6 : 1, background: dim ? "var(--inset)" : "transparent" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(var(--pu-rgb),0.04)")}
                     onMouseLeave={(e) => (e.currentTarget.style.background = dim ? "var(--inset)" : "transparent")}>
                     {/* Клиент */}
                     <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 200 }}>
@@ -597,9 +597,9 @@ function ClientsBlock(p: ClientsBlockProps) {
                             <div style={{ fontSize: 12, fontWeight: 700, color: "var(--t1)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 140 }}>
                               {r.c.name} {r.c.surname || ""}
                             </div>
-                            <span style={{ fontSize: 9, fontWeight: 800, padding: "2px 6px", borderRadius: 5, background: "rgba(157,107,255,0.18)", color: "var(--pu)", letterSpacing: 0.3 }}>M{r.cm.month_number}</span>
-                            {isClosed && <span style={{ fontSize: 9, fontWeight: 800, padding: "2px 6px", borderRadius: 5, background: "rgba(168,224,99,0.15)", color: "var(--gr)", letterSpacing: 0.3 }}>🔒 закрыт</span>}
-                            {isPausedRow && !isClosed && <span style={{ fontSize: 9, fontWeight: 800, padding: "2px 6px", borderRadius: 5, background: "rgba(245,196,81,0.18)", color: "var(--yl)", letterSpacing: 0.3 }}>⏸ на паузе</span>}
+                            <span style={{ fontSize: 9, fontWeight: 800, padding: "2px 6px", borderRadius: 5, background: "rgba(var(--pu-rgb),0.18)", color: "var(--pu)", letterSpacing: 0.3 }}>M{r.cm.month_number}</span>
+                            {isClosed && <span style={{ fontSize: 9, fontWeight: 800, padding: "2px 6px", borderRadius: 5, background: "rgba(var(--gr-rgb),0.15)", color: "var(--gr)", letterSpacing: 0.3 }}>🔒 закрыт</span>}
+                            {isPausedRow && !isClosed && <span style={{ fontSize: 9, fontWeight: 800, padding: "2px 6px", borderRadius: 5, background: "rgba(var(--yl-rgb),0.18)", color: "var(--yl)", letterSpacing: 0.3 }}>⏸ на паузе</span>}
                           </div>
                           <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 170 }}>
                             {r.c.niche || r.c.product || "—"}
@@ -612,13 +612,13 @@ function ClientsBlock(p: ClientsBlockProps) {
                       {r.cm.package} роликов/мес
                     </td>
                     {/* Сцен. в работе */}
-                    <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 90 }}><WipCell n={r.scrInProgress} color="#42d4f4" caption="пишутся" /></td>
+                    <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 90 }}><WipCell n={r.scrInProgress} color="var(--cy)" caption="пишутся" /></td>
                     {/* В монтаже */}
-                    <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 90 }}><WipCell n={r.montageInProgress} color="#ffae42" caption="монтируются" /></td>
+                    <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 90 }}><WipCell n={r.montageInProgress} color="var(--or)" caption="монтируются" /></td>
                     {/* Опубл. в этом месяце */}
                     <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 110 }}><MonthCell pubInMonth={r.publishedInMonth} planned={r.plannedInMonth} clientId={r.c.id} /></td>
                     {/* Сделано за этот месяц (текущий M-период): опубликовано / пакет */}
-                    <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 110 }}><StageCell done={r.published} plan={r.plan} color="#9d6bff" />{r.trialPub > 0 && <div title="Пробные ролики" style={{ fontSize: 9, color: "var(--or)", fontWeight: 700, marginTop: 2 }}>+{r.trialPub} пробн.</div>}</td>
+                    <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 110 }}><StageCell done={r.published} plan={r.plan} color="var(--pu)" />{r.trialPub > 0 && <div title="Пробные ролики" style={{ fontSize: 9, color: "var(--or)", fontWeight: 700, marginTop: 2 }}>+{r.trialPub} пробн.</div>}</td>
                     {/* Темп к сегодня */}
                     <td style={{ padding: "12px 8px", verticalAlign: "middle", minWidth: 110 }}><DueCell fact={r.factByToday} due={r.dueByToday} onboardingUntil={r.onboardingUntil} remaining={r.isPaused ? undefined : r.remaining} daysToEnd={r.daysToEnd} /></td>
                     {/* Дедлайн */}
@@ -647,15 +647,15 @@ function ClientsBlock(p: ClientsBlockProps) {
               const tLabel = totals.dueByToday === 0 ? "нет плана" : tDelta >= 0 ? "по плану" : `отстаём ${tDelta}`;
               return (
               <tfoot>
-                <tr style={{ borderTop: "2px solid var(--brd)", background: "rgba(123,63,228,0.06)" }}>
+                <tr style={{ borderTop: "2px solid var(--brd)", background: "rgba(var(--vi-rgb),0.06)" }}>
                   <td style={{ padding: "14px 8px", fontSize: 11, fontWeight: 800, color: "var(--t1)" }}>
                     Итого на {ymLabel(p.selectedMonth)}
                   </td>
                   <td style={{ padding: "14px 8px", fontSize: 10, color: "var(--t2)", fontWeight: 600 }}>{new Set(sorted.map(r => r.c.id)).size} клиентов · пакет {totals.plan}</td>
-                  <td style={{ padding: "14px 8px" }}><WipCell n={totals.scrInProgress} color="#42d4f4" /></td>
-                  <td style={{ padding: "14px 8px" }}><WipCell n={totals.montageInProgress} color="#ffae42" /></td>
+                  <td style={{ padding: "14px 8px" }}><WipCell n={totals.scrInProgress} color="var(--cy)" /></td>
+                  <td style={{ padding: "14px 8px" }}><WipCell n={totals.montageInProgress} color="var(--or)" /></td>
                   <td style={{ padding: "14px 8px" }}><MonthCell pubInMonth={totals.publishedInMonth} planned={totals.plannedInMonth} clientId={0} /></td>
-                  <td style={{ padding: "14px 8px" }}><StageCell done={totals.published} plan={totals.plan} color="#9d6bff" /></td>
+                  <td style={{ padding: "14px 8px" }}><StageCell done={totals.published} plan={totals.plan} color="var(--pu)" /></td>
                   <td style={{ padding: "14px 8px" }}>
                     <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
                       <span style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 18, fontWeight: 800, color: totals.dueByToday === 0 ? "var(--t3)" : tColor, lineHeight: 1 }}>{totals.factByToday}</span>
@@ -725,7 +725,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { err
   static getDerivedStateFromError(e: Error) { return { error: e }; }
   render() {
     if (this.state.error) {
-      return <div style={{ padding: 24, color: "#f87171", fontFamily: "monospace", fontSize: 12, whiteSpace: "pre-wrap" }}>
+      return <div style={{ padding: 24, color: "var(--rd)", fontFamily: "monospace", fontSize: 12, whiteSpace: "pre-wrap" }}>
         <div style={{ fontWeight: 700, marginBottom: 8 }}>Dashboard error</div>
         <div>{String(this.state.error.message || this.state.error)}</div>
         <div style={{ opacity: 0.6, marginTop: 12 }}>{this.state.error.stack}</div>

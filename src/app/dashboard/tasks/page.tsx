@@ -141,7 +141,7 @@ export default function ClientTasksPage() {
   return (
     <div style={{ fontFamily: "'Manrope', sans-serif", maxWidth: 1000 }}>
       <style>{S}</style>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
+      <div className="page-head" style={{ alignItems: "flex-start" }}>
         <div>
           <h1 style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 22, fontWeight: 800 }}>Задачи по клиентам</h1>
           <p style={{ fontSize: 12, color: "var(--t3)", marginTop: 4 }}>
@@ -152,7 +152,7 @@ export default function ClientTasksPage() {
       </div>
 
       {missing && (
-        <div className="card" style={{ padding: 18, borderColor: "rgba(255,174,66,.4)", marginBottom: 14 }}>
+        <div className="card" style={{ padding: 18, borderColor: "rgba(var(--or-rgb),.4)", marginBottom: 14 }}>
           <div style={{ display: "flex", gap: 8, alignItems: "center", fontWeight: 800, marginBottom: 6 }}><Database size={15} style={{ color: "var(--or)" }} /> Таблица задач ещё не создана</div>
           <div style={{ fontSize: 13, color: "var(--t2)" }}>Прогони <code>MIGRATION_2026-09-21_client_tasks.sql</code> в Supabase → SQL Editor.</div>
         </div>

@@ -147,7 +147,7 @@ export default function OnboardingChecklist({ clientId, clientName, clientCreate
   return (
     <div className="onboarding-checklist">
       {/* Hero */}
-      <div style={{ marginBottom: 24, padding: "28px 28px 24px", borderRadius: 20, background: "linear-gradient(135deg, rgba(245,196,81,0.08), rgba(168,224,99,0.05))", border: "1px solid rgba(245,196,81,0.25)" }}>
+      <div style={{ marginBottom: 24, padding: "28px 28px 24px", borderRadius: 20, background: "linear-gradient(135deg, rgba(var(--yl-rgb),0.08), rgba(var(--gr-rgb),0.05))", border: "1px solid rgba(var(--yl-rgb),0.25)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
           <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.2, textTransform: "uppercase", color: "var(--yl)" }}>🚀 Онбординг — 10 дней до первой публикации</span>
         </div>
@@ -178,7 +178,7 @@ export default function OnboardingChecklist({ clientId, clientName, clientCreate
               <div key={d} style={{
                 flex: 1, padding: "6px 4px", borderRadius: 6, textAlign: "center",
                 fontSize: 10, fontWeight: 700,
-                background: isToday ? "rgba(245,196,81,0.2)" : isPast ? "rgba(168,224,99,0.1)" : "var(--track)",
+                background: isToday ? "rgba(var(--yl-rgb),0.2)" : isPast ? "rgba(var(--gr-rgb),0.1)" : "var(--track)",
                 color: isToday ? "var(--yl)" : isPast ? "var(--gr)" : "var(--t3)",
                 border: isToday ? "1px solid var(--yl)" : "1px solid var(--brd)",
               }}>День {d}</div>
@@ -200,7 +200,7 @@ export default function OnboardingChecklist({ clientId, clientName, clientCreate
           </button>
         )}
         {isCompleted && (
-          <span style={{ padding: "8px 16px", borderRadius: 10, background: "rgba(168,224,99,0.15)", border: "1px solid var(--gr)", color: "var(--gr)", fontSize: 12, fontWeight: 800 }}>
+          <span style={{ padding: "8px 16px", borderRadius: 10, background: "rgba(var(--gr-rgb),0.15)", border: "1px solid var(--gr)", color: "var(--gr)", fontSize: 12, fontWeight: 800 }}>
             ✓ Онбординг завершён
           </span>
         )}
@@ -218,10 +218,10 @@ export default function OnboardingChecklist({ clientId, clientName, clientCreate
           const isExpanded = expanded.has(stage.stageId);
 
           return (
-            <div key={stage.stageId} style={{ borderRadius: 16, border: `1px solid ${stagePct === 100 ? "rgba(168,224,99,0.3)" : "var(--brd)"}`, background: "var(--card)", overflow: "hidden" }}>
+            <div key={stage.stageId} style={{ borderRadius: 16, border: `1px solid ${stagePct === 100 ? "rgba(var(--gr-rgb),0.3)" : "var(--brd)"}`, background: "var(--card)", overflow: "hidden" }}>
               <button onClick={() => toggleStage(stage.stageId)} style={{ width: "100%", padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", background: "none", border: "none", cursor: "pointer", textAlign: "left", color: "var(--t1)" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 14, flex: 1, minWidth: 0 }}>
-                  <div style={{ minWidth: 36, height: 36, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", background: `${stageColor}22`, color: stageColor, fontWeight: 800, fontSize: 14 }}>
+                  <div style={{ minWidth: 36, height: 36, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", background: `color-mix(in srgb, ${stageColor} 13%, transparent)`, color: stageColor, fontWeight: 800, fontSize: 14 }}>
                     {stage.stageId}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -276,7 +276,7 @@ export default function OnboardingChecklist({ clientId, clientName, clientCreate
                           <button onClick={() => setOpenGuide(guideOpen ? null : t.id)}
                             title="Как делать + готовый текст клиенту"
                             style={{ padding: "4px 9px", borderRadius: 6, border: `1px solid ${guideOpen ? "var(--yl)" : "var(--brd)"}`,
-                              background: guideOpen ? "rgba(245,196,81,0.14)" : "transparent", color: guideOpen ? "var(--yl)" : "var(--t2)",
+                              background: guideOpen ? "rgba(var(--yl-rgb),0.14)" : "transparent", color: guideOpen ? "var(--yl)" : "var(--t2)",
                               fontSize: 10, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
                             {((tpl?.instruction || "").trim() || (tpl?.client_message || "").trim()) ? "📖 Как делать" : "✏️ Добавить инструкцию"}
                           </button>
@@ -287,7 +287,7 @@ export default function OnboardingChecklist({ clientId, clientName, clientCreate
                           <button onClick={() => setStatus(t, "pending")} title="Не сделано"
                             style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid var(--brd)", background: t.status === "pending" ? "var(--cardH)" : "transparent", color: t.status === "pending" ? "var(--t1)" : "var(--t3)", fontSize: 10, fontWeight: 700, cursor: "pointer" }}>☐</button>
                           <button onClick={() => setStatus(t, "done")} title="Сделано"
-                            style={{ padding: "4px 8px", borderRadius: 6, border: `1px solid ${t.status === "done" ? "var(--gr)" : "var(--brd)"}`, background: t.status === "done" ? "rgba(168,224,99,0.15)" : "transparent", color: t.status === "done" ? "var(--gr)" : "var(--t3)", fontSize: 10, fontWeight: 700, cursor: "pointer" }}>✓</button>
+                            style={{ padding: "4px 8px", borderRadius: 6, border: `1px solid ${t.status === "done" ? "var(--gr)" : "var(--brd)"}`, background: t.status === "done" ? "rgba(var(--gr-rgb),0.15)" : "transparent", color: t.status === "done" ? "var(--gr)" : "var(--t3)", fontSize: 10, fontWeight: 700, cursor: "pointer" }}>✓</button>
                           <button onClick={() => setStatus(t, "skipped")} title="Не нужно для этого клиента"
                             style={{ padding: "4px 8px", borderRadius: 6, border: `1px solid ${t.status === "skipped" ? "var(--t3)" : "var(--brd)"}`, background: t.status === "skipped" ? "rgba(119,101,143,0.15)" : "transparent", color: t.status === "skipped" ? "var(--t2)" : "var(--t3)", fontSize: 10, fontWeight: 700, cursor: "pointer" }}>⏭</button>
                         </div>
@@ -313,7 +313,7 @@ export default function OnboardingChecklist({ clientId, clientName, clientCreate
                             <div style={{ fontSize: 9.5, fontWeight: 800, color: "var(--cy)", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 5 }}>Сообщение клиенту</div>
                             <textarea value={draftMsg} onChange={e => setDraftMsg(e.target.value)} rows={9}
                               placeholder="Готовый текст, который тимлид скопирует и отправит. Подставляются {{Имя клиента}} и {{Ниша клиента}}, остальные {{…}} тимлид заполнит руками"
-                              style={{ width: "100%", padding: "10px 12px", borderRadius: 10, background: "var(--inp)", border: "1px solid rgba(66,212,244,0.3)", color: "var(--t1)", fontSize: 12.5, lineHeight: 1.6, fontFamily: "inherit", resize: "vertical", outline: "none" }} />
+                              style={{ width: "100%", padding: "10px 12px", borderRadius: 10, background: "var(--inp)", border: "1px solid rgba(var(--cy-rgb),0.3)", color: "var(--t1)", fontSize: 12.5, lineHeight: 1.6, fontFamily: "inherit", resize: "vertical", outline: "none" }} />
                             <div style={{ fontSize: 10, color: "var(--t3)", marginTop: 5 }}>
                               Плейсхолдеры: <code>{"{{Имя клиента}}"}</code> и <code>{"{{Ниша клиента}}"}</code> подставятся сами. Любые другие в фигурных скобках — например <code>{"{{Дата}}"}</code> — подсветятся жёлтым как «заполнить руками».
                             </div>
@@ -353,11 +353,11 @@ export default function OnboardingChecklist({ clientId, clientName, clientCreate
                             </div>
                           )}
                           {(tpl.client_message || "").trim() && (
-                            <div style={{ padding: "12px 14px", borderRadius: 10, background: "rgba(66,212,244,0.06)", border: "1px solid rgba(66,212,244,0.28)" }}>
+                            <div style={{ padding: "12px 14px", borderRadius: 10, background: "rgba(var(--cy-rgb),0.06)", border: "1px solid rgba(var(--cy-rgb),0.28)" }}>
                               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 7 }}>
                                 <span style={{ fontSize: 9.5, fontWeight: 800, color: "var(--cy)", textTransform: "uppercase", letterSpacing: 0.6 }}>Сообщение клиенту</span>
                                 <button onClick={() => copyMessage(t.id, tpl.client_message || "")}
-                                  style={{ padding: "4px 10px", borderRadius: 7, border: "1px solid var(--cy)", background: copied === t.id ? "rgba(168,224,99,0.16)" : "rgba(66,212,244,0.12)",
+                                  style={{ padding: "4px 10px", borderRadius: 7, border: "1px solid var(--cy)", background: copied === t.id ? "rgba(var(--gr-rgb),0.16)" : "rgba(var(--cy-rgb),0.12)",
                                     color: copied === t.id ? "var(--gr)" : "var(--cy)", fontSize: 10.5, fontWeight: 800, cursor: "pointer" }}>
                                   {copied === t.id ? "✓ Скопировано" : "⧉ Копировать"}
                                 </button>
@@ -365,7 +365,7 @@ export default function OnboardingChecklist({ clientId, clientName, clientCreate
                               <div style={{ fontSize: 12.5, lineHeight: 1.65, color: "var(--t1)", whiteSpace: "pre-wrap" }}>
                                 {fillTemplate(tpl.client_message || "").split(/(\{\{[^}]+\}\})/g).map((part, i) =>
                                   part.startsWith("{{")
-                                    ? <mark key={i} style={{ background: "rgba(245,196,81,0.22)", color: "var(--yl)", padding: "0 3px", borderRadius: 3, fontWeight: 700 }}>{part}</mark>
+                                    ? <mark key={i} style={{ background: "rgba(var(--yl-rgb),0.22)", color: "var(--yl)", padding: "0 3px", borderRadius: 3, fontWeight: 700 }}>{part}</mark>
                                     : <span key={i}>{part}</span>
                                 )}
                               </div>

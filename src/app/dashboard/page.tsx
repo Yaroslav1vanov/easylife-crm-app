@@ -14,7 +14,7 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { err
   constructor(props: any) { super(props); this.state = { error: null }; }
   static getDerivedStateFromError(e: any) { return { error: e?.message || String(e) }; }
   render() {
-    if (this.state.error) return <div style={{ padding: 24, color: "#f87171", fontFamily: "monospace", fontSize: 12 }}>Ошибка дашборда: {this.state.error}</div>;
+    if (this.state.error) return <div style={{ padding: 24, color: "var(--rd)", fontFamily: "monospace", fontSize: 12 }}>Ошибка дашборда: {this.state.error}</div>;
     return this.props.children;
   }
 }
@@ -74,7 +74,7 @@ function DashboardInner() {
   }, []);
 
   if (loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--t2)" }}>Загрузка…</div>;
-  if (loadError) return <div style={{ padding: 24, color: "#f87171", fontFamily: "monospace", fontSize: 12 }}>Load error: {loadError}</div>;
+  if (loadError) return <div style={{ padding: 24, color: "var(--rd)", fontFamily: "monospace", fontSize: 12 }}>Load error: {loadError}</div>;
 
   return (
     <OwnerDashboard

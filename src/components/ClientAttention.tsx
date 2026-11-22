@@ -22,12 +22,12 @@ export default function ClientAttention({ currentM, scripts, todayIso }: Props) 
   const overdue = daysToEnd !== null && daysToEnd < 0 && published < plan;
 
   const items: Item[] = [];
-  if (overdue) items.push({ Icon: AlertTriangle, color: "#ff5c7a", text: `Просрочка дедлайна на ${-daysToEnd!} дн. · сдано ${published}/${plan}` });
-  if (review > 0) items.push({ Icon: UserCheck, color: "#42d4f4", text: `${review} ${plural(review, "сценарий", "сценария", "сценариев")} на согласовании` });
-  if (inMontage > 0) items.push({ Icon: Scissors, color: "#ffae42", text: `${inMontage} ${plural(inMontage, "ролик", "ролика", "роликов")} в монтаже` });
+  if (overdue) items.push({ Icon: AlertTriangle, color: "var(--rd)", text: `Просрочка дедлайна на ${-daysToEnd!} дн. · сдано ${published}/${plan}` });
+  if (review > 0) items.push({ Icon: UserCheck, color: "var(--cy)", text: `${review} ${plural(review, "сценарий", "сценария", "сценариев")} на согласовании` });
+  if (inMontage > 0) items.push({ Icon: Scissors, color: "var(--or)", text: `${inMontage} ${plural(inMontage, "ролик", "ролика", "роликов")} в монтаже` });
   if (readyToPublish > 0) items.push({ Icon: CheckCircle2, color: "#34d399", text: `${readyToPublish} ${plural(readyToPublish, "ролик готов", "ролика готовы", "роликов готовы")} к публикации` });
-  if (leftToPlan > 0) items.push({ Icon: Target, color: "#9d6bff", text: `До выполнения плана осталось ${leftToPlan} ${plural(leftToPlan, "ролик", "ролика", "роликов")}` });
-  if (daysToEnd !== null && daysToEnd >= 0 && published < plan) items.push({ Icon: CalendarClock, color: daysToEnd <= 5 ? "#ffae42" : "#42d4f4", text: `До дедлайна ${daysToEnd} ${plural(daysToEnd, "день", "дня", "дней")}` });
+  if (leftToPlan > 0) items.push({ Icon: Target, color: "var(--pu)", text: `До выполнения плана осталось ${leftToPlan} ${plural(leftToPlan, "ролик", "ролика", "роликов")}` });
+  if (daysToEnd !== null && daysToEnd >= 0 && published < plan) items.push({ Icon: CalendarClock, color: daysToEnd <= 5 ? "var(--or)" : "var(--cy)", text: `До дедлайна ${daysToEnd} ${plural(daysToEnd, "день", "дня", "дней")}` });
 
   return (
     <div className="card" style={{ padding: 18, borderRadius: 16, fontFamily: "'Manrope', sans-serif", height: "100%" }}>
@@ -40,7 +40,7 @@ export default function ClientAttention({ currentM, scripts, todayIso }: Props) 
             const I = it.Icon;
             return (
               <div key={i} style={{ display: "flex", alignItems: "center", gap: 11 }}>
-                <div style={{ width: 26, height: 26, borderRadius: 8, background: `${it.color}1f`, color: it.color, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, border: `1px solid ${it.color}3a` }}>
+                <div style={{ width: 26, height: 26, borderRadius: 8, background: `color-mix(in srgb, ${it.color} 12%, transparent)`, color: it.color, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, border: `1px solid color-mix(in srgb, ${it.color} 23%, transparent)` }}>
                   <I size={13} strokeWidth={2} />
                 </div>
                 <span style={{ fontSize: 12.5, color: "var(--t1)", fontWeight: 600 }}>{it.text}</span>

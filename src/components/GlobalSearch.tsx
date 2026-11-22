@@ -30,7 +30,7 @@ function around(text: string, q: string, n = 90) {
 function Mark({ text, q }: { text: string; q: string }) {
   if (!q) return <>{text}</>;
   const parts = text.split(new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "ig"));
-  return <>{parts.map((p, i) => p.toLowerCase() === q.toLowerCase() ? <mark key={i} style={{ background: "rgba(245,196,81,.35)", color: "inherit", borderRadius: 3, padding: "0 1px" }}>{p}</mark> : <span key={i}>{p}</span>)}</>;
+  return <>{parts.map((p, i) => p.toLowerCase() === q.toLowerCase() ? <mark key={i} style={{ background: "rgba(var(--yl-rgb),.35)", color: "inherit", borderRadius: 3, padding: "0 1px" }}>{p}</mark> : <span key={i}>{p}</span>)}</>;
 }
 
 export default function GlobalSearch() {

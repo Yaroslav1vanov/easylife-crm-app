@@ -153,7 +153,7 @@ export default function ClientStatsTab({ clientId, hasMetricool }: { clientId: n
                 <button key={m.ym} onClick={() => setSel(m.ym)} style={{ flex: 1, minWidth: 34, maxWidth: 90, background: "transparent", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 5, padding: 0 }}>
                   <span style={{ fontSize: 10, fontWeight: 800, color: on ? "var(--t1)" : "var(--t3)" }}>{fmt(m.views)}</span>
                   <div style={{ width: "100%", height: h, borderRadius: "6px 6px 2px 2px",
-                    background: on ? "linear-gradient(180deg, var(--cy), var(--pu))" : "rgba(157,107,255,0.28)",
+                    background: on ? "linear-gradient(180deg, var(--cy), var(--pu))" : "rgba(var(--pu-rgb),0.28)",
                     opacity: m.partial ? 0.55 : 1, outline: m.partial ? "1px dashed var(--pu)" : "none" }} />
                   <span style={{ fontSize: 10.5, fontWeight: 700, color: on ? "var(--pu)" : "var(--t3)" }}>{ymShort(m.ym)}{m.partial ? "*" : ""}</span>
                 </button>
@@ -217,7 +217,7 @@ export default function ClientStatsTab({ clientId, hasMetricool }: { clientId: n
                 const p = arr[k + 1];
                 const d = pct(m.views, p?.views);
                 return (
-                  <><tr key={m.ym} onClick={() => { setSel(m.ym); toggleMonth(m.ym); }} style={{ borderTop: "1px solid var(--brd)", cursor: "pointer", background: m.ym === sel ? "rgba(157,107,255,0.08)" : "transparent" }}>
+                  <><tr key={m.ym} onClick={() => { setSel(m.ym); toggleMonth(m.ym); }} style={{ borderTop: "1px solid var(--brd)", cursor: "pointer", background: m.ym === sel ? "rgba(var(--pu-rgb),0.08)" : "transparent" }}>
                     <td style={{ padding: "10px 12px", fontWeight: 700, color: "var(--t1)" }}>
                       <span style={{ color: "var(--pu)", marginRight: 6, display: "inline-block", transform: openYm === m.ym ? "rotate(90deg)" : "none", transition: ".15s" }}>›</span>
                       {ymLabel(m.ym)}{m.partial ? " *" : ""}

@@ -14,10 +14,10 @@ type ClientProduction = { pub: number; ready: number; scr: number; total: number
 const platformMeta: Record<Platform, { short: string; label: string; color: string }> = {
   ig: { short: "IG", label: "Instagram", color: "#e1306c" },
   tt: { short: "TT", label: "TikTok", color: "#25f4ee" },
-  yt: { short: "YT", label: "Shorts", color: "#ff5c7a" },
+  yt: { short: "YT", label: "Shorts", color: "var(--rd)" },
 };
 const platforms: Platform[] = ["ig", "tt", "yt"];
-const clientAccents = ["#7b3fe4", "#42d4f4", "#a8e063", "#ffae42", "#ff5c7a", "#9d6bff"];
+const clientAccents = ["var(--pu)", "var(--cy)", "var(--gr)", "var(--or)", "var(--rd)", "var(--pu)"];
 
 function initials(name: string) {
   return name.split(" ").filter(Boolean).map((part) => part[0]).join("").slice(0, 2).toUpperCase() || "—";
@@ -115,14 +115,14 @@ function ClientCard({
   const fullName = `${client.name} ${client.surname || ""}`.trim();
   const obDl = isOnboarding ? ((client as any).onboarding_deadline as string | null) : null;
   const obLeft = obDl ? Math.round((new Date(`${obDl}T00:00:00`).getTime() - new Date(new Date().toISOString().slice(0, 10) + "T00:00:00").getTime()) / 86400000) : null;
-  const obColor = obLeft == null ? "var(--or)" : obLeft < 0 ? "#ff5c7a" : obLeft <= 2 ? "#ffae42" : "#a8e063";
+  const obColor = obLeft == null ? "var(--or)" : obLeft < 0 ? "var(--rd)" : obLeft <= 2 ? "var(--or)" : "var(--gr)";
 
   return (
     <article className="client-v2-card" style={{ "--client-accent": accent } as React.CSSProperties}>
       <div className="client-v2-head">
         <div
           className="client-v2-avatar"
-          style={{ background: client.avatar_url ? `url(${client.avatar_url}) center/cover` : `linear-gradient(135deg, ${accent}, rgba(123,63,228,.42))` }}
+          style={{ background: client.avatar_url ? `url(${client.avatar_url}) center/cover` : `linear-gradient(135deg, ${accent}, rgba(var(--vi-rgb),.42))` }}
         >
           {!client.avatar_url && initials(fullName)}
           <span className={`client-v2-status-dot ${isOnboarding ? "onboarding" : "production"}`} />
@@ -137,7 +137,7 @@ function ClientCard({
       </div>
 
       {isOnboarding && obLeft != null && (
-        <div style={{ display: "flex", alignItems: "center", gap: 7, margin: "0 0 10px", padding: "6px 10px", borderRadius: 9, background: `${obColor}14`, border: `1px solid ${obColor}55` }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 7, margin: "0 0 10px", padding: "6px 10px", borderRadius: 9, background: `color-mix(in srgb, ${obColor} 8%, transparent)`, border: `1px solid color-mix(in srgb, ${obColor} 33%, transparent)` }}>
           <span style={{ fontSize: 11 }}>🚀</span>
           <span style={{ fontSize: 11, fontWeight: 800, color: obColor }}>
             {obLeft < 0 ? `Онбординг просрочен ${-obLeft} дн` : obLeft === 0 ? "Онбординг — дедлайн сегодня" : obLeft === 1 ? "Онбординг — дедлайн завтра" : `До конца онбординга ${obLeft} дн`}
@@ -177,7 +177,7 @@ function ClientCard({
             return (
               <span key={p} title={meta.label}
                 style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 9px", borderRadius: 8, flex: "1 1 auto", justifyContent: "center",
-                  background: on ? `${meta.color}14` : "var(--inset2)", border: `1px solid ${on ? meta.color + "44" : "var(--track)"}` }}>
+                  background: on ? `color-mix(in srgb, ${meta.color} 8%, transparent)` : "var(--inset2)", border: `1px solid ${on ? `color-mix(in srgb, ${meta.color} 27%, transparent)` : "var(--track)"}` }}>
                 <i style={{ width: 6, height: 6, borderRadius: "50%", background: on ? meta.color : "var(--t3)", display: "block" }} />
                 <b style={{ fontSize: 10, color: on ? meta.color : "var(--t3)", fontWeight: 800 }}>{meta.short}</b>
                 <span style={{ fontSize: 11, fontWeight: 700, color: on ? "var(--t1)" : "var(--t3)" }}>{row?.reach != null ? compactNumber(row.reach) : "—"}</span>
@@ -215,7 +215,7 @@ function ClientCard({
         </select>}
         {(client as any).metricool_blog_id != null && (
           <a href={`/api/metricool/open?blogId=${(client as any).metricool_blog_id}`} target="_blank" rel="noreferrer"
-            style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 10px", borderRadius: 8, background: "rgba(66,212,244,0.12)", border: "1px solid var(--brd)", color: "var(--cy)", fontSize: 11, fontWeight: 700, textDecoration: "none" }}>
+            style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 10px", borderRadius: 8, background: "rgba(var(--cy-rgb),0.12)", border: "1px solid var(--brd)", color: "var(--cy)", fontSize: 11, fontWeight: 700, textDecoration: "none" }}>
             📊 Metricool ↗
           </a>
         )}
@@ -391,14 +391,14 @@ export default function ClientsPage() {
 
   return (
     <div className="clients-v2">
-      <div className="clients-v2-top">
+      <div className="clients-v2-top page-head">
         <div>
           <h1>Клиенты <span>({clients.length})</span></h1>
           <p>Клиенты в работе, контент и соц-статистика</p>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <TourButton onClick={() => setTourOpen(true)} />
-          {role !== "montager" && <button type="button" data-tour="cl-add" onClick={() => setShowAdd(true)}>+ Клиент</button>}
+          {role !== "montager" && <button type="button" className="btn-lime" data-tour="cl-add" onClick={() => setShowAdd(true)}>+ Клиент</button>}
         </div>
       </div>
 
@@ -418,7 +418,7 @@ export default function ClientsPage() {
         if (!hasR && !hasF) return null;
         return (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 12, marginBottom: 16,
-            padding: 18, borderRadius: 16, background: "linear-gradient(135deg, rgba(123,63,228,.12), rgba(66,212,244,.05))", border: "1px solid rgba(157,107,255,.3)" }}>
+            padding: 18, borderRadius: 16, background: "linear-gradient(135deg, rgba(var(--vi-rgb),.12), rgba(var(--cy-rgb),.05))", border: "1px solid rgba(var(--pu-rgb),.3)" }}>
             <div>
               <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.6 }}>Просмотры за 30 дней</div>
               <div style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 32, fontWeight: 800, color: "var(--cy)", lineHeight: 1.1, marginTop: 4 }}>{compactNumber(hasR ? reach : null)}</div>
@@ -450,14 +450,14 @@ export default function ClientsPage() {
           <i /> Статистика соцсетей (Viralmaxing + Metricool) · {latestSync ? `обновлено ${formatSnapshotDate(latestSync)}` : "данных пока нет"}
         </span>
         <button type="button" onClick={refreshStats} disabled={syncing}
-          style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 12px", borderRadius: 8, background: "rgba(66,212,244,0.12)", border: "1px solid var(--brd)", color: "var(--cy)", fontSize: 11, fontWeight: 700, cursor: syncing ? "default" : "pointer" }}>
+          style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 12px", borderRadius: 8, background: "rgba(var(--cy-rgb),0.12)", border: "1px solid var(--brd)", color: "var(--cy)", fontSize: 11, fontWeight: 700, cursor: syncing ? "default" : "pointer" }}>
           {syncing ? "Обновляю…" : "↻ Обновить статистику"}
         </button>
       </div>
 
       {loadError && (
         <div style={{ padding: "11px 14px", borderRadius: 11, marginBottom: 14, fontSize: 12, lineHeight: 1.55,
-          background: "rgba(255,174,66,0.08)", border: "1px solid rgba(255,174,66,0.4)", color: "var(--t1)" }}>
+          background: "rgba(var(--or-rgb),0.08)", border: "1px solid rgba(var(--or-rgb),0.4)", color: "var(--t1)" }}>
           ⚠ {loadError}{" "}
           <button onClick={() => { setLoading(true); load(); }}
             style={{ marginLeft: 6, background: "transparent", border: "1px solid var(--brd)", borderRadius: 7, color: "var(--cy)", fontSize: 11, fontWeight: 800, padding: "3px 9px", cursor: "pointer" }}>
@@ -474,13 +474,13 @@ export default function ClientsPage() {
             <button key={t.key} type="button" onClick={() => setStatusTab(t.key)}
               style={{
                 display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: 10,
-                background: active ? "rgba(157,107,255,0.14)" : "transparent",
+                background: active ? "rgba(var(--pu-rgb),0.14)" : "transparent",
                 border: `1px solid ${active ? "var(--pu)" : "var(--brd)"}`,
                 color: active ? "var(--t1)" : "var(--t2)", fontSize: 12, fontWeight: 700, cursor: "pointer",
               }}>
               <span style={{ width: 8, height: 8, borderRadius: "50%", background: t.color }} />
               {t.label}
-              <span style={{ fontSize: 10, fontWeight: 800, padding: "1px 7px", borderRadius: 6, background: active ? "rgba(157,107,255,0.2)" : "var(--track)", color: active ? "var(--pu)" : "var(--t3)" }}>{t.count}</span>
+              <span style={{ fontSize: 10, fontWeight: 800, padding: "1px 7px", borderRadius: 6, background: active ? "rgba(var(--pu-rgb),0.2)" : "var(--track)", color: active ? "var(--pu)" : "var(--t3)" }}>{t.count}</span>
             </button>
           );
         })}
@@ -538,7 +538,7 @@ export default function ClientsPage() {
               </div>
             </div>
             <button onClick={handleCreate} className="w-full py-2.5 rounded-xl text-xs font-semibold text-white"
-              style={{ background: "linear-gradient(135deg, var(--cy), var(--pu))" }}>Создать клиента</button>
+              style={{ background: "var(--btn-grad)" }}>Создать клиента</button>
           </div>
         </div>
       )}

@@ -193,14 +193,14 @@ export default function ClientMonthsTimeline({ clientId, clientName, clientMonth
   }
 
   const statusBadge = (status: string, daysToEnd: number, complete: boolean) => {
-    if (status === "closed") return { l: "✓ Закрыт", c: "var(--gr)", bg: "rgba(168,224,99,0.12)" };
-    if (status === "onboarding") return { l: "🧩 Онбординг", c: "var(--cy)", bg: "rgba(66,212,244,0.12)" };
-    if (status === "planned") return { l: "🕓 Запланирован", c: "var(--pu)", bg: "rgba(157,107,255,0.12)" };
+    if (status === "closed") return { l: "✓ Закрыт", c: "var(--gr)", bg: "rgba(var(--gr-rgb),0.12)" };
+    if (status === "onboarding") return { l: "🧩 Онбординг", c: "var(--cy)", bg: "rgba(var(--cy-rgb),0.12)" };
+    if (status === "planned") return { l: "🕓 Запланирован", c: "var(--pu)", bg: "rgba(var(--pu-rgb),0.12)" };
     if (status === "cancelled") return { l: "— Отменён", c: "var(--t3)", bg: "var(--track)" };
-    if (complete) return { l: "✓ Выполнен", c: "var(--gr)", bg: "rgba(168,224,99,0.12)" }; // пакет сделан — просрочки нет
-    if (daysToEnd < 0) return { l: "🔴 Просрочка", c: "var(--rd)", bg: "rgba(255,92,122,0.12)" };
-    if (daysToEnd <= 5) return { l: "⏰ Заканчивается", c: "var(--or)", bg: "rgba(255,174,66,0.12)" };
-    return { l: "🟢 Активен", c: "var(--gr)", bg: "rgba(168,224,99,0.12)" };
+    if (complete) return { l: "✓ Выполнен", c: "var(--gr)", bg: "rgba(var(--gr-rgb),0.12)" }; // пакет сделан — просрочки нет
+    if (daysToEnd < 0) return { l: "🔴 Просрочка", c: "var(--rd)", bg: "rgba(var(--rd-rgb),0.12)" };
+    if (daysToEnd <= 5) return { l: "⏰ Заканчивается", c: "var(--or)", bg: "rgba(var(--or-rgb),0.12)" };
+    return { l: "🟢 Активен", c: "var(--gr)", bg: "rgba(var(--gr-rgb),0.12)" };
   };
 
   const lastM = sortedMonths[sortedMonths.length - 1];
@@ -213,7 +213,7 @@ export default function ClientMonthsTimeline({ clientId, clientName, clientMonth
         <h3 style={{ fontSize: 14, fontWeight: 800, color: "var(--t1)", display: "flex", alignItems: "center", gap: 8 }}>
           <CalendarCheck size={16} style={{ color: "var(--pu)" }} strokeWidth={1.8} />
           Контрактные месяцы
-          <span style={{ marginLeft: 4, padding: "2px 7px", borderRadius: 6, background: "rgba(157,107,255,0.15)", color: "var(--pu)", fontSize: 10, fontWeight: 700 }}>{sortedMonths.length}</span>
+          <span style={{ marginLeft: 4, padding: "2px 7px", borderRadius: 6, background: "rgba(var(--pu-rgb),0.15)", color: "var(--pu)", fontSize: 10, fontWeight: 700 }}>{sortedMonths.length}</span>
         </h3>
         <div style={{ fontSize: 11, color: "var(--t2)", fontWeight: 600 }}>
           Всего по контракту: <span style={{ color: "var(--t1)", fontFamily: "monospace", fontWeight: 800 }}>{totalPublished} / {totalPlan}</span>
@@ -243,7 +243,7 @@ export default function ClientMonthsTimeline({ clientId, clientName, clientMonth
               onClick={() => onActivateMonth(m.month_number)}
               style={{
                 padding: 16, borderRadius: 14,
-                background: isActive ? "rgba(157,107,255,0.08)" : "var(--inset)",
+                background: isActive ? "rgba(var(--pu-rgb),0.08)" : "var(--inset)",
                 border: `1px solid ${isActive ? "var(--pu)" : "var(--brd)"}`,
                 cursor: "pointer", transition: "border-color .12s, background .12s",
                 display: "flex", flexDirection: "column", gap: 12,
@@ -322,7 +322,7 @@ export default function ClientMonthsTimeline({ clientId, clientName, clientMonth
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 5, gap: 6 }}>
                   <span style={{ fontSize: 9, color: "var(--t3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>Должно выйти в месяце</span>
                   <button onClick={() => router.push(`/dashboard/plan?client=${clientId}&m=${m.month_number}`)} title="Контент-план: расставить даты"
-                    style={{ padding: "3px 7px", borderRadius: 6, background: "rgba(157,107,255,0.12)", border: "1px solid var(--brd)", color: "var(--pu)", fontSize: 9.5, fontWeight: 800, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                    style={{ padding: "3px 7px", borderRadius: 6, background: "rgba(var(--pu-rgb),0.12)", border: "1px solid var(--brd)", color: "var(--pu)", fontSize: 9.5, fontWeight: 800, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}>
                     <CalendarDays size={10} /> Контент-план
                   </button>
                 </div>
@@ -359,12 +359,12 @@ export default function ClientMonthsTimeline({ clientId, clientName, clientMonth
               <div onClick={(e) => e.stopPropagation()} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, marginTop: "auto", paddingTop: 4 }}>
                 {m.status === "onboarding" ? (
                   <button onClick={() => startProduction(m.id)} disabled={busy === m.id}
-                    style={{ padding: "5px 9px", borderRadius: 7, background: "rgba(255,174,66,0.14)", border: "1px solid var(--or)", color: "var(--or)", fontSize: 10, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                    style={{ padding: "5px 9px", borderRadius: 7, background: "rgba(var(--or-rgb),0.14)", border: "1px solid var(--or)", color: "var(--or)", fontSize: 10, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}>
                     <Check size={10} strokeWidth={2.4} /> Начать производство
                   </button>
                 ) : m.status === "active" ? (
                   <button onClick={() => closeMonth(m)} disabled={busy === m.id}
-                    style={{ padding: "5px 9px", borderRadius: 7, background: "rgba(168,224,99,0.12)", border: "1px solid var(--gr)", color: "var(--gr)", fontSize: 10, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                    style={{ padding: "5px 9px", borderRadius: 7, background: "rgba(var(--gr-rgb),0.12)", border: "1px solid var(--gr)", color: "var(--gr)", fontSize: 10, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}>
                     <Check size={10} strokeWidth={2.4} /> Закрыть
                   </button>
                 ) : m.status === "closed" ? (
@@ -374,7 +374,7 @@ export default function ClientMonthsTimeline({ clientId, clientName, clientMonth
                   </button>
                 ) : m.status === "planned" ? (
                   <button onClick={() => activateMonth(m.id)} disabled={busy === m.id}
-                    style={{ padding: "5px 9px", borderRadius: 7, background: "rgba(66,212,244,0.12)", border: "1px solid var(--cy)", color: "var(--cy)", fontSize: 10, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                    style={{ padding: "5px 9px", borderRadius: 7, background: "rgba(var(--cy-rgb),0.12)", border: "1px solid var(--cy)", color: "var(--cy)", fontSize: 10, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}>
                     <Check size={10} strokeWidth={2.4} /> Активировать
                   </button>
                 ) : <span />}
@@ -389,7 +389,7 @@ export default function ClientMonthsTimeline({ clientId, clientName, clientMonth
           <button onClick={() => startRenew(lastM)}
             style={{
               minHeight: 150, borderRadius: 14,
-              background: "linear-gradient(135deg, rgba(66,212,244,0.07), rgba(157,107,255,0.07))",
+              background: "linear-gradient(135deg, rgba(var(--cy-rgb),0.07), rgba(var(--pu-rgb),0.07))",
               border: "1px dashed var(--pu)", color: "var(--pu)", cursor: "pointer",
               fontSize: 12, fontWeight: 700,
               display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, textAlign: "center", padding: 16,
@@ -425,7 +425,7 @@ export default function ClientMonthsTimeline({ clientId, clientName, clientMonth
                 style={{ width: "100%", padding: "8px 10px", borderRadius: 8, background: "var(--bg)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 14, fontWeight: 700 }} />
             </div>
             {calSplit.length > 0 && (
-              <div style={{ marginBottom: 18, padding: 12, borderRadius: 10, background: "rgba(66,212,244,0.06)", border: "1px solid var(--brd)" }}>
+              <div style={{ marginBottom: 18, padding: 12, borderRadius: 10, background: "rgba(var(--cy-rgb),0.06)", border: "1px solid var(--brd)" }}>
                 <div style={{ fontSize: 9, color: "var(--t3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>
                   Сколько выйдет в каждом календарном месяце
                 </div>
@@ -445,7 +445,7 @@ export default function ClientMonthsTimeline({ clientId, clientName, clientMonth
                 </div>
               </div>
             )}
-            <div style={{ fontSize: 10, color: "var(--t3)", marginBottom: 16, padding: 10, borderRadius: 8, background: "rgba(157,107,255,0.06)", border: "1px solid var(--brd)" }}>
+            <div style={{ fontSize: 10, color: "var(--t3)", marginBottom: 16, padding: 10, borderRadius: 8, background: "rgba(var(--pu-rgb),0.06)", border: "1px solid var(--brd)" }}>
               {renewModal.prevStatus === "closed"
                 ? "Прошлый месяц закрыт → новый станет сразу active"
                 : "Прошлый месяц ещё active → новый создастся как planned. Когда прошлый закроешь — этот станет active."}
@@ -453,7 +453,7 @@ export default function ClientMonthsTimeline({ clientId, clientName, clientMonth
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
               <button onClick={() => setRenewModal(null)} style={{ padding: "8px 14px", borderRadius: 8, background: "transparent", border: "1px solid var(--brd)", color: "var(--t2)", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Отмена</button>
               <button onClick={confirmRenew} disabled={busy === -1}
-                style={{ padding: "8px 18px", borderRadius: 8, background: "linear-gradient(135deg, var(--cy), var(--pu))", border: "none", color: "#fff", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>
+                style={{ padding: "8px 18px", borderRadius: 8, background: "var(--btn-grad)", border: "none", color: "var(--btn-fg)", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>
                 {busy === -1 ? "..." : `Открыть M${renewModal.nextN}`}
               </button>
             </div>

@@ -22,10 +22,10 @@ type Alert = {
 };
 
 const KIND: Record<Alert["kind"], { label: string; color: string; icon: string }> = {
-  script:     { label: "Сценарий",   color: "#9d6bff", icon: "✍️" },
-  montage:    { label: "Монтаж",     color: "#42d4f4", icon: "✂️" },
-  publish:    { label: "Публикация", color: "#a8e063", icon: "🚀" },
-  month:      { label: "Месяц",      color: "#ffae42", icon: "📅" },
+  script:     { label: "Сценарий",   color: "var(--pu)", icon: "✍️" },
+  montage:    { label: "Монтаж",     color: "var(--cy)", icon: "✂️" },
+  publish:    { label: "Публикация", color: "var(--gr)", icon: "🚀" },
+  month:      { label: "Месяц",      color: "var(--or)", icon: "📅" },
   onboarding: { label: "Онбординг",  color: "#ff6b8b", icon: "🧩" },
   task:       { label: "По клиенту",  color: "#2ee6c8", icon: "✅" },
 };
@@ -167,12 +167,12 @@ export default function AlertsBell({ role, align = "right" }: { role: string; al
   return (
     <div style={{ position: "relative" }}>
       <button onClick={() => setOpen(v => !v)} title="Просрочки и дедлайны"
-        style={{ position: "relative", width: 36, height: 36, borderRadius: 10, background: open ? "rgba(157,107,255,0.16)" : "transparent",
+        style={{ position: "relative", width: 36, height: 36, borderRadius: 10, background: open ? "rgba(var(--pu-rgb),0.16)" : "transparent",
           border: "1px solid var(--brd)", color: unread.length ? "var(--or)" : "var(--t3)", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
         <Bell size={16} />
         {unread.length > 0 && (
           <span style={{ position: "absolute", top: -5, right: -5, minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9,
-            background: "#ff5c7a", color: "#fff", fontSize: 10, fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+            background: "var(--rd)", color: "#fff", fontSize: 10, fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
             {unread.length > 99 ? "99+" : unread.length}
           </span>
         )}
@@ -182,7 +182,7 @@ export default function AlertsBell({ role, align = "right" }: { role: string; al
         <>
           <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 200 }} />
           <div style={{ position: "absolute", top: "calc(100% + 8px)", ...(align === "left" ? { left: 0 } : { right: 0 }), zIndex: 210, width: 360, maxWidth: "92vw", maxHeight: 460, overflowY: "auto",
-            background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 14, boxShadow: "0 18px 50px rgba(0,0,0,0.55)", padding: 12 }}>
+            background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 14, boxShadow: "0 18px 50px rgba(var(--sh-rgb),calc(0.55 * var(--sh-k)))", padding: 12 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
               <span style={{ fontSize: 13, fontWeight: 800, color: "var(--t1)" }}>
                 {alerts.length ? `Требует внимания · ${alerts.length}` : "Всё чисто"}
@@ -212,13 +212,13 @@ export default function AlertsBell({ role, align = "right" }: { role: string; al
                       return (
                         <button key={a.id} onClick={() => go(a)}
                           style={{ display: "flex", alignItems: "center", gap: 9, padding: "8px 10px", borderRadius: 10, cursor: "pointer", textAlign: "left",
-                            background: isNew ? "rgba(255,92,122,0.07)" : "var(--inset)", border: `1px solid ${isNew ? "rgba(255,92,122,0.28)" : "var(--brd)"}` }}>
+                            background: isNew ? "rgba(var(--rd-rgb),0.07)" : "var(--inset)", border: `1px solid ${isNew ? "rgba(var(--rd-rgb),0.28)" : "var(--brd)"}` }}>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontSize: 12, fontWeight: 700, color: "var(--t1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.title}</div>
                             <div style={{ fontSize: 10.5, color: "var(--t3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.sub}</div>
                           </div>
                           {a.days > 0 && (
-                            <span style={{ flexShrink: 0, fontSize: 10.5, fontWeight: 800, color: a.days > 3 ? "#ff5c7a" : "var(--or)" }}>
+                            <span style={{ flexShrink: 0, fontSize: 10.5, fontWeight: 800, color: a.days > 3 ? "var(--rd)" : "var(--or)" }}>
                               +{a.days} дн
                             </span>
                           )}

@@ -234,7 +234,7 @@ export default function PlanFactTab({ clientId }: { clientId: number }) {
 
       {/* слабое звено */}
       {calc.weakest && (
-        <div className="v2-card" style={{ padding: 14, border: "1px solid rgba(255,92,122,.4)" }}>
+        <div className="v2-card" style={{ padding: 14, border: "1px solid rgba(var(--rd-rgb),.4)" }}>
           <b style={{ color: "var(--rd)", fontSize: 13 }}>Проседает: {METRICS.find(m => m.k === calc.weakest!.k)?.label} — {Math.round(calc.weakest.ratio * 100)}% от плана</b>
           <div style={{ fontSize: 13, color: "var(--t2)", marginTop: 6, lineHeight: 1.5 }}>{FIX[calc.weakest.k]}</div>
         </div>

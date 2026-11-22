@@ -273,7 +273,7 @@ export default function PublicationModal({ pub, client, script, onClose, onUpdat
                   <div key={url} style={{ position: "relative", width: 96, borderRadius: 10, overflow: "hidden", border: "1px solid var(--brd)", background: "var(--v2-inset)" }}>
                     <img src={url} alt={`слайд ${i + 1}`} style={{ width: "100%", height: 120, objectFit: "cover", display: "block" }} />
                     <span className="v2-chip mut" style={{ position: "absolute", top: 4, left: 4, padding: "1px 6px" }}>{i + 1}</span>
-                    {!locked && <button onClick={() => save({ media_urls: (f.media_urls || []).filter((_, k) => k !== i) })} style={{ position: "absolute", top: 4, right: 4, width: 20, height: 20, borderRadius: 6, background: "rgba(255,92,122,.85)", border: 0, color: "#fff", cursor: "pointer" }}><Trash2 size={11} /></button>}
+                    {!locked && <button onClick={() => save({ media_urls: (f.media_urls || []).filter((_, k) => k !== i) })} style={{ position: "absolute", top: 4, right: 4, width: 20, height: 20, borderRadius: 6, background: "rgba(var(--rd-rgb),.85)", border: 0, color: "#fff", cursor: "pointer" }}><Trash2 size={11} /></button>}
                     <div style={{ display: "flex" }}><button onClick={() => moveSlide(i, -1)} disabled={i === 0} style={{ flex: 1, background: "none", border: 0, color: "var(--t2)", cursor: "pointer", padding: 3 }}>‹</button><button onClick={() => moveSlide(i, 1)} disabled={i === (f.media_urls || []).length - 1} style={{ flex: 1, background: "none", border: 0, color: "var(--t2)", cursor: "pointer", padding: 3 }}>›</button></div>
                   </div>
                 ))}
@@ -284,8 +284,8 @@ export default function PublicationModal({ pub, client, script, onClose, onUpdat
           ) : (
             <div className="pub-media">
               {videoMismatch && (
-                <div style={{ gridColumn: "1 / -1", padding: "10px 12px", borderRadius: 10, background: "rgba(255,92,122,.12)", border: "1px solid rgba(255,92,122,.5)", display: "flex", gap: 10, alignItems: "flex-start", flexWrap: "wrap" }}>
-                  <AlertTriangle size={16} style={{ color: "var(--rd, #ff5c7a)", flexShrink: 0, marginTop: 2 }} />
+                <div style={{ gridColumn: "1 / -1", padding: "10px 12px", borderRadius: 10, background: "rgba(var(--rd-rgb),.12)", border: "1px solid rgba(var(--rd-rgb),.5)", display: "flex", gap: 10, alignItems: "flex-start", flexWrap: "wrap" }}>
+                  <AlertTriangle size={16} style={{ color: "var(--rd, var(--rd))", flexShrink: 0, marginTop: 2 }} />
                   <div style={{ flex: "1 1 260px", fontSize: 13, lineHeight: 1.45 }}>
                     <b>В карточке сценария другой файл ролика.</b> Сейчас отправится тот, что ниже. Проверь, какой правильный: обычно это последний загруженный в сценарий.
                     {" "}<a href={scriptVideo!} target="_blank" rel="noreferrer" style={{ color: "inherit", textDecoration: "underline" }}>Открыть файл из сценария</a>

@@ -44,7 +44,7 @@ export default function MetricoolBrandPicker({ blogId, onPick }: { blogId: numbe
 
       {/* статус привязки */}
       {blogId != null ? (
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 10px", borderRadius: 8, background: "rgba(168,224,99,0.12)", border: "1px solid rgba(168,224,99,0.4)", fontSize: 12, color: "var(--t1)" }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 10px", borderRadius: 8, background: "rgba(var(--gr-rgb),0.12)", border: "1px solid rgba(var(--gr-rgb),0.4)", fontSize: 12, color: "var(--t1)" }}>
           <Check size={13} style={{ color: "var(--gr)" }} />
           {current ? current.label : `blogId ${blogId}`}
           <span style={{ fontFamily: "monospace", fontSize: 10, color: "var(--t3)" }}>#{blogId}</span>
@@ -57,7 +57,7 @@ export default function MetricoolBrandPicker({ blogId, onPick }: { blogId: numbe
       {/* открыть аналитику бренда в Metricool */}
       {blogId != null && (
         <a href={`/api/metricool/open?blogId=${blogId}`} target="_blank" rel="noreferrer"
-          style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 8, background: "linear-gradient(135deg, var(--cy), var(--pu))", color: "#fff", fontSize: 12, fontWeight: 700, textDecoration: "none" }}>
+          style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 8, background: "var(--btn-grad)", color: "var(--btn-fg)", fontSize: 12, fontWeight: 700, textDecoration: "none" }}>
           Аналитика в Metricool <ExternalLink size={12} />
         </a>
       )}
@@ -65,12 +65,12 @@ export default function MetricoolBrandPicker({ blogId, onPick }: { blogId: numbe
       {/* кнопка выбора */}
       <div style={{ position: "relative" }}>
         <button onClick={loadBrands} disabled={busy}
-          style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 8, background: "rgba(66,212,244,0.12)", border: "1px solid var(--brd)", color: "var(--cy)", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+          style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 8, background: "rgba(var(--cy-rgb),0.12)", border: "1px solid var(--brd)", color: "var(--cy)", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
           <Rocket size={13} /> {busy ? "Гружу…" : blogId != null ? "Сменить" : "Привязать бренд"} <ChevronDown size={12} />
         </button>
 
         {open && brands && (
-          <div style={{ position: "absolute", bottom: "calc(100% + 6px)", left: 0, zIndex: 200, width: 280, maxHeight: 320, overflowY: "auto", background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 12, padding: 6, boxShadow: "0 -16px 40px rgba(0,0,0,0.5)" }}>
+          <div style={{ position: "absolute", bottom: "calc(100% + 6px)", left: 0, zIndex: 200, width: 280, maxHeight: 320, overflowY: "auto", background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 12, padding: 6, boxShadow: "0 -16px 40px rgba(var(--sh-rgb),calc(0.5 * var(--sh-k)))" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 8px" }}>
               <span style={{ fontSize: 10, fontWeight: 800, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 0.5 }}>Бренды Metricool ({brands.length})</span>
               <button onClick={fetchBrands} disabled={busy} title="Обновить список из Metricool"
@@ -84,7 +84,7 @@ export default function MetricoolBrandPicker({ blogId, onPick }: { blogId: numbe
               const on = b.blogId === blogId;
               return (
                 <button key={b.blogId} onClick={() => { onPick(b.blogId); setOpen(false); }}
-                  style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "7px 8px", borderRadius: 8, background: on ? "rgba(157,107,255,0.12)" : "transparent", border: "none", color: "var(--t1)", fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "left" }}
+                  style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "7px 8px", borderRadius: 8, background: on ? "rgba(var(--pu-rgb),0.12)" : "transparent", border: "none", color: "var(--t1)", fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "left" }}
                   onMouseEnter={e => { if (!on) e.currentTarget.style.background = "var(--inset2)"; }} onMouseLeave={e => { if (!on) e.currentTarget.style.background = "transparent"; }}>
                   {on ? <Check size={13} style={{ color: "var(--pu)", flexShrink: 0 }} /> : <Link2 size={13} style={{ color: "var(--t3)", flexShrink: 0 }} />}
                   <span style={{ overflow: "hidden", flex: 1, minWidth: 0 }}>
@@ -109,7 +109,7 @@ export default function MetricoolBrandPicker({ blogId, onPick }: { blogId: numbe
         )}
       </div>
 
-      {err && !open && <span style={{ fontSize: 10, color: "#ff5c7a" }}>Metricool: {err}</span>}
+      {err && !open && <span style={{ fontSize: 10, color: "var(--rd)" }}>Metricool: {err}</span>}
       <style>{`.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );

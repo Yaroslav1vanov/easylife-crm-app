@@ -126,9 +126,9 @@ export default function AiUsagePage() {
 
   return (
     <div style={{ maxWidth: 1180, margin: "0 auto", paddingBottom: 40 }}>
-      <div className="flex items-center gap-3 flex-wrap" style={{ marginBottom: 12 }}>
-        <Bot size={22} style={{ color: "var(--pu)" }} />
-        <h1 style={{ fontSize: 22, fontWeight: 800 }}>ИИ-чат: аналитика</h1>
+      <div className="page-head" style={{ alignItems: "center", justifyContent: "flex-start" }}>
+        <Bot size={22} style={{ color: "var(--lime)" }} />
+        <h1>ИИ-чат: аналитика</h1>
         <span style={{ fontSize: 12, color: "var(--t3)" }}>видите только вы</span>
         <div style={{ flex: 1 }} />
         {[1, 7, 30, 90].map(n => (

@@ -27,11 +27,11 @@ type View = { type: "today" | "tomorrow" | "week" | "done" | "brain" | "chat" } 
 
 const DIRECTIONS = ["Удержание", "Трафик", "Владельцы", "Рекомендации", "Продажи", "Производство", "HR", "Деньги", "Разгрузка", "Итог"];
 const DIR_COLOR: Record<string, string> = {
-  "Удержание": "#a8e063", "Трафик": "#42d4f4", "Продажи": "#9d6bff", "Производство": "#ffae42",
-  "HR": "#ec4899", "Деньги": "#f5c451", "Разгрузка": "#5b8cff", "Итог": "#a890d0",
+  "Удержание": "var(--gr)", "Трафик": "var(--cy)", "Продажи": "var(--pu)", "Производство": "var(--or)",
+  "HR": "#ec4899", "Деньги": "var(--yl)", "Разгрузка": "#5b8cff", "Итог": "#a890d0",
   "Владельцы": "#2ee6c8", "Рекомендации": "#a98bff",
 };
-const PRI_COLOR: Record<string, string> = { A: "#ff5c7a", B: "#ffae42", C: "#77658f" };
+const PRI_COLOR: Record<string, string> = { A: "var(--rd)", B: "var(--or)", C: "#77658f" };
 const PRI_LABEL: Record<string, string> = { A: "Высокий", B: "Средний", C: "Низкий" };
 const KIND_LABEL: Record<string, string> = { plan: "План дня", push: "Пуш", review: "Итог дня", decision: "Решение", note: "Заметка" };
 const KIND_COLOR: Record<string, string> = { plan: "var(--gr)", push: "var(--cy)", review: "var(--pu)", decision: "var(--or)", note: "var(--t2)" };
@@ -118,7 +118,7 @@ const S = `
 .st .chip{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:100px;border:1px solid var(--brd);color:var(--t2);white-space:nowrap}
 @media(max-width:860px){.st{grid-template-columns:1fr}.st .rail{position:static;display:flex;overflow-x:auto;gap:4px;padding:6px}.st .rh,.st .prog{display:none}.st .ri{white-space:nowrap;width:auto}.st .sub{padding-left:10px}.st .kp{grid-template-columns:repeat(2,1fr)}.st .add{flex-wrap:wrap}}
 .sd-bg{position:fixed;inset:0;background:rgba(5,0,15,.55);z-index:1000}
-.sd{position:fixed;top:0;right:0;bottom:0;width:min(520px,100vw);background:var(--bg2);border-left:1px solid var(--brd);z-index:1001;overflow-y:auto;padding:18px 20px 40px;box-shadow:-20px 0 60px rgba(0,0,0,.35)}
+.sd{position:fixed;top:0;right:0;bottom:0;width:min(520px,100vw);background:var(--bg2);border-left:1px solid var(--brd);z-index:1001;overflow-y:auto;padding:18px 20px 40px;box-shadow:-20px 0 60px rgba(var(--sh-rgb),calc(.35 * var(--sh-k)))}
 .sd .top{display:flex;align-items:center;gap:10px;margin-bottom:12px}
 .sd .ttl{width:100%;background:transparent;border:none;color:var(--t1);font-family:'Unbounded',sans-serif;font-weight:700;font-size:17px;line-height:1.35;resize:none;outline:none}
 .sd .f{display:grid;grid-template-columns:110px 1fr;gap:8px 12px;align-items:center;margin:14px 0;font-size:13px}
@@ -133,7 +133,7 @@ const S = `
 .sd .sadd{display:flex;gap:8px;margin-top:8px}.sd .sadd input{flex:1;background:var(--inp);border:1px solid var(--brd);color:var(--t1);border-radius:9px;padding:7px 9px;font-size:13px}
 .sd .acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:22px}
 .sd .btn{background:var(--pu);color:#fff;border:none;border-radius:10px;padding:9px 14px;font-weight:700;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
-.sd .btn.ok{background:var(--gr);color:#0a0118}.sd .btn.ghost{background:transparent;color:var(--t2);border:1px solid var(--brd)}.sd .btn.danger{background:transparent;color:var(--rd);border:1px solid rgba(255,92,122,.4)}
+.sd .btn.ok{background:var(--gr);color:#0a0118}.sd .btn.ghost{background:transparent;color:var(--t2);border:1px solid var(--brd)}.sd .btn.danger{background:transparent;color:var(--rd);border:1px solid rgba(var(--rd-rgb),.4)}
 .sd .meta{font-size:11.5px;color:var(--t3);margin-top:16px;line-height:1.6}
 `;
 
@@ -312,11 +312,11 @@ export default function StrategyPage() {
       <style>{S}</style>
 
       <aside className="rail">
-        <button className={`ri ${view.type === "today" ? "on" : ""}`} onClick={() => setView({ type: "today" })}><Sun size={16} color="#ffae42" />Сегодня<span className={`n ${overdue.length ? "red" : ""}`}>{counts.today || ""}</span></button>
-        <button className={`ri ${view.type === "tomorrow" ? "on" : ""}`} onClick={() => setView({ type: "tomorrow" })}><Sunrise size={16} color="#42d4f4" />Завтра<span className="n">{counts.tomorrow || ""}</span></button>
-        <button className={`ri ${view.type === "week" ? "on" : ""}`} onClick={() => setView({ type: "week" })}><CalendarRange size={16} color="#9d6bff" />7 дней<span className="n">{counts.week || ""}</span></button>
-        <button className={`ri ${view.type === "done" ? "on" : ""}`} onClick={() => setView({ type: "done" })}><CheckCircle2 size={16} color="#a8e063" />Выполнено<span className="n">{counts.done || ""}</span></button>
-        <button className={`ri ${view.type === "chat" ? "on" : ""}`} onClick={() => setView({ type: "chat" })}><MessageCircle size={16} color="#42d4f4" />Чат · ИИ</button>
+        <button className={`ri ${view.type === "today" ? "on" : ""}`} onClick={() => setView({ type: "today" })}><Sun size={16} color="var(--or)" />Сегодня<span className={`n ${overdue.length ? "red" : ""}`}>{counts.today || ""}</span></button>
+        <button className={`ri ${view.type === "tomorrow" ? "on" : ""}`} onClick={() => setView({ type: "tomorrow" })}><Sunrise size={16} color="var(--cy)" />Завтра<span className="n">{counts.tomorrow || ""}</span></button>
+        <button className={`ri ${view.type === "week" ? "on" : ""}`} onClick={() => setView({ type: "week" })}><CalendarRange size={16} color="var(--pu)" />7 дней<span className="n">{counts.week || ""}</span></button>
+        <button className={`ri ${view.type === "done" ? "on" : ""}`} onClick={() => setView({ type: "done" })}><CheckCircle2 size={16} color="var(--gr)" />Выполнено<span className="n">{counts.done || ""}</span></button>
+        <button className={`ri ${view.type === "chat" ? "on" : ""}`} onClick={() => setView({ type: "chat" })}><MessageCircle size={16} color="var(--cy)" />Чат · ИИ</button>
         <button className={`ri ${view.type === "brain" ? "on" : ""}`} onClick={() => setView({ type: "brain" })}><Brain size={16} color="#ec4899" />Мозг системы</button>
 
         {[...sprints].reverse().map(sp => (
@@ -346,7 +346,7 @@ export default function StrategyPage() {
       </aside>
 
       <div className="main">
-        {err && <div className="card" style={{ marginBottom: 12, borderColor: "rgba(255,92,122,.45)", color: "var(--rd)" }}><AlertTriangle size={14} style={{ verticalAlign: -2 }} /> {err}</div>}
+        {err && <div className="card" style={{ marginBottom: 12, borderColor: "rgba(var(--rd-rgb),.45)", color: "var(--rd)" }}><AlertTriangle size={14} style={{ verticalAlign: -2 }} /> {err}</div>}
         {header()}
 
         {view.type !== "brain" && view.type !== "chat" && view.type !== "done" && view.type !== "month" && curSprint && (
@@ -421,7 +421,7 @@ export default function StrategyPage() {
           <style>{S}</style>
           <div className="sd-bg" onClick={() => setNewSprint(null)} />
           <div className="sd">
-            <div className="top"><Flame size={18} color="#ffae42" /><b style={{ color: "var(--t1)" }}>Новый забег</b><span style={{ flex: 1 }} /><button className="ib" onClick={() => setNewSprint(null)}><X size={18} /></button></div>
+            <div className="top"><Flame size={18} color="var(--or)" /><b style={{ color: "var(--t1)" }}>Новый забег</b><span style={{ flex: 1 }} /><button className="ib" onClick={() => setNewSprint(null)}><X size={18} /></button></div>
             <div className="f">
               <label>Название</label><input value={newSprint.title} onChange={e => setNewSprint({ ...newSprint, title: e.target.value })} />
               <label>Начало</label><input type="date" value={newSprint.start} onChange={e => setNewSprint({ ...newSprint, start: e.target.value })} />

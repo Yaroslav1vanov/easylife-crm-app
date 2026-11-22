@@ -86,7 +86,7 @@ export default function StoryBatchModal({ clients, defaultClientId, onClose, onC
                   <div style={{ position: "relative", width: "100%", aspectRatio: "9 / 16", borderRadius: 10, overflow: "hidden", border: "1px solid var(--brd)", background: "#000" }}>
                     {video ? <video src={f.preview} muted playsInline preload="metadata" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <img src={f.preview} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
                     <span className="v2-chip mut" style={{ position: "absolute", top: 5, left: 5, padding: "1px 6px" }}>{i + 1}{video ? " · видео" : ""}</span>
-                    <button onClick={() => { URL.revokeObjectURL(f.preview); setFrames(a => a.filter((_, k) => k !== i)); }} style={{ position: "absolute", top: 5, right: 5, width: 22, height: 22, borderRadius: 6, background: "rgba(255,92,122,.85)", border: 0, color: "#fff", cursor: "pointer" }}><Trash2 size={12} /></button>
+                    <button onClick={() => { URL.revokeObjectURL(f.preview); setFrames(a => a.filter((_, k) => k !== i)); }} style={{ position: "absolute", top: 5, right: 5, width: 22, height: 22, borderRadius: 6, background: "rgba(var(--rd-rgb),.85)", border: 0, color: "#fff", cursor: "pointer" }}><Trash2 size={12} /></button>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
                     <button onClick={() => move(i, -1)} disabled={i === 0} className="v2-iconbtn" style={{ width: 24, height: 24 }}><ArrowUp size={12} style={{ transform: "rotate(-90deg)" }} /></button>

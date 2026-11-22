@@ -35,7 +35,7 @@ export default function ClientProduction({ currentM, scripts: all }: Props) {
 
   const blocks = [
     {
-      title: "Сценарии", Icon: Pen, color: "#9d6bff", barPct: pct(scrApproved),
+      title: "Сценарии", Icon: Pen, color: "var(--pu)", barPct: pct(scrApproved),
       stats: [
         { v: scrApproved, l: "готовы" },
         { v: scrInProgress, l: "в работе" },
@@ -43,7 +43,7 @@ export default function ClientProduction({ currentM, scripts: all }: Props) {
       ],
     },
     {
-      title: "Монтаж", Icon: Scissors, color: "#ffae42", barPct: pct(mntReady + pubPublished),
+      title: "Монтаж", Icon: Scissors, color: "var(--or)", barPct: pct(mntReady + pubPublished),
       stats: [
         { v: mntReady, l: "готовы" },
         { v: mntInProgress, l: "в работе" },
@@ -71,7 +71,7 @@ export default function ClientProduction({ currentM, scripts: all }: Props) {
           return (
             <div key={b.title} style={{ padding: 16, borderRadius: 14, background: "var(--inset)", border: "1px solid var(--brd)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 16 }}>
-                <div style={{ width: 30, height: 30, borderRadius: 9, background: `${b.color}22`, color: b.color, display: "flex", alignItems: "center", justifyContent: "center", border: `1px solid ${b.color}44` }}>
+                <div style={{ width: 30, height: 30, borderRadius: 9, background: `color-mix(in srgb, ${b.color} 13%, transparent)`, color: b.color, display: "flex", alignItems: "center", justifyContent: "center", border: `1px solid color-mix(in srgb, ${b.color} 27%, transparent)` }}>
                   <I size={15} strokeWidth={1.8} />
                 </div>
                 <span style={{ fontSize: 14, fontWeight: 800, color: "var(--t1)" }}>{b.title}</span>

@@ -22,12 +22,12 @@ type Kind = "tl_write" | "tl_send" | "tl_wait" | "tl_publish" | "mg_montage" | "
 type Task = { s: Script; c: Client; kind: Kind; due: string; who?: TeamMember | null };
 
 const META: Record<Kind, { t: string; c: string; hint: string; primary: string; patch: Partial<Script> | null }> = {
-  tl_write:   { t: "Написать сценарий",      c: "#9d6bff", hint: "ещё не начат",                      primary: "Взять в работу",     patch: { script_status: "inProgress" } },
-  tl_send:    { t: "Отправить клиенту",      c: "#42d4f4", hint: "написан, ждёт отправки",            primary: "Отправлено клиенту", patch: { script_status: "review" } },
-  tl_wait:    { t: "Ждём согласования",      c: "#ffae42", hint: "у клиента, если тянет — напомнить", primary: "Клиент согласовал",  patch: { script_status: "approved" } },
-  tl_publish: { t: "Опубликовать",           c: "#a8e063", hint: "монтажёр сдал ролик",              primary: "Опубликовано",       patch: { video_status: "published" } },
-  mg_montage: { t: "Смонтировать",           c: "#ffae42", hint: "сценарий согласован",              primary: "Взять в монтаж",     patch: { video_status: "inProgress" } },
-  mg_upload:  { t: "Загрузить готовый ролик", c: "#42d4f4", hint: "в монтаже, файла ещё нет",         primary: "Открыть и загрузить", patch: null },
+  tl_write:   { t: "Написать сценарий",      c: "var(--pu)", hint: "ещё не начат",                      primary: "Взять в работу",     patch: { script_status: "inProgress" } },
+  tl_send:    { t: "Отправить клиенту",      c: "var(--cy)", hint: "написан, ждёт отправки",            primary: "Отправлено клиенту", patch: { script_status: "review" } },
+  tl_wait:    { t: "Ждём согласования",      c: "var(--or)", hint: "у клиента, если тянет — напомнить", primary: "Клиент согласовал",  patch: { script_status: "approved" } },
+  tl_publish: { t: "Опубликовать",           c: "var(--gr)", hint: "монтажёр сдал ролик",              primary: "Опубликовано",       patch: { video_status: "published" } },
+  mg_montage: { t: "Смонтировать",           c: "var(--or)", hint: "сценарий согласован",              primary: "Взять в монтаж",     patch: { video_status: "inProgress" } },
+  mg_upload:  { t: "Загрузить готовый ролик", c: "var(--cy)", hint: "в монтаже, файла ещё нет",         primary: "Открыть и загрузить", patch: null },
 };
 
 function daysDiff(a: string, b: string) { return Math.round((Date.parse(a) - Date.parse(b)) / 86400000); }
@@ -177,7 +177,7 @@ export default function TodayView({ role, member, viewAll, clients, clientMonths
 
   return (
     <div className="v2">
-      <div className="v2-hdr">
+      <div className="v2-hdr page-head">
         <div>
           <h1>{greet}, {name}</h1>
           <p>{dateRu} · {v.mine.length} {v.mine.length === 1 ? "клиент" : v.mine.length < 5 ? "клиента" : "клиентов"}{v.waiting.length ? ` · ${v.waiting.reduce((s, x) => s + x.n, 0)} на согласовании у клиентов` : ""}</p>
@@ -273,20 +273,20 @@ export default function TodayView({ role, member, viewAll, clients, clientMonths
               {p.patch
                 ? <SheetOption active color={META[open.kind].c} label={busy ? "…" : p.label} hint={p.hint} onClick={() => run(p.patch!, p.label)} disabled={busy || (!canEdit && open.kind.startsWith("tl_"))} />
                 : <SheetOption active color={META[open.kind].c} label={p.label} hint="файл ролика" onClick={() => { setEditing(open.s); setOpen(null); }} />}
-              {open.kind === "tl_wait" && <SheetOption color="#42d4f4" label="Вернуть в работу" hint="клиент просит правки" onClick={() => run({ script_status: "inProgress" }, "Вернули в работу")} disabled={busy} />}
-              <SheetOption color="#9d6bff" label="Открыть сценарий" hint="текст, реф, файл" onClick={() => { setEditing(open.s); setOpen(null); }} />
+              {open.kind === "tl_wait" && <SheetOption color="var(--cy)" label="Вернуть в работу" hint="клиент просит правки" onClick={() => run({ script_status: "inProgress" }, "Вернули в работу")} disabled={busy} />}
+              <SheetOption color="var(--pu)" label="Открыть сценарий" hint="текст, реф, файл" onClick={() => { setEditing(open.s); setOpen(null); }} />
               {canEdit && (dateMode ? (
                 <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 2px" }}>
                   <input type="date" value={dateVal} onChange={e => setDateVal(e.target.value)} style={{ flex: 1, padding: "9px 10px", borderRadius: 9, background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 13, colorScheme: "dark" }} />
                   <button className="v2-act pri" disabled={!dateVal || busy} onClick={() => run({ pub_date: dateVal }, `Перенесено на ${fmtDateShort(dateVal)}`)}>Перенести</button>
                 </div>
               ) : (
-                <SheetOption color="#ffae42" label="Перенести дату публикации" hint={fmtDateShort(open.s.pub_date)} onClick={() => setDateMode(true)} />
+                <SheetOption color="var(--or)" label="Перенести дату публикации" hint={fmtDateShort(open.s.pub_date)} onClick={() => setDateMode(true)} />
               ))}
               {canEdit && open.kind.startsWith("tl_") && open.kind !== "tl_publish" && (
                 <SheetOption color="#77658f" label="Вернуть в идею" hint="снимет дату" onClick={() => run({ script_status: "notStarted", pub_date: null }, "Вернули в идею")} disabled={busy} />
               )}
-              <SheetOption color="#42d4f4" label={`Открыть клиента`} hint={`${open.c.name}`} onClick={() => router.push(`/dashboard/clients/${open.c.id}`)} />
+              <SheetOption color="var(--cy)" label={`Открыть клиента`} hint={`${open.c.name}`} onClick={() => router.push(`/dashboard/clients/${open.c.id}`)} />
             </div>
           );
         })()}

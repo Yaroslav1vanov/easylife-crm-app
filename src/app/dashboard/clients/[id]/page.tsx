@@ -342,77 +342,79 @@ export default function ClientDetailPage() {
 
   return (
     <div className="client-detail-v2 v2">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-        <button onClick={() => router.back()} style={{ color: "var(--cy)", background: "none", border: "none", cursor: "pointer", fontSize: 12, fontWeight: 700 }}>← Назад</button>
-      </div>
-
-      {/* ===== Шапка клиента ===== */}
-      <div className="v2-hero">
-        <AvatarUploader currentUrl={c.avatar_url} name={`${c.name} ${c.surname || ""}`} pathPrefix="clients" entityId={c.id} size={isMobile ? 56 : 72} compact onUploaded={async (url) => { await updateClientField("avatar_url", url); }} />
-        <div style={{ minWidth: 0 }}>
-          <h1>{c.name} {c.surname || ""}</h1>
-          <p>{c.niche || c.product || "—"}</p>
-          <div className="team">
-            <span className={`v2-chip ${stageChip.cls}`}>{stageChip.l}</span>
-            {teamlead && <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Avatar name={teamlead.name} src={teamlead.avatar_url} size={20} />{teamlead.name}</span>}
-            {montager && <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Avatar name={montager.name} src={montager.avatar_url} size={20} />{montager.name}</span>}
-            {currentM && <span className="v2-chip mut">M{currentM.month_number} · до {fmtDateShort(currentM.end_date)}{monthDaysLeft != null && monthDaysLeft < 0 ? ` · просрочка ${-monthDaysLeft} дн` : ""}</span>}
+      {/* ===== Тёмная шапка клиента: путь, имя, метки, вкладки ===== */}
+      <div className="cl-head">
+        <div className="cl-crumb">
+          <button onClick={() => router.back()}>← Назад</button>
+          <span>/ Клиенты / {c.name} {c.surname || ""}</span>
+        </div>
+        <div className="cl-title">
+          <AvatarUploader currentUrl={c.avatar_url} name={`${c.name} ${c.surname || ""}`} pathPrefix="clients" entityId={c.id} size={isMobile ? 52 : 60} compact onUploaded={async (url) => { await updateClientField("avatar_url", url); }} />
+          <div className="cl-title-main">
+            <h1>{c.name} {c.surname || ""}</h1>
+            <div className="cl-niche">{c.niche || c.product || "—"}</div>
           </div>
-          <div className="v2-soc">
-            {SOCIALS.map(({ key, cls, label, Icon, color }) => {
-              const raw = (c as any)[key] as string | undefined;
-              if (!raw) return null;
-              const href = raw.startsWith("http") ? raw : `https://${raw}`;
-              const handle = handleOf(raw, key === "instagram" ? "ig" : key === "tiktok" ? "tt" : "yt");
-              return (
-                <a key={key} className={cls} href={href} target="_blank" rel="noopener noreferrer" title={`Открыть ${label}`}>
-                  <Icon size={13} style={{ color }} />
-                  <span>{label}</span>
-                  {handle && <span className="h">@{handle}</span>}
-                </a>
-              );
-            })}
-            {!isMont && SOCIALS.some(({ key }) => (c as any)[key]) && (
-              <button className="add" title="Поменять аккаунт или добавить TikTok / YouTube Shorts"
-                onClick={() => { setEditData({ name: c.name, surname: c.surname, niche: c.niche, phone: c.phone, product: c.product, avg_check: c.avg_check, package: c.package, montager_id: c.montager_id, teamlead_id: c.teamlead_id, stage: c.stage, instagram: c.instagram, tiktok: c.tiktok, youtube: c.youtube, birthday: c.birthday || "" }); setEditing(true); }}>
-                ✎ {SOCIALS.every(({ key }) => (c as any)[key]) ? "изменить соцсети" : "изменить / добавить соцсети"}
-              </button>
-            )}
-            {!isMont && SOCIALS.every(({ key }) => !(c as any)[key]) && (
-              <button className="add" onClick={() => { setEditData({ name: c.name, surname: c.surname, niche: c.niche, phone: c.phone, product: c.product, avg_check: c.avg_check, package: c.package, montager_id: c.montager_id, teamlead_id: c.teamlead_id, stage: c.stage, instagram: c.instagram, tiktok: c.tiktok, youtube: c.youtube, birthday: c.birthday || "" }); setEditing(true); }}>
-                + добавить соцсети
-              </button>
-            )}
+          <div className="cl-actions">
+            {!isMont && <button className="btn-ghost" onClick={() => setMenuOpen(true)} aria-label="Действия по клиенту">Действия ⋯</button>}
+            {c.ai_chat && ctab !== "chat" && <button className="btn-lime" onClick={() => setCtab("chat")}>Обсудить с ИИ</button>}
           </div>
         </div>
-        {!isMont && <button className="v2-iconbtn" onClick={() => setMenuOpen(true)} aria-label="Действия" style={{ fontSize: 18, lineHeight: 1 }}>⋯</button>}
+        <div className="cl-meta">
+          <span className={`cl-pill ${stageChip.cls === "gr" ? "ok" : stageChip.cls === "or" ? "warn" : "bad"}`}>{stageChip.l}</span>
+          {currentM && <span className={`cl-pill ${monthDaysLeft != null && monthDaysLeft < 0 ? "bad" : ""}`}>M{currentM.month_number} · до {fmtDateShort(currentM.end_date)}{monthDaysLeft != null && monthDaysLeft < 0 ? ` · просрочка ${-monthDaysLeft} дн` : ""}</span>}
+          {teamlead && <span className="cl-pill" title="Тимлид"><Avatar name={teamlead.name} src={teamlead.avatar_url} size={18} />{teamlead.name}</span>}
+          {montager && <span className="cl-pill" title="Монтажёр"><Avatar name={montager.name} src={montager.avatar_url} size={18} />{montager.name}</span>}
+          {SOCIALS.map(({ key, label, Icon, color }) => {
+            const raw = (c as any)[key] as string | undefined;
+            if (!raw) return null;
+            const href = raw.startsWith("http") ? raw : `https://${raw}`;
+            const handle = handleOf(raw, key === "instagram" ? "ig" : key === "tiktok" ? "tt" : "yt");
+            return (
+              <a key={key} className="cl-pill" href={href} target="_blank" rel="noopener noreferrer" title={`Открыть ${label}`}>
+                <Icon size={13} style={{ color }} />
+                <span>{label}</span>
+                {handle && <span className="h">@{handle}</span>}
+              </a>
+            );
+          })}
+          {!isMont && SOCIALS.some(({ key }) => (c as any)[key]) && (
+            <button className="cl-pill add" title="Поменять аккаунт или добавить TikTok / YouTube Shorts"
+              onClick={() => { setEditData({ name: c.name, surname: c.surname, niche: c.niche, phone: c.phone, product: c.product, avg_check: c.avg_check, package: c.package, montager_id: c.montager_id, teamlead_id: c.teamlead_id, stage: c.stage, instagram: c.instagram, tiktok: c.tiktok, youtube: c.youtube, birthday: c.birthday || "" }); setEditing(true); }}>
+              ✎ {SOCIALS.every(({ key }) => (c as any)[key]) ? "изменить соцсети" : "изменить / добавить соцсети"}
+            </button>
+          )}
+          {!isMont && SOCIALS.every(({ key }) => !(c as any)[key]) && (
+            <button className="cl-pill add" onClick={() => { setEditData({ name: c.name, surname: c.surname, niche: c.niche, phone: c.phone, product: c.product, avg_check: c.avg_check, package: c.package, montager_id: c.montager_id, teamlead_id: c.teamlead_id, stage: c.stage, instagram: c.instagram, tiktok: c.tiktok, youtube: c.youtube, birthday: c.birthday || "" }); setEditing(true); }}>
+              + добавить соцсети
+            </button>
+          )}
+        </div>
+        <div className="cl-tabs" role="tablist">
+          <button role="tab" aria-selected={ctab === "work"} className={ctab === "work" ? "on" : ""} onClick={() => setCtab("work")}>Работа</button>
+          <button role="tab" aria-selected={ctab === "plan"} className={ctab === "plan" ? "on" : ""} onClick={() => setCtab("plan")}>План</button>
+          <button role="tab" aria-selected={ctab === "stats"} className={ctab === "stats" ? "on" : ""} onClick={() => setCtab("stats")}>Статистика</button>
+          <button role="tab" aria-selected={ctab === "strategy"} className={ctab === "strategy" ? "on" : ""} onClick={() => setCtab("strategy")}>Стратегия</button>
+          <button role="tab" aria-selected={ctab === "chat"} className={ctab === "chat" ? "on" : ""} onClick={() => setCtab("chat")}>Чат{c.ai_chat ? " · ИИ" : ""}</button>
+          {!isMont && <button role="tab" aria-selected={ctab === "set"} className={ctab === "set" ? "on" : ""} onClick={() => setCtab("set")}>Настройки</button>}
+        </div>
       </div>
 
       <Sheet open={menuOpen} onClose={() => setMenuOpen(false)} title={`${c.name} ${c.surname || ""}`} sub="действия по клиенту">
         <div className="v2-opts">
-          <SheetOption color="#42d4f4" label="Контент-план" hint={currentM ? `M${currentM.month_number}` : ""} onClick={() => router.push(`/dashboard/plan?client=${clientId}${currentM ? `&m=${currentM.month_number}` : ""}`)} />
-          <SheetOption color="#ffae42" label="Онбординг" hint={onbProgress ? (onbProgress.pending_tasks > 0 ? `${onbProgress.progress_pct}%` : "завершён") : ""} onClick={() => router.push(`/dashboard/clients/${clientId}/onboarding`)} />
-          <SheetOption color="#9d6bff" label="Редактировать профиль" hint="имя, ниша, соцсети" onClick={() => { setMenuOpen(false); setEditData({ name: c.name, surname: c.surname, niche: c.niche, phone: c.phone, product: c.product, avg_check: c.avg_check, package: c.package, montager_id: c.montager_id, teamlead_id: c.teamlead_id, stage: c.stage, instagram: c.instagram, tiktok: c.tiktok, youtube: c.youtube, birthday: c.birthday || "" }); setEditing(true); }} />
-          {c.metricool_blog_id ? <SheetOption color="#a8e063" label="Отчёт клиенту · месяц" hint={reportMonth} onClick={() => window.open(`/api/clients/${clientId}/report?month=${reportMonth}`, "_blank")} /> : null}
+          <SheetOption color="var(--cy)" label="Контент-план" hint={currentM ? `M${currentM.month_number}` : ""} onClick={() => router.push(`/dashboard/plan?client=${clientId}${currentM ? `&m=${currentM.month_number}` : ""}`)} />
+          <SheetOption color="var(--or)" label="Онбординг" hint={onbProgress ? (onbProgress.pending_tasks > 0 ? `${onbProgress.progress_pct}%` : "завершён") : ""} onClick={() => router.push(`/dashboard/clients/${clientId}/onboarding`)} />
+          <SheetOption color="var(--pu)" label="Редактировать профиль" hint="имя, ниша, соцсети" onClick={() => { setMenuOpen(false); setEditData({ name: c.name, surname: c.surname, niche: c.niche, phone: c.phone, product: c.product, avg_check: c.avg_check, package: c.package, montager_id: c.montager_id, teamlead_id: c.teamlead_id, stage: c.stage, instagram: c.instagram, tiktok: c.tiktok, youtube: c.youtube, birthday: c.birthday || "" }); setEditing(true); }} />
+          {c.metricool_blog_id ? <SheetOption color="var(--gr)" label="Отчёт клиенту · месяц" hint={reportMonth} onClick={() => window.open(`/api/clients/${clientId}/report?month=${reportMonth}`, "_blank")} /> : null}
           {c.metricool_blog_id ? <SheetOption color="#2ee6c8" label="Отчёт клиенту · неделя" hint={weekLabel(reportWeek)} onClick={() => window.open(`/api/clients/${clientId}/report-week?week=${reportWeek}&lang=${reportLang}`, "_blank")} /> : null}
-          <SheetOption color={c.stage === "paused" ? "#a8e063" : "#f5c451"} label={c.stage === "paused" ? "Снять с паузы" : "Поставить на паузу"} onClick={async () => { setMenuOpen(false); await updateClientField("stage", c.stage === "paused" ? "active" : "paused"); }} />
+          <SheetOption color={c.stage === "paused" ? "var(--gr)" : "var(--yl)"} label={c.stage === "paused" ? "Снять с паузы" : "Поставить на паузу"} onClick={async () => { setMenuOpen(false); await updateClientField("stage", c.stage === "paused" ? "active" : "paused"); }} />
           {userRole === "admin" && <SheetOption danger label="Удалить клиента" hint="безвозвратно" onClick={async () => { if (confirm("Удалить клиента? Все данные будут потеряны.")) { const { error } = await db.deleteClient(supabase, clientId); if (error) { if (error.code === "23503") { if (confirm("У клиента есть переписка в чате — её удалить нельзя, она хранится навсегда. Перевести клиента в архив («Ушёл»)?")) { setMenuOpen(false); await updateClientField("stage", "churned"); } } else alert(`Не удалилось: ${error.message}`); return; } router.push("/dashboard/clients"); } }} />}
         </div>
       </Sheet>
 
-      <div className="v2-segc" style={{ gridTemplateColumns: isMobile ? "repeat(3, 1fr)" : `repeat(${isMont ? 5 : 6}, 1fr)` }}>
-        <button className={ctab === "work" ? "on" : ""} onClick={() => setCtab("work")}>Работа</button>
-        <button className={ctab === "plan" ? "on" : ""} onClick={() => setCtab("plan")}>План</button>
-        <button className={ctab === "stats" ? "on" : ""} onClick={() => setCtab("stats")}>Статистика</button>
-        <button className={ctab === "strategy" ? "on" : ""} onClick={() => setCtab("strategy")}>Стратегия</button>
-        <button className={ctab === "chat" ? "on" : ""} onClick={() => setCtab("chat")}>Чат{c.ai_chat ? " · ИИ" : ""}</button>
-        {!isMont && <button className={ctab === "set" ? "on" : ""} onClick={() => setCtab("set")}>Настройки</button>}
-      </div>
-
       {ctab === "stats" && !isMont && (
-        <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+        <div className="v2-seg" style={{ marginBottom: 16 }}>
           {([["stats", "Аналитика"], ["planfact", "План / факт"]] as const).map(([k, l]) => (
-            <button key={k} onClick={() => setStatsView(k)} className={`v2-act ${statsView === k ? "pri" : "ghost"}`} style={{ height: 34 }}>{l}</button>
+            <button key={k} onClick={() => setStatsView(k)} className={statsView === k ? "on" : ""}>{l}</button>
           ))}
         </div>
       )}
@@ -501,12 +503,12 @@ export default function ClientDetailPage() {
             <div className="v2-hint">id топика клиента в ТГ — по нему бот понимает, чьё это видео</div>
             {["owner", "admin", "assistant"].includes(userRole || "") && (<>
               <div className="v2-fr"><span>ИИ-монтажёр в чате</span>
-                <button style={{ ...selStyle, cursor: "pointer", color: c.ai_chat ? "#a8e063" : undefined }}
+                <button style={{ ...selStyle, cursor: "pointer", color: c.ai_chat ? "var(--gr)" : undefined }}
                   onClick={() => updateClientField("ai_chat", !c.ai_chat)}>{c.ai_chat ? "✓ включён" : "выключен"}</button></div>
               <div className="v2-hint">задачи из вкладки «Чат» выполняет ИИ на сервере (монтаж, сторис, правки)</div>
             </>)}
             <div className="v2-fr"><span>Метка «Сделано с ИИ» в Instagram</span>
-              <button style={{ ...selStyle, cursor: "pointer", color: c.ai_label ? "#a8e063" : undefined }}
+              <button style={{ ...selStyle, cursor: "pointer", color: c.ai_label ? "var(--gr)" : undefined }}
                 onClick={() => updateClientField("ai_label", !c.ai_label)}>{c.ai_label ? "✓ ставим" : "не ставим"}</button></div>
             <div className="v2-hint">по умолчанию для всех рилсов и каруселей клиента; в окне публикации можно поменять для конкретного ролика</div>
             <AvatarSettings clientId={clientId} avatar={avatar} isOwner={userRole === "owner" || userRole === "admin"} clientPackage={c.package} onSaved={setAvatar} />
@@ -570,7 +572,7 @@ export default function ClientDetailPage() {
       </div>
       {/* Онбординг — пока не закрыт, это главная работа по клиенту: держим на виду */}
       {onbProgress && onbProgress.pending_tasks > 0 && (
-        <div className="card mb-3" style={{ padding: "14px 16px", borderRadius: 14, border: "1px solid rgba(66,212,244,0.4)", background: "rgba(66,212,244,0.06)", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+        <div className="card mb-3" style={{ padding: "14px 16px", borderRadius: 14, border: "1px solid rgba(var(--cy-rgb),0.4)", background: "rgba(var(--cy-rgb),0.06)", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
           <span style={{ fontSize: 20 }}>🧩</span>
           <div style={{ flex: 1, minWidth: 180 }}>
             <div style={{ fontSize: 13, fontWeight: 800, color: "var(--t1)", marginBottom: 4 }}>
@@ -600,7 +602,7 @@ export default function ClientDetailPage() {
       )}
 
       {dupGroups.length > 0 && (
-        <div className="card mb-3" style={{ padding: "14px 16px", borderRadius: 14, border: "1px solid rgba(255,174,66,0.45)", background: "rgba(255,174,66,0.07)" }}>
+        <div className="card mb-3" style={{ padding: "14px 16px", borderRadius: 14, border: "1px solid rgba(var(--or-rgb),0.45)", background: "rgba(var(--or-rgb),0.07)" }}>
           <div style={{ fontSize: 13, fontWeight: 800, color: "var(--or)", marginBottom: 6 }}>⚠ Повторяющиеся сценарии: {dupGroups.length}</div>
           <div style={{ fontSize: 12, color: "var(--t2)", lineHeight: 1.55, marginBottom: 10 }}>Один и тот же текст заведён несколько раз. Лишнюю копию удали, а если сценарий переехал — открой его и смени месяц в шапке карточки.</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
@@ -619,7 +621,7 @@ export default function ClientDetailPage() {
       )}
 
       {clientMonths.length === 0 && (
-        <div className="card mb-3" style={{ padding: "16px 18px", borderRadius: 14, border: "1px solid rgba(255,174,66,0.45)", background: "rgba(255,174,66,0.07)" }}>
+        <div className="card mb-3" style={{ padding: "16px 18px", borderRadius: 14, border: "1px solid rgba(var(--or-rgb),0.45)", background: "rgba(var(--or-rgb),0.07)" }}>
           <div style={{ fontSize: 13, fontWeight: 800, color: "var(--or)", marginBottom: 6 }}>⚠ У клиента нет контрактного месяца</div>
           <div style={{ fontSize: 12, color: "var(--t2)", lineHeight: 1.6, marginBottom: 12 }}>Без него не считается план, ЗП и клиент не виден в «Команде». Создам M1 на 30 дней от даты старта.</div>
           <button className="v2-act pri" onClick={async () => {
@@ -657,7 +659,7 @@ export default function ClientDetailPage() {
           ))}
           <button onClick={() => setViewMonth(0)} className="px-3 py-1 rounded-lg text-[10px] font-semibold"
             title="Показать карточки всех месяцев — как в общем разделе «Монтаж»"
-            style={{ border: `1px solid ${viewMonth === 0 ? "var(--pu)" : "var(--brd)"}`, background: viewMonth === 0 ? "rgba(157,107,255,0.14)" : "transparent", color: viewMonth === 0 ? "var(--pu)" : "var(--t2)", cursor: "pointer" }}>
+            style={{ border: `1px solid ${viewMonth === 0 ? "var(--pu)" : "var(--brd)"}`, background: viewMonth === 0 ? "rgba(var(--pu-rgb),0.14)" : "transparent", color: viewMonth === 0 ? "var(--pu)" : "var(--t2)", cursor: "pointer" }}>
             Все месяцы
           </button>
           {(() => {
@@ -670,7 +672,7 @@ export default function ClientDetailPage() {
             for (const s of elsewhere) byM[s.month_number] = (byM[s.month_number] || 0) + 1;
             return (
               <button onClick={() => setViewMonth(0)} className="px-3 py-1 rounded-lg text-[10px] font-semibold"
-                style={{ border: "1px solid rgba(255,174,66,0.45)", background: "rgba(255,174,66,0.09)", color: "var(--or)", cursor: "pointer" }}>
+                style={{ border: "1px solid rgba(var(--or-rgb),0.45)", background: "rgba(var(--or-rgb),0.09)", color: "var(--or)", cursor: "pointer" }}>
                 ⚠ ещё {elsewhere.length} в работе: {Object.entries(byM).map(([m, n]) => `M${m} — ${n}`).join(", ")}
               </button>
             );
@@ -739,11 +741,11 @@ export default function ClientDetailPage() {
                   const vurl = src ? (src.startsWith("http") ? src : `https://${src}`) : null;
                   return (
                     <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 11, background: "var(--inset2)", border: "1px solid var(--track)" }}>
-                      <div style={{ flexShrink: 0, width: 34, height: 34, borderRadius: 9, background: "rgba(168,224,99,0.14)", border: "1px solid rgba(168,224,99,0.35)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Unbounded', sans-serif", fontSize: 13, fontWeight: 800, color: "var(--gr)" }}>{i + 1}</div>
+                      <div style={{ flexShrink: 0, width: 34, height: 34, borderRadius: 9, background: "rgba(var(--gr-rgb),0.14)", border: "1px solid rgba(var(--gr-rgb),0.35)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Unbounded', sans-serif", fontSize: 13, fontWeight: 800, color: "var(--gr)" }}>{i + 1}</div>
                       <div style={{ flexShrink: 0, width: 74, fontSize: 11, fontWeight: 700, color: "var(--t2)" }}>{s.pub_date ? fmtDateShort(s.pub_date) : "без даты"}</div>
                       <div style={{ flex: 1, minWidth: 0, fontSize: 12, color: "var(--t1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.is_trial && <><TrialBadge /> </>}{s.hook_text || s.hook || `Сценарий #${s.order_num || "—"}`}</div>
                       {vurl
-                        ? <a href={vurl} target="_blank" rel="noopener noreferrer" style={{ flexShrink: 0, fontSize: 11, fontWeight: 700, color: "var(--gr)", textDecoration: "none", padding: "5px 10px", borderRadius: 8, background: "rgba(168,224,99,0.1)", border: "1px solid rgba(168,224,99,0.3)" }}>▶ видео</a>
+                        ? <a href={vurl} target="_blank" rel="noopener noreferrer" style={{ flexShrink: 0, fontSize: 11, fontWeight: 700, color: "var(--gr)", textDecoration: "none", padding: "5px 10px", borderRadius: 8, background: "rgba(var(--gr-rgb),0.1)", border: "1px solid rgba(var(--gr-rgb),0.3)" }}>▶ видео</a>
                         : <span style={{ flexShrink: 0, fontSize: 10, color: "var(--t3)", fontStyle: "italic" }}>нет ссылки</span>}
                     </div>
                   );
@@ -769,7 +771,7 @@ export default function ClientDetailPage() {
         ];
         return (
           <div onClick={() => setEditing(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.72)", zIndex: 200, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "40px 20px", overflowY: "auto" }}>
-            <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 18, width: "100%", maxWidth: 540, padding: 24, display: "flex", flexDirection: "column", gap: 16, boxShadow: "0 24px 70px rgba(0,0,0,0.55)" }}>
+            <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 18, width: "100%", maxWidth: 540, padding: 24, display: "flex", flexDirection: "column", gap: 16, boxShadow: "0 24px 70px rgba(var(--sh-rgb),calc(0.55 * var(--sh-k)))" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
                 <h3 style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 18, fontWeight: 800, color: "var(--t1)" }}>Редактировать клиента</h3>
                 <button onClick={() => setEditing(false)} style={{ width: 32, height: 32, borderRadius: 9, background: "var(--track)", border: "1px solid var(--brd)", color: "var(--t2)", cursor: "pointer" }}>✕</button>
@@ -805,7 +807,7 @@ export default function ClientDetailPage() {
 
               <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", paddingTop: 4 }}>
                 <button onClick={() => setEditing(false)} style={{ padding: "9px 16px", borderRadius: 9, background: "transparent", border: "1px solid var(--brd)", color: "var(--t2)", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Отмена</button>
-                <button onClick={saveEdit} style={{ padding: "9px 20px", borderRadius: 9, background: "linear-gradient(135deg, var(--cy), var(--pu))", border: "none", color: "#fff", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>Сохранить</button>
+                <button onClick={saveEdit} style={{ padding: "9px 20px", borderRadius: 9, background: "var(--btn-grad)", border: "none", color: "var(--btn-fg)", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>Сохранить</button>
               </div>
             </div>
           </div>

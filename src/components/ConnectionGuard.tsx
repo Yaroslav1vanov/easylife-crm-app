@@ -33,7 +33,7 @@ export default function ConnectionGuard() {
   if (!down) return null;
   return (
     <div style={{ position: "fixed", left: 12, right: 12, bottom: 12, zIndex: 300, maxWidth: 520, margin: "0 auto",
-      background: "rgba(255,92,122,0.12)", border: "1px solid rgba(255,92,122,0.45)", borderRadius: 12, padding: "10px 13px",
+      background: "rgba(var(--rd-rgb),0.12)", border: "1px solid rgba(var(--rd-rgb),0.45)", borderRadius: 12, padding: "10px 13px",
       fontSize: 12.5, color: "var(--t1)", lineHeight: 1.5 }}>
       Нет связи с базой CRM — списки могут быть пустыми. Обычно это провайдер или антивирус: включите VPN либо мобильный интернет и обновите страницу.
     </div>

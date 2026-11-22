@@ -56,7 +56,7 @@ export default function ClientPicker({ clients, value, onChange }: { clients: C[
 
       {open && (
         <div style={{ position: "absolute", top: 46, left: 44, zIndex: 60, width: "min(380px, calc(100vw - 32px))", borderRadius: 12, border: "1px solid var(--brd)",
-          background: "var(--side, var(--card))", boxShadow: "0 18px 50px rgba(0,0,0,.5)", overflow: "hidden" }}>
+          background: "var(--side, var(--card))", boxShadow: "0 18px 50px rgba(var(--sh-rgb),calc(.5 * var(--sh-k)))", overflow: "hidden" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderBottom: "1px solid var(--brd)" }}>
             <Search size={15} style={{ color: "var(--t3)" }} />
             <input ref={input} value={q} onChange={e => setQ(e.target.value)} placeholder="Найти клиента…"
@@ -68,7 +68,7 @@ export default function ClientPicker({ clients, value, onChange }: { clients: C[
             {list.map(c => (
               <button key={c.id} onClick={() => pick(c.id)}
                 style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 8, border: 0, cursor: "pointer", fontFamily: "inherit",
-                  background: c.id === value ? "rgba(157,107,255,.16)" : "transparent", color: "var(--t1)", textAlign: "left" }}
+                  background: c.id === value ? "rgba(var(--pu-rgb),.16)" : "transparent", color: "var(--t1)", textAlign: "left" }}
                 onMouseEnter={e => { if (c.id !== value) e.currentTarget.style.background = "var(--v2-inset, rgba(255,255,255,.04))"; }}
                 onMouseLeave={e => { if (c.id !== value) e.currentTarget.style.background = "transparent"; }}>
                 <Avatar name={full(c)} src={c.avatar_url} size={24} />

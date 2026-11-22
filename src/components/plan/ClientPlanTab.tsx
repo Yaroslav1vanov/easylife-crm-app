@@ -24,14 +24,14 @@ const pad = (n: number) => String(n).padStart(2, "0");
 const iso = (y: number, m: number, d: number) => `${y}-${pad(m + 1)}-${pad(d)}`;
 
 function reelStage(s: Script): Stage {
-  if (s.video_status === "published") return { l: "вышел", c: "var(--gr)", bg: "rgba(168,224,99,.13)" };
+  if (s.video_status === "published") return { l: "вышел", c: "var(--gr)", bg: "rgba(var(--gr-rgb),.13)" };
   if (s.video_status === "ready") return { l: "готов", c: "var(--cy)", bg: "var(--cyd)" };
   if (s.script_status === "approved") return { l: "монтаж", c: "var(--pu)", bg: "var(--pud)" };
-  return { l: "сценарий", c: "var(--or)", bg: "rgba(255,174,66,.12)" };
+  return { l: "сценарий", c: "var(--or)", bg: "rgba(var(--or-rgb),.12)" };
 }
 const hasFrame = (p: Pub) => !!(p.media_urls && p.media_urls[0]);
 function storyStage(items: Pub[]): Stage & { plan: boolean } {
-  if (items.every((p) => p.pub_status === "published")) return { l: "вышли", c: "var(--gr)", bg: "rgba(168,224,99,.13)", plan: false };
+  if (items.every((p) => p.pub_status === "published")) return { l: "вышли", c: "var(--gr)", bg: "rgba(var(--gr-rgb),.13)", plan: false };
   if (items.some((p) => !hasFrame(p))) return { l: "план", c: "var(--pk)", bg: "transparent", plan: true };
   if (items.every((p) => p.pub_status === "scheduled" || p.pub_status === "published")) return { l: "в графике", c: "var(--pk)", bg: "rgba(236,72,153,.16)", plan: false };
   return { l: "кадры готовы", c: "var(--pk)", bg: "rgba(236,72,153,.10)", plan: false };
@@ -242,7 +242,7 @@ export default function ClientPlanTab({ client, scripts, monthOptions, canEdit, 
                 <div key={d} onClick={() => { setDay(d); setForm(null); }}
                   onDragOver={(e) => { if (drag && canEdit) { e.preventDefault(); setOver(d); } }} onDragLeave={() => setOver((o) => (o === d ? null : o))} onDrop={(e) => { e.preventDefault(); drop(d); }}
                   style={{ minHeight: 104, borderRadius: 10, padding: 6, display: "flex", flexDirection: "column", gap: 4, cursor: "pointer", minWidth: 0,
-                    background: over === d ? "var(--cyd)" : d === day ? "rgba(66,212,244,.06)" : "var(--v2-inset)",
+                    background: over === d ? "var(--cyd)" : d === day ? "rgba(var(--cy-rgb),.06)" : "var(--v2-inset)",
                     border: `1px solid ${d === day || over === d ? "var(--cy)" : d === today ? "var(--pu)" : "var(--brd)"}`,
                     opacity: past && !has ? 0.4 : 1 }}>
                   <div style={{ display: "flex", alignItems: "center" }}>

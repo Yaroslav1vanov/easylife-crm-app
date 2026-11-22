@@ -6,12 +6,12 @@ import { Wallet, TrendingUp } from "lucide-react";
 /* Мотивация: как считается ЗП. Монтажёр видит только свою схему, тимлид — только свою. */
 
 const S = `
-.mot .badge{display:inline-block;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--gr);border:1px solid rgba(168,224,99,0.35);border-radius:100px;padding:6px 14px;margin-bottom:16px}
+.mot .badge{display:inline-block;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--gr);border:1px solid rgba(var(--gr-rgb),0.35);border-radius:100px;padding:6px 14px;margin-bottom:16px}
 .mot h1{font-family:'Unbounded',sans-serif;font-weight:800;font-size:clamp(26px,4.4vw,40px);line-height:1.05;letter-spacing:-0.7px;color:var(--t1)}
 .mot h1 .g{color:var(--gr)}
 .mot .lead{color:var(--t2);font-size:15px;margin-top:13px;max-width:620px;line-height:1.6}
 .mot .sec{font-family:'Unbounded',sans-serif;font-weight:700;font-size:11.5px;letter-spacing:1.5px;text-transform:uppercase;color:var(--t3);margin:42px 0 16px}
-.mot .hero{background:linear-gradient(135deg,rgba(168,224,99,0.13),rgba(123,63,228,0.09));border:1px solid rgba(168,224,99,0.32);border-radius:22px;padding:30px 28px;display:flex;align-items:center;gap:28px;flex-wrap:wrap}
+.mot .hero{background:linear-gradient(135deg,rgba(var(--gr-rgb),0.13),rgba(var(--vi-rgb),0.09));border:1px solid rgba(var(--gr-rgb),0.32);border-radius:22px;padding:30px 28px;display:flex;align-items:center;gap:28px;flex-wrap:wrap}
 .mot .hero .num{font-family:'Unbounded',sans-serif;font-weight:800;font-size:clamp(46px,8vw,74px);line-height:.9;color:var(--gr)}
 .mot .hero .txt{flex:1;min-width:230px}
 .mot .hero .t1{font-family:'Unbounded',sans-serif;font-weight:700;font-size:18px;margin-bottom:7px;color:var(--t1)}
@@ -19,12 +19,12 @@ const S = `
 .mot .grid{display:grid;gap:14px}
 .mot .g3{grid-template-columns:repeat(3,1fr)}
 .mot .g2{grid-template-columns:repeat(2,1fr)}
-.mot .c{background:rgba(123,63,228,0.07);border:1px solid var(--brd);border-radius:16px;padding:22px}
+.mot .c{background:rgba(var(--vi-rgb),0.07);border:1px solid var(--brd);border-radius:16px;padding:22px}
 .mot .c .k{font-family:'Unbounded',sans-serif;font-weight:800;font-size:28px;color:var(--gr);line-height:1}
 .mot .c .k.p{color:var(--pu)}
 .mot .c .n{font-weight:700;font-size:14.5px;margin:11px 0 5px;color:var(--t1)}
 .mot .c .d{color:var(--t2);font-size:13px;line-height:1.6}
-.mot .calc{background:rgba(123,63,228,0.04);border:1px solid var(--brd);border-radius:18px;padding:24px}
+.mot .calc{background:rgba(var(--vi-rgb),0.04);border:1px solid var(--brd);border-radius:18px;padding:24px}
 .mot .calc h3{font-family:'Unbounded',sans-serif;font-weight:700;font-size:15.5px;margin-bottom:3px;color:var(--t1)}
 .mot .calc .sub{color:var(--t3);font-size:12px;margin-bottom:16px}
 .mot .line{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--brd);font-size:14px}
@@ -36,16 +36,16 @@ const S = `
 .mot .total .v{font-family:'Unbounded',sans-serif;font-weight:800;font-size:26px;color:var(--gr)}
 .mot .lev{display:flex;gap:15px;padding:17px 0;border-bottom:1px solid var(--brd)}
 .mot .lev:last-child{border-bottom:none}
-.mot .lev .ic{width:36px;height:36px;flex-shrink:0;border-radius:10px;background:rgba(123,63,228,0.18);display:flex;align-items:center;justify-content:center;font-size:16px}
+.mot .lev .ic{width:36px;height:36px;flex-shrink:0;border-radius:10px;background:rgba(var(--vi-rgb),0.18);display:flex;align-items:center;justify-content:center;font-size:16px}
 .mot .lev .t{font-weight:700;font-size:14.5px;margin-bottom:4px;color:var(--t1)}
 .mot .lev .t span{color:var(--gr)}
 .mot .lev .d{color:var(--t2);font-size:13px;line-height:1.6}
-.mot .note{background:rgba(255,174,66,0.07);border:1px solid rgba(255,174,66,0.28);border-radius:15px;padding:19px 21px;margin-bottom:11px}
+.mot .note{background:rgba(var(--or-rgb),0.07);border:1px solid rgba(var(--or-rgb),0.28);border-radius:15px;padding:19px 21px;margin-bottom:11px}
 .mot .note .t{font-weight:800;font-size:13.5px;color:var(--or);margin-bottom:5px}
 .mot .note .d{color:var(--t2);font-size:13px;line-height:1.6}
-.mot .note.ok{background:rgba(168,224,99,0.06);border-color:rgba(168,224,99,0.28)}
+.mot .note.ok{background:rgba(var(--gr-rgb),0.06);border-color:rgba(var(--gr-rgb),0.28)}
 .mot .note.ok .t{color:var(--gr)}
-.mot .pay{margin-top:38px;background:rgba(123,63,228,0.07);border:1px solid var(--brd);border-radius:16px;padding:20px 22px;display:flex;align-items:center;gap:13px;flex-wrap:wrap}
+.mot .pay{margin-top:38px;background:rgba(var(--vi-rgb),0.07);border:1px solid var(--brd);border-radius:16px;padding:20px 22px;display:flex;align-items:center;gap:13px;flex-wrap:wrap}
 .mot .pay .t{font-weight:700;font-size:14.5px;color:var(--t1)}
 .mot .pay .d{color:var(--t2);font-size:13px;margin-top:3px}
 .mot b.w{color:var(--t1)}
@@ -278,7 +278,7 @@ export default function MotivationPage() {
           {([["teamlead", "Тимлид", TrendingUp], ["montager", "Монтажёр", Wallet]] as const).map(([v, l, Ic]) => (
             <button key={v} onClick={() => setTab(v)}
               style={{ padding: "8px 15px", borderRadius: 10, fontSize: 12.5, fontWeight: 700, cursor: "pointer",
-                background: tab === v ? "linear-gradient(135deg, var(--cy), var(--pu))" : "var(--inp)",
+                background: tab === v ? "var(--btn-grad)" : "var(--inp)",
                 border: "1px solid var(--brd)", color: tab === v ? "#fff" : "var(--t2)",
                 display: "inline-flex", alignItems: "center", gap: 7 }}>
               <Ic size={13} /> {l}

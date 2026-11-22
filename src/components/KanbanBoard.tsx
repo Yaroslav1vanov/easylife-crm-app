@@ -24,7 +24,7 @@ function deadlineInfo(s: Script, lead: number, done: boolean, todayIso: string) 
   if (done) tone = "done";
   else if (diff < 0) tone = "overdue";
   else if (diff <= 1) tone = "soon";
-  const color = tone === "done" ? "#8a8f98" : tone === "overdue" ? "#ff5c7a" : tone === "soon" ? "#ffae42" : "#9d6bff";
+  const color = tone === "done" ? "#8a8f98" : tone === "overdue" ? "var(--rd)" : tone === "soon" ? "var(--or)" : "var(--pu)";
   const text = done ? "готово"
     : diff < 0 ? `просрочено ${-diff} дн`
     : diff === 0 ? "сегодня"
@@ -193,7 +193,7 @@ export default function KanbanBoard({ scripts, clients, columns, onUpdate, showC
       {selectable && (
         <div style={{ display: "flex", justifyContent: "flex-end", marginLeft: "auto" }}>
           <button onClick={() => selectMode ? exitSelect() : setSelectMode(true)}
-            style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 9, border: `1px solid ${selectMode ? "var(--cy)" : "var(--brd)"}`, background: selectMode ? "rgba(66,212,244,0.12)" : "transparent", color: selectMode ? "var(--cy)" : "var(--t2)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 9, border: `1px solid ${selectMode ? "var(--cy)" : "var(--brd)"}`, background: selectMode ? "rgba(var(--cy-rgb),0.12)" : "transparent", color: selectMode ? "var(--cy)" : "var(--t2)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
             <CheckSquare size={13} /> {selectMode ? "Отменить выбор" : "Выбрать несколько"}
           </button>
         </div>
@@ -265,7 +265,7 @@ export default function KanbanBoard({ scripts, clients, columns, onUpdate, showC
                 if (id && !isNaN(id)) handleDrop(col.id, id);
               }}
               style={{
-                background: "rgba(123,63,228,0.04)",
+                background: "rgba(var(--vi-rgb),0.04)",
                 border: `1px solid ${isOver ? col.color : "var(--brd)"}`,
                 borderRadius: 14,
                 padding: 12,
@@ -278,7 +278,7 @@ export default function KanbanBoard({ scripts, clients, columns, onUpdate, showC
                   <Icon size={13} style={{ color: col.color }} strokeWidth={1.8} />
                   <h3 style={{ fontSize: 11, fontWeight: 800, color: "var(--t1)", textTransform: "uppercase", letterSpacing: 0.5 }}>{col.label}</h3>
                 </div>
-                <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 6, background: `${col.color}22`, color: col.color }}>{itemsAll.length - slotItems.length}</span>
+                <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 6, background: `color-mix(in srgb, ${col.color} 13%, transparent)`, color: col.color }}>{itemsAll.length - slotItems.length}</span>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 7, flex: 1 }}>
                 {showAdd && (
@@ -286,7 +286,7 @@ export default function KanbanBoard({ scripts, clients, columns, onUpdate, showC
                     style={{
                       display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
                       padding: "9px", borderRadius: 9,
-                      background: "rgba(157,107,255,0.08)", border: `1px dashed ${col.color}`,
+                      background: "rgba(var(--pu-rgb),0.08)", border: `1px dashed ${col.color}`,
                       color: col.color, fontSize: 11, fontWeight: 700, cursor: "pointer",
                     }}>
                     <Plus size={13} strokeWidth={2.4} /> {adding ? "Создаю..." : "Создать сценарий"}
@@ -347,18 +347,18 @@ export default function KanbanBoard({ scripts, clients, columns, onUpdate, showC
 
       {/* Плавающая панель массовых действий */}
       {selectMode && (
-        <div style={{ position: "fixed", left: "50%", bottom: 24, transform: "translateX(-50%)", zIndex: 300, display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", borderRadius: 14, background: "var(--side)", border: "1px solid var(--brd)", boxShadow: "0 16px 50px rgba(0,0,0,0.6)", flexWrap: "wrap", justifyContent: "center" }}>
+        <div style={{ position: "fixed", left: "50%", bottom: 24, transform: "translateX(-50%)", zIndex: 300, display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", borderRadius: 14, background: "var(--side)", border: "1px solid var(--brd)", boxShadow: "0 16px 50px rgba(var(--sh-rgb),calc(0.6 * var(--sh-k)))", flexWrap: "wrap", justifyContent: "center" }}>
           <span style={{ fontSize: 12, fontWeight: 800, color: "var(--t1)", whiteSpace: "nowrap" }}>
             Выбрано: <span style={{ color: "var(--cy)" }}>{selected.size}</span>
           </span>
           {onBulkExport && (
             <>
               <button onClick={() => { onBulkExport(Array.from(selected), false); }} disabled={selected.size === 0} title="Файл для клиента — без ссылок на референсы"
-                style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 13px", borderRadius: 9, background: "rgba(66,212,244,0.12)", border: "1px solid var(--brd)", color: "var(--cy)", fontSize: 11, fontWeight: 700, cursor: selected.size === 0 ? "default" : "pointer", opacity: selected.size === 0 ? 0.5 : 1 }}>
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 13px", borderRadius: 9, background: "rgba(var(--cy-rgb),0.12)", border: "1px solid var(--brd)", color: "var(--cy)", fontSize: 11, fontWeight: 700, cursor: selected.size === 0 ? "default" : "pointer", opacity: selected.size === 0 ? 0.5 : 1 }}>
                 📄 Для клиента
               </button>
               <button onClick={() => { onBulkExport(Array.from(selected), true); }} disabled={selected.size === 0} title="Для внутренней проверки: рядом с каждым сценарием — референс и его текст"
-                style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 13px", borderRadius: 9, background: "rgba(157,107,255,0.12)", border: "1px solid var(--brd)", color: "var(--pu)", fontSize: 11, fontWeight: 700, cursor: selected.size === 0 ? "default" : "pointer", opacity: selected.size === 0 ? 0.5 : 1 }}>
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 13px", borderRadius: 9, background: "rgba(var(--pu-rgb),0.12)", border: "1px solid var(--brd)", color: "var(--pu)", fontSize: 11, fontWeight: 700, cursor: selected.size === 0 ? "default" : "pointer", opacity: selected.size === 0 ? 0.5 : 1 }}>
                 🔎 С рефами
               </button>
             </>
@@ -372,11 +372,11 @@ export default function KanbanBoard({ scripts, clients, columns, onUpdate, showC
               <div style={{ position: "relative" }}>
                 <button onClick={() => setMoveMenu(m => !m)} disabled={bulkBusy || selected.size === 0}
                   title={clientIds.length > 1 ? "Выбраны карточки разных клиентов — переносить можно только по одному клиенту" : "Перенести в другой месяц"}
-                  style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 13px", borderRadius: 9, background: "rgba(66,212,244,0.12)", border: "1px solid rgba(66,212,244,0.4)", color: "var(--cy)", fontSize: 11, fontWeight: 700, cursor: bulkBusy || selected.size === 0 ? "default" : "pointer", opacity: selected.size === 0 ? 0.5 : 1 }}>
+                  style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 13px", borderRadius: 9, background: "rgba(var(--cy-rgb),0.12)", border: "1px solid rgba(var(--cy-rgb),0.4)", color: "var(--cy)", fontSize: 11, fontWeight: 700, cursor: bulkBusy || selected.size === 0 ? "default" : "pointer", opacity: selected.size === 0 ? 0.5 : 1 }}>
                   <CalendarDays size={13} /> {bulkBusy ? "…" : "В другой месяц"}
                 </button>
                 {moveMenu && (
-                  <div style={{ position: "absolute", bottom: "calc(100% + 6px)", left: 0, zIndex: 60, minWidth: 190, background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 10, padding: 5, boxShadow: "0 12px 40px rgba(0,0,0,0.5)" }}>
+                  <div style={{ position: "absolute", bottom: "calc(100% + 6px)", left: 0, zIndex: 60, minWidth: 190, background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 10, padding: 5, boxShadow: "0 12px 40px rgba(var(--sh-rgb),calc(0.5 * var(--sh-k)))" }}>
                     {clientIds.length > 1 ? (
                       <div style={{ padding: "8px 10px", fontSize: 11, color: "var(--or)", lineHeight: 1.5 }}>
                         Выбраны карточки разных клиентов. Перенос делается по одному клиенту.
@@ -394,11 +394,11 @@ export default function KanbanBoard({ scripts, clients, columns, onUpdate, showC
             );
           })()}
           <button onClick={bulkToIdea} disabled={bulkBusy || selected.size === 0}
-            style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 13px", borderRadius: 9, background: "rgba(157,107,255,0.12)", border: "1px solid var(--brd)", color: "var(--pu)", fontSize: 11, fontWeight: 700, cursor: bulkBusy || selected.size === 0 ? "default" : "pointer", opacity: selected.size === 0 ? 0.5 : 1 }}>
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 13px", borderRadius: 9, background: "rgba(var(--pu-rgb),0.12)", border: "1px solid var(--brd)", color: "var(--pu)", fontSize: 11, fontWeight: 700, cursor: bulkBusy || selected.size === 0 ? "default" : "pointer", opacity: selected.size === 0 ? 0.5 : 1 }}>
             <Undo2 size={13} /> {bulkBusy ? "…" : "В идею"}
           </button>
           <button onClick={() => setBulkConfirm(true)} disabled={bulkBusy || selected.size === 0}
-            style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 13px", borderRadius: 9, background: "rgba(255,92,122,0.12)", border: "1px solid rgba(255,92,122,0.4)", color: "#ff5c7a", fontSize: 11, fontWeight: 700, cursor: bulkBusy || selected.size === 0 ? "default" : "pointer", opacity: selected.size === 0 ? 0.5 : 1 }}>
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 13px", borderRadius: 9, background: "rgba(var(--rd-rgb),0.12)", border: "1px solid rgba(var(--rd-rgb),0.4)", color: "var(--rd)", fontSize: 11, fontWeight: 700, cursor: bulkBusy || selected.size === 0 ? "default" : "pointer", opacity: selected.size === 0 ? 0.5 : 1 }}>
             <Trash2 size={13} /> {bulkBusy ? "…" : "Удалить"}
           </button>
           <button onClick={exitSelect} title="Выйти из режима выбора"
@@ -450,7 +450,7 @@ function KanbanCardPreview({ script: s, client: c, color, dragging, moving, show
       onClick={onClick}
       style={{
         position: "relative",
-        background: selected ? "rgba(66,212,244,0.08)" : deadline?.tone === "overdue" ? "rgba(255,92,122,0.07)" : "var(--inset2)",
+        background: selected ? "rgba(var(--cy-rgb),0.08)" : deadline?.tone === "overdue" ? "rgba(var(--rd-rgb),0.07)" : "var(--inset2)",
         border: selected ? "1px solid var(--cy)" : deadline && deadline.tone !== "done" && deadline.tone !== "future" ? `1px solid ${deadline.color}` : "1px solid var(--track)",
         borderRadius: 11,
         padding: 10,
@@ -477,12 +477,12 @@ function KanbanCardPreview({ script: s, client: c, color, dragging, moving, show
       )}
       <div style={{ fontSize: 12.5, color: "var(--t1)", lineHeight: 1.35, fontWeight: 600 }}>{titleShort}</div>
       {(s.montage_note || "").trim() && (
-        <div title={s.montage_note || ""} style={{ display: "inline-flex", alignSelf: "flex-start", alignItems: "center", gap: 5, padding: "3px 8px", borderRadius: 7, fontSize: 10, fontWeight: 900, background: "rgba(255,92,122,0.14)", color: "var(--rd)", border: "1px solid rgba(255,92,122,0.4)" }}>
+        <div title={s.montage_note || ""} style={{ display: "inline-flex", alignSelf: "flex-start", alignItems: "center", gap: 5, padding: "3px 8px", borderRadius: 7, fontSize: 10, fontWeight: 900, background: "rgba(var(--rd-rgb),0.14)", color: "var(--rd)", border: "1px solid rgba(var(--rd-rgb),0.4)" }}>
           ⚠️ рекомендация к монтажу
         </div>
       )}
       {deadline && (
-        <div style={{ display: "inline-flex", alignSelf: "flex-start", alignItems: "center", gap: 5, padding: "3px 8px", borderRadius: 7, fontSize: 10, fontWeight: 800, background: `${deadline.color}1f`, color: deadline.color }}>
+        <div style={{ display: "inline-flex", alignSelf: "flex-start", alignItems: "center", gap: 5, padding: "3px 8px", borderRadius: 7, fontSize: 10, fontWeight: 800, background: `color-mix(in srgb, ${deadline.color} 12%, transparent)`, color: deadline.color }}>
           🎬 сдать {fmtDateShort(deadline.due)} · {deadline.text}
         </div>
       )}
@@ -501,14 +501,14 @@ function KanbanCardPreview({ script: s, client: c, color, dragging, moving, show
         {s.pub_date && <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}><CalendarIcon size={9} /> {deadline ? "публ. " : ""}{fmtDateShort(s.pub_date)}</span>}
         {s.ref_views && s.our_views != null && (() => {
           const r = s.our_views / s.ref_views;
-          const c = r >= 1 ? "#a8e063" : r >= 0.5 ? "#a8e063" : r >= 0.2 ? "#ffae42" : "#ff5c7a";
+          const c = r >= 1 ? "var(--gr)" : r >= 0.5 ? "var(--gr)" : r >= 0.2 ? "var(--or)" : "var(--rd)";
           return <span style={{ marginLeft: "auto", fontWeight: 800, color: c }}>⚔ {Math.round(r * 100)}%</span>;
         })()}
       </div>
       {action && (
         <button
           onClick={(e) => { e.stopPropagation(); action.onClick(); }}
-          style={{ marginTop: 2, padding: "6px 10px", borderRadius: 8, background: `${action.color}1c`, border: `1px solid ${action.color}55`, color: action.color, fontSize: 10, fontWeight: 800, cursor: "pointer" }}>
+          style={{ marginTop: 2, padding: "6px 10px", borderRadius: 8, background: `color-mix(in srgb, ${action.color} 11%, transparent)`, border: `1px solid color-mix(in srgb, ${action.color} 33%, transparent)`, color: action.color, fontSize: 10, fontWeight: 800, cursor: "pointer" }}>
           {action.label}
         </button>
       )}

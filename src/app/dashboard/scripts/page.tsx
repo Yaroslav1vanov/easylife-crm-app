@@ -259,14 +259,14 @@ export default function ScriptsPage() {
 
   if (loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--t2)" }}>Загрузка…</div>;
 
-  const statusCol = (st: Slot["status"]) => st === "done" ? "#a8e063" : st === "overdue" ? "#ff5c7a" : st === "frozen" ? "#8a8f98" : "#42d4f4";
+  const statusCol = (st: Slot["status"]) => st === "done" ? "var(--gr)" : st === "overdue" ? "var(--rd)" : st === "frozen" ? "#8a8f98" : "var(--cy)";
   const chip = (sl: Slot) => {
     const col = statusCol(sl.status);
     const title = sl.s.hook_text || sl.s.hook || "";
     const txt = `#${sl.s.order_num}${title ? " · " + title : ""}`;
     return (
       <div key={sl.s.id} onClick={() => setOpenId(sl.s.id)} title={txt}
-        style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 6px", borderRadius: 6, background: `${col}1f`, border: `1px solid ${col}55`, color: col, fontSize: 10, fontWeight: 700, cursor: "pointer", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", maxWidth: "100%" }}>
+        style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 6px", borderRadius: 6, background: `color-mix(in srgb, ${col} 12%, transparent)`, border: `1px solid color-mix(in srgb, ${col} 33%, transparent)`, color: col, fontSize: 10, fontWeight: 700, cursor: "pointer", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", maxWidth: "100%" }}>
         {sl.status === "done" ? "✓" : sl.status === "overdue" ? "⚠" : sl.status === "frozen" ? "❄" : ""} {sl.s.is_trial && <TrialBadge />} {txt}
       </div>
     );
@@ -274,17 +274,17 @@ export default function ScriptsPage() {
 
   const Drop = ({ label, value, kind, children }: any) => (
     <div style={{ position: "relative" }}>
-      <button onClick={() => setMenu(menu === kind ? null : kind)} style={{ padding: "8px 12px", borderRadius: 10, background: "rgba(123,63,228,0.08)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 11, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
+      <button onClick={() => setMenu(menu === kind ? null : kind)} style={{ padding: "8px 12px", borderRadius: 10, background: "rgba(var(--vi-rgb),0.08)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 11, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
         <Filter size={11} /><span style={{ color: "var(--t3)" }}>{label}:</span>{value}<ChevronDown size={11} />
       </button>
-      {menu === kind && <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 30, minWidth: 190, background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 10, padding: 4, boxShadow: "0 12px 40px rgba(0,0,0,0.5)", maxHeight: 320, overflowY: "auto" }}>{children}</div>}
+      {menu === kind && <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 30, minWidth: 190, background: "var(--side)", border: "1px solid var(--brd)", borderRadius: 10, padding: 4, boxShadow: "0 12px 40px rgba(var(--sh-rgb),calc(0.5 * var(--sh-k)))", maxHeight: 320, overflowY: "auto" }}>{children}</div>}
     </div>
   );
 
   return (
     <div style={{ fontFamily: "'Manrope', sans-serif" }}>
       {/* HEADER */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 14, flexWrap: "wrap", marginBottom: 14 }}>
+      <div className="page-head">
         <div>
           <h1 style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 22, fontWeight: 800, letterSpacing: -0.5 }}>Сценарии · контент-план</h1>
           <p style={{ fontSize: 12, color: "var(--t3)", marginTop: 4 }}>
@@ -296,12 +296,12 @@ export default function ScriptsPage() {
           <TourButton onClick={() => setTourOpen(true)} />
           <div style={{ display: "flex", border: "1px solid var(--brd)", borderRadius: 10, overflow: "hidden" }}>
             {([["week", "Неделя", TableIcon], ["month", "Месяц", CalendarDays]] as const).map(([v, l, Ic]) => (
-              <button key={v} onClick={() => setView(v)} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 12px", background: view === v ? "rgba(157,107,255,0.15)" : "transparent", color: view === v ? "var(--pu)" : "var(--t2)", border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer" }}><Ic size={13} /> {l}</button>
+              <button key={v} onClick={() => setView(v)} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 12px", background: view === v ? "rgba(var(--pu-rgb),0.15)" : "transparent", color: view === v ? "var(--pu)" : "var(--t2)", border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer" }}><Ic size={13} /> {l}</button>
             ))}
           </div>
           {canMine && me && (
             <button onClick={toggleMine} title={`Только мои сценарии (${me.name})`}
-              style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 10, border: `1px solid ${mineActive ? "var(--pu)" : "var(--brd)"}`, background: mineActive ? "rgba(157,107,255,0.18)" : "transparent", color: mineActive ? "var(--pu)" : "var(--t2)", fontSize: 11, fontWeight: 800, cursor: "pointer" }}>
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 10, border: `1px solid ${mineActive ? "var(--pu)" : "var(--brd)"}`, background: mineActive ? "rgba(var(--pu-rgb),0.18)" : "transparent", color: mineActive ? "var(--pu)" : "var(--t2)", fontSize: 11, fontWeight: 800, cursor: "pointer" }}>
               <Avatar name={me.name} src={me.avatar_url} size={18} /> {mineActive ? "Мои ✓" : "Мои"}
             </button>
           )}
@@ -320,7 +320,7 @@ export default function ScriptsPage() {
           <Drop label="Показать" kind="focus" value={FOCUS_OPTS.find(o => o.v === focus)!.l}>
             {FOCUS_OPTS.map(o => <button key={o.v} onClick={() => { setFocus(o.v); setMenu(null); }} className="nav-item" style={{ fontSize: 11, padding: "7px 10px", color: focus === o.v ? "var(--pu)" : undefined }}>{o.l}</button>)}
           </Drop>
-          <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 10px", borderRadius: 10, background: "rgba(123,63,228,0.08)", border: "1px solid var(--brd)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 10px", borderRadius: 10, background: "rgba(var(--vi-rgb),0.08)", border: "1px solid var(--brd)" }}>
             <button onClick={() => view === "week" ? setWeekStart(addDaysIso(weekStart, -7)) : setYm(ymShift(ym, -1))} style={{ background: "transparent", border: "none", color: "var(--t2)", cursor: "pointer", display: "flex" }}><ChevronLeft size={14} /></button>
             <span style={{ fontSize: 12, fontWeight: 700, minWidth: 110, textAlign: "center" }}>{view === "week" ? `${fmtDateShort(weekDays[0])} — ${fmtDateShort(weekDays[6])}` : ymLabel(ym)}</span>
             <button onClick={() => view === "week" ? setWeekStart(addDaysIso(weekStart, 7)) : setYm(ymShift(ym, 1))} style={{ background: "transparent", border: "none", color: "var(--t2)", cursor: "pointer", display: "flex" }}><ChevronRight size={14} /></button>
@@ -330,8 +330,8 @@ export default function ScriptsPage() {
 
       {/* SUMMARY */}
       <div data-tour="scripts-plan" style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
-        {[{ v: summary.today, l: "на сегодня", c: "#42d4f4" }, { v: summary.overdue, l: "просрочено", c: "#ff5c7a" }, { v: summary.week, l: "за неделю", c: "#9d6bff" }].map((x, i) => (
-          <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", borderRadius: 13, border: `1px solid ${x.v > 0 ? x.c + "55" : "var(--brd)"}`, background: x.v > 0 ? `${x.c}14` : "var(--card)" }}>
+        {[{ v: summary.today, l: "на сегодня", c: "var(--cy)" }, { v: summary.overdue, l: "просрочено", c: "var(--rd)" }, { v: summary.week, l: "за неделю", c: "var(--pu)" }].map((x, i) => (
+          <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", borderRadius: 13, border: `1px solid ${x.v > 0 ? `color-mix(in srgb, ${x.c} 33%, transparent)` : "var(--brd)"}`, background: x.v > 0 ? `color-mix(in srgb, ${x.c} 8%, transparent)` : "var(--card)" }}>
             <span style={{ width: 9, height: 9, borderRadius: 3, background: x.c }} />
             <div><div style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 18, fontWeight: 800, color: x.v > 0 ? "var(--t1)" : "var(--t3)" }}>{x.v}</div><div style={{ fontSize: 10, color: "var(--t3)", fontWeight: 600 }}>{x.l}</div></div>
           </div>
@@ -362,7 +362,7 @@ export default function ScriptsPage() {
                   </div>
                   <div style={{ fontSize: 12, color: "var(--t2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sl.s.hook_text || sl.s.hook || "— без темы —"}</div>
                   <div style={{ fontSize: 11, fontWeight: 700, color: "var(--t1)", whiteSpace: "nowrap" }}>📅 {fmtDateShort(sl.due)}</div>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: col, background: `${col}1f`, border: `1px solid ${col}55`, padding: "3px 8px", borderRadius: 6, whiteSpace: "nowrap" }}>{reason}</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: col, background: `color-mix(in srgb, ${col} 12%, transparent)`, border: `1px solid color-mix(in srgb, ${col} 33%, transparent)`, padding: "3px 8px", borderRadius: 6, whiteSpace: "nowrap" }}>{reason}</span>
                   <button onClick={(e) => { e.stopPropagation(); sendToIdea(sl.s.id); }} title="Вернуть в «Идею» — снимет дату, уйдёт из просрочки"
                     style={{ fontSize: 10, fontWeight: 700, color: "var(--t2)", background: "transparent", border: "1px solid var(--brd)", padding: "5px 9px", borderRadius: 7, whiteSpace: "nowrap", cursor: "pointer" }}>↩ В идею</button>
                 </div>
@@ -416,7 +416,7 @@ export default function ScriptsPage() {
                       {weekDays.map(d => {
                         const slots = (byClientDay[cid]?.[d] || []);
                         return (
-                          <td key={d} style={{ verticalAlign: "top", background: d === todayIso ? "rgba(66,212,244,0.06)" : "var(--inset)", border: `1px solid ${d === todayIso ? "var(--cy)" : "var(--brd)"}`, borderRadius: 10, padding: 6, height: 78, minWidth: 130 }}>
+                          <td key={d} style={{ verticalAlign: "top", background: d === todayIso ? "rgba(var(--cy-rgb),0.06)" : "var(--inset)", border: `1px solid ${d === todayIso ? "var(--cy)" : "var(--brd)"}`, borderRadius: 10, padding: 6, height: 78, minWidth: 130 }}>
                             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>{slots.map(chip)}</div>
                           </td>
                         );
@@ -428,9 +428,9 @@ export default function ScriptsPage() {
             </table>
           )}
           <div style={{ display: "flex", gap: 16, marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--brd)", flexWrap: "wrap" }}>
-            <span style={{ fontSize: 11, color: "var(--t2)", display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 9, height: 9, borderRadius: 3, background: "#42d4f4" }} />к сдаче</span>
-            <span style={{ fontSize: 11, color: "var(--t2)", display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 9, height: 9, borderRadius: 3, background: "#ff5c7a" }} />просрочен</span>
-            <span style={{ fontSize: 11, color: "var(--t2)", display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 9, height: 9, borderRadius: 3, background: "#a8e063" }} />готов</span>
+            <span style={{ fontSize: 11, color: "var(--t2)", display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 9, height: 9, borderRadius: 3, background: "var(--cy)" }} />к сдаче</span>
+            <span style={{ fontSize: 11, color: "var(--t2)", display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 9, height: 9, borderRadius: 3, background: "var(--rd)" }} />просрочен</span>
+            <span style={{ fontSize: 11, color: "var(--t2)", display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 9, height: 9, borderRadius: 3, background: "var(--gr)" }} />готов</span>
             <span style={{ fontSize: 11, color: "var(--t3)", marginLeft: "auto" }}>Клик по сценарию → откроется карточка (референс/транскрибация/наш текст + даты)</span>
           </div>
         </div>
@@ -445,11 +445,11 @@ export default function ScriptsPage() {
                   const slots = byDay[d] || [];
                   const isToday = d === todayIso;
                   return (
-                    <div key={di} style={{ minHeight: 96, borderRadius: 10, padding: 7, background: isToday ? "rgba(66,212,244,0.06)" : "var(--inset)", border: `1px solid ${isToday ? "var(--cy)" : "var(--brd)"}`, display: "flex", flexDirection: "column", gap: 3 }}>
+                    <div key={di} style={{ minHeight: 96, borderRadius: 10, padding: 7, background: isToday ? "rgba(var(--cy-rgb),0.06)" : "var(--inset)", border: `1px solid ${isToday ? "var(--cy)" : "var(--brd)"}`, display: "flex", flexDirection: "column", gap: 3 }}>
                       <div style={{ fontSize: 11, fontWeight: 700, color: isToday ? "var(--cy)" : "var(--t2)" }}>{parseInt(d.split("-")[2], 10)}{isToday ? " · сегодня" : ""}</div>
                       {slots.slice(0, 4).map(sl => {
                         const col = statusCol(sl.status);
-                        return <div key={sl.s.id} onClick={() => setOpenId(sl.s.id)} title={`${cname(sl.s.client_id)} · #${sl.s.order_num}${sl.s.is_trial ? " · пробный" : ""}`} style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 5px", borderRadius: 6, background: `${col}1c`, border: `1px solid ${col}44`, color: col, fontSize: 9, fontWeight: 700, cursor: "pointer", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}><span style={{ width: 5, height: 5, borderRadius: "50%", background: col, flexShrink: 0 }} />{cname(sl.s.client_id)}</div>;
+                        return <div key={sl.s.id} onClick={() => setOpenId(sl.s.id)} title={`${cname(sl.s.client_id)} · #${sl.s.order_num}${sl.s.is_trial ? " · пробный" : ""}`} style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 5px", borderRadius: 6, background: `color-mix(in srgb, ${col} 11%, transparent)`, border: `1px solid color-mix(in srgb, ${col} 27%, transparent)`, color: col, fontSize: 9, fontWeight: 700, cursor: "pointer", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}><span style={{ width: 5, height: 5, borderRadius: "50%", background: col, flexShrink: 0 }} />{cname(sl.s.client_id)}</div>;
                       })}
                       {slots.length > 4 && <span style={{ fontSize: 8, color: "var(--t3)" }}>+{slots.length - 4}</span>}
                     </div>

@@ -42,13 +42,12 @@ export default function TrashPage() {
 
   return (
     <div style={{ maxWidth: 980, margin: "0 auto", padding: "8px 0 40px" }}>
-      <div className="flex items-center gap-3" style={{ marginBottom: 6 }}>
-        <Trash2 size={20} style={{ color: "var(--t2)" }} />
-        <h1 style={{ fontSize: 22, fontWeight: 800 }}>Корзина</h1>
-      </div>
-      <p style={{ fontSize: 13, color: "var(--t3)", marginBottom: 14 }}>
+      <div className="page-head ph-col">
+        <h1 style={{ display: "flex", alignItems: "center", gap: 10 }}><Trash2 size={22} style={{ color: "var(--lime)" }} /> Корзина</h1>
+        <p>
         Удалённые сценарии хранятся 30 дней. «Вернуть» ставит сценарий на прежнее место — с текстом, датой, статусами, видео и публикацией. Пустые слоты плана сюда не попадают.
       </p>
+      </div>
       <div className="flex items-center gap-2 flex-wrap" style={{ marginBottom: 4 }}>
         <ClientPicker clients={withTrash} value={clientId} onChange={setClientId} />
         {clientId && <button onClick={() => setClientId(null)} className="v2-chip mut" style={{ cursor: "pointer", height: 32, padding: "0 12px", marginBottom: 14 }}>Все клиенты</button>}
@@ -72,7 +71,7 @@ export default function TrashPage() {
                   <div style={{ fontSize: 11, color: "var(--t3)", marginTop: 2 }}>удалил(а) {it.deleted_by} · {dt(it.deleted_at)}</div>
                 </div>
                 <button onClick={() => restore(it)} disabled={busy === it.id}
-                  style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 13px", borderRadius: 9, background: "rgba(168,224,99,0.12)", border: "1px solid rgba(168,224,99,0.45)", color: "var(--gr)", fontSize: 12, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>
+                  style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 13px", borderRadius: 9, background: "rgba(var(--gr-rgb),0.12)", border: "1px solid rgba(var(--gr-rgb),0.45)", color: "var(--gr)", fontSize: 12, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>
                   <RotateCcw size={13} /> {busy === it.id ? "…" : "Вернуть"}
                 </button>
               </div>
