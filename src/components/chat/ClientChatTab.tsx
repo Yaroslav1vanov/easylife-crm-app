@@ -34,7 +34,9 @@ const isImage = (a: Att) => a.type.startsWith("image/") || /\.(png|jpe?g|webp|gi
 const isAudio = (a: Att) => a.type.startsWith("audio/") || /\.(mp3|wav|m4a|aac|ogg)$/i.test(a.name);
 
 
-export type ChatThread = "reels" | "stories" | "strategy" | "avatar";
+export type ChatThread = "reels" | "stories" | "strategy" | "funnel" | "avatar";
+/** Раздел «Воронка» появляется после миграции MIGRATION_2026-11-22_chat_funnel.sql: она же ставит этот флаг в app_settings. */
+export const FUNNEL_FLAG_KEY = "chat_funnel";
 const THREADS: { id: ChatThread; label: string; hint: string; placeholder: string; empty: string }[] = [
   { id: "reels", label: "🎬 Рилсы", hint: "Чат по рилсам: монтаж роликов, правки, разбор стиля и что зашло. Готовый ролик одной кнопкой уходит к сценарию или в публикации.",
     placeholder: "Задача по рилсам: «смонтируй этот исходник в стиле клиента» (приложите видео аватара). Правка: «на 12-й секунде другой кадр», «обрежь начало до фразы …»",
@@ -45,6 +47,9 @@ const THREADS: { id: ChatThread; label: string; hint: string; placeholder: strin
   { id: "strategy", label: "🧭 Стратегия", hint: "Чат по проекту в целом: ИИ видит переписку и рилсов, и сторис, контент-план и статистику. Спрашивайте, что зашло, какие сторис поставить под рилсы этой недели, что поменять в контенте.",
     placeholder: "Вопрос по стратегии: «что зашло за месяц и почему?», «предложи сторис на неделю под наши рилсы», «чего не хватает в контент-плане?»",
     empty: "Задайте вопрос по контенту клиента — ИИ разберёт план, статистику и обе переписки." },
+  { id: "funnel", label: "🧲 Воронка", hint: "Чат по воронке: путь человека от ролика до заявки. Кодовое слово, автоответ в комментариях и директе, цепочка сообщений, дожим. Собираем под тот сервис, который выбрал клиент: ChatPlace, ManyChat или другой.",
+    placeholder: "Задача по воронке: «собери воронку на консультацию под ChatPlace: кодовое слово, первое сообщение, цепочка и дожим», «перепиши первое сообщение короче», «почему мало доходят до заявки?»",
+    empty: "Напишите, что продаём и через какой сервис клиент хочет воронку (ChatPlace, ManyChat или другой). ИИ соберёт цепочку сообщений и шаги настройки." },
   { id: "avatar", label: "🧑‍💼 Аватар", hint: "Голос и видео аватара HeyGen. Генерация — только по кнопкам «Озвучить» и «Сделать видео», каждая тратит кредиты.",
     placeholder: "Вставьте текст для озвучки или нажмите «Озвучить сценарий» в карточке сценария. Неправильно произнёс слово — напишите «вот тут неправильно: …»",
     empty: "Вставьте текст или отправьте сценарий кнопкой «Озвучить сценарий» — ИИ подготовит заказ." },
@@ -55,11 +60,20 @@ export default function ClientChatTab({ clientId, aiEnabled, draft, initialThrea
   avatar?: ClientAvatar | null; canGenerate?: boolean; clientPackage?: number | null;
   onAvatarChanged?: (a: ClientAvatar) => void;   // «Обновить образы из HeyGen» — новые образы сразу в выборе
   threadsOnly?: ChatThread[] }) {   // чат стратегии компании — только «Стратегия»
-  const threads = THREADS.filter((t) => (t.id !== "avatar" || !!avatar) && (!threadsOnly || threadsOnly.includes(t.id)));
+  // «Воронка» видна, только когда база и ИИ-исполнитель к ней готовы (флаг ставит миграция)
+  const [funnelOn, setFunnelOn] = useState(false);
+  const threads = THREADS.filter((t) => (t.id !== "avatar" || !!avatar) && (t.id !== "funnel" || funnelOn) && (!threadsOnly || threadsOnly.includes(t.id)));
   const [thread, setThread] = useState<ChatThread>(initialThread || "reels");
   useEffect(() => { if (initialThread) setThread(initialThread); }, [initialThread]);
   const T = THREADS.find((t) => t.id === thread)!;
   const supabase = createClient();
+  useEffect(() => {
+    if (threadsOnly && !threadsOnly.includes("funnel")) return;
+    let off = false;
+    supabase.from("app_settings").select("value").eq("key", FUNNEL_FLAG_KEY).maybeSingle()
+      .then(({ data }) => { if (!off && data?.value === "on") setFunnelOn(true); });
+    return () => { off = true; };
+  }, []);
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [loading, setLoading] = useState(true);
   const [missing, setMissing] = useState(false);
@@ -272,7 +286,7 @@ export default function ClientChatTab({ clientId, aiEnabled, draft, initialThrea
 
   return (
     <div className="ai-dark" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      <div style={{ display: "grid", gridTemplateColumns: `repeat(${threads.length}, 1fr)`, gap: 4, padding: 4, borderRadius: 12, background: "var(--v2-inset)" }}>
+      <div style={{ display: "grid", gridTemplateColumns: `repeat(auto-fit, minmax(${threads.length > 4 ? 104 : 80}px, 1fr))`, gap: 4, padding: 4, borderRadius: 12, background: "var(--v2-inset)" }}>
         {threads.map((t) => (
           <button key={t.id} onClick={() => setThread(t.id)} disabled={sending}
             style={{ padding: "9px 0", borderRadius: 9, border: 0, cursor: "pointer", fontSize: 13.5, fontWeight: 800, fontFamily: "inherit",

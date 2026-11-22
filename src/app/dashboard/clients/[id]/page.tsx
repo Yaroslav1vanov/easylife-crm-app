@@ -83,7 +83,7 @@ export default function ClientDetailPage() {
   const search = useSearchParams();
   useEffect(() => {
     const t = search.get("ctab");
-    if (t === "chat") { setCtab("chat"); const th = search.get("thread"); if (th === "reels" || th === "stories" || th === "strategy" || th === "avatar") setChatThread(th); }
+    if (t === "chat") { setCtab("chat"); const th = search.get("thread"); if (th === "reels" || th === "stories" || th === "strategy" || th === "funnel" || th === "avatar") setChatThread(th); }
   }, [search]);
   const [menuOpen, setMenuOpen] = useState(false);
   // на телефоне вкладки прокручиваются: держим активную на виду

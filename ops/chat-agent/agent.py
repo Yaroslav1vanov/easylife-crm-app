@@ -17,14 +17,17 @@ API = ENV["CRM_API_URL"].rstrip("/") + "/api/agent/chat"
 HDR = {"x-agent-secret": ENV["AGENT_SECRET"], "content-type": "application/json"}
 TIMEOUT = int(ENV.get("CHAT_TIMEOUT_MIN", "45")) * 60
 WORK = HOME / "work"
-# У клиента два чата с ИИ: по рилсам и по сторис. Переписка не смешивается, папка клиента общая.
-THREAD_RU = {"reels": "рилсы", "stories": "сторис", "strategy": "стратегия", "avatar": "аватар"}
+# У клиента несколько чатов с ИИ: рилсы, сторис, стратегия, воронка, аватар. Переписка не смешивается, папка клиента общая.
+THREAD_RU = {"reels": "рилсы", "stories": "сторис", "strategy": "стратегия", "funnel": "воронка", "avatar": "аватар"}
 THREAD_HINT = {
     "reels": "Задачи этого чата — рилсы: монтаж роликов, правки, разбор стиля роликов.",
     "strategy": "Это чат по проекту в целом. Ты видишь переписку всех трёх чатов (метки [рилсы]/[сторис]/[стратегия]), PLAN.md и STATS.md. "
                 "Задача — думать и советовать: что зашло, что выкладывать, какие сторис поставить рядом с рилсами, чего не хватает в плане. "
                 "Отвечай текстом с конкретикой по этому клиенту; файлы делай, только если прямо попросили.",
     "stories": "Задачи этого чата — сторис: серии сторис (кадры PNG 1080×1920 или короткие видео), тексты, план сторис. Рилсы здесь не монтируй, если об этом прямо не просят.",
+    "funnel": "Задачи этого чата — воронка клиента: путь человека от ролика до заявки. Кодовое слово, автоответ в комментариях и директе, "
+              "цепочка сообщений, дожим, под какой сервис собирать (ChatPlace, ManyChat или другой). Правила — раздел «Чат „Воронка“» в CLAUDE.md, "
+              "память по воронкам клиента — FUNNEL.md. Рилсы и сторис здесь не монтируй, если об этом прямо не просят.",
     "avatar": "Чат голоса и видео аватара HeyGen. Правила — раздел «Чат „Аватар“» в CLAUDE.md, настройки и заказ — AVATAR.json. Каждая генерация тратит кредиты агентства.",
 }
 
@@ -160,7 +163,7 @@ def prepare(job):
         who = "ИИ (ты)" if m["author_type"] == "ai" else (m.get("author_name") or "Сотрудник")
         att = "".join(f"\n    📎 files/{local(m, a).name}" + ("" if local(m, a).exists() else f"  (старый, на сервере нет — если нужен: python3 ~/bin/getfile.py {a['key']} files/{local(m, a).name})")
                       for a in (m.get("attachments") or []))
-        tag = f"[{THREAD_RU.get(m.get('thread') or 'reels')}] " if (msg.get('thread') == 'strategy') else ""
+        tag = f"[{THREAD_RU.get(m.get('thread') or 'reels', m.get('thread') or 'рилсы')}] " if (msg.get('thread') == 'strategy') else ""
         re_ = f" (ответ на #{m['quote_id']})" if m.get("quote_id") else ""
         hist.append(f"{tag}[{m['created_at'][:16].replace('T', ' ')}] #{m['id']} {who}{re_}: {m['body']}{att}")
 
@@ -179,7 +182,7 @@ Instagram: {client.get('instagram') or '—'} · TikTok: {client.get('tiktok') o
 ## Контент-стратегия
 {job.get('strategy') or '— не заполнена —'}
 
-## Переписка в этом чате ({THREAD_RU.get(msg.get('thread') or 'reels')}), старые сверху
+## Переписка в этом чате ({THREAD_RU.get(msg.get('thread') or 'reels', msg.get('thread') or 'рилсы')}), старые сверху
 {chr(10).join(hist)}
 """)
     try:
@@ -223,7 +226,7 @@ Instagram: {client.get('instagram') or '—'} · TikTok: {client.get('tiktok') o
                        f"Задача относится именно к нему — правь/обсуждай то, что в нём, а не последнее сообщение чата.\n"
                        f"Если это твой ответ с файлом — переделывай этот файл/вариант.\n\n> " + (quoted.get("body") or "(без текста)")[:8000].replace("\n", "\n> ")
                        + (f"\n\nФайлы того сообщения:{qatt}" if qatt else "") + "\n")
-    (ws / "TASK.md").write_text(f"""# Чат: {THREAD_RU.get(msg.get('thread') or 'reels').upper()}. {THREAD_HINT.get(msg.get('thread') or 'reels')}
+    (ws / "TASK.md").write_text(f"""# Чат: {THREAD_RU.get(msg.get('thread') or 'reels', msg.get('thread') or 'рилсы').upper()}. {THREAD_HINT.get(msg.get('thread') or 'reels', '')}
 
 # Текущая задача — сообщение #{mid} от {msg.get('author_name') or 'сотрудника'}
 
@@ -758,7 +761,7 @@ def journal(ws, mid, msg, reply, atts, before):
     if not j.exists():
         j.write_text("# Рабочий журнал клиента\n\nСвежие записи внизу. Технические заметки ИИ дописывает сам под записью задачи.\n")
     notes = ws / "out" / str(mid) / "notes.md"     # технические заметки ИИ по задаче (см. CLAUDE.md)
-    L = ["", f"## [{THREAD_RU.get(msg.get('thread') or 'reels')}] Задача #{mid} · {time.strftime('%Y-%m-%d %H:%M')} UTC · от {msg.get('author_name') or 'сотрудника'}",
+    L = ["", f"## [{THREAD_RU.get(msg.get('thread') or 'reels', msg.get('thread') or 'рилсы')}] Задача #{mid} · {time.strftime('%Y-%m-%d %H:%M')} UTC · от {msg.get('author_name') or 'сотрудника'}",
          f"Просили: {(msg.get('body') or '(без текста)').strip()[:500]}",
          f"Отдал файлы: {', '.join(a['name'] for a in atts) or 'нет'} (лежат в out/{mid}/)",
          f"Файлы студии, созданные или изменённые: {', '.join(touched) or 'нет'}"]
