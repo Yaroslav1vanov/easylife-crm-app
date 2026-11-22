@@ -434,7 +434,7 @@ export default function PublicationsPipeline({ onShowPlan }: { onShowPlan?: () =
       {readyOpen && <ReadyVideoModal clients={clients} defaultClientId={clientFilter === "all" ? null : clientFilter} onClose={() => setReadyOpen(false)} onCreate={createReadyVideos} />}
       {storyOpen && <StoryBatchModal clients={clients} defaultClientId={clientFilter === "all" ? null : clientFilter} onClose={() => setStoryOpen(false)} onCreate={createStories} />}
       <Tour steps={PIPELINE_TOUR} open={tourOpen} onClose={() => { setTourOpen(false); setOpenId(null); }} />
-      <style>{`.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}@media(max-width:767px){.pp-board{grid-template-columns:1fr !important}.pp-board>div{min-height:auto !important}}`}</style>
+      <style dangerouslySetInnerHTML={{ __html: `.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}@media(max-width:767px){.pp-board{grid-template-columns:1fr !important}.pp-board>div{min-height:auto !important}}` }} />
     </div>
   );
 }

@@ -110,7 +110,7 @@ export default function MetricoolBrandPicker({ blogId, onPick }: { blogId: numbe
       </div>
 
       {err && !open && <span style={{ fontSize: 10, color: "var(--rd)" }}>Metricool: {err}</span>}
-      <style>{`.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+      <style dangerouslySetInnerHTML={{ __html: `.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}` }} />
     </div>
   );
 }

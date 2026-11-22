@@ -185,10 +185,10 @@ export default function PayrollPage() {
       ) : null}
 
       <Tour steps={TOUR} open={tourOpen} onClose={() => setTourOpen(false)} />
-      <style>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         .pr-spin{animation:prspin 1s linear infinite}@keyframes prspin{to{transform:rotate(360deg)}}
         @media (max-width: 1000px){ .pr-cols{grid-template-columns:1fr !important} .pr-kpi{grid-template-columns:1fr !important} }
-      `}</style>
+      ` }} />
     </div>
   );
 }

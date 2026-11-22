@@ -489,7 +489,7 @@ export default function MontagePage() {
             {buildCalendar(ym).map((week, wi) => (
               <div key={wi} style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 6 }}>
                 {week.map((d, di) => {
-                  if (!d) return <div key={di} style={{ minHeight: 96, borderRadius: 10, background: "rgba(0,0,0,0.12)" }} />;
+                  if (!d) return <div key={di} style={{ minHeight: 96, borderRadius: 10, background: "rgba(var(--ov-rgb),0.035)" }} />;
                   const slots = byDay[d] || [];
                   const isToday = d === todayIso;
                   return (

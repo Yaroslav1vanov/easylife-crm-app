@@ -282,7 +282,7 @@ export default function ReportsPage() {
                     <div>
                       <div className="text-xs font-semibold" style={{ color: "var(--t1)" }}>{c.name}</div>
                       <div className="h-1.5 w-20 rounded-full mt-1" style={{ background: "var(--brd)" }}>
-                        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: pct >= 80 ? "var(--gr)" : pct >= 50 ? "var(--or)" : "var(--rd)" }} />
+                        <div className="h-full rounded-full" style={{ width: `${Math.min(100, pct)}%`, background: pct >= 80 ? "var(--gr)" : pct >= 50 ? "var(--or)" : "var(--rd)" }} />
                       </div>
                     </div>
                   </div>
@@ -313,7 +313,7 @@ export default function ReportsPage() {
                     </div>
                   </div>
                   <div className="h-1.5 rounded-full" style={{ background: "var(--brd)" }}>
-                    <div className="h-full rounded-full" style={{ width: `${pct}%`, background: pct >= 80 ? "var(--gr)" : pct >= 50 ? "var(--or)" : "var(--rd)" }} />
+                    <div className="h-full rounded-full" style={{ width: `${Math.min(100, pct)}%`, background: pct >= 80 ? "var(--gr)" : pct >= 50 ? "var(--or)" : "var(--rd)" }} />
                   </div>
                 </div>
               </div>

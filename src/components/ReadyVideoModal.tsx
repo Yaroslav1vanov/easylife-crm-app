@@ -278,7 +278,7 @@ export default function ReadyVideoModal({ clients, defaultClientId, onClose, onC
           </button>
         </div>
       </div>
-      <style>{`.rv-when{display:grid;grid-template-columns:1fr 1fr;gap:14px}@media(max-width:640px){.rv-when{grid-template-columns:1fr}}.rv-row{display:flex;gap:10px;align-items:stretch;padding:10px;border:1px solid var(--brd);border-radius:12px;background:var(--inset)}`}</style>
+      <style dangerouslySetInnerHTML={{ __html: `.rv-when{display:grid;grid-template-columns:1fr 1fr;gap:14px}@media(max-width:640px){.rv-when{grid-template-columns:1fr}}.rv-row{display:flex;gap:10px;align-items:stretch;padding:10px;border:1px solid var(--brd);border-radius:12px;background:var(--inset)}` }} />
     </div>
   );
 }

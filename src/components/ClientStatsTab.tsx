@@ -302,7 +302,7 @@ export default function ClientStatsTab({ clientId, hasMetricool }: { clientId: n
           {isPortal() ? "Данные — из статистики аккаунта, обновляются автоматически. Прошлый месяц закрывается 1-го числа." : "Данные — из Metricool, с момента подключения бренда. Подписчики — из ежедневных снимков CRM, история по ним с сентября 2026. Прошлый месяц собирается автоматически 1-го числа."}
         </div>
       </>)}
-      <style>{`.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+      <style dangerouslySetInnerHTML={{ __html: `.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}` }} />
     </div>
   );
 }

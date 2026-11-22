@@ -140,7 +140,7 @@ export default function ClientTasksPage() {
 
   return (
     <div style={{ fontFamily: "'Manrope', sans-serif", maxWidth: 1000 }}>
-      <style>{S}</style>
+      <style dangerouslySetInnerHTML={{ __html: S }} />
       <div className="page-head" style={{ alignItems: "flex-start" }}>
         <div>
           <h1 style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 22, fontWeight: 800 }}>Задачи по клиентам</h1>
@@ -203,7 +203,7 @@ const S = `
 .ct-body pre{white-space:pre-wrap;font-family:inherit;font-size:13px;line-height:1.6;color:var(--t1);margin:12px 0 0;max-height:420px;overflow:auto}
 .ct-acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
 .ct-btn{display:inline-flex;align-items:center;gap:6px;background:var(--inp);border:1px solid var(--brd);color:var(--t1);border-radius:10px;padding:7px 12px;font-size:12.5px;font-weight:700;cursor:pointer;text-decoration:none}
-.ct-btn.ok{background:var(--gr);color:#0a0118;border-color:var(--gr)}
+.ct-btn.ok{background:var(--gr);color:var(--on-accent);border-color:var(--gr)}
 .ct-btn.ghost{color:var(--t2)}
 .ct-lbl{font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--t3);margin-bottom:6px}
 .ct-ta{width:100%;background:var(--inp);border:1px solid var(--brd);color:var(--t1);border-radius:10px;padding:9px 11px;font-size:13px;font-family:inherit;line-height:1.5;resize:vertical}

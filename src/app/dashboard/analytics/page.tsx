@@ -261,7 +261,7 @@ export default function AnalyticsPage() {
               </div>
             )}
           </div>
-          <div style={{ display: "flex", alignItems: "flex-end", gap: 14, height: 200 }}>
+          <div style={{ display: "flex", alignItems: "flex-end", gap: 14, height: 208, overflowX: "auto", padding: "4px 4px 4px" }}>
             {monthly.map(m => {
               const h = Math.max(4, Math.round((m.t.views / maxViews) * 160));
               const on = m.ym === sel;
@@ -384,11 +384,11 @@ export default function AnalyticsPage() {
         document.body
       )}
 
-      <style>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         .an-split{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:14px;align-items:start}
-        @media(max-width:1100px){.an-split{grid-template-columns:1fr}}
+        @media(max-width:1100px){.an-split{grid-template-columns:minmax(0,1fr)}}
         .an-row:hover{background:rgba(var(--pu-rgb),0.06)}
-      `}</style>
+      ` }} />
     </div>
   );
 }

@@ -134,7 +134,7 @@ export default function StoryBatchModal({ clients, defaultClientId, onClose, onC
           </button>
         </div>
       </div>
-      <style>{`.sb-when{display:grid;grid-template-columns:1fr 1fr;gap:14px}@media(max-width:640px){.sb-when{grid-template-columns:1fr}}`}</style>
+      <style dangerouslySetInnerHTML={{ __html: `.sb-when{display:grid;grid-template-columns:1fr 1fr;gap:14px}@media(max-width:640px){.sb-when{grid-template-columns:1fr}}` }} />
     </div>
   );
 }

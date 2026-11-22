@@ -170,13 +170,13 @@ export default function OnboardingChecklist({ clientId, clientName, clientCreate
         </div>
 
         {/* Day timeline */}
-        <div style={{ display: "flex", gap: 4, marginTop: 16 }}>
+        <div style={{ display: "flex", gap: 4, marginTop: 16, overflowX: "auto", paddingBottom: 2 }}>
           {Array.from({ length: 10 }, (_, i) => i + 1).map(d => {
             const isPast = d < daysPassed;
             const isToday = d === daysPassed;
             return (
               <div key={d} style={{
-                flex: 1, padding: "6px 4px", borderRadius: 6, textAlign: "center",
+                flex: "1 0 auto", padding: "6px 8px", borderRadius: 6, textAlign: "center", whiteSpace: "nowrap",
                 fontSize: 10, fontWeight: 700,
                 background: isToday ? "rgba(var(--yl-rgb),0.2)" : isPast ? "rgba(var(--gr-rgb),0.1)" : "var(--track)",
                 color: isToday ? "var(--yl)" : isPast ? "var(--gr)" : "var(--t3)",
@@ -195,7 +195,7 @@ export default function OnboardingChecklist({ clientId, clientName, clientCreate
         </div>
         {!isCompleted && (
           <button onClick={completeAll}
-            style={{ padding: "8px 16px", borderRadius: 10, background: "linear-gradient(135deg, var(--gr), #6db541)", border: "none", color: "#0a0118", fontSize: 12, fontWeight: 800, cursor: "pointer", letterSpacing: 0.3 }}>
+            style={{ padding: "8px 16px", borderRadius: 10, background: "linear-gradient(135deg, var(--gr), #6db541)", border: "none", color: "var(--on-accent)", fontSize: 12, fontWeight: 800, cursor: "pointer", letterSpacing: 0.3 }}>
             ✓ Завершить онбординг ({pending} pending → skipped)
           </button>
         )}
@@ -259,7 +259,7 @@ export default function OnboardingChecklist({ clientId, clientName, clientCreate
                           minWidth: 22, height: 22, borderRadius: 6,
                           border: `2px solid ${t.status === "done" ? "var(--gr)" : t.status === "skipped" ? "var(--t3)" : "var(--brd)"}`,
                           background: t.status === "done" ? "var(--gr)" : t.status === "skipped" ? "var(--t3)" : "transparent",
-                          color: "#0a0118", fontWeight: 800, fontSize: 14,
+                          color: "var(--on-accent)", fontWeight: 800, fontSize: 14,
                           display: "flex", alignItems: "center", justifyContent: "center",
                           cursor: "pointer",
                         }} title={t.status === "pending" ? "Клик → ✓ сделано" : t.status === "done" ? "Клик → ⏭ не нужно" : "Клик → ☐ pending"}>
@@ -320,7 +320,7 @@ export default function OnboardingChecklist({ clientId, clientName, clientCreate
                           </div>
                           <div style={{ display: "flex", gap: 8 }}>
                             <button onClick={() => saveTemplate(tpl.id)} disabled={saving}
-                              style={{ padding: "8px 16px", borderRadius: 9, background: "linear-gradient(135deg, var(--gr), #6db541)", border: "none", color: "#0a0118", fontSize: 12, fontWeight: 800, cursor: saving ? "default" : "pointer", opacity: saving ? 0.6 : 1 }}>
+                              style={{ padding: "8px 16px", borderRadius: 9, background: "linear-gradient(135deg, var(--gr), #6db541)", border: "none", color: "var(--on-accent)", fontSize: 12, fontWeight: 800, cursor: saving ? "default" : "pointer", opacity: saving ? 0.6 : 1 }}>
                               {saving ? "Сохраняю…" : "✓ Сохранить"}
                             </button>
                             <button onClick={() => setEditTpl(null)}

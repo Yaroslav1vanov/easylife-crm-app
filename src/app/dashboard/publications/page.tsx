@@ -361,7 +361,7 @@ export default function PublicationsPage() {
             </div>
           )}
 
-          <div data-tour="pub-calendar" className="card" style={{ padding: 14, borderRadius: 16 }}>
+          <div data-tour="pub-calendar" className="card cal-scroll" style={{ padding: 14, borderRadius: 16 }}>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 6, marginBottom: 6 }}>
               {WD.map(d => <div key={d} style={{ fontSize: 10, fontWeight: 700, color: "var(--t3)", textAlign: "center", textTransform: "uppercase", letterSpacing: 0.5 }}>{d}</div>)}
             </div>

@@ -183,7 +183,7 @@ export default function TeamPage() {
                 <option value="teamlead">Менеджер</option>
                 <option value="admin">Админ</option>
               </select></div>
-            <button onClick={addMember} style={{ padding: "9px 16px", borderRadius: 9, background: "var(--gr)", color: "#0a0118", border: "none", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>
+            <button onClick={addMember} style={{ padding: "9px 16px", borderRadius: 9, background: "var(--gr)", color: "var(--on-accent)", border: "none", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>
               <Plus size={13} style={{ verticalAlign: "-2px" }} /> Создать
             </button>
           </div>

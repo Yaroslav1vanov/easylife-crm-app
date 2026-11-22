@@ -29,7 +29,7 @@
 :root, [data-theme="light"] {
   --cy-rgb: 66,212,244; --pu-rgb: 157,107,255; --vi-rgb: 123,63,228; --or-rgb: 255,174,66; --gr-rgb: 168,224,99;
   --rd-rgb: 255,92,122; --yl-rgb: 245,196,81; --pk-rgb: 236,72,153; --ov-rgb: 255,255,255; --em: #34d399;
-  --btn-grad: linear-gradient(135deg, var(--cy), var(--pu)); --btn-fg: #fff; --sh-rgb: 0,0,0; --sh-k: 1;
+  --btn-grad: linear-gradient(135deg, var(--cy), var(--pu)); --btn-fg: #fff; --on-accent: #0a0118; --sh-rgb: 0,0,0; --sh-k: 1;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }

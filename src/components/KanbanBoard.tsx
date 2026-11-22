@@ -460,7 +460,7 @@ function KanbanCardPreview({ script: s, client: c, color, dragging, moving, show
         display: "flex", flexDirection: "column", gap: 6,
       }}>
       {selectMode && (
-        <span style={{ position: "absolute", top: 8, right: 8, width: 18, height: 18, borderRadius: 6, border: `1.5px solid ${selected ? "var(--cy)" : "var(--brd)"}`, background: selected ? "var(--cy)" : "var(--inset)", color: "#0a0118", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 900, lineHeight: 1 }}>
+        <span style={{ position: "absolute", top: 8, right: 8, width: 18, height: 18, borderRadius: 6, border: `1.5px solid ${selected ? "var(--cy)" : "var(--brd)"}`, background: selected ? "var(--cy)" : "var(--inset)", color: "var(--on-accent)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 900, lineHeight: 1 }}>
           {selected ? "✓" : ""}
         </span>
       )}

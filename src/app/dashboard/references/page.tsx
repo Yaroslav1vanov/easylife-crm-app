@@ -175,7 +175,7 @@ export default function ReferencesPage() {
       ) : (
         <>
           {!isMontager && (
-          <div data-tour="ref-add" style={{ display: "flex", gap: 8, marginBottom: 16, alignItems: "flex-start" }}>
+          <div data-tour="ref-add" style={{ display: "flex", gap: 8, marginBottom: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
             <div style={{ position: "relative", flexShrink: 0 }}>
               <button onClick={() => setMenu(m => !m)} style={{ height: 44, padding: "0 14px", borderRadius: 10, background: "rgba(var(--vi-rgb),0.1)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
                 <Filter size={13} /><span style={{ color: "var(--t3)", fontWeight: 500 }}>Клиент:</span>{curClient ? `${curClient.name} ${curClient.surname || ""}` : "выбери"}<ChevronDown size={13} />
@@ -186,7 +186,7 @@ export default function ReferencesPage() {
             </div>
             <input value={urlInput} onChange={e => setUrlInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter") addRef(); }}
               placeholder="Вставь ссылку на TikTok / Instagram-ролик…"
-              style={{ flex: 1, height: 44, padding: "0 14px", borderRadius: 10, background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 13, outline: "none" }} />
+              style={{ flex: "1 1 220px", minWidth: 0, height: 44, padding: "0 14px", borderRadius: 10, background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 13, outline: "none" }} />
             <button onClick={addRef} disabled={adding || !urlInput.trim()}
               style={{ height: 44, padding: "0 18px", borderRadius: 10, background: "var(--btn-grad)", border: "none", color: "var(--btn-fg)", fontSize: 13, fontWeight: 800, cursor: adding ? "default" : "pointer", display: "inline-flex", alignItems: "center", gap: 7, opacity: adding ? 0.7 : 1 }}>
               {adding ? <Loader2 size={15} className="spin" /> : <Plus size={15} />} {adding ? "Тяну…" : "Добавить"}
@@ -263,7 +263,7 @@ export default function ReferencesPage() {
         </div>
       )}
       <Tour steps={REF_TOUR} open={tourOpen} onClose={() => { setTourOpen(false); setOpenId(null); }} />
-      <style>{`.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+      <style dangerouslySetInnerHTML={{ __html: `.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}` }} />
     </div>
   );
 }

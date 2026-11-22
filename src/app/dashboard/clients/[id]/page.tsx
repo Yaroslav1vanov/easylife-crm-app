@@ -86,6 +86,12 @@ export default function ClientDetailPage() {
     if (t === "chat") { setCtab("chat"); const th = search.get("thread"); if (th === "reels" || th === "stories" || th === "strategy" || th === "avatar") setChatThread(th); }
   }, [search]);
   const [menuOpen, setMenuOpen] = useState(false);
+  // на телефоне вкладки прокручиваются: держим активную на виду
+  useEffect(() => {
+    const el = document.querySelector(".cl-tabs button.on") as HTMLElement | null;
+    const box = el?.parentElement;
+    if (el && box && box.scrollWidth > box.clientWidth) box.scrollTo({ left: el.offsetLeft - (box.clientWidth - el.offsetWidth) / 2, behavior: "smooth" });
+  }, [ctab]);
   const isMobile = useIsMobile();
   const [editing, setEditing] = useState(false);
   const [editData, setEditData] = useState<any>({});
@@ -765,9 +771,9 @@ export default function ClientDetailPage() {
         const inp: React.CSSProperties = { width: "100%", padding: "9px 11px", borderRadius: 9, background: "var(--bg)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 13, outline: "none" };
         const lbl: React.CSSProperties = { fontSize: 10, fontWeight: 700, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 0.4, display: "block", marginBottom: 5 };
         const socials: { key: "instagram" | "tiktok" | "youtube"; label: string; color: string; ph: string }[] = [
-          { key: "instagram", label: "Instagram", color: "#ec4899", ph: "instagram.com/username" },
-          { key: "tiktok", label: "TikTok", color: "#34d399", ph: "tiktok.com/@username" },
-          { key: "youtube", label: "YouTube Shorts", color: "#ef4444", ph: "youtube.com/@channel" },
+          { key: "instagram", label: "Instagram", color: "var(--pk)", ph: "instagram.com/username" },
+          { key: "tiktok", label: "TikTok", color: "var(--em)", ph: "tiktok.com/@username" },
+          { key: "youtube", label: "YouTube Shorts", color: "var(--rd)", ph: "youtube.com/@channel" },
         ];
         return (
           <div onClick={() => setEditing(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.72)", zIndex: 200, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "40px 20px", overflowY: "auto" }}>

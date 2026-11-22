@@ -41,7 +41,7 @@
   --ov-rgb: 12,9,56;               /* лёгкая «вуаль» поверх поверхности */
 
   /* кнопки, тени, затемнение */
-  --btn-grad: #6b2cff; --btn-fg: #ffffff;
+  --btn-grad: #6b2cff; --btn-fg: #ffffff; --on-accent: #ffffff;
   --scrim: rgba(7,5,38,.55); --sh-rgb: 12,9,56; --sh-k: .34;
   --shadow-pop: 0 18px 50px rgba(12,9,56,.18), 0 2px 8px rgba(12,9,56,.06);
   --cs: light;
@@ -69,7 +69,7 @@
   --or-rgb: 245,165,36; --gr-rgb: 182,245,0; --rd-rgb: 255,91,74; --yl-rgb: 245,196,81; --pk-rgb: 255,122,184;
   --ov-rgb: 255,255,255;
 
-  --btn-grad: #b6f500; --btn-fg: #070526;
+  --btn-grad: #b6f500; --btn-fg: #070526; --on-accent: #070526;
   --scrim: rgba(3,2,20,.7); --sh-rgb: 0,0,0; --sh-k: 1;
   --shadow-pop: 0 18px 50px rgba(0,0,0,.55);
   --cs: dark;
@@ -106,7 +106,7 @@ select option { background: var(--side); color: var(--t1); }
    Каркас: меню, основная зона, шапки страниц
    ============================================================ */
 .crm-shell { display: flex; min-height: 100vh; background: var(--paper); }
-.crm-main { --mp-x: 14px; --mp-y: 14px; flex: 1; min-width: 0; margin-top: 52px; padding: var(--mp-y) var(--mp-x) 92px; overflow-x: clip; }
+.crm-main { --mp-x: 14px; --mp-y: 14px; flex: 1; min-width: 0; margin-top: 52px; padding: var(--mp-y) var(--mp-x) 92px; overflow-x: auto; }
 @media (min-width: 768px) { .crm-main { --mp-x: 28px; --mp-y: 24px; margin-top: 0; margin-left: 232px; padding: var(--mp-y) var(--mp-x) 48px; } }
 
 /* --- меню слева --- */
@@ -147,9 +147,10 @@ select option { background: var(--side); color: var(--t1); }
 
 /* --- тёмная шапка страницы: заголовок, подпись, главные кнопки --- */
 .page-head, .cl-head { position: relative; isolation: isolate; margin: calc(-1 * var(--mp-y, 14px)) 0 20px; padding: 20px 0 20px; color: #fff; }
-.page-head::before, .cl-head::before { content: ""; position: absolute; z-index: -2; top: 0; bottom: 0; left: -100vw; right: -100vw; background: var(--navy); }
+/* тёмная полоса на всю ширину: тень не создаёт прокрутки, обрезка оставляет только горизонталь */
+.page-head::before, .cl-head::before { content: ""; position: absolute; z-index: -2; inset: 0; background: var(--navy); box-shadow: 0 0 0 100vmax var(--navy); clip-path: inset(0 -100vmax); }
 .page-head::after, .cl-head::after { content: ""; position: absolute; z-index: -1; top: 0; bottom: 0; left: calc(-1 * var(--mp-x, 14px)); right: calc(-1 * var(--mp-x, 14px));
-  background: radial-gradient(70% 130% at 88% 0%, rgba(107,44,255,.45), transparent 60%), radial-gradient(50% 90% at 0% 0%, rgba(182,245,0,.08), transparent 60%); pointer-events: none; }
+  background: radial-gradient(58% 150% at 64% 0%, rgba(107,44,255,.42), transparent 62%), radial-gradient(26% 90% at 13% 0%, rgba(182,245,0,.07), transparent 52%); pointer-events: none; }
 .page-head { z-index: 20; display: flex; align-items: flex-end; justify-content: space-between; gap: 12px 16px; flex-wrap: wrap; }
 .page-head.ph-col { flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 0; }
 .page-head > div:first-child { min-width: 0; }
@@ -481,7 +482,7 @@ button.cl-pill.add:hover { border-color: var(--lime); color: var(--lime); }
 .client-v2-footer i { align-items: center; background: var(--pud); border-radius: 50%; color: var(--pu); display: flex; font-size: 8px; font-style: normal; font-weight: 800; height: 20px; justify-content: center; width: 20px; }
 .client-v2-footer button { background: transparent; border: 0; color: var(--pu); cursor: pointer; font-size: 12.5px; font-weight: 800; margin-left: auto; padding: 6px 0; }
 @media (max-width: 520px) {
-  .clients-v2-grid { grid-template-columns: 1fr; }
+  .clients-v2-grid { grid-template-columns: minmax(0, 1fr); }
   .client-v2-card { padding: 14px; }
   .client-v2-platform span { display: none; }
 }
@@ -516,3 +517,7 @@ button.cl-pill.add:hover { border-color: var(--lime); color: var(--lime); }
 
 /* вход */
 .auth-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; background: radial-gradient(70% 90% at 85% 0%, rgba(107,44,255,.45), transparent 60%), radial-gradient(50% 70% at 0% 100%, rgba(182,245,0,.08), transparent 60%), var(--navy); }
+
+/* сетки-календари: на узком экране прокручиваются внутри своей карточки */
+.cal-scroll { overflow-x: auto; }
+@media (max-width: 900px) { .cal-scroll > div { min-width: 720px; } }

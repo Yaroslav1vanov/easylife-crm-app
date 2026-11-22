@@ -78,7 +78,7 @@ export default function AvatarSettings({ clientId, avatar, isOwner, clientPackag
 
   return (
     <div style={{ marginTop: 6, padding: 12, borderRadius: 12, border: "1px solid rgba(var(--cy-rgb),.35)", background: "rgba(var(--cy-rgb),.05)", display: "flex", flexDirection: "column", gap: 8 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <b style={{ fontSize: 13.5 }}>🧑‍💼 Аватар HeyGen</b>
         <span style={{ fontSize: 11.5, color: "var(--t3)" }}>{avatar ? "чат «Аватар» включён" : "не привязан"}</span>
         <div style={{ flex: 1 }} />
@@ -158,8 +158,8 @@ export default function AvatarSettings({ clientId, avatar, isOwner, clientPackag
             </div>
           ))}
           <div style={{ display: "flex", gap: 6 }}>
-            <input style={{ ...sel, flex: 1 }} placeholder="как написано (Laccura)" value={nw.written} onChange={(e) => setNw({ ...nw, written: e.target.value })} />
-            <input style={{ ...sel, flex: 1 }} placeholder="как сказать (Лакура)" value={nw.spoken} onChange={(e) => setNw({ ...nw, spoken: e.target.value })}
+            <input style={{ ...sel, flex: 1, minWidth: 0 }} placeholder="как написано (Laccura)" value={nw.written} onChange={(e) => setNw({ ...nw, written: e.target.value })} />
+            <input style={{ ...sel, flex: 1, minWidth: 0 }} placeholder="как сказать (Лакура)" value={nw.spoken} onChange={(e) => setNw({ ...nw, spoken: e.target.value })}
               onKeyDown={(e) => { if (e.key === "Enter") addWord(); }} />
             <button className="v2-act ghost" style={{ height: 32 }} onClick={addWord}><Plus size={13} /></button>
           </div>

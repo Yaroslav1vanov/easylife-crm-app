@@ -386,13 +386,13 @@ export default function ClientChatTab({ clientId, aiEnabled, draft, initialThrea
           onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") send(); }}
           placeholder={replyTo ? "Что поправить или обсудить в этом сообщении…" : aiEnabled ? T.placeholder : "Сообщение команде"}
           style={{ width: "100%", padding: "10px 12px", borderRadius: 10, background: "var(--inp)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 13.5, fontFamily: "inherit", resize: "vertical", outline: "none" }} />
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <label className="v2-act ghost" style={{ cursor: sending ? "default" : "pointer", height: 34 }}>
             <Paperclip size={14} /> Файлы
             <input type="file" multiple disabled={sending} onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} style={{ display: "none" }} />
           </label>
           <VoiceInput disabled={sending} onText={(t) => { setText((cur) => (cur.trim() ? `${cur.trimEnd()} ${t}` : t)); input.current?.focus(); }} />
-          <span style={{ fontSize: 11, color: uploading ? "var(--cy)" : failed ? "var(--rd)" : "var(--t3)" }}>
+          <span style={{ fontSize: 11.5, flex: "1 1 180px", minWidth: 0, color: uploading ? "var(--cy)" : failed ? "var(--rd)" : "var(--t3)" }}>
             {uploading ? `Загружаю файлы: ${files.length - uploading - failed} из ${files.length} готово — дождитесь, потом «Отправить»`
               : failed ? "Файл не загрузился — нажмите «ещё раз» или уберите его"
               : files.length ? `Файлов готово: ${files.length} · Cmd+Enter — отправить` : "Cmd+Enter — отправить · файлы можно перетащить сюда"}
@@ -404,7 +404,7 @@ export default function ClientChatTab({ clientId, aiEnabled, draft, initialThrea
         </div>
       </div>
       {pipe && <SendToPipelineModal clientId={clientId} video={pipe.video} images={pipe.images} scriptHint={pipe.scriptId} onClose={() => setPipe(null)} />}
-      <style>{`.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}.chat-msg .chat-reply{opacity:.35;transition:opacity .15s}.chat-msg:hover .chat-reply{opacity:1}@media(hover:none){.chat-msg .chat-reply{opacity:1}}`}</style>
+      <style dangerouslySetInnerHTML={{ __html: `.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}.chat-msg .chat-reply{opacity:.35;transition:opacity .15s}.chat-msg:hover .chat-reply{opacity:1}@media(hover:none){.chat-msg .chat-reply{opacity:1}}` }} />
     </div>
   );
 }

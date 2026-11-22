@@ -231,7 +231,7 @@ export default function BrandSection({ clientId, clientName }: { clientId: numbe
           </p>
         </div>
       </div>
-      <style>{`@media (max-width: 760px){ .brand-grid{ grid-template-columns: 1fr !important } }`}</style>
+      <style dangerouslySetInnerHTML={{ __html: `@media (max-width: 760px){ .brand-grid{ grid-template-columns: 1fr !important } }` }} />
     </div>
   );
 }
@@ -251,7 +251,7 @@ function Row({ label, hint, children }: { label: string; hint?: string; children
     <div style={{ display: "grid", gridTemplateColumns: "150px 1fr", gap: 10, alignItems: "start", marginBottom: 9 }} className="brand-row">
       <div style={{ fontSize: 12, color: "var(--t2)", paddingTop: 8 }}>{label}{hint && <div style={{ fontSize: 10.5, color: "var(--t3)" }}>{hint}</div>}</div>
       <div>{children}</div>
-      <style>{`@media (max-width: 560px){ .brand-row{ grid-template-columns: 1fr !important } }`}</style>
+      <style dangerouslySetInnerHTML={{ __html: `@media (max-width: 560px){ .brand-row{ grid-template-columns: 1fr !important } }` }} />
     </div>
   );
 }

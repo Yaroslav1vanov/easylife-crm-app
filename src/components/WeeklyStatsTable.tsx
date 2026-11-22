@@ -184,7 +184,7 @@ export default function WeeklyStatsTable({ clientId }: { clientId: number }) {
           {isPortal() ? "Прирост подписчиков — из статистики аккаунта (пришло минус ушло)." : "Прирост подписчиков — из метрик аккаунта Metricool (пришло минус ушло)."}
         </div>
       </>)}
-      <style>{`.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+      <style dangerouslySetInnerHTML={{ __html: `.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}` }} />
     </div>
   );
 }

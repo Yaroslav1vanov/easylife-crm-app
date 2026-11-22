@@ -557,7 +557,7 @@ export default function ScriptModal({ script: s, client: c, onClose, onUpdate, o
         </div>
       </div>
 
-      <style>{`.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+      <style dangerouslySetInnerHTML={{ __html: `.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}` }} />
       <ConfirmDialog
         open={confirmDel}
         title="Удалить сценарий?"

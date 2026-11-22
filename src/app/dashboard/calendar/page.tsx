@@ -244,7 +244,7 @@ export default function CalendarPage() {
             {weeks.map((week, wi) => (
               <div key={wi} style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 6 }}>
                 {week.map((day, di) => {
-                  if (!day) return <div key={di} style={{ minHeight: 116, borderRadius: 11, background: "rgba(0,0,0,0.12)" }} />;
+                  if (!day) return <div key={di} style={{ minHeight: 116, borderRadius: 11, background: "rgba(var(--ov-rgb),0.035)" }} />;
                   const evs = byDay[day] || [];
                   const isToday = day === todayIso, isOver = dragOverDay === day;
                   const dnum = parseInt(day.split("-")[2], 10);

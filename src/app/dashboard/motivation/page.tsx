@@ -272,20 +272,22 @@ export default function MotivationPage() {
 
   return (
     <div style={{ fontFamily: "'Manrope', sans-serif", maxWidth: 940 }}>
-      <style>{S}</style>
-      {owner && (
-        <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
-          {([["teamlead", "Тимлид", TrendingUp], ["montager", "Монтажёр", Wallet]] as const).map(([v, l, Ic]) => (
-            <button key={v} onClick={() => setTab(v)}
-              style={{ padding: "8px 15px", borderRadius: 10, fontSize: 12.5, fontWeight: 700, cursor: "pointer",
-                background: tab === v ? "var(--btn-grad)" : "var(--inp)",
-                border: "1px solid var(--brd)", color: tab === v ? "#fff" : "var(--t2)",
-                display: "inline-flex", alignItems: "center", gap: 7 }}>
-              <Ic size={13} /> {l}
-            </button>
-          ))}
+      <style dangerouslySetInnerHTML={{ __html: S }} />
+      <div className="page-head">
+        <div>
+          <h1>Моя ЗП</h1>
+          <p>Система мотивации: из чего складывается доход и как его растить</p>
         </div>
-      )}
+        {owner && (
+          <div className="v2-seg">
+            {([["teamlead", "Тимлид", TrendingUp], ["montager", "Монтажёр", Wallet]] as const).map(([v, l, Ic]) => (
+              <button key={v} onClick={() => setTab(v)} className={tab === v ? "on" : ""} style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
+                <Ic size={13} /> {l}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
       {view === "montager" ? <Montager /> : <Teamlead />}
     </div>
   );

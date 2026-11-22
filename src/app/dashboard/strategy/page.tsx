@@ -133,7 +133,7 @@ const S = `
 .sd .sadd{display:flex;gap:8px;margin-top:8px}.sd .sadd input{flex:1;background:var(--inp);border:1px solid var(--brd);color:var(--t1);border-radius:9px;padding:7px 9px;font-size:13px}
 .sd .acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:22px}
 .sd .btn{background:var(--pu);color:#fff;border:none;border-radius:10px;padding:9px 14px;font-weight:700;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
-.sd .btn.ok{background:var(--gr);color:#0a0118}.sd .btn.ghost{background:transparent;color:var(--t2);border:1px solid var(--brd)}.sd .btn.danger{background:transparent;color:var(--rd);border:1px solid rgba(var(--rd-rgb),.4)}
+.sd .btn.ok{background:var(--gr);color:var(--on-accent)}.sd .btn.ghost{background:transparent;color:var(--t2);border:1px solid var(--brd)}.sd .btn.danger{background:transparent;color:var(--rd);border:1px solid rgba(var(--rd-rgb),.4)}
 .sd .meta{font-size:11.5px;color:var(--t3);margin-top:16px;line-height:1.6}
 `;
 
@@ -309,7 +309,13 @@ export default function StrategyPage() {
 
   return (
     <div className="st">
-      <style>{S}</style>
+      <style dangerouslySetInnerHTML={{ __html: S }} />
+      <div className="page-head" style={{ gridColumn: "1 / -1", marginBottom: 6 }}>
+        <div>
+          <h1>Стратегия</h1>
+          <p>Забеги, задачи и цифры компании{curSprint ? ` · сейчас забег «${curSprint.title}»` : ""}</p>
+        </div>
+      </div>
 
       <aside className="rail">
         <button className={`ri ${view.type === "today" ? "on" : ""}`} onClick={() => setView({ type: "today" })}><Sun size={16} color="var(--or)" />Сегодня<span className={`n ${overdue.length ? "red" : ""}`}>{counts.today || ""}</span></button>
@@ -418,7 +424,7 @@ export default function StrategyPage() {
 
       {mounted && newSprint && createPortal(
         <>
-          <style>{S}</style>
+          <style dangerouslySetInnerHTML={{ __html: S }} />
           <div className="sd-bg" onClick={() => setNewSprint(null)} />
           <div className="sd">
             <div className="top"><Flame size={18} color="var(--or)" /><b style={{ color: "var(--t1)" }}>Новый забег</b><span style={{ flex: 1 }} /><button className="ib" onClick={() => setNewSprint(null)}><X size={18} /></button></div>
@@ -454,7 +460,7 @@ function TaskDrawer({ task, today, onClose, onPatch, onDelete }: {
 
   return (
     <>
-      <style>{S}</style>
+      <style dangerouslySetInnerHTML={{ __html: S }} />
       <div className="sd-bg" onClick={onClose} />
       <div className="sd">
         <div className="top">

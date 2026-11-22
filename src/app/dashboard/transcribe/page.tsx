@@ -282,7 +282,7 @@ export default function TranscribePage() {
           </div>
         </>
       )}
-      <style>{`.spin{animation:sp 1s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}`}</style>
+      <style dangerouslySetInnerHTML={{ __html: `.spin{animation:sp 1s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}` }} />
     </div>
   );
 }
