@@ -77,7 +77,7 @@ export default function AvatarSettings({ clientId, avatar, isOwner, clientPackag
   if (!avatar && !isOwner) return null;
 
   return (
-    <div style={{ marginTop: 6, padding: 12, borderRadius: 12, border: "1px solid rgba(var(--cy-rgb),.35)", background: "rgba(var(--cy-rgb),.05)", display: "flex", flexDirection: "column", gap: 8 }}>
+    <div style={{ marginTop: 6, padding: 12, borderRadius: 12, border: "1px solid rgba(var(--cy-rgb),.35)", background: "rgba(var(--cy-rgb),.05)", display: "flex", flexDirection: "column", gap: 8, minWidth: 0, maxWidth: "100%" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <b style={{ fontSize: 13.5 }}>🧑‍💼 Аватар HeyGen</b>
         <span style={{ fontSize: 11.5, color: "var(--t3)" }}>{avatar ? "чат «Аватар» включён" : "не привязан"}</span>
@@ -87,7 +87,7 @@ export default function AvatarSettings({ clientId, avatar, isOwner, clientPackag
       </div>
 
       {!edit && avatar && (
-        <div style={{ fontSize: 12.5, color: "var(--t2)", display: "grid", gap: 4 }}>
+        <div style={{ fontSize: 12.5, color: "var(--t2)", display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 4 }}>
           <div>Разрешённые образы ({avatar.look_ids.length}){groupLooks.length ? ` из ${groupLooks.length} в группе` : ""}:</div>
           <LookPicker avatar={avatar} value="" onChange={() => {}} readOnly />
           <div>Голос: <code>{avatar.voice_id?.slice(0, 10) || "—"}</code> · {avatar.voice_model} · {avatar.language} · скорость {avatar.voice_speed}x{avatar.trim_silence ? " · обрезать тишину" : ""}</div>
@@ -96,7 +96,7 @@ export default function AvatarSettings({ clientId, avatar, isOwner, clientPackag
       )}
 
       {edit && f && (
-        <div style={{ display: "grid", gap: 8, fontSize: 12.5 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 8, fontSize: 12.5 }}>
           <label>Группа аватара (id из HeyGen; несколько — через запятую) <input style={{ ...sel, width: "100%" }} value={f.heygen_group_id} onChange={(e) => setF({ ...f, heygen_group_id: e.target.value })} /></label>
           {groupLooks.length > 0 && (
             <div>
@@ -148,7 +148,7 @@ export default function AvatarSettings({ clientId, avatar, isOwner, clientPackag
       )}
 
       {avatar && (
-        <div style={{ display: "grid", gap: 5, fontSize: 12.5 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 5, fontSize: 12.5 }}>
           <b style={{ fontSize: 12.5 }}>Словарь произношения</b>
           <div className="v2-hint" style={{ marginTop: -3 }}>Как написано → как озвучивать: имена, бренды, термины, ударения. ИИ применяет перед каждой озвучкой.</div>
           {dict.map((d) => (
