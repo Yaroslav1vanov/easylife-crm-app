@@ -28,6 +28,16 @@ const fmt = (v: number | null | undefined) => {
   return v.toLocaleString("ru-RU");
 };
 const pct = (cur: number | null, prev: number | null) => (cur == null || !prev ? null : Math.round(((cur - prev) / prev) * 100));
+const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const shiftDay = (s: string, n: number) => { const [y, m, d] = s.split("-").map(Number); return iso(new Date(y, m - 1, d + n)); };
+const dayDiff = (a: string, b: string) => Math.round((Date.UTC(+b.slice(0, 4), +b.slice(5, 7) - 1, +b.slice(8, 10)) - Date.UTC(+a.slice(0, 4), +a.slice(5, 7) - 1, +a.slice(8, 10))) / 864e5);
+const RU_GEN = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
+const rangeLabel = (a: string, b: string) => a.slice(0, 7) === b.slice(0, 7)
+  ? `${+a.slice(8, 10)}–${+b.slice(8, 10)} ${RU_GEN[+b.slice(5, 7) - 1]}`
+  : `${+a.slice(8, 10)} ${RU_GEN[+a.slice(5, 7) - 1]} – ${+b.slice(8, 10)} ${RU_GEN[+b.slice(5, 7) - 1]}`;
+const NET_SNAP: Record<string, string> = { instagram: "ig", tiktok: "tt", youtube: "yt" };
+type Per = "month" | "7" | "14" | "30" | "custom";
+const PER_LABEL: [Per, string][] = [["month", "Месяц"], ["7", "7 дней"], ["14", "14 дней"], ["30", "30 дней"], ["custom", "Даты"]];
 const curYm = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
 
 type Reel = {
@@ -81,6 +91,65 @@ export default function ClientStatsTab({ clientId, hasMetricool, layout, side }:
       try { await fetch(`/api/stats/collect?ym=${yms[i]}&clientId=${clientId}${i ? "&cp=0" : ""}`, { cache: "no-store" }); } catch {}
     }
     await load(); setBusy(false); setCpVer(v => v + 1);
+  }
+
+  /* Период «7 / 14 / 30 дней» и свои даты: считаем по роликам, вышедшим в эти дни (как и месяц),
+     сравниваем с таким же отрезком перед ним. Подписчики — из ежедневных снимков на начало и конец. */
+  const [per, setPer] = useState<Per>("month");
+  const [custom, setCustom] = useState<{ from: string; to: string }>({ from: "", to: "" });
+  const [pdata, setPdata] = useState<{ reels: Reel[]; snaps: any[]; cpFrom: string | null } | "loading" | null>(null);
+  const pr = useMemo(() => {
+    if (per === "month") return null;
+    let from: string, to: string;
+    if (per === "custom") { if (!custom.from || !custom.to || custom.from > custom.to) return null; from = custom.from; to = custom.to; }
+    else { to = iso(new Date()); from = shiftDay(to, -(Number(per) - 1)); }
+    const len = dayDiff(from, to) + 1;
+    return { from, to, pFrom: shiftDay(from, -len), pTo: shiftDay(from, -1), len };
+  }, [per, custom]);
+  useEffect(() => {
+    if (!pr) { setPdata(null); return; }
+    let off = false;
+    setPdata("loading");
+    (async () => {
+      try {
+        const [r, s, cp] = await Promise.all([
+          fetch(`/api/clients/${clientId}/reels?from=${pr.pFrom}&to=${pr.to}`, { cache: "no-store" }).then(x => x.json()),
+          supabase.from("social_snapshots").select("platform, snapshot_date, followers").eq("client_id", clientId)
+            .gte("snapshot_date", shiftDay(pr.pFrom, -7)).lte("snapshot_date", pr.to).order("snapshot_date"),
+          supabase.from("client_chatplace_insights").select("availability, videos").eq("client_id", clientId)
+            .order("day", { ascending: false }).limit(1).maybeSingle(),
+        ]);
+        // ChatPlace отдаёт ролики примерно за 30 дней: раньше этой даты Instagram-роликов из него нет
+        const cpv = cp.data?.availability === "available" && Array.isArray(cp.data.videos) ? (cp.data.videos as any[]).map(v => v.date).filter(Boolean).sort() : [];
+        if (!off) setPdata({ reels: (r.reels || []) as Reel[], snaps: s.data || [], cpFrom: cpv[0] || null });
+      } catch { if (!off) setPdata({ reels: [], snaps: [], cpFrom: null }); }
+    })();
+    return () => { off = true; };
+  }, [pr?.from, pr?.to, clientId, cpVer]);
+
+  function aggPeriod(list: Reel[], snaps: any[], from: string, to: string) {
+    const L = list.filter(r => r.date >= from && r.date <= to && (net === "all" || r.net === net));
+    const byNet: Record<string, Reel[]> = {};
+    for (const r of L) (byNet[r.net] ||= []).push(r);
+    const sum = (k: keyof Reel) => (L.some(r => r[k] != null) ? L.reduce((a, r) => a + (Number(r[k]) || 0), 0) : null);
+    let fEnd: number | null = null, gStart: number | null = null, gEnd: number | null = null;
+    const fNets: string[] = [];
+    for (const [n, plat] of Object.entries(NET_SNAP)) {
+      if (net !== "all" && net !== n) continue;
+      const sn = snaps.filter(x => x.platform === plat && x.followers != null);
+      const end = [...sn].reverse().find(x => x.snapshot_date <= to);
+      const start = [...sn].reverse().find(x => x.snapshot_date < from);
+      if (!end) continue;
+      fEnd = (fEnd || 0) + end.followers;
+      fNets.push(`${NET_LABEL[n]} ${Number(end.followers).toLocaleString("ru-RU")}`);
+      if (start) { gStart = (gStart || 0) + start.followers; gEnd = (gEnd || 0) + end.followers; }
+    }
+    return {
+      posts: Math.max(0, ...Object.values(byNet).map(a => a.length)), pubs: L.length,
+      our: Math.max(0, ...Object.values(byNet).map(a => a.filter(r => r.isOurs).length)) || null, carousels: null,
+      views: sum("views"), reach: sum("reach"), likes: sum("likes"), comments: sum("comments"), saves: sum("saves"), shares: sum("shares"),
+      fEnd, gStart, gEnd, fNets, list: L,
+    };
   }
 
   const nets = useMemo(() => ["all", ...Array.from(new Set(rows.map(r => r.network)))], [rows]);
@@ -152,7 +221,7 @@ export default function ClientStatsTab({ clientId, hasMetricool, layout, side }:
               const h = Math.max(4, Math.round(((m.views || 0) / maxViews) * 120));
               const on = m.ym === sel;
               return (
-                <button key={m.ym} onClick={() => setSel(m.ym)} style={{ flex: 1, minWidth: 34, maxWidth: 90, background: "transparent", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 5, padding: 0 }}>
+                <button key={m.ym} onClick={() => { setSel(m.ym); setPer("month"); }} style={{ flex: 1, minWidth: 34, maxWidth: 90, background: "transparent", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 5, padding: 0 }}>
                   <span style={{ fontSize: 10, fontWeight: 800, color: on ? "var(--t1)" : "var(--t3)" }}>{fmt(m.views)}</span>
                   <div style={{ width: "100%", height: h, borderRadius: "6px 6px 2px 2px",
                     background: on ? "linear-gradient(180deg, var(--cy), var(--pu))" : "rgba(var(--pu-rgb),0.28)",
@@ -162,7 +231,7 @@ export default function ClientStatsTab({ clientId, hasMetricool, layout, side }:
               );
             })}
   </>);
-  const tiles = cur ? (<>
+  const tilesFor = (cur: any, prev: any, period?: boolean) => (<>
             <Tile label="Роликов" v={cur.posts} p={pct(cur.posts, prev?.posts)} hint={[cur.pubs && cur.pubs !== cur.posts ? `публикаций во всех сетях: ${cur.pubs}` : "", cur.our ? `из контент-плана: ${cur.our}` : ""].filter(Boolean).join(" · ") || undefined} />
             {cur.carousels ? <Tile label="Карусели и фото" v={cur.carousels} p={pct(cur.carousels, prev?.carousels)} /> : null}
             <Tile label="Просмотры" v={cur.views} p={pct(cur.views, prev?.views)} />
@@ -171,9 +240,10 @@ export default function ClientStatsTab({ clientId, hasMetricool, layout, side }:
             <Tile label="Комментарии" v={cur.comments} p={pct(cur.comments, prev?.comments)} />
             <Tile label="Сохранения" v={cur.saves} p={pct(cur.saves, prev?.saves)} />
             <Tile label="Репосты" v={cur.shares} p={pct(cur.shares, prev?.shares)} />
-            <Tile label={cur.fNets.length > 1 ? "Подписчики · все сети" : "Подписчики"} v={cur.fEnd} p={cur.gStart && cur.gEnd ? Math.round(((cur.gEnd - cur.gStart) / cur.gStart) * 1000) / 10 : null}
-              hint={cur.fEnd == null ? "история с сентября" : cur.fNets.length > 1 ? cur.fNets.join(" · ") : "за месяц"} />
-  </>) : null;
+            <Tile label={cur.fNets.length > 1 ? "Подписчики · все сети" : "Подписчики"} v={cur.fEnd} p={period ? null : cur.gStart && cur.gEnd ? Math.round(((cur.gEnd - cur.gStart) / cur.gStart) * 1000) / 10 : null}
+              hint={period ? (cur.fEnd == null ? "нет снимков" : cur.gStart != null ? `${cur.gEnd - cur.gStart >= 0 ? "+" : ""}${(cur.gEnd - cur.gStart).toLocaleString("ru-RU")} за период` : "нет снимка на начало периода") : cur.fEnd == null ? "история с сентября" : cur.fNets.length > 1 ? cur.fNets.join(" · ") : "за месяц"} />
+  </>);
+  const tiles = cur ? tilesFor(cur, prev) : null;
   const topList = cur ? (<>
                 {(cur.top || []).map((p: any, k: number) => (
                   <a key={k} href={p.url || "#"} target="_blank" rel="noopener noreferrer"
@@ -191,6 +261,53 @@ export default function ClientStatsTab({ clientId, hasMetricool, layout, side }:
                   </a>
                 ))}
   </>) : null;
+  const reelTable = (list: Reel[]) => {
+    // колонки «Реклама» и «Подписки» — только если в списке есть такие данные
+    const hasPaid = list.some(r => (r.paidViews || 0) > 0 || (r.spend || 0) > 0);
+    const hasFollows = list.some(r => r.follows != null);
+    return (
+                          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                            <thead><tr style={{ color: "var(--t3)", fontSize: 9.5, textTransform: "uppercase", letterSpacing: .4 }}>
+                              {["Дата", "Ролик", "Просмотры", ...(hasPaid ? ["Органика / реклама"] : []), "Охват", "Лайки", "Комм.", "Сохр.", "Репосты", ...(hasFollows ? ["Подписки"] : []), "ER", "Досмотр", "Пролистали"].map(h => (
+                                <th key={h} style={{ textAlign: h === "Дата" || h === "Ролик" ? "left" : "right", padding: "8px 12px", fontWeight: 800 }}>{h}</th>
+                              ))}
+                            </tr></thead>
+                            <tbody>
+                              {list.map((r, idx) => (
+                                <tr key={idx} style={{ borderTop: "1px solid var(--brd)" }}>
+                                  <td style={{ padding: "8px 12px", color: "var(--t2)", whiteSpace: "nowrap" }}>{r.date.slice(8, 10)}.{r.date.slice(5, 7)}</td>
+                                  <td style={{ padding: "8px 12px", maxWidth: 220 }}>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                      {r.image ? <img src={r.image} alt="" style={{ width: 26, height: 34, objectFit: "cover", borderRadius: 4, flexShrink: 0 }} onError={e => { (e.target as HTMLImageElement).style.visibility = "hidden"; }} /> : null}
+                                      <div style={{ minWidth: 0 }}>
+                                        <a href={r.url || "#"} target="_blank" rel="noreferrer" style={{ color: "var(--t1)", textDecoration: "none", display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.title}</a>
+                                        <div style={{ fontSize: 9.5, color: "var(--t3)" }}>
+                                          {NET_LABEL[r.net] || r.net}{r.duration ? ` · ${r.duration} сек` : ""}{r.isOurs ? " · из плана" : ""}{!r.isOurs ? <span style={{ color: "var(--or)" }}> · не из плана</span> : null}{r.x >= 1.5 ? ` · ×${String(Math.round(r.x * 10) / 10).replace(".", ",")} к норме` : ""}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td style={{ padding: "8px 12px", textAlign: "right", fontWeight: 700, color: "var(--t1)" }}>{fmt(r.views)}</td>
+                                  {hasPaid && <td style={{ padding: "8px 12px", textAlign: "right", whiteSpace: "nowrap" }} title="Органические просмотры / просмотры с продвижения (реклама) и потраченная сумма">
+                                    {(r.paidViews || 0) > 0 || (r.spend || 0) > 0
+                                      ? <>{fmt(Math.max(0, r.views - (r.paidViews || 0)))} / <span style={{ color: "var(--or)" }}>{fmt(r.paidViews || 0)}</span>{r.spend ? <div style={{ fontSize: 9.5, color: "var(--t3)" }}>реклама ${Math.round(r.spend)}</div> : null}</>
+                                      : <span style={{ color: "var(--t3)" }}>вся органика</span>}
+                                  </td>}
+                                  <td style={{ padding: "8px 12px", textAlign: "right" }}>{fmt(r.reach)}</td>
+                                  <td style={{ padding: "8px 12px", textAlign: "right" }}>{fmt(r.likes)}</td>
+                                  <td style={{ padding: "8px 12px", textAlign: "right" }}>{fmt(r.comments)}</td>
+                                  <td style={{ padding: "8px 12px", textAlign: "right" }}>{fmt(r.saves)}</td>
+                                  <td style={{ padding: "8px 12px", textAlign: "right" }}>{fmt(r.shares)}</td>
+                                  {hasFollows && <td style={{ padding: "8px 12px", textAlign: "right" }} title="Подписались прямо с этого ролика (как отдаёт Instagram)">{fmt(r.follows ?? null)}</td>}
+                                  <td style={{ padding: "8px 12px", textAlign: "right" }}>{r.er != null ? `${String(r.er).replace(".", ",")}%` : "—"}</td>
+                                  <td style={{ padding: "8px 12px", textAlign: "right" }} title={r.retLoop ? "Средний просмотр длиннее самого ролика: часть зрителей смотрела его по кругу. В средних по отчётам такой ролик считается как 100%" : "Средняя доля ролика, которую смотрят"}>{r.retention != null ? (r.retLoop ? `${r.retRaw ?? 100}% ↻` : `${r.retention}%`) : r.watch != null ? `${String(Math.round(r.watch)).replace(".", ",")} сек` : "—"}{r.retention != null && r.watch != null && <div style={{ fontSize: 9.5, color: "var(--t3)" }}>{String(r.watch).replace(".", ",")} сек</div>}</td>
+                                  <td style={{ padding: "8px 12px", textAlign: "right", color: r.skip != null && r.skip > 35 ? "var(--rd)" : undefined, fontWeight: r.skip != null && r.skip > 35 ? 700 : undefined }} title="Сколько зрителей пролистали ролик в первые 3 секунды (Instagram). Больше 35% — слабый хук">{r.skip != null ? `${String(Math.round(r.skip)).replace(".", ",")}%` : "—"}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+    );
+  };
   const monthsTable = (
           <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 720, fontSize: 12.5 }}>
             <thead><tr style={{ color: "var(--t3)", fontSize: 10, textTransform: "uppercase", letterSpacing: 0.4 }}>
@@ -225,52 +342,7 @@ export default function ClientStatsTab({ clientId, hasMetricool, layout, side }:
                         ) : !reels[m.ym] || (reels[m.ym] as Reel[]).length === 0 ? (
                           <div style={{ padding: "14px 16px", fontSize: 12, color: "var(--t3)" }}>{isPortal() ? "Роликов за этот месяц нет." : "Роликов за этот месяц нет: ни Metricool, ни ChatPlace их не отдали."}</div>
                         ) : (
-                          (() => { const list = reels[m.ym] as Reel[];
-                            // колонки «Реклама» и «Подписки» — только если в месяце есть такие данные
-                            const hasPaid = list.some(r => (r.paidViews || 0) > 0 || (r.spend || 0) > 0);
-                            const hasFollows = list.some(r => r.follows != null);
-                            return (
-                          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-                            <thead><tr style={{ color: "var(--t3)", fontSize: 9.5, textTransform: "uppercase", letterSpacing: .4 }}>
-                              {["Дата", "Ролик", "Просмотры", ...(hasPaid ? ["Органика / реклама"] : []), "Охват", "Лайки", "Комм.", "Сохр.", "Репосты", ...(hasFollows ? ["Подписки"] : []), "ER", "Досмотр", "Пролистали"].map(h => (
-                                <th key={h} style={{ textAlign: h === "Дата" || h === "Ролик" ? "left" : "right", padding: "8px 12px", fontWeight: 800 }}>{h}</th>
-                              ))}
-                            </tr></thead>
-                            <tbody>
-                              {(reels[m.ym] as Reel[]).map((r, idx) => (
-                                <tr key={idx} style={{ borderTop: "1px solid var(--brd)" }}>
-                                  <td style={{ padding: "8px 12px", color: "var(--t2)", whiteSpace: "nowrap" }}>{r.date.slice(8, 10)}.{r.date.slice(5, 7)}</td>
-                                  <td style={{ padding: "8px 12px", maxWidth: 220 }}>
-                                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                      {r.image ? <img src={r.image} alt="" style={{ width: 26, height: 34, objectFit: "cover", borderRadius: 4, flexShrink: 0 }} onError={e => { (e.target as HTMLImageElement).style.visibility = "hidden"; }} /> : null}
-                                      <div style={{ minWidth: 0 }}>
-                                        <a href={r.url || "#"} target="_blank" rel="noreferrer" style={{ color: "var(--t1)", textDecoration: "none", display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.title}</a>
-                                        <div style={{ fontSize: 9.5, color: "var(--t3)" }}>
-                                          {NET_LABEL[r.net] || r.net}{r.duration ? ` · ${r.duration} сек` : ""}{r.isOurs ? " · из плана" : ""}{!r.isOurs ? <span style={{ color: "var(--or)" }}> · не из плана</span> : null}{r.x >= 1.5 ? ` · ×${String(Math.round(r.x * 10) / 10).replace(".", ",")} к норме` : ""}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  </td>
-                                  <td style={{ padding: "8px 12px", textAlign: "right", fontWeight: 700, color: "var(--t1)" }}>{fmt(r.views)}</td>
-                                  {hasPaid && <td style={{ padding: "8px 12px", textAlign: "right", whiteSpace: "nowrap" }} title="Органические просмотры / просмотры с продвижения (реклама) и потраченная сумма">
-                                    {(r.paidViews || 0) > 0 || (r.spend || 0) > 0
-                                      ? <>{fmt(Math.max(0, r.views - (r.paidViews || 0)))} / <span style={{ color: "var(--or)" }}>{fmt(r.paidViews || 0)}</span>{r.spend ? <div style={{ fontSize: 9.5, color: "var(--t3)" }}>реклама ${Math.round(r.spend)}</div> : null}</>
-                                      : <span style={{ color: "var(--t3)" }}>вся органика</span>}
-                                  </td>}
-                                  <td style={{ padding: "8px 12px", textAlign: "right" }}>{fmt(r.reach)}</td>
-                                  <td style={{ padding: "8px 12px", textAlign: "right" }}>{fmt(r.likes)}</td>
-                                  <td style={{ padding: "8px 12px", textAlign: "right" }}>{fmt(r.comments)}</td>
-                                  <td style={{ padding: "8px 12px", textAlign: "right" }}>{fmt(r.saves)}</td>
-                                  <td style={{ padding: "8px 12px", textAlign: "right" }}>{fmt(r.shares)}</td>
-                                  {hasFollows && <td style={{ padding: "8px 12px", textAlign: "right" }} title="Подписались прямо с этого ролика (как отдаёт Instagram)">{fmt(r.follows ?? null)}</td>}
-                                  <td style={{ padding: "8px 12px", textAlign: "right" }}>{r.er != null ? `${String(r.er).replace(".", ",")}%` : "—"}</td>
-                                  <td style={{ padding: "8px 12px", textAlign: "right" }} title={r.retLoop ? "Средний просмотр длиннее самого ролика: часть зрителей смотрела его по кругу. В средних по отчётам такой ролик считается как 100%" : "Средняя доля ролика, которую смотрят"}>{r.retention != null ? (r.retLoop ? `${r.retRaw ?? 100}% ↻` : `${r.retention}%`) : r.watch != null ? `${String(Math.round(r.watch)).replace(".", ",")} сек` : "—"}{r.retention != null && r.watch != null && <div style={{ fontSize: 9.5, color: "var(--t3)" }}>{String(r.watch).replace(".", ",")} сек</div>}</td>
-                                  <td style={{ padding: "8px 12px", textAlign: "right", color: r.skip != null && r.skip > 35 ? "var(--rd)" : undefined, fontWeight: r.skip != null && r.skip > 35 ? 700 : undefined }} title="Сколько зрителей пролистали ролик в первые 3 секунды (Instagram). Больше 35% — слабый хук">{r.skip != null ? `${String(Math.round(r.skip)).replace(".", ",")}%` : "—"}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                            ); })()
+                          reelTable(reels[m.ym] as Reel[])
                         )}
                       </td>
                     </tr>
@@ -285,9 +357,23 @@ export default function ClientStatsTab({ clientId, hasMetricool, layout, side }:
   if (crm) return (
     <div className="stats-crm">
       <div className="st-bar">
-        <h2>{cur ? <>{ymLabel(cur.ym)}{cur.partial ? " · на сегодня" : ""}</> : "Статистика"}</h2>
-        <span className="st-src">{prev ? <>сравнение с {ymLabel(prev.ym)} · </> : null}источник: <b>{srcLabel}</b></span>
+        <h2>{per !== "month" ? (pr ? <>{per === "custom" ? "Период" : `${per} дней`} · {rangeLabel(pr.from, pr.to)}</> : "Свой период")
+          : cur ? <>{ymLabel(cur.ym)}{cur.partial ? " · на сегодня" : ""}</> : "Статистика"}</h2>
+        <span className="st-src">{per !== "month" ? (pr ? <>сравнение с {rangeLabel(pr.pFrom, pr.pTo)} · </> : null) : prev ? <>сравнение с {ymLabel(prev.ym)} · </> : null}источник: <b>{srcLabel}</b></span>
         <div className="st-bar-r">
+          <div className="v2-seg">
+            {PER_LABEL.map(([k, l]) => <button key={k} onClick={() => {
+              if (k === "custom" && !custom.from) { const t = iso(new Date()); setCustom({ from: shiftDay(t, -6), to: t }); }
+              setPer(k);
+            }} className={per === k ? "on" : ""}>{l}</button>)}
+          </div>
+          {per === "custom" && (
+            <div className="st-dates">
+              <input type="date" value={custom.from} max={custom.to || undefined} onChange={e => setCustom(c => ({ ...c, from: e.target.value }))} />
+              <span>—</span>
+              <input type="date" value={custom.to} min={custom.from || undefined} max={iso(new Date())} onChange={e => setCustom(c => ({ ...c, to: e.target.value }))} />
+            </div>
+          )}
           <div className="v2-seg">
             {nets.map(n => <button key={n} onClick={() => setNet(n)} className={net === n ? "on" : ""}>{NET_LABEL[n] || n}</button>)}
           </div>
@@ -302,7 +388,27 @@ export default function ClientStatsTab({ clientId, hasMetricool, layout, side }:
           Статистики пока нет. Нажми «Обновить» — CRM соберёт текущий и прошлый месяц из Metricool.
         </div>
       ) : (<>
-        {cur && (<>
+        {per !== "month" ? (
+          !pr ? <div className="panel" style={{ color: "var(--t2)", fontSize: 14 }}>Выбери дату начала и конца периода.</div>
+          : pdata === "loading" || !pdata ? <div className="panel" style={{ color: "var(--t3)", fontSize: 14 }}>Считаю статистику за {rangeLabel(pr.from, pr.to)}…</div>
+          : (() => {
+            const c = aggPeriod(pdata.reels, pdata.snaps, pr.from, pr.to);
+            // сравнение нечестное, если прошлый отрезок раньше, чем ChatPlace хранит ролики Instagram
+            const cpShort = !!pdata.cpFrom && pr.pFrom < pdata.cpFrom && (net === "all" || net === "instagram");
+            const p = cpShort ? null : aggPeriod(pdata.reels, pdata.snaps, pr.pFrom, pr.pTo);
+            return (<>
+              <div className="kpis" style={{ ["--kcols" as any]: 4 }}>{tilesFor(c, p, true)}</div>
+              <div className="st-note">Ролики, вышедшие {rangeLabel(pr.from, pr.to)} (включая пробные и перемонтажи), и их просмотры на сегодня.
+                {cpShort ? " Сравнения нет: Instagram берём из ChatPlace, а он хранит ролики только за последние ~30 дней." : ` Сравнение — с ${rangeLabel(pr.pFrom, pr.pTo)}.`}
+                {" "}Блок ниже «От просмотров до заявок» — всегда за 30 дней: Instagram отдаёт статистику аккаунта только так.</div>
+              <div className="panel">
+                <h3>Ролики за период <span className="st-h3sub">{rangeLabel(pr.from, pr.to)} · {c.list.length}</span></h3>
+                {c.list.length ? <div className="tw" style={{ marginTop: 12 }}>{reelTable(c.list)}</div>
+                  : <div className="sub" style={{ marginTop: 10 }}>За эти дни роликов нет.</div>}
+              </div>
+            </>);
+          })()
+        ) : cur && (<>
           <div className="kpis" style={{ ["--kcols" as any]: Math.ceil((8 + (cur.carousels ? 1 : 0)) / 2) }}>{tiles}</div>
           <div className="st-note">Ролики, вышедшие в этом месяце (включая пробные и перемонтажи), и их просмотры. Просмотры всего аккаунта за 30 дней — в блоке «Кто смотрит».</div>
         </>)}
@@ -317,7 +423,7 @@ export default function ClientStatsTab({ clientId, hasMetricool, layout, side }:
           {side}
         </div>
 
-        {cur && cur.top?.length > 0 && (
+        {per === "month" && cur && cur.top?.length > 0 && (
           <div className="panel">
             <h3>Лучшие ролики <span className="st-h3sub">{ymLabel(cur.ym)}</span></h3>
             <div className="st-top">{topList}</div>
@@ -334,7 +440,9 @@ export default function ClientStatsTab({ clientId, hasMetricool, layout, side }:
 
         <div className="st-foot">Данные — из Metricool, с момента подключения бренда; у клиентов с ботом ChatPlace Instagram за текущий месяц — из ChatPlace (статистика Instagram аккаунта). Подписчики — из ежедневных снимков CRM, история по ним с сентября 2026. Прошлый месяц собирается автоматически 1-го числа.</div>
       </>)}
-      <style dangerouslySetInnerHTML={{ __html: `.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}` }} />
+      <style dangerouslySetInnerHTML={{ __html: `.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+.st-dates{display:flex;align-items:center;gap:6px;color:var(--t3);font-size:13px}
+.st-dates input{background:var(--inset);border:1px solid var(--brd);color:var(--t1);border-radius:9px;padding:6px 9px;font-size:13px;font-family:inherit}` }} />
     </div>
   );
 
