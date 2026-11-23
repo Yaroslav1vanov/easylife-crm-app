@@ -26,14 +26,14 @@ function ctaWords(captions: string[]): string[] {
   return Array.from(out);
 }
 
-export default function ChatplaceInsights({ clientId }: { clientId: number }) {
+export default function ChatplaceInsights({ clientId, version = 0 }: { clientId: number; version?: number }) {
   const supabase = createClient();
   const [snap, setSnap] = useState<Snap | null | undefined>(undefined);
   useEffect(() => {
     supabase.from("client_chatplace_insights").select("day, availability, summary, videos, funnels")
       .eq("client_id", clientId).order("day", { ascending: false }).limit(1).maybeSingle()
       .then(({ data, error }) => setSnap(error ? null : (data as Snap | null)));
-  }, [clientId]);
+  }, [clientId, version]);
 
   if (snap === undefined) return null;
   if (!snap) return <div className="st-soon"><b>Скоро:</b> визиты в профиль, переходы на сайт, страны зрителей и кодовые слова. Появятся здесь после подключения ChatPlace к аккаунту клиента.</div>;
@@ -98,7 +98,7 @@ export default function ChatplaceInsights({ clientId }: { clientId: number }) {
           ))}
         </div>
         {countries.length > 0 && us < 0.3 && (
-          <div className="cp-warn"><AlertTriangle size={15} /> Из США только {us ? `${(us * 100).toFixed(1).replace(".", ",")}%` : "меньше, чем у 10-й страны"} зрителей. Если клиент продаёт в США — темы и хуки привязываем к его рынку: город, цены в долларах, местные проблемы.</div>
+          <div className="cp-warn"><AlertTriangle size={15} /> {us ? <>Зрителей из США всего {(us * 100).toFixed(1).replace(".", ",")}%.</> : <>США нет даже в первой десятке стран зрителей.</>} Если клиент продаёт в США — темы и хуки привязываем к его рынку: город, цены в долларах, местные проблемы.</div>
         )}
         <div className="cp-row">
           {ages.slice(0, 2).map(a => <span key={a.label}>{a.label}: <b>{Math.round(a.share * 100)}%</b></span>)}

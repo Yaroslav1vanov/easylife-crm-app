@@ -70,6 +70,7 @@ export default function ClientStatsTab({ clientId, hasMetricool, layout, side }:
   }
   useEffect(() => { load(); }, [clientId]);
 
+  const [cpVer, setCpVer] = useState(0);   // снимок ChatPlace перечитываем после «Обновить»
   async function refresh() {
     setBusy(true);
     // текущий месяц «на сегодня» и прошлый — их цифры ещё меняются
@@ -79,7 +80,7 @@ export default function ClientStatsTab({ clientId, hasMetricool, layout, side }:
     for (let i = 0; i < yms.length; i++) {
       try { await fetch(`/api/stats/collect?ym=${yms[i]}&clientId=${clientId}${i ? "&cp=0" : ""}`, { cache: "no-store" }); } catch {}
     }
-    await load(); setBusy(false);
+    await load(); setBusy(false); setCpVer(v => v + 1);
   }
 
   const nets = useMemo(() => ["all", ...Array.from(new Set(rows.map(r => r.network)))], [rows]);
@@ -301,7 +302,7 @@ export default function ClientStatsTab({ clientId, hasMetricool, layout, side }:
           <div className="kpis" style={{ ["--kcols" as any]: Math.ceil((8 + (cur.carousels ? 1 : 0)) / 2) }}>{tiles}</div>
           <div className="st-note">Ролики, вышедшие в этом месяце (включая пробные и перемонтажи), и их просмотры. Просмотры всего аккаунта за 30 дней — в блоке «Кто смотрит».</div>
         </>)}
-        <ChatplaceInsights clientId={clientId} />
+        <ChatplaceInsights clientId={clientId} version={cpVer} />
 
         <div className={side ? "st-two" : undefined}>
           <div className="panel">
