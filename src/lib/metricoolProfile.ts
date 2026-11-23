@@ -5,6 +5,7 @@ import { mcFetch } from "@/lib/mcFetch";
    Данных мало или сеть не подключена — так и пишем, ничего не выдумываем. */
 
 const MC = "https://app.metricool.com/api";
+// подписи режем по символам, а не по UTF-16: иначе эмодзи рвётся пополам и исполнитель падает на записи файла
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
 const fmt = (n: number) => Math.round(n).toLocaleString("ru-RU");
 
@@ -73,7 +74,7 @@ export async function metricoolProfile(blogId: number | string): Promise<string>
     try {
       const items = [...list(await get(`/v2/analytics/reels/instagram?${range(from120)}`)), ...list(await get(`/v2/analytics/posts/instagram?${range(from120)}`))];
       const clips: Clip[] = items.map((x: any) => ({ date: String(x.publishedAt?.dateTime || x.publishedAt || "").slice(0, 10), views: Number(x.views) || 0,
-        inter: Number(x.interactions) || 0, url: x.url || "", text: String(x.content || "").replace(/\s+/g, " ").slice(0, 70) })).filter(c => c.date);
+        inter: Number(x.interactions) || 0, url: x.url || "", text: Array.from(String(x.content || "").replace(/\s+/g, " ")).slice(0, 70).join("") })).filter(c => c.date);
       const h = series(await get(`/v2/analytics/timelines?network=instagram&subject=account&metric=followers&${range(from95)}`));
       out.push(`## Instagram\n${followersBlock(h)}\n${clipsBlock(clips)}`);
     } catch (e: any) { out.push(`## Instagram\n- Metricool не отдал данные (${e.message})`); }
@@ -84,7 +85,7 @@ export async function metricoolProfile(blogId: number | string): Promise<string>
       const clips: Clip[] = vids.map((x: any) => {
         const t = x.createTime; const d = typeof t === "number" ? new Date(t * (t < 1e12 ? 1000 : 1)) : new Date(t?.dateTime || t || 0);
         return { date: isNaN(d.getTime()) ? "" : ymd(d), views: Number(x.viewCount) || 0, inter: (Number(x.likeCount) || 0) + (Number(x.commentCount) || 0) + (Number(x.shareCount) || 0),
-          url: x.shareUrl || "", text: String(x.videoDescription || x.title || "").replace(/\s+/g, " ").slice(0, 70) };
+          url: x.shareUrl || "", text: Array.from(String(x.videoDescription || x.title || "").replace(/\s+/g, " ")).slice(0, 70).join("") };
       }).filter(c => c.date);
       const h = series(await get(`/v2/analytics/timelines?network=tiktok&subject=account&metric=followers_count&${range(from95)}`));
       out.push(`## TikTok\n${followersBlock(h)}\n${clipsBlock(clips)}`);
