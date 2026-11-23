@@ -6,6 +6,7 @@ import { requireUserOrCron } from "@/lib/apiGuard";
 import { linkPublishedReels } from "@/lib/linkReels";
 import { syncViewBreakdown } from "@/lib/viewBreakdown";
 import { mcFetch } from "@/lib/mcFetch";
+import { cpSyncClient } from "@/lib/chatplace";
 
 /* ============================================================
    Соц-статистика клиентов → social_snapshots.
@@ -43,7 +44,7 @@ export async function GET(req: Request) {
 
   const sb = createAdmin();
   const { data: clients } = await sb.from("clients")
-    .select("id, name, surname, stage, platforms, instagram, tiktok, youtube, metricool_blog_id, avatar_url, timezone")
+    .select("id, name, surname, stage, platforms, instagram, tiktok, youtube, metricool_blog_id, chatplace_bot_id, avatar_url, timezone")
     .neq("stage", "churned");
   if (!clients?.length) return NextResponse.json({ ok: true, written: 0, note: "нет клиентов" });
 
@@ -223,8 +224,17 @@ export async function GET(req: Request) {
     const { error } = await sb.from("social_snapshots").upsert(followerHistory.slice(i, i + 200), { onConflict: "client_id,platform,snapshot_date" });
     if (error) errors.push({ stage: "история подписчиков", error: error.message }); else history += Math.min(200, followerHistory.length - i);
   }
+  // ChatPlace последним: по Instagram его цифры свежее и перекрывают снимок дня из других источников
+  const chatplace: any[] = [];
+  for (const c of clients) {
+    if (!(c as any).chatplace_bot_id) continue;
+    try {
+      const snap = await cpSyncClient(sb, c as any);
+      chatplace.push({ client: c.name, availability: snap?.availability, followers: snap?.summary?.metrics?.followers ?? null, videos: snap?.videos.length ?? 0 });
+    } catch (e: any) { errors.push({ client_id: c.id, stage: "chatplace", error: String(e?.message || e) }); }
+  }
   return NextResponse.json({
-    ok: true, written, history, reelsLinked, avatarsSet, snapDate,
+    ok: true, written, history, reelsLinked, avatarsSet, snapDate, chatplace,
     viralmaxing: rowsOut.filter(r => r.source === "viralmaxing").map(r => ({ client: r.client, platform: r.platform, followers: r.followers, views30: r.reach_30d, er: r.engagement_rate, posts: r.posts })),
     metricool: rowsOut.filter(r => r.source === "metricool").map(r => ({ client: r.client, platform: r.platform, followers: r.followers, views30: r.reach_30d, er: r.engagement_rate })),
     unmatched, noHandle, errors,

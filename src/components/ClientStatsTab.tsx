@@ -4,6 +4,7 @@ import { isPortal } from "@/lib/portalMode";
 import { createClient } from "@/lib/supabase-browser";
 import { RefreshCw, TrendingUp, TrendingDown, ExternalLink } from "lucide-react";
 import WeeklyStatsTable from "@/components/WeeklyStatsTable";
+import ChatplaceInsights from "@/components/ChatplaceInsights";
 
 /* Вкладка «Статистика» в карточке клиента: помесячные итоги из client_monthly_stats,
    сравнение с прошлым месяцем, график просмотров, лучшие ролики месяца. */
@@ -13,7 +14,7 @@ type Row = {
   views: number | null; reach: number | null; likes: number | null; comments: number | null;
   saves: number | null; shares: number | null; avg_watch_sec: number | null;
   followers_start: number | null; followers_end: number | null; top_posts: any[] | null; collected_at: string;
-  carousels_count?: number | null; carousel_views?: number | null; our_videos?: number | null;
+  carousels_count?: number | null; carousel_views?: number | null; our_videos?: number | null; source?: string | null;
 };
 
 const NET_LABEL: Record<string, string> = { all: "Все сети", instagram: "Instagram", tiktok: "TikTok", youtube: "YouTube", facebook: "Facebook" };
@@ -74,8 +75,9 @@ export default function ClientStatsTab({ clientId, hasMetricool, layout, side }:
     // текущий месяц «на сегодня» и прошлый — их цифры ещё меняются
     const d = new Date(); const prev = new Date(d.getFullYear(), d.getMonth() - 1, 1);
     const pYm = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, "0")}`;
-    for (const ym of [pYm, curYm()]) {
-      try { await fetch(`/api/stats/collect?ym=${ym}&clientId=${clientId}`, { cache: "no-store" }); } catch {}
+    const yms = [pYm, curYm()];
+    for (let i = 0; i < yms.length; i++) {
+      try { await fetch(`/api/stats/collect?ym=${yms[i]}&clientId=${clientId}${i ? "&cp=0" : ""}`, { cache: "no-store" }); } catch {}
     }
     await load(); setBusy(false);
   }
@@ -116,6 +118,8 @@ export default function ClientStatsTab({ clientId, hasMetricool, layout, side }:
 
   const i = months.findIndex(m => m.ym === sel);
   const cur = months[i], prev = i > 0 ? months[i - 1] : null;
+  const srcSet = new Set(rows.filter(r => cur && r.ym === cur.ym && (net === "all" || r.network === net)).map(r => r.source === "chatplace" ? "Instagram (ChatPlace)" : "Metricool"));
+  const srcLabel = srcSet.size ? Array.from(srcSet).join(" + ") : "Metricool";
   const maxViews = Math.max(1, ...months.map(m => m.views || 0));
 
   const Tile = ({ label, v, p, hint }: { label: string; v: number | null; p: number | null; hint?: string }) => crm ? (
@@ -277,7 +281,7 @@ export default function ClientStatsTab({ clientId, hasMetricool, layout, side }:
     <div className="stats-crm">
       <div className="st-bar">
         <h2>{cur ? <>{ymLabel(cur.ym)}{cur.partial ? " · на сегодня" : ""}</> : "Статистика"}</h2>
-        <span className="st-src">{prev ? <>сравнение с {ymLabel(prev.ym)} · </> : null}источник: <b>Metricool</b></span>
+        <span className="st-src">{prev ? <>сравнение с {ymLabel(prev.ym)} · </> : null}источник: <b>{srcLabel}</b></span>
         <div className="st-bar-r">
           <div className="v2-seg">
             {nets.map(n => <button key={n} onClick={() => setNet(n)} className={net === n ? "on" : ""}>{NET_LABEL[n] || n}</button>)}
@@ -297,7 +301,7 @@ export default function ClientStatsTab({ clientId, hasMetricool, layout, side }:
           <div className="kpis" style={{ ["--kcols" as any]: Math.ceil((8 + (cur.carousels ? 1 : 0)) / 2) }}>{tiles}</div>
           <div className="st-note">Ролики, вышедшие в этом месяце (включая пробные и перемонтажи), и их просмотры. Просмотры всего аккаунта за 30 дней — в блоке «Кто смотрит».</div>
         </>)}
-        <div className="st-soon"><b>Скоро:</b> визиты в профиль, переходы на сайт, страны зрителей и кодовые слова. Появятся здесь после подключения ChatPlace к аккаунту клиента.</div>
+        <ChatplaceInsights clientId={clientId} />
 
         <div className={side ? "st-two" : undefined}>
           <div className="panel">
@@ -323,7 +327,7 @@ export default function ClientStatsTab({ clientId, hasMetricool, layout, side }:
 
         <WeeklyStatsTable clientId={clientId} />
 
-        <div className="st-foot">Данные — из Metricool, с момента подключения бренда. Подписчики — из ежедневных снимков CRM, история по ним с сентября 2026. Прошлый месяц собирается автоматически 1-го числа.</div>
+        <div className="st-foot">Данные — из Metricool, с момента подключения бренда; у клиентов с ботом ChatPlace Instagram за текущий месяц — из ChatPlace (статистика Instagram аккаунта). Подписчики — из ежедневных снимков CRM, история по ним с сентября 2026. Прошлый месяц собирается автоматически 1-го числа.</div>
       </>)}
       <style dangerouslySetInnerHTML={{ __html: `.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}` }} />
     </div>

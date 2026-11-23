@@ -434,7 +434,7 @@ export default function ClientDetailPage() {
           ))}
         </div>
       )}
-      {ctab === "stats" && (statsView === "stats" || isMont) && <ClientStatsTab clientId={clientId} hasMetricool={!!c.metricool_blog_id} layout="crm"
+      {ctab === "stats" && (statsView === "stats" || isMont) && <ClientStatsTab clientId={clientId} hasMetricool={!!(c.metricool_blog_id || (c as any).chatplace_bot_id)} layout="crm"
         side={!isMont && !!c.metricool_blog_id ? <ViewsBreakdown clientId={clientId} /> : undefined} />}
       {ctab === "stats" && statsView === "planfact" && !isMont && <PlanFactTab clientId={clientId} />}
       {ctab === "chat" && <ClientChatTab clientId={clientId} aiEnabled={!!c.ai_chat} isOwner={userRole === "owner" || userRole === "admin"}

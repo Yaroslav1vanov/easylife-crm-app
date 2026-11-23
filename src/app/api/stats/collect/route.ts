@@ -3,11 +3,13 @@ import { createAdmin } from "@/lib/supabase-admin";
 import { collectClientMonth, prevYm } from "@/lib/monthlyStats";
 import { requireUserOrCron } from "@/lib/apiGuard";
 import { mcFetch } from "@/lib/mcFetch";
+import { cpSyncClient } from "@/lib/chatplace";
 
 /* Сбор помесячной статистики.
    GET /api/stats/collect?ym=2026-08&clientId=25
      ym        — месяц (по умолчанию прошлый)
-     clientId  — один клиент (по умолчанию все, подключённые к Metricool)
+     clientId  — один клиент (по умолчанию все с Metricool или ботом ChatPlace)
+     cp=0      — не обновлять снимок ChatPlace (UI зовёт сбор двух месяцев подряд, снимок нужен один раз)
    По расписанию запускается 1-го числа — собирает прошлый месяц по всем. */
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
@@ -37,15 +39,23 @@ export async function GET(req: Request) {
   }
 
   const sb = createAdmin()
-  let q = sb.from("clients").select("id, name, surname, metricool_blog_id, timezone, stage, platforms").not("metricool_blog_id", "is", null);
+  let q = sb.from("clients").select("id, name, surname, metricool_blog_id, chatplace_bot_id, timezone, stage, platforms")
+    .or("metricool_blog_id.not.is.null,chatplace_bot_id.not.is.null");
   if (clientId) q = q.eq("id", Number(clientId)); else q = q.neq("stage", "churned");
   const { data: clients, error } = await q;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const out: any[] = [];
+  const cpDone = new Set<number>();   // снимок ChatPlace — раз за запрос, свежий перед сбором месяца
   for (const c of clients || []) {
     try {
+      let cpErr: string | null = null;
+      if (c.chatplace_bot_id && !cpDone.has(c.id) && sp.get("cp") !== "0") {
+        try { await cpSyncClient(sb, c); } catch (e: any) { cpErr = String(e?.message || e); }
+        cpDone.add(c.id);
+      }
       const rows = await collectClientMonth(sb, c, ym);
+      if (cpErr) out.push({ client: c.name, chatplace_error: cpErr });
       if (rows.length) {
         const { error: e } = await sb.from("client_monthly_stats").upsert(rows, { onConflict: "client_id,ym,network" });
         if (e) { out.push({ client: c.name, error: e.message }); continue; }

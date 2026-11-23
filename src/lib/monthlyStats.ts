@@ -82,9 +82,10 @@ export type MonthRow = {
 };
 
 /** Собирает месяц по одному клиенту: строка на каждую соцсеть, где есть публикации. */
-export async function collectClientMonth(sb: SupabaseClient, client: { id: number; metricool_blog_id: number | null; timezone?: string | null; platforms?: string[] | null }, ym: string): Promise<MonthRow[]> {
-  const token = process.env.METRICOOL_TOKEN, userId = process.env.METRICOOL_USER_ID;
-  if (!token || !userId || !client.metricool_blog_id) return [];
+export async function collectClientMonth(sb: SupabaseClient, client: { id: number; metricool_blog_id: number | null; chatplace_bot_id?: string | null; timezone?: string | null; platforms?: string[] | null }, ym: string): Promise<MonthRow[]> {
+  const token = process.env.METRICOOL_TOKEN || "", userId = process.env.METRICOOL_USER_ID || "";
+  const hasMc = !!(token && userId && client.metricool_blog_id);
+  if (!hasMc && !client.chatplace_bot_id) return [];
   const { from, to } = monthRange(ym);
   const tz = encodeURIComponent(client.timezone || "America/New_York");
   const qs = `from=${from}T00:00:00&to=${to}T23:59:59&timezone=${tz}&blogId=${client.metricool_blog_id}&userToken=${encodeURIComponent(token)}&userId=${encodeURIComponent(userId)}`;
@@ -100,8 +101,16 @@ export async function collectClientMonth(sb: SupabaseClient, client: { id: numbe
 
   const rows: MonthRow[] = [];
   const allowed = client.platforms?.length ? new Set(client.platforms) : null;
+
+  // Instagram из ChatPlace, если у клиента есть бот и снимок полный за месяц (свежее Metricool, плюс время просмотра).
+  const igCp = client.chatplace_bot_id && (!allowed || allowed.has("ig"))
+    ? await chatplaceMonthRow(sb, client.id, ym, from, to, (snaps || []).filter(s => s.platform === "ig"), ourVideos ?? null) : null;
+  if (igCp) rows.push(igCp);
+  if (!hasMc) return rows;
+
   for (const n of NETS) {
     if (allowed && !allowed.has(n.snap)) continue;   // сеть не отмечена у клиента
+    if (igCp && n.network === "instagram") continue;  // уже взяли из ChatPlace
     let reels: any[] = [], posts: any[] = [];
     for (const path of n.paths) {
       const arr = await mcList(path, qs, token);
@@ -157,4 +166,43 @@ export async function collectClientMonth(sb: SupabaseClient, client: { id: numbe
     });
   }
   return rows;
+}
+
+/** Строка Instagram за месяц по последнему снимку ChatPlace. null — снимка нет или он не покрывает месяц целиком
+    (ChatPlace отдаёт до 30 роликов за 90 дней): тогда Instagram берётся из Metricool, как раньше. */
+async function chatplaceMonthRow(sb: SupabaseClient, clientId: number, ym: string, from: string, to: string,
+  fs: { followers: number }[], ourVideos: number | null): Promise<MonthRow | null> {
+  const { data: cp } = await sb.from("client_chatplace_insights").select("day, availability, videos")
+    .eq("client_id", clientId).order("day", { ascending: false }).limit(1).maybeSingle();
+  if (!cp || cp.availability !== "available" || !Array.isArray(cp.videos)) return null;
+  const vids: any[] = cp.videos;
+  const oldest = vids.reduce((m: string | null, v: any) => (v.date && (!m || v.date < m) ? v.date : m), null);
+  // Список роликов у ChatPlace короткий (на деле ~30 дней, до 30 штук). Месяц берём, только если в снимке
+  // есть ролики раньше его начала — значит, месяц покрыт целиком. Иначе — Metricool / уже собранная строка.
+  if (oldest == null || oldest >= from) return null;
+  const month = vids.filter(v => v.date && v.date >= from && v.date <= to);
+  const reels = month.filter(v => v.type === "reels"), carousels = month.filter(v => v.type !== "reels");
+  if (!reels.length && !carousels.length && !fs.length) return null;
+  const s = (arr: any[], k: string) => { const xs = arr.map(v => v[k]).filter((x: any) => x != null); return xs.length ? Math.round(xs.reduce((a: number, b: number) => a + b, 0)) : null; };
+  const watch = reels.map(v => v.avg_watch_sec).filter((x: any): x is number => x != null);
+  return {
+    client_id: clientId, ym, network: "instagram",
+    reels_count: reels.length || null, posts_count: reels.length,
+    views: s(reels, "views"), reach: s(reels, "reach"), likes: s(reels, "likes"), comments: s(reels, "comments"),
+    saves: s(reels, "saves"), shares: s(reels, "shares"),
+    interactions: (() => { const t = ["likes", "comments", "saves", "shares"].map(k => s(reels, k)); return t.every(x => x == null) ? null : t.reduce((a: number, b) => a + (b || 0), 0); })(),
+    avg_watch_sec: watch.length ? Math.round((watch.reduce((a, b) => a + b, 0) / watch.length) * 10) / 10 : null,
+    followers_start: fs.length ? fs[0].followers : null,
+    followers_end: fs.length ? fs[fs.length - 1].followers : null,
+    top_posts: [...reels].sort((a, b) => (b.views || 0) - (a.views || 0)).slice(0, 5).map(v => ({
+      url: v.url, title: v.caption.slice(0, 110), image: null, date: v.date,
+      views: v.views, likes: v.likes, comments: v.comments, saves: v.saves, shares: v.shares,
+      avg_watch_sec: v.avg_watch_sec, skip_rate: v.skip_rate,
+    })),
+    carousels_count: carousels.length || null,
+    carousel_views: carousels.length ? s(carousels, "views") : null,
+    our_videos: ourVideos,
+    source: "chatplace",
+    collected_at: new Date().toISOString(),
+  };
 }
