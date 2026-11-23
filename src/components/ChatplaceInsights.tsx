@@ -160,11 +160,11 @@ export default function ChatplaceInsights({ clientId }: { clientId: number }) {
 .cp-bars{display:flex;flex-direction:column;gap:8px;margin-top:14px}
 .cp-bar{display:grid;grid-template-columns:110px minmax(0,1fr) 44px;align-items:center;gap:10px;font-size:13.5px;color:var(--t2)}
 .cp-bar i{height:10px;border-radius:6px;background:var(--track);overflow:hidden}
-.cp-bar em{display:block;height:100%;border-radius:6px;background:var(--vio)}
+.cp-bar em{display:block;height:100%;border-radius:6px;background:var(--pu)}
 .cp-bar b{text-align:right;color:var(--t1)}
 .cp-tbl{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:12px}
 .cp-tbl th{text-align:left;font-size:12px;color:var(--t3);font-weight:700;padding:6px 8px;border-bottom:1px solid var(--brd);white-space:nowrap}
-.cp-tbl td{padding:8px;border-bottom:1px solid var(--line);color:var(--t1);vertical-align:top}
+.cp-tbl td{padding:8px;border-bottom:1px solid var(--brd);color:var(--t1);vertical-align:top}
 .cp-tbl .r{text-align:right;white-space:nowrap}
 .cp-tbl td.cap{max-width:420px}
 .cp-tbl td.cap a{color:var(--t1);text-decoration:none;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
