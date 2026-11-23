@@ -36,7 +36,11 @@ type Reel = {
   watch?: number | null; paidViews?: number | null; paidReach?: number | null; spend?: number | null; follows?: number | null;
 };
 
-export default function ClientStatsTab({ clientId, hasMetricool }: { clientId: number; hasMetricool: boolean }) {
+/* layout="crm" — раскладка карточки клиента в CRM (строка периода, ряд плиток, две колонки).
+   Без него — прежняя раскладка: её показывает кабинет клиента, и меняться она не должна.
+   side — блок для правой колонки (в CRM это «Кто смотрит»). */
+export default function ClientStatsTab({ clientId, hasMetricool, layout, side }: { clientId: number; hasMetricool: boolean; layout?: "crm"; side?: React.ReactNode }) {
+  const crm = layout === "crm";
   const supabase = createClient();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
@@ -114,7 +118,15 @@ export default function ClientStatsTab({ clientId, hasMetricool }: { clientId: n
   const cur = months[i], prev = i > 0 ? months[i - 1] : null;
   const maxViews = Math.max(1, ...months.map(m => m.views || 0));
 
-  const Tile = ({ label, v, p, hint }: { label: string; v: number | null; p: number | null; hint?: string }) => (
+  const Tile = ({ label, v, p, hint }: { label: string; v: number | null; p: number | null; hint?: string }) => crm ? (
+    <div className="kpi">
+      <div className="l">{label}</div>
+      <div className="n">{fmt(v)}</div>
+      <div className={`d ${p == null ? "" : p >= 0 ? "up" : "down"}`} title={p != null && hint ? hint : undefined}>
+        {p == null ? (hint || "нет сравнения") : <>{p >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />} {p >= 0 ? "+" : ""}{p}% к прошлому</>}
+      </div>
+    </div>
+  ) : (
     <div style={{ padding: "13px 14px", borderRadius: 12, background: "var(--inset)", border: "1px solid var(--brd)" }}>
       <div style={{ fontSize: 10, color: "var(--t3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4 }}>{label}</div>
       <div style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 20, fontWeight: 800, color: "var(--t1)", marginTop: 5, lineHeight: 1.1 }}>{fmt(v)}</div>
@@ -125,27 +137,8 @@ export default function ClientStatsTab({ clientId, hasMetricool }: { clientId: n
     </div>
   );
 
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-        {nets.map(n => (
-          <button key={n} onClick={() => setNet(n)} className={`v2-chip ${net === n ? "pu" : "mut"}`} style={{ height: 32, padding: "0 12px", cursor: "pointer" }}>{NET_LABEL[n] || n}</button>
-        ))}
-        <div style={{ flex: 1 }} />
-        <button onClick={refresh} disabled={busy} className="v2-act" style={{ height: 32 }}>
-          <RefreshCw size={13} className={busy ? "spin" : ""} /> {busy ? "Собираю…" : "Обновить"}
-        </button>
-      </div>
-
-      {!months.length ? (
-        <div className="card" style={{ padding: 22, borderRadius: 14, color: "var(--t2)", fontSize: 13, lineHeight: 1.6 }}>
-          {isPortal() ? "Статистики пока нет — она появится после первых публикаций." : "Статистики пока нет. Нажми «Обновить» — CRM соберёт текущий и прошлый месяц из Metricool."}
-        </div>
-      ) : (<>
-        {/* график просмотров по месяцам */}
-        <div className="card" style={{ padding: 16, borderRadius: 14 }}>
-          <div style={{ fontSize: 12, fontWeight: 800, color: "var(--t1)", marginBottom: 12 }}>Просмотры по месяцам · клик по столбцу — детали</div>
-          <div style={{ display: "flex", alignItems: "flex-end", gap: 10, height: 150 }}>
+  // Куски вкладки: одни и те же в обычной раскладке (кабинет клиента) и в раскладке CRM
+  const bars = (<>
             {months.map(m => {
               const h = Math.max(4, Math.round(((m.views || 0) / maxViews) * 120));
               const on = m.ym === sel;
@@ -159,17 +152,8 @@ export default function ClientStatsTab({ clientId, hasMetricool }: { clientId: n
                 </button>
               );
             })}
-          </div>
-          {months.some(m => m.partial) && <div style={{ fontSize: 10, color: "var(--t3)", marginTop: 8 }}>* текущий месяц — на сегодня, ещё идёт</div>}
-        </div>
-
-        {cur && (<>
-          <div style={{ fontSize: 13, fontWeight: 800, color: "var(--t1)" }}>
-            {ymLabel(cur.ym)}{cur.partial ? " · на сегодня" : ""}
-            {prev && <span style={{ fontSize: 11, color: "var(--t3)", fontWeight: 600 }}> · сравнение с {ymLabel(prev.ym)}</span>}
-            <div style={{ fontSize: 11, color: "var(--t3)", fontWeight: 600, marginTop: 2 }}>ролики, вышедшие в этом месяце (включая пробные и перемонтажи), и их просмотры. Просмотры всего аккаунта за 30 дней — в карточке клиента</div>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 10 }}>
+  </>);
+  const tiles = cur ? (<>
             <Tile label="Роликов" v={cur.posts} p={pct(cur.posts, prev?.posts)} hint={[cur.pubs && cur.pubs !== cur.posts ? `публикаций во всех сетях: ${cur.pubs}` : "", cur.our ? `из контент-плана: ${cur.our}` : ""].filter(Boolean).join(" · ") || undefined} />
             {cur.carousels ? <Tile label="Карусели и фото" v={cur.carousels} p={pct(cur.carousels, prev?.carousels)} /> : null}
             <Tile label="Просмотры" v={cur.views} p={pct(cur.views, prev?.views)} />
@@ -180,13 +164,9 @@ export default function ClientStatsTab({ clientId, hasMetricool }: { clientId: n
             <Tile label="Репосты" v={cur.shares} p={pct(cur.shares, prev?.shares)} />
             <Tile label="Подписчики" v={cur.fEnd} p={cur.fStart && cur.fEnd ? Math.round(((cur.fEnd - cur.fStart) / cur.fStart) * 1000) / 10 : null}
               hint={cur.fEnd == null ? "история с сентября" : "за месяц"} />
-          </div>
-
-          {cur.top?.length > 0 && (
-            <div className="card" style={{ padding: 16, borderRadius: 14 }}>
-              <div style={{ fontSize: 12, fontWeight: 800, color: "var(--t1)", marginBottom: 10 }}>Лучшие ролики — {ymLabel(cur.ym)}</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {cur.top.map((p: any, k: number) => (
+  </>) : null;
+  const topList = cur ? (<>
+                {(cur.top || []).map((p: any, k: number) => (
                   <a key={k} href={p.url || "#"} target="_blank" rel="noopener noreferrer"
                     style={{ display: "flex", alignItems: "center", gap: 11, padding: 9, borderRadius: 10, background: "var(--inset)", border: "1px solid var(--brd)", textDecoration: "none" }}>
                     <span style={{ fontFamily: "'Unbounded', sans-serif", fontSize: 15, fontWeight: 800, color: k === 0 ? "var(--yl)" : "var(--t3)", width: 18, textAlign: "center" }}>{k + 1}</span>
@@ -201,13 +181,8 @@ export default function ClientStatsTab({ clientId, hasMetricool }: { clientId: n
                     <ExternalLink size={13} style={{ color: "var(--t3)", flexShrink: 0 }} />
                   </a>
                 ))}
-              </div>
-            </div>
-          )}
-        </>)}
-
-        {/* таблица всех месяцев */}
-        <div className="card" style={{ padding: 0, borderRadius: 14, overflowX: "auto" }}>
+  </>) : null;
+  const monthsTable = (
           <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 720, fontSize: 12.5 }}>
             <thead><tr style={{ color: "var(--t3)", fontSize: 10, textTransform: "uppercase", letterSpacing: 0.4 }}>
               {["Месяц", "Роликов", "Просмотры", "Охват", "Лайки", "Комм.", "Сохр.", "Репосты", "Подписчики"].map(h => <th key={h} style={{ textAlign: h === "Месяц" ? "left" : "right", padding: "11px 12px", fontWeight: 800 }}>{h}</th>)}
@@ -235,7 +210,7 @@ export default function ClientStatsTab({ clientId, hasMetricool }: { clientId: n
                   </tr>
                   {openYm === m.ym && (
                     <tr key={`${m.ym}-reels`}>
-                      <td colSpan={9} style={{ padding: 0, background: "rgba(10,1,24,.45)" }}>
+                      <td colSpan={9} style={{ padding: 0, background: "var(--row-open, rgba(10,1,24,.45))" }}>
                         {reels[m.ym] === "loading" ? (
                           <div style={{ padding: "14px 16px", fontSize: 12, color: "var(--t3)" }}>Загружаю ролики месяца…</div>
                         ) : !reels[m.ym] || (reels[m.ym] as Reel[]).length === 0 ? (
@@ -296,6 +271,113 @@ export default function ClientStatsTab({ clientId, hasMetricool }: { clientId: n
               })}
             </tbody>
           </table>
+  );
+
+  if (crm) return (
+    <div className="stats-crm">
+      <div className="st-bar">
+        <h2>{cur ? <>{ymLabel(cur.ym)}{cur.partial ? " · на сегодня" : ""}</> : "Статистика"}</h2>
+        <span className="st-src">{prev ? <>сравнение с {ymLabel(prev.ym)} · </> : null}источник: <b>Metricool</b></span>
+        <div className="st-bar-r">
+          <div className="v2-seg">
+            {nets.map(n => <button key={n} onClick={() => setNet(n)} className={net === n ? "on" : ""}>{NET_LABEL[n] || n}</button>)}
+          </div>
+          <button onClick={refresh} disabled={busy} className="v2-act">
+            <RefreshCw size={13} className={busy ? "spin" : ""} /> {busy ? "Собираю…" : "Обновить"}
+          </button>
+        </div>
+      </div>
+
+      {!months.length ? (
+        <div className="panel" style={{ color: "var(--t2)", fontSize: 14, lineHeight: 1.6 }}>
+          Статистики пока нет. Нажми «Обновить» — CRM соберёт текущий и прошлый месяц из Metricool.
+        </div>
+      ) : (<>
+        {cur && (<>
+          <div className="kpis" style={{ ["--kcols" as any]: Math.ceil((8 + (cur.carousels ? 1 : 0)) / 2) }}>{tiles}</div>
+          <div className="st-note">Ролики, вышедшие в этом месяце (включая пробные и перемонтажи), и их просмотры. Просмотры всего аккаунта за 30 дней — в блоке «Кто смотрит».</div>
+        </>)}
+        <div className="st-soon"><b>Скоро:</b> визиты в профиль, переходы на сайт, страны зрителей и кодовые слова. Появятся здесь после подключения ChatPlace к аккаунту клиента.</div>
+
+        <div className={side ? "st-two" : undefined}>
+          <div className="panel">
+            <h3>Просмотры по месяцам</h3>
+            <div className="sub">Нажми на столбец, чтобы увидеть цифры месяца{months.some(m => m.partial) ? " · * текущий месяц ещё идёт" : ""}</div>
+            <div className="st-bars">{bars}</div>
+          </div>
+          {side}
+        </div>
+
+        {cur && cur.top?.length > 0 && (
+          <div className="panel">
+            <h3>Лучшие ролики <span className="st-h3sub">{ymLabel(cur.ym)}</span></h3>
+            <div className="st-top">{topList}</div>
+          </div>
+        )}
+
+        <div className="panel">
+          <h3>По месяцам</h3>
+          <div className="sub">Нажми на месяц, чтобы раскрыть его ролики</div>
+          <div className="tw st-months">{monthsTable}</div>
+        </div>
+
+        <WeeklyStatsTable clientId={clientId} />
+
+        <div className="st-foot">Данные — из Metricool, с момента подключения бренда. Подписчики — из ежедневных снимков CRM, история по ним с сентября 2026. Прошлый месяц собирается автоматически 1-го числа.</div>
+      </>)}
+      <style dangerouslySetInnerHTML={{ __html: `.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}` }} />
+    </div>
+  );
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        {nets.map(n => (
+          <button key={n} onClick={() => setNet(n)} className={`v2-chip ${net === n ? "pu" : "mut"}`} style={{ height: 32, padding: "0 12px", cursor: "pointer" }}>{NET_LABEL[n] || n}</button>
+        ))}
+        <div style={{ flex: 1 }} />
+        <button onClick={refresh} disabled={busy} className="v2-act" style={{ height: 32 }}>
+          <RefreshCw size={13} className={busy ? "spin" : ""} /> {busy ? "Собираю…" : "Обновить"}
+        </button>
+      </div>
+
+      {!months.length ? (
+        <div className="card" style={{ padding: 22, borderRadius: 14, color: "var(--t2)", fontSize: 13, lineHeight: 1.6 }}>
+          {isPortal() ? "Статистики пока нет — она появится после первых публикаций." : "Статистики пока нет. Нажми «Обновить» — CRM соберёт текущий и прошлый месяц из Metricool."}
+        </div>
+      ) : (<>
+        {/* график просмотров по месяцам */}
+        <div className="card" style={{ padding: 16, borderRadius: 14 }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: "var(--t1)", marginBottom: 12 }}>Просмотры по месяцам · клик по столбцу — детали</div>
+          <div style={{ display: "flex", alignItems: "flex-end", gap: 10, height: 150 }}>
+            {bars}
+          </div>
+          {months.some(m => m.partial) && <div style={{ fontSize: 10, color: "var(--t3)", marginTop: 8 }}>* текущий месяц — на сегодня, ещё идёт</div>}
+        </div>
+
+        {cur && (<>
+          <div style={{ fontSize: 13, fontWeight: 800, color: "var(--t1)" }}>
+            {ymLabel(cur.ym)}{cur.partial ? " · на сегодня" : ""}
+            {prev && <span style={{ fontSize: 11, color: "var(--t3)", fontWeight: 600 }}> · сравнение с {ymLabel(prev.ym)}</span>}
+            <div style={{ fontSize: 11, color: "var(--t3)", fontWeight: 600, marginTop: 2 }}>ролики, вышедшие в этом месяце (включая пробные и перемонтажи), и их просмотры. Просмотры всего аккаунта за 30 дней — в карточке клиента</div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 10 }}>
+            {tiles}
+          </div>
+
+          {cur.top?.length > 0 && (
+            <div className="card" style={{ padding: 16, borderRadius: 14 }}>
+              <div style={{ fontSize: 12, fontWeight: 800, color: "var(--t1)", marginBottom: 10 }}>Лучшие ролики — {ymLabel(cur.ym)}</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {topList}
+              </div>
+            </div>
+          )}
+        </>)}
+
+        {/* таблица всех месяцев */}
+        <div className="card" style={{ padding: 0, borderRadius: 14, overflowX: "auto" }}>
+          {monthsTable}
         </div>
         <WeeklyStatsTable clientId={clientId} />
         <div style={{ fontSize: 10.5, color: "var(--t3)", lineHeight: 1.6 }}>

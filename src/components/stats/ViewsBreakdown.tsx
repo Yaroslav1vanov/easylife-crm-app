@@ -22,9 +22,9 @@ export default function ViewsBreakdown({ clientId }: { clientId: number }) {
   const max = Math.max(1, ...(rows || []).map(r => (r.followers_views || 0) + (r.nonfollowers_views || 0)));
 
   return (
-    <div className="v2-card" style={{ padding: 14, marginBottom: 14 }}>
+    <div className="v2-card vb" style={{ padding: 14, marginBottom: 14 }}>
       <div className="flex items-center gap-2 flex-wrap">
-        <b style={{ fontSize: 13.5 }}>Кто смотрит · Instagram</b>
+        <b className="vb-title" style={{ fontSize: 13.5 }}>Кто смотрит · Instagram</b>
         <span style={{ fontSize: 12, color: "var(--t3)" }}>все просмотры аккаунта: от подписчиков или новых людей, и что смотрят</span>
         <div style={{ flex: 1 }} />
         {[7, 30, 90].map(d => <button key={d} onClick={() => setDays(d)} className={`v2-chip ${days === d ? "pu" : "mut"}`} style={{ cursor: "pointer", height: 28, padding: "0 10px" }}>{d} дн.</button>)}
@@ -36,7 +36,7 @@ export default function ViewsBreakdown({ clientId }: { clientId: number }) {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 10, marginTop: 12 }}>
               <div>
                 <div style={{ fontSize: 11, color: "var(--t3)", fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.4 }}>От новых людей</div>
-                <div style={{ fontSize: 24, fontWeight: 800, color: "var(--gr)" }}>{pct(non, who)}%</div>
+                <div className="vb-big" style={{ fontSize: 24, fontWeight: 800, color: "var(--gr)" }}>{pct(non, who)}%</div>
                 <div style={{ fontSize: 11.5, color: "var(--t3)" }}>{fmt(non)} не подписаны · {fmt(fol)} подписчики</div>
               </div>
               <div>

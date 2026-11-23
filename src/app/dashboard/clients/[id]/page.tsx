@@ -86,6 +86,7 @@ export default function ClientDetailPage() {
     if (t === "chat") { setCtab("chat"); const th = search.get("thread"); if (th === "reels" || th === "stories" || th === "strategy" || th === "funnel" || th === "avatar") setChatThread(th); }
   }, [search]);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);   // «Отчёт клиенту» из шапки: те же два отчёта, что в «Действиях»
   // на телефоне вкладки прокручиваются: держим активную на виду
   useEffect(() => {
     const el = document.querySelector(".cl-tabs button.on") as HTMLElement | null;
@@ -362,14 +363,15 @@ export default function ClientDetailPage() {
           </div>
           <div className="cl-actions">
             {!isMont && <button className="btn-ghost" onClick={() => setMenuOpen(true)} aria-label="Действия по клиенту">Действия ⋯</button>}
+            {!isMont && !!c.metricool_blog_id && <button className="btn-ghost" onClick={() => setReportOpen(true)}>Отчёт клиенту</button>}
             {c.ai_chat && ctab !== "chat" && <button className="btn-lime" onClick={() => setCtab("chat")}>Обсудить с ИИ</button>}
           </div>
         </div>
         <div className="cl-meta">
           <span className={`cl-pill ${stageChip.cls === "gr" ? "ok" : stageChip.cls === "or" ? "warn" : "bad"}`}>{stageChip.l}</span>
           {currentM && <span className={`cl-pill ${monthDaysLeft != null && monthDaysLeft < 0 ? "bad" : ""}`}>M{currentM.month_number} · до {fmtDateShort(currentM.end_date)}{monthDaysLeft != null && monthDaysLeft < 0 ? ` · просрочка ${-monthDaysLeft} дн` : ""}</span>}
-          {teamlead && <span className="cl-pill" title="Тимлид"><Avatar name={teamlead.name} src={teamlead.avatar_url} size={18} />{teamlead.name}</span>}
-          {montager && <span className="cl-pill" title="Монтажёр"><Avatar name={montager.name} src={montager.avatar_url} size={18} />{montager.name}</span>}
+          {teamlead && <span className="cl-pill" title="Тимлид"><Avatar name={teamlead.name} src={teamlead.avatar_url} size={18} /><span className="h">Тимлид:</span>{teamlead.name}</span>}
+          {montager && <span className="cl-pill" title="Монтажёр"><Avatar name={montager.name} src={montager.avatar_url} size={18} /><span className="h">Монтаж:</span>{montager.name}</span>}
           {SOCIALS.map(({ key, label, Icon, color }) => {
             const raw = (c as any)[key] as string | undefined;
             if (!raw) return null;
@@ -405,6 +407,14 @@ export default function ClientDetailPage() {
         </div>
       </div>
 
+      <Sheet open={reportOpen} onClose={() => setReportOpen(false)} title="Отчёт клиенту" sub={`${c.name} ${c.surname || ""}`.trim()}>
+        <div className="v2-opts">
+          <SheetOption color="var(--cy)" label="За неделю" hint={weekLabel(reportWeek)} onClick={() => { setReportOpen(false); window.open(`/api/clients/${clientId}/report-week?week=${reportWeek}&lang=${reportLang}`, "_blank"); }} />
+          <SheetOption color="var(--gr)" label="За месяц" hint={reportMonth} onClick={() => { setReportOpen(false); window.open(`/api/clients/${clientId}/report?month=${reportMonth}`, "_blank"); }} />
+        </div>
+        <div className="v2-hint" style={{ marginTop: 10 }}>Неделю, месяц и язык отчёта можно поменять во вкладке «Настройки».</div>
+      </Sheet>
+
       <Sheet open={menuOpen} onClose={() => setMenuOpen(false)} title={`${c.name} ${c.surname || ""}`} sub="действия по клиенту">
         <div className="v2-opts">
           <SheetOption color="var(--cy)" label="Контент-план" hint={currentM ? `M${currentM.month_number}` : ""} onClick={() => router.push(`/dashboard/plan?client=${clientId}${currentM ? `&m=${currentM.month_number}` : ""}`)} />
@@ -424,8 +434,8 @@ export default function ClientDetailPage() {
           ))}
         </div>
       )}
-      {ctab === "stats" && statsView === "stats" && !isMont && !!c.metricool_blog_id && <ViewsBreakdown clientId={clientId} />}
-      {ctab === "stats" && (statsView === "stats" || isMont) && <ClientStatsTab clientId={clientId} hasMetricool={!!c.metricool_blog_id} />}
+      {ctab === "stats" && (statsView === "stats" || isMont) && <ClientStatsTab clientId={clientId} hasMetricool={!!c.metricool_blog_id} layout="crm"
+        side={!isMont && !!c.metricool_blog_id ? <ViewsBreakdown clientId={clientId} /> : undefined} />}
       {ctab === "stats" && statsView === "planfact" && !isMont && <PlanFactTab clientId={clientId} />}
       {ctab === "chat" && <ClientChatTab clientId={clientId} aiEnabled={!!c.ai_chat} isOwner={userRole === "owner" || userRole === "admin"}
         avatar={avatar} canGenerate={canGenerate(userRole, myTeamId, c)} clientPackage={c.package} draft={chatDraft} initialThread={chatThread}
