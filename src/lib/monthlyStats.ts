@@ -172,7 +172,7 @@ export async function collectClientMonth(sb: SupabaseClient, client: { id: numbe
     (ChatPlace отдаёт до 30 роликов за 90 дней): тогда Instagram берётся из Metricool, как раньше. */
 async function chatplaceMonthRow(sb: SupabaseClient, clientId: number, ym: string, from: string, to: string,
   fs: { followers: number }[], ourVideos: number | null): Promise<MonthRow | null> {
-  const { data: cp } = await sb.from("client_chatplace_insights").select("day, availability, videos")
+  const { data: cp } = await sb.from("client_chatplace_insights").select("day, availability, videos, summary")
     .eq("client_id", clientId).order("day", { ascending: false }).limit(1).maybeSingle();
   if (!cp || cp.availability !== "available" || !Array.isArray(cp.videos)) return null;
   const vids: any[] = cp.videos;
@@ -192,8 +192,13 @@ async function chatplaceMonthRow(sb: SupabaseClient, clientId: number, ym: strin
     saves: s(reels, "saves"), shares: s(reels, "shares"),
     interactions: (() => { const t = ["likes", "comments", "saves", "shares"].map(k => s(reels, k)); return t.every(x => x == null) ? null : t.reduce((a: number, b) => a + (b || 0), 0); })(),
     avg_watch_sec: watch.length ? Math.round((watch.reduce((a, b) => a + b, 0) / watch.length) * 10) / 10 : null,
-    followers_start: fs.length ? fs[0].followers : null,
-    followers_end: fs.length ? fs[fs.length - 1].followers : null,
+    // Подписчики: в текущем месяце — из ChatPlace (сейчас и прирост за 30 дней), ранние снимки могли прийти
+    // из отвалившегося Metricool с неверными цифрами. В прошлых месяцах — наши ежедневные снимки.
+    ...(() => {
+      const m = cp.summary?.metrics, curMonth = cp.day >= from && cp.day <= to;
+      if (curMonth && m && m.followers != null) return { followers_start: m.followersDelta != null ? m.followers - m.followersDelta : null, followers_end: m.followers };
+      return { followers_start: fs.length ? fs[0].followers : null, followers_end: fs.length ? fs[fs.length - 1].followers : null };
+    })(),
     top_posts: [...reels].sort((a, b) => (b.views || 0) - (a.views || 0)).slice(0, 5).map(v => ({
       url: v.url, title: v.caption.slice(0, 110), image: null, date: v.date,
       views: v.views, likes: v.likes, comments: v.comments, saves: v.saves, shares: v.shares,
