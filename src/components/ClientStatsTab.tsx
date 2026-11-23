@@ -101,7 +101,11 @@ export default function ClientStatsTab({ clientId, hasMetricool, layout, side }:
         views: add(acc.views, r.views), reach: add(acc.reach, r.reach),
         likes: add(acc.likes, r.likes), comments: add(acc.comments, r.comments), saves: add(acc.saves, r.saves), shares: add(acc.shares, r.shares),
         fStart: add(acc.fStart, r.followers_start), fEnd: add(acc.fEnd, r.followers_end),
-      }), { posts: null, pubs: null, our: null, carousels: null, views: null, reach: null, likes: null, comments: null, saves: null, shares: null, fStart: null, fEnd: null } as any);
+        // прирост — только по сетям, где есть и начало, и конец месяца (иначе сумма концов минус одно начало)
+        gStart: r.followers_start != null && r.followers_end != null ? add(acc.gStart, r.followers_start) : acc.gStart,
+        gEnd: r.followers_start != null && r.followers_end != null ? add(acc.gEnd, r.followers_end) : acc.gEnd,
+        fNets: r.followers_end != null ? [...acc.fNets, `${NET_LABEL[r.network] || r.network} ${r.followers_end.toLocaleString("ru-RU")}`] : acc.fNets,
+      }), { posts: null, pubs: null, our: null, carousels: null, views: null, reach: null, likes: null, comments: null, saves: null, shares: null, fStart: null, fEnd: null, gStart: null, gEnd: null, fNets: [] } as any);
       const top = list.flatMap(r => (r.top_posts || []).map(p => ({ ...p, network: r.network })))
         .sort((a, b) => (b.views || 0) - (a.views || 0)).slice(0, 5);
       return { ym, ...agg, top, partial: ym === curYm() };
@@ -167,8 +171,8 @@ export default function ClientStatsTab({ clientId, hasMetricool, layout, side }:
             <Tile label="Комментарии" v={cur.comments} p={pct(cur.comments, prev?.comments)} />
             <Tile label="Сохранения" v={cur.saves} p={pct(cur.saves, prev?.saves)} />
             <Tile label="Репосты" v={cur.shares} p={pct(cur.shares, prev?.shares)} />
-            <Tile label="Подписчики" v={cur.fEnd} p={cur.fStart && cur.fEnd ? Math.round(((cur.fEnd - cur.fStart) / cur.fStart) * 1000) / 10 : null}
-              hint={cur.fEnd == null ? "история с сентября" : "за месяц"} />
+            <Tile label={cur.fNets.length > 1 ? "Подписчики · все сети" : "Подписчики"} v={cur.fEnd} p={cur.gStart && cur.gEnd ? Math.round(((cur.gEnd - cur.gStart) / cur.gStart) * 1000) / 10 : null}
+              hint={cur.fEnd == null ? "история с сентября" : cur.fNets.length > 1 ? cur.fNets.join(" · ") : "за месяц"} />
   </>) : null;
   const topList = cur ? (<>
                 {(cur.top || []).map((p: any, k: number) => (
@@ -211,7 +215,7 @@ export default function ClientStatsTab({ clientId, hasMetricool, layout, side }:
                     <td style={{ padding: "10px 12px", textAlign: "right" }}>{fmt(m.comments)}</td>
                     <td style={{ padding: "10px 12px", textAlign: "right" }}>{fmt(m.saves)}</td>
                     <td style={{ padding: "10px 12px", textAlign: "right" }}>{fmt(m.shares)}</td>
-                    <td style={{ padding: "10px 12px", textAlign: "right" }}>{m.fEnd != null ? `${fmt(m.fEnd)}${m.fStart != null ? ` (${m.fEnd - m.fStart >= 0 ? "+" : ""}${fmt(m.fEnd - m.fStart)})` : ""}` : "—"}</td>
+                    <td style={{ padding: "10px 12px", textAlign: "right" }}>{m.fEnd != null ? <span title={m.fNets.join(" · ")}>{fmt(m.fEnd)}{m.gStart != null && m.gEnd != null ? ` (${m.gEnd - m.gStart >= 0 ? "+" : ""}${fmt(m.gEnd - m.gStart)})` : ""}</span> : "—"}</td>
                   </tr>
                   {openYm === m.ym && (
                     <tr key={`${m.ym}-reels`}>
