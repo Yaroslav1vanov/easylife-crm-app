@@ -22,14 +22,15 @@ const code = (u: string | null | undefined) => {
 
 export async function clientReels(
   sb: SupabaseClient,
-  client: { id: number; metricool_blog_id: number | null; timezone?: string | null; platforms?: string[] | null },
+  client: { id: number; metricool_blog_id: number | null; chatplace_bot_id?: string | null; timezone?: string | null; platforms?: string[] | null },
   from: string,
   to: string,
 ): Promise<ClientReel[]> {
-  if (!client.metricool_blog_id) return [];
+  if (!client.metricool_blog_id && !client.chatplace_bot_id) return [];
+  const none = Promise.resolve([] as any[]);
   const [raw, hist, scr] = await Promise.all([
-    fetchNetworkPosts(client, from, to),
-    fetchNetworkPosts(client, addDays(from, -60), addDays(from, -1)),
+    client.metricool_blog_id ? fetchNetworkPosts(client, from, to) : none,
+    client.metricool_blog_id ? fetchNetworkPosts(client, addDays(from, -60), addDays(from, -1)) : none,
     sb.from("scripts").select("id, pub_date, hook_text, hook, video_status, published_url")
       .eq("client_id", client.id).gte("pub_date", addDays(from, -1)).lte("pub_date", addDays(to, 1)),
   ]);
@@ -45,7 +46,7 @@ export async function clientReels(
   const byCode = new Map(scripts.filter(x => x.published_url).map(x => [code(x.published_url), x]));
   const used = new Set<number>();
 
-  return raw
+  const list: ClientReel[] = raw
     .map(p => ({ f: reelFields(p), net: (p as any)._net as string }))
     .filter(r => r.f.date)
     .sort((a, b) => (b.f.date! > a.f.date! ? 1 : -1))
@@ -69,4 +70,41 @@ export async function clientReels(
         paidViews: f.paidViews, paidReach: f.paidReach, spend: f.spend, follows: f.follows,
       };
     });
+  if (client.chatplace_bot_id) await mergeChatplace(sb, client.id, from, to, list, scripts, used, nameOf, byCode, netNorm["instagram"] || normAll);
+  return list.sort((a, b) => (b.date > a.date ? 1 : b.date < a.date ? -1 : 0));
+}
+
+/* Instagram из последнего снимка ChatPlace (официальная статистика аккаунта): у совпавших роликов дописываем
+   пролистывания и время просмотра и берём более свежие цифры, ролики, которых нет в Metricool, добавляем. */
+async function mergeChatplace(sb: SupabaseClient, clientId: number, from: string, to: string, list: ClientReel[],
+  scripts: any[], used: Set<number>, nameOf: (x: any) => string, byCode: Map<string | null, any>, norm: number) {
+  const { data: cp } = await sb.from("client_chatplace_insights").select("availability, videos")
+    .eq("client_id", clientId).order("day", { ascending: false }).limit(1).maybeSingle();
+  if (!cp || cp.availability !== "available" || !Array.isArray(cp.videos)) return;
+  const er = (v: any) => { const b = v.reach || v.views; return b ? Math.round((((v.likes || 0) + (v.comments || 0) + (v.saves || 0) + (v.shares || 0)) / b) * 1000) / 10 : null; };
+  for (const v of cp.videos as any[]) {
+    if (v.type !== "reels" || !v.date || v.date < from || v.date > to) continue;
+    const skip = v.skip_rate != null ? Math.round(v.skip_rate * 1000) / 10 : null;
+    const watch = v.avg_watch_sec != null ? Math.round(v.avg_watch_sec * 10) / 10 : null;
+    const hit = list.find(r => r.net === "instagram" && code(r.url) && code(r.url) === code(v.url));
+    if (hit) {
+      if ((v.views || 0) >= hit.views) Object.assign(hit, { views: v.views, reach: v.reach ?? hit.reach, likes: v.likes ?? hit.likes, comments: v.comments ?? hit.comments, saves: v.saves ?? hit.saves, shares: v.shares ?? hit.shares });
+      hit.er = er(hit);
+      if (hit.skip == null) hit.skip = skip;
+      if (hit.watch == null) hit.watch = watch;
+      if (hit.retention == null && hit.duration && watch) { hit.retRaw = Math.round((watch / hit.duration) * 100); hit.retention = Math.min(100, hit.retRaw); hit.retLoop = watch > hit.duration; }
+      continue;
+    }
+    let sc = (code(v.url) && byCode.get(code(v.url))) || null;
+    if (!sc) sc = scripts.find(x => x.pub_date === v.date && x.video_status === "published" && !used.has(x.id) && nameOf(x)) || null;
+    if (sc) used.add(sc.id);
+    const caption = String(v.caption || "").trim();
+    list.push({
+      date: v.date, net: "instagram", ourTitle: sc ? nameOf(sc) : null, caption,
+      title: (sc ? nameOf(sc) : "") || caption || "без подписи", url: v.url || null, image: null,
+      views: v.views || 0, reach: v.reach, likes: v.likes, comments: v.comments, saves: v.saves, shares: v.shares, er: er(v),
+      retention: null, duration: null, skip, x: Math.round(((v.views || 0) / (norm || 1)) * 100) / 100, isOurs: !!sc,
+      watch, paidViews: null, paidReach: null, spend: null, follows: null,
+    });
+  }
 }

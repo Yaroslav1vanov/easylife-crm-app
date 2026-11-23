@@ -125,25 +125,6 @@ export default function ChatplaceInsights({ clientId, version = 0 }: { clientId:
       </div>
     </div>
 
-    {reels.length > 0 && (
-      <div className="panel cp-blk">
-        <h3>Ролики за 30 дней: досмотр и пролистывания</h3>
-        <div className="sub">Красным — больше 35% ушли в первые 3 секунды: слабый хук.</div>
-        <div className="tw"><table className="cp-tbl">
-          <thead><tr><th>Дата</th><th>Ролик</th><th className="r">Просмотры</th><th className="r">Репосты</th><th className="r">Ср. время</th><th className="r">Пролистали за 3 с</th></tr></thead>
-          <tbody>{reels.map(v => (
-            <tr key={v.id}>
-              <td>{dd(v.date)}</td>
-              <td className="cap">{v.url ? <a href={v.url} target="_blank" rel="noreferrer">{v.caption || "без описания"}</a> : (v.caption || "без описания")}</td>
-              <td className="r">{fmt(v.views)}</td>
-              <td className="r">{fmt(v.shares)}</td>
-              <td className="r">{v.avg_watch_sec != null ? `${Math.round(v.avg_watch_sec)} с` : "—"}</td>
-              <td className={`r ${v.skip_rate != null && v.skip_rate > 0.35 ? "bad" : ""}`}>{v.skip_rate != null ? `${Math.round(v.skip_rate * 100)}%` : "—"}</td>
-            </tr>
-          ))}</tbody>
-        </table></div>
-      </div>
-    )}
 
     <style dangerouslySetInnerHTML={{ __html: `
 .cp-blk h3 .st-h3sub{font-family:var(--sans);font-size:13px;font-weight:600;color:var(--t3)}

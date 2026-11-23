@@ -219,7 +219,7 @@ export default function ClientStatsTab({ clientId, hasMetricool, layout, side }:
                         {reels[m.ym] === "loading" ? (
                           <div style={{ padding: "14px 16px", fontSize: 12, color: "var(--t3)" }}>Загружаю ролики месяца…</div>
                         ) : !reels[m.ym] || (reels[m.ym] as Reel[]).length === 0 ? (
-                          <div style={{ padding: "14px 16px", fontSize: 12, color: "var(--t3)" }}>{isPortal() ? "Роликов за этот месяц нет." : "Роликов за этот месяц Metricool не отдал."}</div>
+                          <div style={{ padding: "14px 16px", fontSize: 12, color: "var(--t3)" }}>{isPortal() ? "Роликов за этот месяц нет." : "Роликов за этот месяц нет: ни Metricool, ни ChatPlace их не отдали."}</div>
                         ) : (
                           (() => { const list = reels[m.ym] as Reel[];
                             // колонки «Реклама» и «Подписки» — только если в месяце есть такие данные
@@ -236,7 +236,7 @@ export default function ClientStatsTab({ clientId, hasMetricool, layout, side }:
                               {(reels[m.ym] as Reel[]).map((r, idx) => (
                                 <tr key={idx} style={{ borderTop: "1px solid var(--brd)" }}>
                                   <td style={{ padding: "8px 12px", color: "var(--t2)", whiteSpace: "nowrap" }}>{r.date.slice(8, 10)}.{r.date.slice(5, 7)}</td>
-                                  <td style={{ padding: "8px 12px", maxWidth: 340 }}>
+                                  <td style={{ padding: "8px 12px", maxWidth: 220 }}>
                                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                                       {r.image ? <img src={r.image} alt="" style={{ width: 26, height: 34, objectFit: "cover", borderRadius: 4, flexShrink: 0 }} onError={e => { (e.target as HTMLImageElement).style.visibility = "hidden"; }} /> : null}
                                       <div style={{ minWidth: 0 }}>
@@ -260,8 +260,8 @@ export default function ClientStatsTab({ clientId, hasMetricool, layout, side }:
                                   <td style={{ padding: "8px 12px", textAlign: "right" }}>{fmt(r.shares)}</td>
                                   {hasFollows && <td style={{ padding: "8px 12px", textAlign: "right" }} title="Подписались прямо с этого ролика (как отдаёт Instagram)">{fmt(r.follows ?? null)}</td>}
                                   <td style={{ padding: "8px 12px", textAlign: "right" }}>{r.er != null ? `${String(r.er).replace(".", ",")}%` : "—"}</td>
-                                  <td style={{ padding: "8px 12px", textAlign: "right" }} title={r.retLoop ? "Средний просмотр длиннее самого ролика: часть зрителей смотрела его по кругу. В средних по отчётам такой ролик считается как 100%" : "Средняя доля ролика, которую смотрят"}>{r.retention != null ? (r.retLoop ? `${r.retRaw ?? 100}% ↻` : `${r.retention}%`) : "—"}{r.watch != null && <div style={{ fontSize: 9.5, color: "var(--t3)" }}>{String(r.watch).replace(".", ",")} сек</div>}</td>
-                                  <td style={{ padding: "8px 12px", textAlign: "right", color: r.skip != null && r.skip >= 50 ? "var(--rd)" : undefined }} title="Сколько зрителей пролистали ролик в первые секунды (Instagram). Высокое — слабый хук">{r.skip != null ? `${String(Math.round(r.skip)).replace(".", ",")}%` : "—"}</td>
+                                  <td style={{ padding: "8px 12px", textAlign: "right" }} title={r.retLoop ? "Средний просмотр длиннее самого ролика: часть зрителей смотрела его по кругу. В средних по отчётам такой ролик считается как 100%" : "Средняя доля ролика, которую смотрят"}>{r.retention != null ? (r.retLoop ? `${r.retRaw ?? 100}% ↻` : `${r.retention}%`) : r.watch != null ? `${String(Math.round(r.watch)).replace(".", ",")} сек` : "—"}{r.retention != null && r.watch != null && <div style={{ fontSize: 9.5, color: "var(--t3)" }}>{String(r.watch).replace(".", ",")} сек</div>}</td>
+                                  <td style={{ padding: "8px 12px", textAlign: "right", color: r.skip != null && r.skip > 35 ? "var(--rd)" : undefined, fontWeight: r.skip != null && r.skip > 35 ? 700 : undefined }} title="Сколько зрителей пролистали ролик в первые 3 секунды (Instagram). Больше 35% — слабый хук">{r.skip != null ? `${String(Math.round(r.skip)).replace(".", ",")}%` : "—"}</td>
                                 </tr>
                               ))}
                             </tbody>

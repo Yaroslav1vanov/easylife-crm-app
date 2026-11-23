@@ -23,9 +23,9 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
 
   const sb = createClient();
   const { data: c } = await sb.from("clients")
-    .select("id, name, metricool_blog_id, timezone, platforms").eq("id", id).maybeSingle();
+    .select("id, name, metricool_blog_id, chatplace_bot_id, timezone, platforms").eq("id", id).maybeSingle();
   if (!c) return NextResponse.json({ error: "клиент не найден" }, { status: 404 });
-  if (!c.metricool_blog_id) return NextResponse.json({ ok: true, reels: [], note: "нет бренда Metricool" });
+  if (!c.metricool_blog_id && !c.chatplace_bot_id) return NextResponse.json({ ok: true, reels: [], note: "нет бренда Metricool" });
 
   const reels = await clientReels(sb, c, from, to);
   return NextResponse.json({ ok: true, from, to, count: reels.length, reels });
