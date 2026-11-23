@@ -195,7 +195,7 @@ const S = `
 .ct-row{background:var(--card);border:1px solid var(--brd);border-radius:14px;overflow:hidden}
 .ct-head{display:flex;align-items:center;gap:11px;padding:12px 14px;cursor:pointer}
 .ct-head:hover{background:var(--cardH)}
-.ct-chk{width:20px;height:20px;flex:none;border-radius:50%;border:2px solid var(--t3);background:transparent;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+.ct-chk{width:20px;height:20px;flex:none;border-radius:50%;border:2px solid var(--t3);background:transparent;color:var(--on-accent);display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
 .ct-chk.on{background:var(--gr);border-color:var(--gr)}
 .ct-title{font-size:14px;line-height:1.4;font-weight:600}
 .ct-sub{display:flex;gap:6px;flex-wrap:wrap;font-size:11.5px;color:var(--t3);margin-top:3px}

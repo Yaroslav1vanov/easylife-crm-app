@@ -7,9 +7,11 @@ import { PROMPT_FIELDS, PROMPT_KEYS } from "@/lib/adapterPrompts";
 import { DEFAULT_IG_RULES, IG_RULES_KEY } from "@/lib/igRules";
 import { DEFAULT_FORECAST_BENCHMARKS, FORECAST_BENCHMARKS_KEY } from "@/lib/forecast";
 import { AI_VIA_KEY } from "@/lib/aiVia";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Moon, Sun } from "lucide-react";
+import { useCrmTheme } from "@/components/CrmTheme";
 
 export default function SettingsPage() {
+  const { theme, toggle: toggleTheme } = useCrmTheme();
   const supabase = createClient();
   const isOwner = useIsOwner();
   const [models, setModels] = useState<Partial<Record<AiFeature, string>>>({});
@@ -45,7 +47,19 @@ export default function SettingsPage() {
 
   return (
     <div className="v2" style={{ maxWidth: 820 }}>
-      <div className="v2-hdr page-head"><div><h1>Настройки</h1><p>Модели ИИ и подсказки</p></div></div>
+      <div className="v2-hdr page-head"><div><h1>Настройки</h1><p>Интерфейс, модели ИИ и подсказки</p></div></div>
+
+      <div className="v2-fg" style={{ marginBottom: 14 }}>
+        <h4>Интерфейс</h4>
+        <div className="v2-fr">
+          <span>Тема</span>
+          <div className="v2-seg" role="group" aria-label="Тема интерфейса">
+            <button className={theme === "light" ? "on" : ""} onClick={() => theme !== "light" && toggleTheme()} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Sun size={14} /> Светлая</button>
+            <button className={theme === "dark" ? "on" : ""} onClick={() => theme !== "dark" && toggleTheme()} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Moon size={14} /> Тёмная</button>
+          </div>
+        </div>
+        <div className="v2-hint">Тема запоминается в этом браузере. Меню и шапки тёмные в обеих темах.</div>
+      </div>
 
       <div className="v2-fg">
         <h4><Sparkles size={12} style={{ verticalAlign: -2, marginRight: 4 }} /> AI-модели</h4>

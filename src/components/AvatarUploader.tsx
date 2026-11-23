@@ -194,7 +194,7 @@ export default function AvatarUploader({ currentUrl, name, pathPrefix, entityId,
           />
           <button onClick={handleSaveUrl} style={{
             padding: "5px 9px", borderRadius: 6, fontSize: 10, fontWeight: 700,
-            background: "var(--pu)", border: "none", color: "#fff", cursor: "pointer",
+            background: "var(--pu)", border: "none", color: "var(--btn-fg)", cursor: "pointer",
           }}>OK</button>
           <button onClick={() => setShowUrlInput(false)} style={{
             padding: "5px 8px", borderRadius: 6, fontSize: 10,

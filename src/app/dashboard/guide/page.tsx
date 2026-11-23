@@ -41,7 +41,7 @@ function GuideCard({ Icon, color, title, subtitle, tldr, steps, note, cta, onCta
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>{steps}</div>
       {note && <div style={{ marginTop: 18, padding: "11px 14px", borderRadius: 11, background: tint(color, 0.0588), border: `1px solid ${tint(color, 0.2)}`, fontSize: 12, color: "var(--t2)", lineHeight: 1.6 }}>{note}</div>}
-      {cta && <button onClick={onCta} style={{ marginTop: 16, display: "inline-flex", alignItems: "center", gap: 7, padding: "10px 16px", borderRadius: 11, background: `linear-gradient(135deg, ${color}, var(--pu))`, color: "#fff", border: "none", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>{cta} <ArrowRight size={14} /></button>}
+      {cta && <button onClick={onCta} style={{ marginTop: 16, display: "inline-flex", alignItems: "center", gap: 7, padding: "10px 16px", borderRadius: 11, background: "var(--btn-grad)", color: "var(--btn-fg)", border: "none", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>{cta} <ArrowRight size={14} /></button>}
     </div>
   );
 }

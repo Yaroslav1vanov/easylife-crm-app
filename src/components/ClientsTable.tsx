@@ -479,11 +479,11 @@ function ClientsBlock(p: ClientsBlockProps) {
           {/* View toggle */}
           <div style={{ display: "flex", background: "rgba(var(--vi-rgb),0.06)", border: "1px solid var(--brd)", borderRadius: 10, padding: 3 }}>
             <button onClick={() => p.setView("table")}
-              style={{ padding: "6px 12px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 700, background: p.view === "table" ? "var(--pu)" : "transparent", color: p.view === "table" ? "#fff" : "var(--t2)" }}>
+              style={{ padding: "6px 12px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 700, background: p.view === "table" ? "var(--btn-grad)" : "transparent", color: p.view === "table" ? "var(--btn-fg)" : "var(--t2)" }}>
               ☰ Таблица
             </button>
             <button onClick={() => p.setView("cards")}
-              style={{ padding: "6px 12px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 700, background: p.view === "cards" ? "var(--pu)" : "transparent", color: p.view === "cards" ? "#fff" : "var(--t2)" }}>
+              style={{ padding: "6px 12px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 700, background: p.view === "cards" ? "var(--btn-grad)" : "transparent", color: p.view === "cards" ? "var(--btn-fg)" : "var(--t2)" }}>
               ▦ Карточки
             </button>
           </div>

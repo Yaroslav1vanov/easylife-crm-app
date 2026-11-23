@@ -8,9 +8,10 @@ import AlertsBell from "@/components/AlertsBell";
 import { openGlobalSearch } from "@/components/GlobalSearch";
 import Sheet from "@/components/Sheet";
 import { useIsMobile } from "@/lib/useMedia";
+import { useCrmTheme } from "@/components/CrmTheme";
 import {
   LayoutDashboard, Users, FileText, Scissors, Send, Calendar, Rocket, Flame,
-  HandshakeIcon, BarChart3, Mic, Coins, ClipboardList, BookOpen, Settings, LogOut, Wallet,
+  HandshakeIcon, BarChart3, Mic, Coins, ClipboardList, BookOpen, Settings, LogOut, Wallet, Moon, Sun,
   CalendarCheck, CalendarDays, MoreHorizontal, Search, Target, ListChecks, type LucideIcon,
   Trash2, Bot,
 } from "lucide-react";
@@ -83,6 +84,7 @@ export function Sidebar({ userRole }: { userRole: string }) {
   const pathname = usePathname();
   const supabase = createClient();
   const isMobile = useIsMobile();
+  const { theme, toggle: toggleTheme } = useCrmTheme();
   const [moreOpen, setMoreOpen] = useState(false);
   const [me, setMe] = useState<{ name: string; avatar_url: string | null } | null>(null);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -145,6 +147,10 @@ export function Sidebar({ userRole }: { userRole: string }) {
       <div className="side-me">
         {userMenuOpen && (
           <div className="side-me-menu">
+            <button onClick={toggleTheme} className="nav-item">
+              {theme === "dark" ? <Sun size={16} strokeWidth={1.9} /> : <Moon size={16} strokeWidth={1.9} />}
+              <span style={{ flex: 1, textAlign: "left" }}>{theme === "dark" ? "Светлая тема" : "Тёмная тема"}</span>
+            </button>
             <button onClick={handleLogout} className="nav-item" style={{ color: "#ff9488" }}>
               <LogOut size={16} strokeWidth={1.9} style={{ color: "#ff9488" }} /><span style={{ flex: 1, textAlign: "left" }}>Выйти</span>
             </button>
@@ -203,6 +209,7 @@ export function Sidebar({ userRole }: { userRole: string }) {
             );
           })}
           <div className="v2-opts" style={{ marginTop: 6, paddingTop: 10, borderTop: "1px solid var(--brd)" }}>
+            <button className="v2-opt" onClick={toggleTheme}>{theme === "dark" ? <Sun size={16} /> : <Moon size={16} />} {theme === "dark" ? "Светлая тема" : "Тёмная тема"}</button>
             <button className="v2-opt" onClick={handleLogout} style={{ color: "var(--rd)" }}><LogOut size={16} /> Выйти</button>
           </div>
         </Sheet>

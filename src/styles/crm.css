@@ -46,8 +46,45 @@
   --btn-grad: #6b2cff; --btn-fg: #ffffff; --on-accent: #ffffff;
   --scrim: rgba(7,5,38,.55); --sh-rgb: 12,9,56; --sh-k: .34;
   --shadow-pop: 0 18px 50px rgba(12,9,56,.18), 0 2px 8px rgba(12,9,56,.06);
+  /* переключатели-сегменты, наведение на строку, тонкие детали */
+  --seg-bg: #e6e3fb; --seg-fg: #6b6894; --seg-on-bg: #ffffff; --seg-on-fg: #0c0938; --seg-on-shadow: 0 2px 8px rgba(12,9,56,.08);
+  --hover-row: #faf9ff; --soft-glow: rgba(107,44,255,.45);
   --cs: light;
   color-scheme: light;
+}
+
+/* ---------- тёмная тема рабочей зоны (включается в меню: «Тёмная тема») ----------
+   Тот же стиль, что у меню и шапок: тёмно-синие поверхности, лайм для главного, светлый фиолет для акцентов.
+   Светлые «острова» (.zone-light: ответ ИИ в чате, форма входа) остаются светлыми. */
+:root[data-crm-theme="dark"] {
+  --bg: #0b0930; --bg2: #100d3a; --page-bg: #0b0930;
+  --card: #13103f; --cardH: #1a1650; --card-inner: #13103f;
+  --side: #17134a;
+  --inp: #0d0b36; --brd: rgba(255,255,255,.12); --line: rgba(255,255,255,.08);
+  --inset: rgba(255,255,255,.045); --inset2: rgba(255,255,255,.075); --track: rgba(255,255,255,.1);
+  --marker: rgba(255,255,255,.35); --grad-end: rgba(7,5,38,.4);
+  --v2-card: #13103f; --v2-card2: #1b1752; --v2-inset: rgba(255,255,255,.06); --v2-brd2: rgba(143,91,255,.55);
+
+  --t1: #ffffff; --t2: #cfcdf0; --t3: #9e9bc8;
+
+  --cy: #2ee6c8; --pu: #b39bff; --or: #f5a524; --gr: #9be564;
+  --rd: #ff7a6b; --yl: #f5c451; --pk: #ff7ab8; --em: #34d399;
+  --cyd: rgba(46,230,200,.12); --pud: rgba(143,91,255,.2);
+  --ord: rgba(245,165,36,.14); --grd: rgba(155,229,100,.14);
+
+  --cy-rgb: 46,230,200; --pu-rgb: 143,91,255; --vi-rgb: 143,91,255;
+  --or-rgb: 245,165,36; --gr-rgb: 155,229,100; --rd-rgb: 255,91,74; --yl-rgb: 245,196,81; --pk-rgb: 255,122,184;
+  --ov-rgb: 255,255,255;
+  --row-open: rgba(255,255,255,.04);
+  --mut: #9e9bc8; --mut-rgb: 158,155,200; --em-rgb: 52,211,153; --t1-rgb: 255,255,255; --t2-rgb: 207,205,240; --t3-rgb: 158,155,200;
+
+  --btn-grad: #b6f500; --btn-fg: #070526; --on-accent: #070526;
+  --scrim: rgba(3,2,20,.72); --sh-rgb: 0,0,0; --sh-k: 1;
+  --shadow-pop: 0 18px 50px rgba(0,0,0,.6);
+  --seg-bg: rgba(255,255,255,.08); --seg-fg: #a9a6d3; --seg-on-bg: #b6f500; --seg-on-fg: #070526; --seg-on-shadow: none;
+  --hover-row: rgba(255,255,255,.04); --soft-glow: rgba(143,91,255,.5);
+  --cs: dark;
+  color-scheme: dark;
 }
 
 /* ---------- тёмная зона: меню, шапки, ИИ-чат ---------- */
@@ -76,6 +113,8 @@
   --btn-grad: #b6f500; --btn-fg: #070526; --on-accent: #070526;
   --scrim: rgba(3,2,20,.7); --sh-rgb: 0,0,0; --sh-k: 1;
   --shadow-pop: 0 18px 50px rgba(0,0,0,.55);
+  --seg-bg: rgba(255,255,255,.08); --seg-fg: #a9a6d3; --seg-on-bg: #b6f500; --seg-on-fg: #070526; --seg-on-shadow: none;
+  --hover-row: rgba(255,255,255,.05); --soft-glow: rgba(143,91,255,.5); --line: rgba(255,255,255,.08);
   --cs: dark;
   color-scheme: dark;
   color: var(--t1);
@@ -84,7 +123,7 @@
 /* ---------- основа ---------- */
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html { -webkit-text-size-adjust: 100%; }
-body { background: var(--paper); color: var(--t1); font-family: var(--sans); -webkit-font-smoothing: antialiased; }
+body { background: var(--bg); color: var(--t1); font-family: var(--sans); -webkit-font-smoothing: antialiased; }
 button { font-family: inherit; }
 h1 { font-family: var(--disp); letter-spacing: -.01em; }
 input, select, textarea { font-family: var(--sans); }
@@ -94,7 +133,7 @@ select option { background: var(--side); color: var(--t1); }
 ::selection { background: rgba(107,44,255,.22); }
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(12,9,56,.18); border-radius: 10px; border: 2px solid transparent; background-clip: content-box; }
+::-webkit-scrollbar-thumb { background: rgba(var(--ov-rgb),.2); border-radius: 10px; border: 2px solid transparent; background-clip: content-box; }
 .zone-dark ::-webkit-scrollbar-thumb, .app-sidebar ::-webkit-scrollbar-thumb, .ai-dark ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.2); background-clip: content-box; }
 :where(button, a, input, select, textarea, [role="button"], [tabindex]):focus-visible { outline: 2px solid var(--vio); outline-offset: 2px; }
 :where(.zone-dark, .app-sidebar, .v2-topbar, .v2-tabbar, .page-head, .cl-head, .ai-dark) :where(button, a, input, select, textarea):focus-visible { outline-color: var(--lime); }
@@ -109,7 +148,7 @@ select option { background: var(--side); color: var(--t1); }
 /* ============================================================
    Каркас: меню, основная зона, шапки страниц
    ============================================================ */
-.crm-shell { display: flex; min-height: 100vh; background: var(--paper); }
+.crm-shell { display: flex; min-height: 100vh; background: var(--bg); }
 .crm-main { --mp-x: 14px; --mp-y: 14px; flex: 1; min-width: 0; margin-top: 52px; padding: var(--mp-y) var(--mp-x) 92px; overflow-x: auto; }
 @media (min-width: 768px) { .crm-main { --mp-x: 28px; --mp-y: 24px; margin-top: 0; margin-left: 232px; padding: var(--mp-y) var(--mp-x) 48px; } }
 
@@ -317,12 +356,12 @@ button.cl-pill.add:hover { border-color: var(--lime); color: var(--lime); }
 .v2-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
 
 /* переключатели-сегменты */
-.v2-seg { display: inline-flex; background: #e6e3fb; border-radius: 10px; padding: 3px; gap: 2px; }
-.v2-seg button { padding: 6px 12px; border-radius: 8px; font-size: 13px; font-weight: 700; color: var(--muted); background: none; border: 0; cursor: pointer; }
-.v2-seg button.on { background: #fff; color: var(--ink); box-shadow: 0 2px 8px rgba(12,9,56,.08); }
-.v2-segc { display: grid; grid-template-columns: 1fr 1fr; background: #e6e3fb; border-radius: 11px; padding: 3px; margin-bottom: 14px; }
-.v2-segc button { padding: 9px; border-radius: 8px; font-size: 13.5px; font-weight: 800; color: var(--muted); background: none; border: 0; cursor: pointer; }
-.v2-segc button.on { background: #fff; color: var(--ink); box-shadow: 0 2px 8px rgba(12,9,56,.08); }
+.v2-seg { display: inline-flex; background: var(--seg-bg); border-radius: 10px; padding: 3px; gap: 2px; }
+.v2-seg button { padding: 6px 12px; border-radius: 8px; font-size: 13px; font-weight: 700; color: var(--seg-fg); background: none; border: 0; cursor: pointer; }
+.v2-seg button.on { background: var(--seg-on-bg); color: var(--seg-on-fg); box-shadow: var(--seg-on-shadow); }
+.v2-segc { display: grid; grid-template-columns: 1fr 1fr; background: var(--seg-bg); border-radius: 11px; padding: 3px; margin-bottom: 14px; }
+.v2-segc button { padding: 9px; border-radius: 8px; font-size: 13.5px; font-weight: 800; color: var(--seg-fg); background: none; border: 0; cursor: pointer; }
+.v2-segc button.on { background: var(--seg-on-bg); color: var(--seg-on-fg); box-shadow: var(--seg-on-shadow); }
 .zone-dark .v2-seg, .page-head .v2-seg, .cl-head .v2-seg, .ai-dark .v2-seg { background: rgba(255,255,255,.08); }
 .zone-dark .v2-seg button, .page-head .v2-seg button, .cl-head .v2-seg button, .ai-dark .v2-seg button { color: #a9a6d3; }
 .zone-dark .v2-seg button.on, .page-head .v2-seg button.on, .cl-head .v2-seg button.on, .ai-dark .v2-seg button.on { background: var(--lime); color: var(--navy); box-shadow: none; }
@@ -341,8 +380,8 @@ button.cl-pill.add:hover { border-color: var(--lime); color: var(--lime); }
 
 /* лист действий / окно */
 .v2-sheet-bg { position: fixed; inset: 0; background: var(--scrim); display: flex; align-items: flex-end; justify-content: center; }
-.v2-sheet { width: 100%; max-height: 90vh; overflow-y: auto; background: #fff; border: 1px solid var(--brd); border-radius: 22px 22px 0 0; padding: 10px 16px calc(22px + env(safe-area-inset-bottom)); font-family: var(--sans); color: var(--t1); }
-.v2-sheet-grab { width: 38px; height: 4px; border-radius: 2px; background: rgba(12,9,56,.18); margin: 0 auto 12px; }
+.v2-sheet { width: 100%; max-height: 90vh; overflow-y: auto; background: var(--side); border: 1px solid var(--brd); border-radius: 22px 22px 0 0; padding: 10px 16px calc(22px + env(safe-area-inset-bottom)); font-family: var(--sans); color: var(--t1); }
+.v2-sheet-grab { width: 38px; height: 4px; border-radius: 2px; background: rgba(var(--ov-rgb),.2); margin: 0 auto 12px; }
 .v2-sheet-head { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 14px; }
 .v2-sheet-head h3 { font-family: var(--disp); font-size: 16px; font-weight: 700; line-height: 1.3; color: var(--t1); }
 .v2-sheet-sub { font-size: 13px; color: var(--t3); margin-top: 4px; line-height: 1.4; }
@@ -388,7 +427,7 @@ button.cl-pill.add:hover { border-color: var(--lime); color: var(--lime); }
 .v2-hint { font-size: 12.5px; color: var(--t3); line-height: 1.45; margin-top: 4px; }
 .v2-toast { position: fixed; left: 50%; bottom: 100px; transform: translateX(-50%); background: var(--navy); color: var(--lime); font-size: 13px; font-weight: 800; padding: 10px 16px; border-radius: 11px; z-index: 2000; box-shadow: 0 12px 32px rgba(7,5,38,.35); white-space: nowrap; }
 @media (min-width: 768px) { .v2-toast { bottom: 28px; } }
-.v2-empty { text-align: center; color: var(--t3); font-size: 14px; padding: 28px 12px; background: var(--card); border: 1px dashed rgba(12,9,56,.2); border-radius: 16px; }
+.v2-empty { text-align: center; color: var(--t3); font-size: 14px; padding: 28px 12px; background: var(--card); border: 1px dashed rgba(var(--ov-rgb),.22); border-radius: 16px; }
 
 /* соцсети клиента (кабинет и запасное место) */
 .v2-soc { display: flex; align-items: center; gap: 6px; margin-top: 9px; flex-wrap: wrap; }
@@ -402,7 +441,7 @@ button.cl-pill.add:hover { border-color: var(--lime); color: var(--lime); }
 .v2-table th { text-align: left; font-size: 11.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; color: var(--t3); padding: 12px 12px; border-bottom: 1px solid var(--brd); white-space: nowrap; }
 .v2-table td { padding: 12px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
 .v2-table tbody tr:last-child td { border-bottom: 0; }
-.v2-table tbody tr:hover { background: #faf9ff; }
+.v2-table tbody tr:hover { background: var(--hover-row); }
 .v2-two { display: grid; grid-template-columns: 1fr; gap: 0 16px; }
 @media (min-width: 1000px) { .v2-two { grid-template-columns: 1.1fr .9fr; } }
 .v2-grid3 { display: grid; grid-template-columns: 1fr; gap: 0 16px; }
@@ -415,13 +454,13 @@ button.cl-pill.add:hover { border-color: var(--lime); color: var(--lime); }
 .dashboard-v2 { font-family: var(--sans); }
 .dashboard-v2-header { padding: 7px 3px 9px; }
 .dashboard-v2-header h1 { font-family: var(--disp); font-size: 22px; }
-.dashboard-v2-periods { background: #e6e3fb; border-radius: 12px; }
+.dashboard-v2-periods { background: var(--seg-bg); border-radius: 12px; }
 .dashboard-v2-kpi { gap: 12px; background: var(--card); border-radius: 16px; min-height: 118px; padding: 17px; }
 .dashboard-v2-kpi > div:nth-child(3) span:first-child { font-family: var(--disp); font-size: 24px; }
 .dashboard-v2 > .card { border-radius: 18px; }
 .dashboard-v2 table thead { text-transform: uppercase; letter-spacing: .06em; }
 .dashboard-v2 table tbody tr { transition: background .14s; }
-.dashboard-v2 table tbody tr:hover { background: #faf9ff; }
+.dashboard-v2 table tbody tr:hover { background: var(--hover-row); }
 
 /* карточка клиента: рабочая зона */
 .client-detail-v2 { font-family: var(--sans); }
@@ -585,3 +624,10 @@ input[type="date"], input[type="datetime-local"], input[type="time"], input[type
 .st-foot { font-size: 12.5px; color: var(--t3); line-height: 1.6; }
 @media (max-width: 620px) { .st-bar-r { margin-left: 0; width: 100%; } .stats-crm .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .stats-crm .kpi .n { font-size: 20px; } .stats-crm .vb { padding: 16px !important; } }
 @media (max-width: 620px) { .stats-crm .panel { padding: 16px; } }
+
+/* тёмная тема: меню отделяем тонкой линией, уведомление и «скоро» — по тёмному фону */
+:root[data-crm-theme="dark"] .app-sidebar { border-right: 1px solid rgba(255,255,255,.07); }
+:root[data-crm-theme="dark"] .v2-toast { background: var(--lime); color: var(--navy); }
+:root[data-crm-theme="dark"] .st-soon { border-color: rgba(143,91,255,.5); background: rgba(143,91,255,.1); }
+:root[data-crm-theme="dark"] ::selection { background: rgba(182,245,0,.3); }
+:root[data-crm-theme="dark"] :where(button, a, input, select, textarea, [role="button"], [tabindex]):focus-visible { outline-color: var(--lime); }

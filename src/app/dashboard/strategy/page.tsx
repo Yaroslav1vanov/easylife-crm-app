@@ -90,7 +90,7 @@ const S = `
 .st .add input,.st .add select{background:transparent;border:none;color:var(--t1);font-size:14px;outline:none;min-width:0}
 .st .add .t{flex:1}
 .st .add select,.st .add input[type=date]{color:var(--t2);font-size:12.5px;border-left:1px solid var(--brd);padding-left:8px}
-.st .btn{background:var(--pu);color:#fff;border:none;border-radius:10px;padding:8px 13px;font-weight:700;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.st .btn{background:var(--btn-grad);color:var(--btn-fg);border:none;border-radius:10px;padding:8px 13px;font-weight:700;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
 .st .grp{margin-top:18px}
 .st .gh{display:flex;align-items:baseline;gap:8px;font-size:12.5px;font-weight:800;color:var(--t2);padding:0 4px 7px}
 .st .gh.today{color:var(--gr)}.st .gh.over{color:var(--rd)}
@@ -99,7 +99,7 @@ const S = `
 .st .row{display:flex;align-items:center;gap:11px;padding:11px 13px;border-bottom:1px solid var(--brd);cursor:pointer}
 .st .row:last-child{border-bottom:none}
 .st .row:hover{background:var(--cardH)}
-.st .chk{width:20px;height:20px;flex:none;border-radius:50%;border:2px solid var(--pc,var(--t3));display:flex;align-items:center;justify-content:center;color:#fff;cursor:pointer;background:transparent;padding:0}
+.st .chk{width:20px;height:20px;flex:none;border-radius:50%;border:2px solid var(--pc,var(--t3));display:flex;align-items:center;justify-content:center;color:var(--on-accent);cursor:pointer;background:transparent;padding:0}
 .st .chk.on{background:var(--gr);border-color:var(--gr)}
 .st .rt{flex:1;min-width:0}
 .st .rt .x{font-size:14px;color:var(--t1);line-height:1.4}
@@ -132,7 +132,7 @@ const S = `
 .sd .ib{background:none;border:none;color:var(--t3);cursor:pointer;padding:3px;border-radius:6px;display:inline-flex}.sd .ib:hover{color:var(--t1);background:var(--inset)}
 .sd .sadd{display:flex;gap:8px;margin-top:8px}.sd .sadd input{flex:1;background:var(--inp);border:1px solid var(--brd);color:var(--t1);border-radius:9px;padding:7px 9px;font-size:13px}
 .sd .acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:22px}
-.sd .btn{background:var(--pu);color:#fff;border:none;border-radius:10px;padding:9px 14px;font-weight:700;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.sd .btn{background:var(--btn-grad);color:var(--btn-fg);border:none;border-radius:10px;padding:9px 14px;font-weight:700;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
 .sd .btn.ok{background:var(--gr);color:var(--on-accent)}.sd .btn.ghost{background:transparent;color:var(--t2);border:1px solid var(--brd)}.sd .btn.danger{background:transparent;color:var(--rd);border:1px solid rgba(var(--rd-rgb),.4)}
 .sd .meta{font-size:11.5px;color:var(--t3);margin-top:16px;line-height:1.6}
 `;
@@ -465,7 +465,7 @@ function TaskDrawer({ task, today, onClose, onPatch, onDelete }: {
       <div className="sd">
         <div className="top">
           <button onClick={() => onPatch(done ? { status: "open", done_at: null } : { status: "done", done_at: new Date().toISOString() })}
-            style={{ width: 24, height: 24, borderRadius: "50%", border: `2px solid ${done ? "var(--gr)" : PRI_COLOR[task.priority]}`, background: done ? "var(--gr)" : "transparent", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 }}>
+            style={{ width: 24, height: 24, borderRadius: "50%", border: `2px solid ${done ? "var(--gr)" : PRI_COLOR[task.priority]}`, background: done ? "var(--gr)" : "transparent", color: "var(--on-accent)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 }}>
             {done && <Check size={13} strokeWidth={3.5} />}
           </button>
           <span style={{ fontSize: 12, color: done ? "var(--gr)" : isOver ? "var(--rd)" : "var(--t3)", fontWeight: 700 }}>

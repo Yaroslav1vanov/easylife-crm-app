@@ -7,6 +7,7 @@ import NoticeHost from "@/components/NoticeHost";
 import ConnectionGuard from "@/components/ConnectionGuard";
 import GlobalSearch from "@/components/GlobalSearch";
 import "@/styles/crm.css";
+import { CRM_THEME_BOOT } from "@/components/CrmTheme";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const sb = createClient();
@@ -41,6 +42,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <NoticeHost />
       <ConnectionGuard />
       <GlobalSearch />
+      <script dangerouslySetInnerHTML={{ __html: CRM_THEME_BOOT }} />
       <div className="crm-shell">
         <Sidebar userRole={userRole} />
         {/* Десктоп: отступ слева под меню. Телефон: отступ сверху под верхнюю полосу. */}

@@ -184,7 +184,7 @@ export default function TranscribePage() {
                 <button key={v} onClick={() => setMode(v)}
                   style={{ flex: "0 0 auto", padding: "8px 14px", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer",
                     background: mode === v ? "var(--btn-grad)" : "var(--inp)",
-                    border: "1px solid var(--brd)", color: mode === v ? "#fff" : "var(--t2)", display: "inline-flex", alignItems: "center", gap: 7 }}>
+                    border: "1px solid var(--brd)", color: mode === v ? "var(--btn-fg)" : "var(--t2)", display: "inline-flex", alignItems: "center", gap: 7 }}>
                   <Ic size={13} /> {l}
                 </button>
               ))}
