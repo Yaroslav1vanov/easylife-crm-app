@@ -97,7 +97,7 @@ export default function ClientStatsTab({ clientId, hasMetricool, layout, side }:
      сравниваем с таким же отрезком перед ним. Подписчики — из ежедневных снимков на начало и конец. */
   const [per, setPer] = useState<Per>("month");
   const [custom, setCustom] = useState<{ from: string; to: string }>({ from: "", to: "" });
-  const [pdata, setPdata] = useState<{ reels: Reel[]; snaps: any[]; cpFrom: string | null } | "loading" | null>(null);
+  const [pdata, setPdata] = useState<{ reels: Reel[]; snaps: any[]; cpFrom: string | null; cpSum: any } | "loading" | null>(null);
   const pr = useMemo(() => {
     if (per === "month") return null;
     let from: string, to: string;
@@ -112,22 +112,29 @@ export default function ClientStatsTab({ clientId, hasMetricool, layout, side }:
     setPdata("loading");
     (async () => {
       try {
-        const [r, s, cp] = await Promise.all([
+        const [r, s, cp, cpDays] = await Promise.all([
           fetch(`/api/clients/${clientId}/reels?from=${pr.pFrom}&to=${pr.to}`, { cache: "no-store" }).then(x => x.json()),
           supabase.from("social_snapshots").select("platform, snapshot_date, followers").eq("client_id", clientId)
             .gte("snapshot_date", shiftDay(pr.pFrom, -7)).lte("snapshot_date", pr.to).order("snapshot_date"),
-          supabase.from("client_chatplace_insights").select("availability, videos").eq("client_id", clientId)
+          supabase.from("client_chatplace_insights").select("day, availability, videos, summary").eq("client_id", clientId)
             .order("day", { ascending: false }).limit(1).maybeSingle(),
+          supabase.from("client_chatplace_insights").select("day").eq("client_id", clientId).eq("availability", "available"),
         ]);
+        // Instagram у клиента с ChatPlace: снимки подписчиков верим только за дни, когда их записал ChatPlace
+        // (Metricool без Instagram продолжает писать старую цифру)
+        const okDays = new Set(((cpDays.data || []) as any[]).map(x => x.day));
+        const snaps = ((s.data || []) as any[]).filter(x => x.platform !== "ig" || !okDays.size || okDays.has(x.snapshot_date));
         // ChatPlace отдаёт ролики примерно за 30 дней: раньше этой даты Instagram-роликов из него нет
         const cpv = cp.data?.availability === "available" && Array.isArray(cp.data.videos) ? (cp.data.videos as any[]).map(v => v.date).filter(Boolean).sort() : [];
-        if (!off) setPdata({ reels: (r.reels || []) as Reel[], snaps: s.data || [], cpFrom: cpv[0] || null });
-      } catch { if (!off) setPdata({ reels: [], snaps: [], cpFrom: null }); }
+        const sm = cp.data?.availability === "available" ? cp.data.summary?.metrics : null;
+        if (!off) setPdata({ reels: (r.reels || []) as Reel[], snaps, cpFrom: cpv[0] || null,
+          cpSum: sm && sm.followers != null && sm.followersDelta != null ? { day: cp.data!.day, followers: sm.followers, delta: sm.followersDelta } : null });
+      } catch { if (!off) setPdata({ reels: [], snaps: [], cpFrom: null, cpSum: null }); }
     })();
     return () => { off = true; };
   }, [pr?.from, pr?.to, clientId, cpVer]);
 
-  function aggPeriod(list: Reel[], snaps: any[], from: string, to: string) {
+  function aggPeriod(list: Reel[], snaps: any[], from: string, to: string, cpSum?: any) {
     const L = list.filter(r => r.date >= from && r.date <= to && (net === "all" || r.net === net));
     const byNet: Record<string, Reel[]> = {};
     for (const r of L) (byNet[r.net] ||= []).push(r);
@@ -138,7 +145,10 @@ export default function ClientStatsTab({ clientId, hasMetricool, layout, side }:
       if (net !== "all" && net !== n) continue;
       const sn = snaps.filter(x => x.platform === plat && x.followers != null);
       const end = [...sn].reverse().find(x => x.snapshot_date <= to);
-      const start = [...sn].reverse().find(x => x.snapshot_date < from);
+      let start = [...sn].reverse().find(x => x.snapshot_date < from);
+      // ровно «последние 30 дней» по Instagram — прирост берём из ChatPlace (он сам считает 30 дней)
+      if (!start && plat === "ig" && cpSum && end && end.snapshot_date === cpSum.day && dayDiff(from, to) === 29 && to >= cpSum.day)
+        start = { followers: cpSum.followers - cpSum.delta, snapshot_date: from };
       if (!end) continue;
       fEnd = (fEnd || 0) + end.followers;
       fNets.push(`${NET_LABEL[n]} ${Number(end.followers).toLocaleString("ru-RU")}`);
@@ -392,7 +402,7 @@ export default function ClientStatsTab({ clientId, hasMetricool, layout, side }:
           !pr ? <div className="panel" style={{ color: "var(--t2)", fontSize: 14 }}>Выбери дату начала и конца периода.</div>
           : pdata === "loading" || !pdata ? <div className="panel" style={{ color: "var(--t3)", fontSize: 14 }}>Считаю статистику за {rangeLabel(pr.from, pr.to)}…</div>
           : (() => {
-            const c = aggPeriod(pdata.reels, pdata.snaps, pr.from, pr.to);
+            const c = aggPeriod(pdata.reels, pdata.snaps, pr.from, pr.to, pdata.cpSum);
             // сравнение нечестное, если прошлый отрезок раньше, чем ChatPlace хранит ролики Instagram
             const cpShort = !!pdata.cpFrom && pr.pFrom < pdata.cpFrom && (net === "all" || net === "instagram");
             const p = cpShort ? null : aggPeriod(pdata.reels, pdata.snaps, pr.pFrom, pr.pTo);
