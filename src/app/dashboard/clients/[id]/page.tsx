@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase-browser";
 import db, { Client, Script, ChecklistTask, TeamMember, ClientMonth, OnboardingProgress } from "@/lib/database";
 import AvatarUploader from "@/components/AvatarUploader";
 import MetricoolBrandPicker from "@/components/MetricoolBrandPicker";
+import MetricoolConnectLink from "@/components/MetricoolConnectLink";
 import { CLIENT_TIMEZONES, DEFAULT_TZ, nowInTz } from "@/lib/tz";
 import { WEEKDAYS_RU, weeklyQuotaOf, BATCH_BUFFER_DAYS } from "@/lib/batches";
 import ClientMonthsTimeline from "@/components/ClientMonthsTimeline";
@@ -514,7 +515,8 @@ export default function ClientDetailPage() {
                   await updateClientField("metricool_blog_id", v);
                   // соцсети бренда — сразу в шапку карточки, вручную добавлять не нужно
                   if (v) { try { await fetch(`/api/clients/${clientId}/socials-from-metricool`, { method: "POST" }); } catch {} load(); }
-                }} /></div>
+                }} />
+                {c.metricool_blog_id ? <MetricoolConnectLink clientId={clientId} /> : null}</div>
             )}
             <div className="v2-fr"><span>Часовой пояс</span>
               <select style={selStyle} value={c.timezone || DEFAULT_TZ} onChange={(e) => updateClientField("timezone", e.target.value)}>{CLIENT_TIMEZONES.map(t => <option key={t.tz} value={t.tz}>{t.label}</option>)}</select></div>
