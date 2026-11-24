@@ -27,6 +27,7 @@ export default function ChatplaceBotPicker({ clientId, botId, instagram, onPick 
 
   useEffect(() => {
     if (!botId) { setLast(null); return; }
+    if (!bots) fetch("/api/chatplace/bots", { cache: "no-store" }).then(r => r.json()).then(j => { if (j?.bots) setBots(j.bots); }).catch(() => {});   // чтобы на плашке был ник, а не «привязан»
     fetch(`/api/clients/${clientId}/chatplace`, { cache: "no-store" }).then(r => r.json()).then(j => setLast(j?.last || null)).catch(() => {});
   }, [clientId, botId]);
 
