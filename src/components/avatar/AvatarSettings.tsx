@@ -35,7 +35,7 @@ export default function AvatarSettings({ clientId, avatar, isOwner, clientPackag
   function startEdit() {
     const a = avatar;
     setF({
-      heygen_group_id: a?.heygen_group_id || "", voice_id: a?.voice_id || "", voice_model: a?.voice_model || "eleven_v4",
+      heygen_group_id: a?.heygen_group_id || "", voice_id: a?.voice_id || "", voice_model: a?.voice_model || "heygen-voice-1",
       engine: a?.engine || "avatar_v", language: a?.language || "ru", voice_speed: a?.voice_speed ?? 1, trim_silence: a?.trim_silence ?? true,
       monthly_limit: a?.monthly_limit ?? "",
       looks: (a?.look_ids || []).map((id) => ({ id, name: a?.look_names?.[id] || "" })) as Look[],
@@ -53,9 +53,14 @@ export default function AvatarSettings({ clientId, avatar, isOwner, clientPackag
     const row = {
       client_id: clientId, heygen_group_id: f.heygen_group_id.trim(), look_ids: looks.map((l) => l.id), default_look_id: def,
       look_names: Object.fromEntries(looks.map((l) => [l.id, l.name || l.id.slice(0, 8)])), voice_id: f.voice_id.trim() || null,
-      voice_model: f.voice_model.trim() || "eleven_v4", engine: f.engine, language: f.language, voice_speed: Number(f.voice_speed) || 1,
+      voice_model: f.voice_model.trim() || "heygen-voice-1", engine: f.engine, language: f.language, voice_speed: Number(f.voice_speed) || 1,
       trim_silence: !!f.trim_silence, monthly_limit: f.monthly_limit === "" ? null : Number(f.monthly_limit) || null, updated_at: new Date().toISOString(),
-    };
+    } as any;
+    // сменили основной голос — образы, которые говорили старым, переходят на новый (у других людей клиента голос свой, его не трогаем).
+    // voice_set — метка «голос задан в CRM»: обновление образов из HeyGen его не перезапишет (у образа в HeyGen остаётся голос со дня создания)
+    const oldVoice = avatar?.voice_id || null;
+    if (oldVoice && row.voice_id && oldVoice !== row.voice_id && groupLooks.length)
+      row.group_looks = groupLooks.map((l: any) => (l.voice === oldVoice || !l.voice ? { ...l, voice: row.voice_id, voice_set: true, voice_from: l.voice_from || l.voice || oldVoice } : l));
     const { data, error } = await supabase.from("client_avatars").upsert(row).select("*").single();
     setSaving(false);
     if (error) return setErr(error.message);

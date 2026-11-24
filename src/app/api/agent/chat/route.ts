@@ -299,7 +299,15 @@ export async function POST(req: Request) {
       preview_key: typeof l.preview_key === "string" && l.preview_key.startsWith(`strategy/${cid}/`) ? l.preview_key : null,
     })).filter((l: any) => l.id);
     // основные ещё не выбраны (новый клиент) — берём первые 3 видео-двойника, первый — основной; Ярослав поменяет в «Настройках»
-    const { data: cur } = await sb.from("client_avatars").select("look_ids, look_names").eq("client_id", cid).maybeSingle();
+    const { data: cur } = await sb.from("client_avatars").select("look_ids, look_names, group_looks").eq("client_id", cid).maybeSingle();
+    // голос, заданный в CRM (сменили основной голос клиента), сильнее голоса образа в HeyGen — тот остаётся со дня создания образа
+    const setVoice = new Map(((cur?.group_looks || []) as any[]).filter(l => l.voice_set && l.voice).map(l => [l.id, l.voice]));
+    // и новые образы того же человека: их голос из HeyGen — тот, что заменили в CRM
+    const swap = new Map(((cur?.group_looks || []) as any[]).filter(l => l.voice_set && l.voice_from).map(l => [l.voice_from, l.voice]));
+    for (const l of looks) {
+      const v = setVoice.get(l.id) || (l.voice && swap.get(l.voice));
+      if (v) Object.assign(l, { voice: v, voice_set: true, voice_from: l.voice && l.voice !== v ? l.voice : undefined });
+    }
     const pick = cur?.look_ids?.length ? null
       : [...looks.filter((l: any) => l.type === "digital_twin"), ...looks.filter((l: any) => l.type !== "digital_twin")].slice(0, 3);
     await sb.from("client_chat_messages").update({ hidden_at: new Date().toISOString() }).eq("id", Number(b.id)).is("hidden_at", null);
