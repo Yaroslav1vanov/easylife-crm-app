@@ -30,6 +30,7 @@ import AvatarSettings from "@/components/avatar/AvatarSettings";
 import { canGenerate, type ClientAvatar } from "@/lib/avatar";
 import ClientPlanTab from "@/components/plan/ClientPlanTab";
 import ClientPortalLink from "@/components/ClientPortalLink";
+import ChatplaceBotPicker from "@/components/ChatplaceBotPicker";
 import { Camera, Music2, Play } from "lucide-react";
 
 // Соцсети клиента в шапке: иконка + хэндл, клик открывает профиль
@@ -518,6 +519,9 @@ export default function ClientDetailPage() {
                 }} />
                 {c.metricool_blog_id ? <MetricoolConnectLink clientId={clientId} /> : null}</div>
             )}
+            <div className="v2-fr" style={{ display: "block" }}>
+              <ChatplaceBotPicker clientId={clientId} botId={(c as any).chatplace_bot_id ?? null} instagram={c.instagram}
+                onPick={async (v) => { if (v !== ((c as any).chatplace_bot_id ?? null)) { await updateClientField("chatplace_bot_id", v); } }} /></div>
             <div className="v2-fr"><span>Часовой пояс</span>
               <select style={selStyle} value={c.timezone || DEFAULT_TZ} onChange={(e) => updateClientField("timezone", e.target.value)}>{CLIENT_TIMEZONES.map(t => <option key={t.tz} value={t.tz}>{t.label}</option>)}</select></div>
             <div className="v2-hint">в этом поясе задаётся время публикаций · сейчас там {nowInTz(c.timezone || DEFAULT_TZ)}</div>

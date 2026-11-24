@@ -5,7 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
    (clients.chatplace_bot_id) и только ЧИТАЮЩИМИ инструментами. Лимит сервиса — 60 запросов в минуту. */
 
 const CP = "https://mcp.chatplace.io/mcp";
-const READ_ONLY = new Set(["virale_own_insights", "automations_list_with_stats"]);
+const READ_ONLY = new Set(["virale_own_insights", "automations_list_with_stats", "bots_list"]);
 let rpcId = 1;
 
 async function cpCall(name: string, args: Record<string, any>): Promise<any> {
@@ -28,6 +28,17 @@ async function cpCall(name: string, args: Record<string, any>): Promise<any> {
   const out = (j?.result?.content || []).filter((c: any) => c?.type === "text").map((c: any) => c.text).join("\n");
   if (j?.result?.isError) throw new Error(`ChatPlace ${name}: ${out.slice(0, 200)}`);
   try { return JSON.parse(out); } catch { return out; }
+}
+
+export type CpBot = { id: string; name: string; username: string; platform: string };
+
+/** Подключённые к ChatPlace аккаунты (для привязки к карточке клиента). */
+export async function cpListBots(): Promise<CpBot[]> {
+  const list = await cpCall("bots_list", {});
+  return (Array.isArray(list) ? list : []).map((b: any) => ({
+    id: String(b.id), name: String(b.name || ""), username: String(b.username || ""),
+    platform: String(b.platform?.label || b.platform?.name || "").toLowerCase(),
+  }));
 }
 
 export type CpVideo = {
