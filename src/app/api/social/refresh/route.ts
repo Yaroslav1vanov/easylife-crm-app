@@ -3,6 +3,7 @@ import { createAdmin } from "@/lib/supabase-admin";
 import { handleOf, type Plat } from "@/lib/socialHandles";
 import { vmxMcp, vmxMyAccounts, vmxAvatarUrl } from "@/lib/viralmaxing";
 import { requireUserOrCron } from "@/lib/apiGuard";
+import { socialsFromBrand } from "@/lib/socialsFromBrand";
 import { linkPublishedReels } from "@/lib/linkReels";
 import { syncViewBreakdown } from "@/lib/viewBreakdown";
 import { mcFetch } from "@/lib/mcFetch";
@@ -139,8 +140,10 @@ export async function GET(req: Request) {
 
     // какие сети реально подключены к каждому бренду
     const brandNets = new Map<string, Set<Plat>>();
+    const brands = new Map<string, any>();
     try {
       for (const b of listOf(await mcGet(`/admin/simpleProfiles`))) {
+        brands.set(String(b.blogId ?? b.id), b);
         const nets = new Set<Plat>();
         if (b.instagram) nets.add("ig");
         if (b.tiktok) nets.add("tt");
@@ -148,6 +151,13 @@ export async function GET(req: Request) {
         brandNets.set(String(b.blogId ?? b.id), nets);
       }
     } catch (e: any) { errors.push({ stage: "metricool brands", error: String(e?.message || e) }); }
+
+    // соцсети, подключённые к бренду, сами появляются в карточке (если там пусто)
+    for (const c of clients) {
+      const b = c.metricool_blog_id ? brands.get(String(c.metricool_blog_id)) : null;
+      const fill = b ? socialsFromBrand(b, c as any) : {};
+      if (Object.keys(fill).length && !(await sb.from("clients").update(fill).eq("id", c.id)).error) Object.assign(c, fill);
+    }
 
     for (const c of clients) {
       if (!c.metricool_blog_id) continue;

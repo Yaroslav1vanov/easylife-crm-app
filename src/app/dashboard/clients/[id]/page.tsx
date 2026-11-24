@@ -400,7 +400,7 @@ export default function ClientDetailPage() {
         <div className="cl-tabs" role="tablist">
           <button role="tab" aria-selected={ctab === "work"} className={ctab === "work" ? "on" : ""} onClick={() => setCtab("work")}>Работа</button>
           <button role="tab" aria-selected={ctab === "plan"} className={ctab === "plan" ? "on" : ""} onClick={() => setCtab("plan")}>План</button>
-          <button role="tab" aria-selected={ctab === "stats"} className={ctab === "stats" ? "on" : ""} onClick={() => setCtab("stats")}>Статистика</button>
+          <button role="tab" aria-selected={ctab === "stats"} className={ctab === "stats" ? "on" : ""} onClick={() => setCtab("stats")}>Аналитика</button>
           <button role="tab" aria-selected={ctab === "strategy"} className={ctab === "strategy" ? "on" : ""} onClick={() => setCtab("strategy")}>Стратегия</button>
           <button role="tab" aria-selected={ctab === "chat"} className={ctab === "chat" ? "on" : ""} onClick={() => setCtab("chat")}>Чат{c.ai_chat ? " · ИИ" : ""}</button>
           {!isMont && <button role="tab" aria-selected={ctab === "set"} className={ctab === "set" ? "on" : ""} onClick={() => setCtab("set")}>Настройки</button>}
@@ -429,7 +429,7 @@ export default function ClientDetailPage() {
 
       {ctab === "stats" && !isMont && (
         <div className="v2-seg" style={{ marginBottom: 16 }}>
-          {([["stats", "Аналитика"], ["planfact", "План / факт"]] as const).map(([k, l]) => (
+          {([["stats", "Обзор"], ["planfact", "План / факт"]] as const).map(([k, l]) => (
             <button key={k} onClick={() => setStatsView(k)} className={statsView === k ? "on" : ""}>{l}</button>
           ))}
         </div>
@@ -509,7 +509,12 @@ export default function ClientDetailPage() {
               </>
             ) : (
               <div className="v2-fr" style={{ display: "block" }}><span style={{ display: "block", marginBottom: 6 }}>Бренд в Metricool</span>
-                <MetricoolBrandPicker blogId={c.metricool_blog_id ?? null} onPick={(v) => { if (v !== (c.metricool_blog_id ?? null)) updateClientField("metricool_blog_id", v); }} /></div>
+                <MetricoolBrandPicker blogId={c.metricool_blog_id ?? null} onPick={async (v) => {
+                  if (v === (c.metricool_blog_id ?? null)) return;
+                  await updateClientField("metricool_blog_id", v);
+                  // соцсети бренда — сразу в шапку карточки, вручную добавлять не нужно
+                  if (v) { try { await fetch(`/api/clients/${clientId}/socials-from-metricool`, { method: "POST" }); } catch {} load(); }
+                }} /></div>
             )}
             <div className="v2-fr"><span>Часовой пояс</span>
               <select style={selStyle} value={c.timezone || DEFAULT_TZ} onChange={(e) => updateClientField("timezone", e.target.value)}>{CLIENT_TIMEZONES.map(t => <option key={t.tz} value={t.tz}>{t.label}</option>)}</select></div>

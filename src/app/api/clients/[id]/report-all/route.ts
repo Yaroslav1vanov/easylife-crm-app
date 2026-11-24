@@ -26,7 +26,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   const { data: weeks } = await q;
   const rows = (weeks || []) as any[];
   if (!rows.length)
-    return new Response(`<!doctype html><meta charset="utf-8"><body style="background:#070526;color:#f3f2ff;font-family:system-ui;padding:40px;text-align:center"><h2 style="color:#b6f500">Недель пока нет</h2><p style="color:#7a78a3">Открой карточку клиента → «Статистика» → «Собрать за всё время».</p></body>`,
+    return new Response(`<!doctype html><meta charset="utf-8"><body style="background:#070526;color:#f3f2ff;font-family:system-ui;padding:40px;text-align:center"><h2 style="color:#b6f500">Недель пока нет</h2><p style="color:#7a78a3">Открой карточку клиента → «Аналитика» → «Собрать за всё время».</p></body>`,
       { headers: { "content-type": "text/html; charset=utf-8" } });
 
   const avatar = await inlineImage(c.avatar_url, 400_000);

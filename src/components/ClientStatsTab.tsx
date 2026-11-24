@@ -368,7 +368,7 @@ export default function ClientStatsTab({ clientId, hasMetricool, layout, side }:
     <div className="stats-crm">
       <div className="st-bar">
         <h2>{per !== "month" ? (pr ? <>{per === "custom" ? "Период" : `${per} дней`} · {rangeLabel(pr.from, pr.to)}</> : "Свой период")
-          : cur ? <>{ymLabel(cur.ym)}{cur.partial ? " · на сегодня" : ""}</> : "Статистика"}</h2>
+          : cur ? <>{ymLabel(cur.ym)}{cur.partial ? " · на сегодня" : ""}</> : "Аналитика"}</h2>
         <span className="st-src">{per !== "month" ? (pr ? <>сравнение с {rangeLabel(pr.pFrom, pr.pTo)} · </> : null) : prev ? <>сравнение с {ymLabel(prev.ym)} · </> : null}источник: <b>{srcLabel}</b></span>
         <div className="st-bar-r">
           <div className="v2-seg">
