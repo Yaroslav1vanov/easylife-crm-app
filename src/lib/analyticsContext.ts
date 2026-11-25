@@ -86,6 +86,37 @@ export async function analyticsContext(sb: SupabaseClient, cid: number, today = 
   if (!reels.length) { L.push("## Ролики", "За 90 дней роликов в статистике нет."); return L.join("\n"); }
 
   // --- нормы аккаунта
+  // x пересчитываем от медианы этих же 90 дней: у clientReels норма берётся из Metricool, и без него (Instagram только в ChatPlace) x = просмотрам
+  const medViews: Record<string, number> = {};
+  for (const net of Array.from(new Set(reels.map(r => r.net)))) {
+    const v = reels.filter(r => r.net === net).map(r => r.views).filter(x => x > 0);
+    medViews[net] = v.length ? median(v) : 0;
+  }
+  for (const r of reels) r.x = medViews[r.net] ? Math.round((r.views / medViews[r.net]) * 100) / 100 : r.x;
+
+  // ролик не связался со сценарием (у Instagram из ChatPlace часто нет ссылки в плане, а дата на день-два другая):
+  // ищем сценарий с похожими словами в подписи в пределах ±3 дней
+  const orphans = reels.filter(r => !r.scriptId && r.caption);
+  if (orphans.length) {
+    const { data: cand } = await sb.from("scripts").select("id, pub_date, body_text").eq("client_id", cid)
+      .gte("pub_date", addDays(from, -3)).lte("pub_date", addDays(today, 3)).not("body_text", "is", null);
+    const bag = (t: string) => new Set(t.toLowerCase().replace(/[^a-zа-яё0-9 ]/gi, " ").split(/\s+/).filter(w => w.length > 4));
+    const days = (a: string, b: string) => Math.abs((Date.parse(a) - Date.parse(b)) / 864e5);
+    const C = (cand || []).map((x: any) => ({ id: x.id, d: x.pub_date as string, w: bag(String(x.body_text || "")) }));
+    for (const r of orphans) {
+      const rw = bag(r.caption);
+      if (rw.size < 4) continue;
+      let best: { id: number; k: number } | null = null;
+      for (const c of C) {
+        if (!c.d || days(c.d, r.date) > 3) continue;
+        let hit = 0; rw.forEach(w => { if (c.w.has(w)) hit++; });
+        const k = hit / Math.min(rw.size, c.w.size || 1);
+        if (k >= 0.3 && hit >= 3 && (!best || k > best.k)) best = { id: c.id, k };
+      }
+      if (best) { r.scriptId = best.id; r.isOurs = true; }
+    }
+  }
+
   L.push("## Нормы аккаунта за 90 дней (медианы по площадке — с ними сравнивай каждый ролик)");
   for (const net of Array.from(new Set(reels.map(r => r.net)))) {
     const R = reels.filter(r => r.net === net);
