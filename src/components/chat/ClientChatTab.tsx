@@ -298,13 +298,13 @@ export default function ClientChatTab({ clientId, aiEnabled, draft, initialThrea
 
   return (
     <div className="ai-dark" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      <div style={{ display: "grid", gridTemplateColumns: `repeat(auto-fit, minmax(${threads.length > 4 ? 104 : 80}px, 1fr))`, gap: 4, padding: 4, borderRadius: 12, background: "var(--v2-inset)" }}>
+      {threads.length > 1 && <div style={{ display: "grid", gridTemplateColumns: `repeat(auto-fit, minmax(${threads.length > 4 ? 104 : 80}px, 1fr))`, gap: 4, padding: 4, borderRadius: 12, background: "var(--v2-inset)" }}>
         {threads.map((t) => (
           <button key={t.id} onClick={() => setThread(t.id)} disabled={sending}
             style={{ padding: "9px 0", borderRadius: 9, border: 0, cursor: "pointer", fontSize: 13.5, fontWeight: 800, fontFamily: "inherit",
               background: thread === t.id ? "var(--btn-grad)" : "transparent", color: thread === t.id ? "var(--btn-fg)" : "var(--t2)" }}>{t.label}</button>
         ))}
-      </div>
+      </div>}
 
       {aiEnabled && (
         <div className="v2-card" style={{ padding: "10px 14px", display: "flex", gap: 10, alignItems: "center", fontSize: 12.5, color: "var(--t2)" }}>

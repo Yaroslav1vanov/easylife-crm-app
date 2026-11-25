@@ -18,14 +18,21 @@ const cell = (s: string) => s.replace(/\|/g, "/").replace(/\s+/g, " ").trim();
    находим, какая фраза звучит на 3-й секунде и на секунде, где в среднем уходят. Это оценка, ИИ так её и называет. */
 function dropPoints(text: string, rr: ClientReel[]): string | null {
   const words = text.replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
-  const r = rr.find(x => x.watch != null) || null;
-  if (!r || words.length < 8) return null;
-  const rate = r.duration && r.duration > 3 ? Math.min(4, Math.max(1.6, words.length / r.duration)) : 2.5;   // слов в секунду
-  const at = (sec: number) => { const i = Math.min(words.length - 1, Math.max(0, Math.round(sec * rate))); return words.slice(Math.max(0, i - 6), i + 4).join(" "); };
-  const parts = [`Где отваливаются (${NET_RU[r.net] || r.net}, оценка по темпу ${Math.round(rate * 10) / 10} слова/с${r.duration ? `, ролик ${n1(r.duration)} с` : ", длительность неизвестна — темп взят 2,5 слова/с"}):`];
-  if (r.skip != null) parts.push(`пролистали в первые ~3 с ${pct(r.skip)}, к 3-й секунде звучит «…${at(3)}…»`);
-  parts.push(`в среднем смотрят ${n1(r.watch)} с${r.retLoop ? " (больше длины ролика — пересматривают)" : `, к этому моменту звучит «…${at(r.watch!)}…»`}`);
-  return parts.join("; ");
+  if (words.length < 8) return null;
+  // сначала ролики, где есть пролистывания (Instagram из ChatPlace), потом остальные; не больше двух площадок
+  const list = rr.filter(x => x.watch != null).sort((a, b) => Number(b.skip != null) - Number(a.skip != null)).slice(0, 2);
+  if (!list.length) return null;
+  const out: string[] = [];
+  for (const r of list) {
+    const rate = r.duration && r.duration > 3 ? Math.min(4, Math.max(1.6, words.length / r.duration)) : 2.5;   // слов в секунду
+    const at = (sec: number) => { const i = Math.min(words.length - 1, Math.max(0, Math.round(sec * rate))); return words.slice(Math.max(0, i - 6), i + 4).join(" "); };
+    const len = r.duration ? `ролик ${n1(r.duration)} с` : `длина ролика неизвестна, по тексту ≈ ${Math.round(words.length / 2.5)} с`;
+    const parts: string[] = [];
+    if (r.skip != null) parts.push(`пролистали в первые ~3 с ${pct(r.skip)}, к 3-й секунде звучит «…${at(3)}…»`);
+    parts.push(`в среднем смотрят ${n1(r.watch)} с${r.retLoop ? " (больше длины ролика — пересматривают)" : `, к этому моменту звучит «…${at(r.watch!)}…»`}`);
+    out.push(`Где уходят в ${NET_RU[r.net] || r.net} (оценка по темпу ${Math.round(rate * 10) / 10} слова/с, ${len}): ${parts.join("; ")}`);
+  }
+  return out.join("\n");
 }
 
 export async function analyticsContext(sb: SupabaseClient, cid: number, today = new Date().toISOString().slice(0, 10)): Promise<string> {
@@ -64,7 +71,9 @@ export async function analyticsContext(sb: SupabaseClient, cid: number, today = 
   const { data: snaps } = await sb.from("social_snapshots").select("platform, snapshot_date, followers").eq("client_id", cid)
     .gte("snapshot_date", from).gt("followers", 0).order("snapshot_date");
   const byP: Record<string, any[]> = {};
-  for (const s of snaps || []) (byP[s.platform] ||= []).push(s);
+  // Instagram с ChatPlace: старые снимки Metricool пишут устаревшую цифру (у Facto 276 вместо 4 тыс.) — его подписчики выше, из ChatPlace
+  const cpOk = cp?.availability === "available";
+  for (const s of snaps || []) if (!(cpOk && s.platform === "ig")) (byP[s.platform] ||= []).push(s);
   if (Object.keys(byP).length) {
     L.push("## Подписчики (снимки CRM)");
     for (const [p, arr] of Object.entries(byP)) {
