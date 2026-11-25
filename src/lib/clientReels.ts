@@ -13,6 +13,7 @@ export type ClientReel = {
   watch: number | null;                                  // средний просмотр, сек
   paidViews: number | null; paidReach: number | null; spend: number | null;   // продвижение; органика = views − paidViews
   follows: number | null;                                // подписки с ролика, если сеть отдаёт
+  scriptId?: number | null;                              // сценарий из контент-плана, если ролик наш
 };
 
 const code = (u: string | null | undefined) => {
@@ -65,7 +66,7 @@ export async function clientReels(
         er: base ? Math.round((((f.likes || 0) + (f.comments || 0) + (f.saved || 0) + (f.shares || 0)) / base) * 1000) / 10 : null,
         retention: f.ret, retLoop: f.retLoop, retRaw: f.retRaw, duration: f.dur, skip: f.skip,
         x: Math.round((f.views / (netNorm[net] || normAll)) * 100) / 100,
-        isOurs: !!sc,
+        isOurs: !!sc, scriptId: sc ? sc.id : null,
         watch: f.watch != null ? Math.round(f.watch * 10) / 10 : null,
         paidViews: f.paidViews, paidReach: f.paidReach, spend: f.spend, follows: f.follows,
       };
@@ -103,7 +104,7 @@ async function mergeChatplace(sb: SupabaseClient, clientId: number, from: string
       date: v.date, net: "instagram", ourTitle: sc ? nameOf(sc) : null, caption,
       title: (sc ? nameOf(sc) : "") || caption || "без подписи", url: v.url || null, image: null,
       views: v.views || 0, reach: v.reach, likes: v.likes, comments: v.comments, saves: v.saves, shares: v.shares, er: er(v),
-      retention: null, duration: null, skip, x: Math.round(((v.views || 0) / (norm || 1)) * 100) / 100, isOurs: !!sc,
+      retention: null, duration: null, skip, x: Math.round(((v.views || 0) / (norm || 1)) * 100) / 100, isOurs: !!sc, scriptId: sc ? sc.id : null,
       watch, paidViews: null, paidReach: null, spend: null, follows: null,
     });
   }

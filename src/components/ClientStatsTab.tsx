@@ -50,7 +50,8 @@ type Reel = {
 /* layout="crm" — раскладка карточки клиента в CRM (строка периода, ряд плиток, две колонки).
    Без него — прежняя раскладка: её показывает кабинет клиента, и меняться она не должна.
    side — блок для правой колонки (в CRM это «Кто смотрит»). */
-export default function ClientStatsTab({ clientId, hasMetricool, layout, side }: { clientId: number; hasMetricool: boolean; layout?: "crm"; side?: React.ReactNode }) {
+export default function ClientStatsTab({ clientId, hasMetricool, layout, side, onAsk }: { clientId: number; hasMetricool: boolean; layout?: "crm"; side?: React.ReactNode;
+  onAsk?: (question: string) => void }) {   // «Обсудить с ИИ» у ролика → чат «Аналитика» с готовым вопросом
   const crm = layout === "crm";
   const supabase = createClient();
   const [rows, setRows] = useState<Row[]>([]);
@@ -293,6 +294,8 @@ export default function ClientStatsTab({ clientId, hasMetricool, layout, side }:
                                         <a href={r.url || "#"} target="_blank" rel="noreferrer" style={{ color: "var(--t1)", textDecoration: "none", display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.title}</a>
                                         <div style={{ fontSize: 9.5, color: "var(--t3)" }}>
                                           {NET_LABEL[r.net] || r.net}{r.duration ? ` · ${r.duration} сек` : ""}{r.isOurs ? " · из плана" : ""}{!r.isOurs ? <span style={{ color: "var(--or)" }}> · не из плана</span> : null}{r.x >= 1.5 ? ` · ×${String(Math.round(r.x * 10) / 10).replace(".", ",")} к норме` : ""}
+                                          {onAsk ? <button onClick={() => onAsk(`Разбери ролик «${r.title.slice(0, 80)}» (${NET_LABEL[r.net] || r.net}, ${r.date}${r.url ? `, ${r.url}` : ""}): ${fmt(r.views)} просмотров${r.skip != null ? `, пролистали ${r.skip}%` : ""}${r.watch != null ? `, в среднем смотрят ${r.watch} с` : ""}. Почему так, на какой фразе уходят и что поменять в следующем ролике?`)}
+                                            title="Обсудить этот ролик с ИИ" style={{ marginLeft: 6, padding: 0, border: 0, background: "transparent", color: "var(--cy)", cursor: "pointer", fontSize: 9.5, fontWeight: 800, fontFamily: "inherit" }}>· 💬 обсудить</button> : null}
                                         </div>
                                       </div>
                                     </div>

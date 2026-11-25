@@ -8,7 +8,8 @@
      так правки понимают, о каком ролике речь);
   4) заливает готовые файлы в хранилище и отвечает в чат.
 """
-import json, os, pathlib, re, shutil, subprocess, sys, time, traceback
+import fcntl, json, os, pathlib, re, shutil, signal, subprocess, sys, threading, time, traceback
+from contextlib import contextmanager
 import requests
 
 HOME = pathlib.Path("/srv/easylife-chat-agent")
@@ -18,7 +19,7 @@ HDR = {"x-agent-secret": ENV["AGENT_SECRET"], "content-type": "application/json"
 TIMEOUT = int(ENV.get("CHAT_TIMEOUT_MIN", "45")) * 60
 WORK = HOME / "work"
 # У клиента несколько чатов с ИИ: рилсы, сторис, стратегия, воронка, аватар. Переписка не смешивается, папка клиента общая.
-THREAD_RU = {"reels": "рилсы", "stories": "сторис", "strategy": "стратегия", "funnel": "воронка", "avatar": "аватар"}
+THREAD_RU = {"reels": "рилсы", "stories": "сторис", "strategy": "стратегия", "funnel": "воронка", "analytics": "аналитика", "avatar": "аватар"}
 THREAD_HINT = {
     "reels": "Задачи этого чата — рилсы: монтаж роликов, правки, разбор стиля роликов.",
     "strategy": "Это чат по проекту в целом. Ты видишь переписку всех трёх чатов (метки [рилсы]/[сторис]/[стратегия]), PLAN.md и STATS.md. "
@@ -28,6 +29,9 @@ THREAD_HINT = {
     "funnel": "Задачи этого чата — воронка клиента: путь человека от ролика до заявки. Кодовое слово, автоответ в комментариях и директе, "
               "цепочка сообщений, дожим, под какой сервис собирать (ChatPlace, ManyChat или другой). Правила — раздел «Чат „Воронка“» в CLAUDE.md, "
               "память по воронкам клиента — FUNNEL.md. Рилсы и сторис здесь не монтируй, если об этом прямо не просят.",
+    "analytics": "Задачи этого чата — разбор цифр роликов: почему залетел или нет, на какой фразе уходят зрители, какие хуки работают у клиента. "
+                 "Цифры и тексты сценариев — ANALYTICS.md (собран сейчас), правила — раздел «Чат „Аналитика“» в CLAUDE.md, методика сценариев — METHOD/SKILL.md. "
+                 "Ничего не монтируй и не рендерь, отвечай текстом.",
     "avatar": "Чат голоса и видео аватара HeyGen. Правила — раздел «Чат „Аватар“» в CLAUDE.md, настройки и заказ — AVATAR.json. Каждая генерация тратит кредиты агентства.",
 }
 
@@ -35,29 +39,49 @@ THREAD_HINT = {
 # каждый вызов дополнительно проверяет хук bin/heygen_guard.py (лук и голос клиента, одна генерация на задачу).
 HEYGEN_READ = ["list_avatar_looks", "get_avatar_look", "get_video", "get_current_user"]
 HEYGEN_GEN = {"voice": ["create_speech", "create_speech_without_player"], "video": ["create_video_from_avatar"]}
-CURRENT_DIR = HOME / ".current_jobs"     # по файлу на каждую задачу в работе (их может быть несколько)
+# Две очереди (20.11.2026): основная — монтаж и всё с рендером; быстрая — задачи без рендера (озвучка/видео HeyGen,
+# уникализация сценария, «записывай», чат «Стратегия» без видео). Быстрая — отдельная служба easylife-chat-agent-fast
+# (agent.py --lane fast), свои слоты и своя папка клиента work/client_<id>_fast, поэтому не ждёт монтаж того же клиента.
+LANE = "fast" if "--lane" in sys.argv and sys.argv[sys.argv.index("--lane") + 1:][:1] == ["fast"] else "main"
+CURRENT_DIR = HOME / (".current_jobs_fast" if LANE == "fast" else ".current_jobs")   # по файлу на каждую задачу в работе
 CURRENT_DIR.mkdir(exist_ok=True)
+FORCE_MAIN = HOME / ".force_main"   # быстрая задача оказалась с рендером → id сюда, её берёт основная очередь
+FORCE_MAIN.mkdir(exist_ok=True)
+WAIT_LOG = HOME / "logs" / "queue_wait.jsonl"   # ожидание в очереди по типам задач (bin/queue_report.py)
+STOP = threading.Event()   # SIGTERM: новые задачи не берём, идущие доделываем, потом выходим (KillMode=mixed)
 LEGACY_CURRENT = HOME / ".current_job"
 FILES_KEEP_DAYS = 14   # файлы переписки старше — не держим на диске (см. /etc/cron.d/easylife-disk-cleanup)
-PARALLEL = int(ENV.get("CHAT_PARALLEL", "3"))   # сколько задач РАЗНЫХ клиентов идут одновременно
+PARALLEL = int(ENV.get("CHAT_FAST_PARALLEL", "3") if LANE == "fast" else ENV.get("CHAT_PARALLEL", "3"))   # задач РАЗНЫХ клиентов одновременно
 # правила перечитываются на каждую задачу — правка CLAUDE.md работает без перезапуска
 MEDIA = re.compile(r"\.(mp4|mov|webm|m4v|png|jpe?g|webp|gif|pdf|zip|mp3|wav|srt|html?|docx|xlsx|pptx|csv|txt|md)$", re.I)
 
 
 def log(*a):
-    print(time.strftime("%Y-%m-%d %H:%M:%S"), *a, flush=True)
+    print(time.strftime("%Y-%m-%d %H:%M:%S"), *(["[быстрая]"] if LANE == "fast" else []), *a, flush=True)
+
+
+def fix_text(o):
+    """Половинки эмодзи (одиночные суррогаты \ud83d) из CRM — заменяем на «�», иначе запись файла падает
+    («surrogates not allowed»). 23.11: так встал чат «Стратегия» клиента 51 — битый эмодзи в распаковке/профиле."""
+    if isinstance(o, str):
+        return o.encode("utf-16", "surrogatepass").decode("utf-16", "replace") if any("\ud800" <= ch <= "\udfff" for ch in o) else o
+    if isinstance(o, dict):
+        return {k: fix_text(v) for k, v in o.items()}
+    if isinstance(o, list):
+        return [fix_text(v) for v in o]
+    return o
 
 
 def api_get(**params):
     r = requests.get(API, headers=HDR, params=params, timeout=60)
     r.raise_for_status()
-    return r.json()
+    return fix_text(r.json())
 
 
 def api_post(**body):
     r = requests.post(API, headers=HDR, json=body, timeout=120)
     r.raise_for_status()
-    return r.json()
+    return fix_text(r.json())
 
 
 def safe(name):
@@ -71,7 +95,7 @@ def fetch_file(key, dest):
     url = api_post(op="download", key=key)["url"]
     with requests.get(url, stream=True, timeout=600) as r:
         r.raise_for_status()
-        tmp = dest.with_suffix(dest.suffix + ".part")
+        tmp = dest.with_suffix(dest.suffix + f".part{os.getpid()}_{threading.get_ident()}")
         with open(tmp, "wb") as f:
             for chunk in r.iter_content(1 << 20):
                 f.write(chunk)
@@ -97,7 +121,44 @@ def upload_file(client_id, path):
 JOURNAL_KEEP = 60   # записей в JOURNAL.md; старше — в JOURNAL_ARCHIVE.md
 
 
+@contextmanager
+def journal_lock(ws):
+    """JOURNAL.md клиента общий для обеих очередей (в быстрой папке это ссылка) — пишем под замком."""
+    base = (ws / "JOURNAL.md").resolve().parent
+    with open(base / ".journal.lock", "a") as lf:
+        fcntl.flock(lf, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lf, fcntl.LOCK_UN)
+
+
+# Файлы, которые prepare() пишет заново под каждую задачу: в быстрой папке они свои, всё остальное — ссылки на основную.
+PER_TASK = {"CLAUDE.md", "CONTEXT.md", "TASK.md", "PLAN.md", "STORIES.md", "STATS.md", "MEDIA.md", "DOCS.md", "SCRIPT.md",
+            "UNPACKING.md", "BENCHMARKS.md", "PROFILE.md", "FORECAST.md", "COMPANY.md", "AVATAR.json", "ANALYTICS.md", "METHOD"}
+SHARED = ("files", "out", "media", "refs", "JOURNAL.md", "JOURNAL_ARCHIVE.md", "LIBRARY.md", "STYLE.md", "FUNNEL.md", "stories_seen.json")
+
+
+def fast_workspace(cid):
+    """work/client_<id>_fast: свои TASK/CONTEXT/SCRIPT/AVATAR (идущий монтаж их не увидит), остальное — ссылки на work/client_<id>."""
+    base, ws = WORK / f"client_{cid}", WORK / f"client_{cid}_fast"
+    for d in ("files", "out", "media", "refs"):
+        (base / d).mkdir(parents=True, exist_ok=True)
+    ws.mkdir(parents=True, exist_ok=True)
+    names = set(SHARED) | {x.name for x in base.iterdir() if not x.name.startswith(".") and x.name not in PER_TASK}
+    for name in names:
+        link = ws / name
+        if not link.is_symlink() and not link.exists():
+            link.symlink_to(base / name)
+    return ws
+
+
 def rotate_journal(ws):
+    with journal_lock(ws):
+        _rotate_journal(ws)
+
+
+def _rotate_journal(ws):
     """Журнал растёт в конец, а ИИ читает файл с начала (по умолчанию первые 2000 строк) — при 2–3 тыс. строк
     он видел начало октября и не видел последние задачи (22.10: «тупит, рисует мимо» у Laccura, Юлии, Lash).
     Держим в JOURNAL.md последние JOURNAL_KEEP записей, остальное дописываем в JOURNAL_ARCHIVE.md (ничего не теряется)."""
@@ -124,7 +185,7 @@ def rotate_journal(ws):
 def prepare(job):
     msg, client = job["message"], job["client"]
     cid, mid = client["id"], msg["id"]
-    ws = WORK / f"client_{cid}"
+    ws = fast_workspace(cid) if LANE == "fast" else WORK / f"client_{cid}"
     files = ws / "files"
     out = ws / "out" / str(mid)
     for d in (files, out):
@@ -205,6 +266,16 @@ Instagram: {client.get('instagram') or '—'} · TikTok: {client.get('tiktok') o
         (ws / "FORECAST.md").write_text((HOME / "FORECAST.md").read_text())
     else:
         (ws / "FORECAST.md").unlink(missing_ok=True)
+    # чат «Аналитика»: цифры роликов за 90 дней + тексты сценариев, и методика «три опоры» (скилл команды) в METHOD/
+    an = job.get("analytics")
+    if an:
+        (ws / "ANALYTICS.md").write_text(an)
+        if (HOME / "skills" / "reels-three-pillars").exists():
+            if (ws / "METHOD").is_symlink() or (ws / "METHOD").is_file():
+                (ws / "METHOD").unlink()
+            shutil.copytree(HOME / "skills" / "reels-three-pillars", ws / "METHOD", dirs_exist_ok=True)
+    else:
+        (ws / "ANALYTICS.md").unlink(missing_ok=True)
     # чат «Стратегия» компании: план забега, задачи и цифры CRM
     comp = job.get("company")
     if comp:
@@ -237,8 +308,17 @@ Instagram: {client.get('instagram') or '—'} · TikTok: {client.get('tiktok') o
 ## Куда класть результат
 - Ответ человеку: out/{mid}/reply.md
 - Готовые файлы (ролик, кадры сторис): out/{mid}/ — всё из этой папки уйдёт в чат
-{COMPANY_HINT.format(mid=mid) if comp else ""}{AVATAR_HINT.format(mid=mid, kind=((av or {}).get("job") or {}).get("kind") or "заказ") if av else ""}{SCRIPT_HINT.format(mid=mid) if job.get("script") else ""}{FORECAST_HINT.format(mid=mid, pkg=(pl or {}).get("package") or "не указан") if pl else ""}""")
+{COMPANY_HINT.format(mid=mid) if comp else ""}{AVATAR_HINT.format(mid=mid, kind=((av or {}).get("job") or {}).get("kind") or "заказ") if av else ""}{SCRIPT_HINT.format(mid=mid) if job.get("script") else ""}{FORECAST_HINT.format(mid=mid, pkg=(pl or {}).get("package") or "не указан") if pl else ""}{FAST_HINT.format(mid=mid) if LANE == "fast" else ""}""")
     return ws, out
+
+
+FAST_HINT = """
+## Быстрая очередь (задача без рендера)
+Эта задача идёт параллельно с монтажом этого же клиента. Поэтому: ничего не рендери (Remotion, ffmpeg-монтаж, сборка ролика — нельзя),
+файлы студии (studio/src/crm, public/crm_*) и JOURNAL.md, STYLE.md не правь — свои заметки пиши в out/{mid}/notes.md, журнал допишет исполнитель. FUNNEL.md (память чата «Воронка») вести можно и нужно.
+Если по задаче всё-таки нужен монтаж или рендер — ничего не делай, создай пустой файл out/{mid}/needs_montage и коротко напиши в reply.md,
+что задача ушла в очередь монтажа. Исполнитель сам переставит её туда.
+"""
 
 
 COMPANY_HINT = """
@@ -471,6 +551,8 @@ def run_claude(ws, mid, resume=False, avatar=None, prompt=None, extra_tools=None
            "--output-format", "json",
            "--model", ENV.get("CHAT_MODEL", "claude-opus-5-5"),   # монтаж — только Opus 5.5
            "--add-dir", str(HOME / "easylife-montage"), str(HOME / "easylife-top-reels"),
+           # быстрая очередь: out/, files/, media/ — ссылки в work/client_<id>; без этого ИИ не может записать reply.md (22.11, Aristova #5965)
+           *([str((pathlib.Path(ws) / "out").resolve().parent)] if str(ws).endswith("_fast") else []),
            "--allowedTools", "Bash", "Read", "Write", "Edit", "Glob", "Grep"]
     kind = ((avatar or {}).get("job") or {}).get("kind")
     if avatar and not avatar.get("error"):
@@ -493,13 +575,69 @@ def run_claude(ws, mid, resume=False, avatar=None, prompt=None, extra_tools=None
     return res
 
 
+VIDEO_FILE = re.compile(r"\.(mp4|mov|webm|m4v|avi|mkv)$", re.I)
+SAVE_CMD = re.compile(r"^(записывай|записуй|запиши в сценарий|сохрани в сценарий|вноси в сценарий|внеси в сценарий)", re.I)
+
+
+def has_video(m):
+    return any(VIDEO_FILE.search(a.get("name") or "") or str(a.get("type") or "").startswith("video")
+               for a in ((m or {}).get("attachments") or []))
+
+
+def fast_kind(job):
+    """Тип задачи для быстрой очереди или None (основная: монтаж, сторис, всё с видео).
+    Правила простые и по полям сообщения; ошибётся — ИИ поставит out/<id>/needs_montage, и задача уйдёт в основную."""
+    m = job["message"]
+    th = m.get("thread") or "reels"
+    if (FORCE_MAIN / str(m["id"])).exists():
+        return None
+    if th == "avatar":
+        return "avatar"                                  # озвучка / видео HeyGen / заказ / образы — ждём HeyGen, а не процессор
+    if has_video(m) or has_video(job.get("quoted")):
+        return None
+    body = (m.get("body") or "").strip()
+    if th in ("strategy", "funnel", "analytics"):
+        return th                                       # текст и документы без рендера
+    if th == "reels" and not (m.get("attachments") or []):
+        if m.get("script_id") and body.startswith("✨ Уникализируй"):
+            return "unique"
+        if job.get("script") and SAVE_CMD.match(body) and len(body) < 200:
+            return "script_save"
+    return None
+
+
+def task_kind(job):
+    m = job["message"]
+    return fast_kind(job) or ((m.get("thread") or "reels") + ("+видео" if has_video(m) else ""))
+
+
+def ts_of(iso):
+    from datetime import datetime, timezone
+    try:
+        return datetime.strptime((iso or "")[:19], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc).timestamp()
+    except Exception:
+        return None
+
+
+def wait_log(**row):
+    try:
+        with open(WAIT_LOG, "a") as f:
+            f.write(json.dumps({"at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), **row}, ensure_ascii=False) + "\n")
+    except Exception as e:
+        log("ожидание не записалось", e)
+
+
 def handle(job):
     msg, cid, mid = job["message"], job["client"]["id"], job["message"]["id"]
     if not api_post(op="claim", id=mid).get("ok"):
         return
     cur = CURRENT_DIR / str(mid)
     cur.write_text(str(cid))   # если сервер перезапустится посреди задачи — вернём её в очередь
-    log("задача", mid, "клиент", cid)
+    kind = task_kind(job)
+    created = ts_of(msg.get("created_at"))
+    wait_min = round((time.time() - created) / 60, 2) if created else None
+    wait_log(ev="claim", id=mid, client=cid, lane=LANE, kind=kind, created_at=msg.get("created_at"), wait_min=wait_min)
+    log("задача", mid, "клиент", cid, kind, f"ждала {wait_min} мин" if wait_min is not None else "")
     t0 = time.time()
     try:
         ws, out = prepare(job)
@@ -513,6 +651,13 @@ def handle(job):
         finally:
             mark.unlink(missing_ok=True)   # при убийстве процесса сюда не дойдём — метка останется
         reply = (out / "reply.md").read_text().strip() if (out / "reply.md").exists() else (res.get("result") or "").strip()
+        if LANE == "fast" and (out / "needs_montage").exists():
+            (out / "needs_montage").unlink(missing_ok=True)
+            (FORCE_MAIN / str(mid)).write_text(kind)
+            if api_post(op="requeue", id=mid).get("ok"):
+                log("быстрая задача требует монтаж — в основную очередь", mid)
+                wait_log(ev="to_main", id=mid, client=cid, lane=LANE, kind=kind, minutes=round((time.time() - t0) / 60, 2))
+                return
         fh = out / "forecast.html"   # прогноз → PDF для клиента (тот же документ, по слайду на страницу)
         if fh.exists() and not (out / "forecast.pdf").exists():
             try:
@@ -529,7 +674,7 @@ def handle(job):
                 r = api_post(op="script_update", id=mid, script_id=job["script"]["id"], fields=json.loads(sj.read_text()))
                 names = {"hook_text": "тема", "hook": "хук", "body_text": "текст", "cta": "призыв", "post_caption": "описание"}
                 reply = (reply or "Готово.") + "\n\n📝 Записал в сценарий: " + ", ".join(names.get(k, k) for k in r.get("updated", []))
-                with open(ws / "JOURNAL.md", "a") as jf:   # прежний текст — чтобы можно было вернуть
+                with journal_lock(ws), open(ws / "JOURNAL.md", "a") as jf:   # прежний текст — чтобы можно было вернуть
                     jf.write(f"\n### Прежний текст сценария {job['script']['id']} до записи в задаче #{mid}\n```json\n{json.dumps(r.get('previous'), ensure_ascii=False, indent=1)}\n```\n")
             except Exception as e:
                 log("сценарий не записался", e)
@@ -602,6 +747,7 @@ def handle(job):
         mins = (time.time() - t0) / 60
         cost = res.get("total_cost_usd")
         log("готово", mid, f"{mins:.1f} мин", f"файлов {len(atts)}", f"расход ${cost}" if cost else "")
+        wait_log(ev="done", id=mid, client=cid, lane=LANE, kind=kind, minutes=round(mins, 2), cost_usd=cost)
         api_post(op="reply", id=mid, body=reply or "Готово.", attachments=atts, status="done", meta=meta,
                  metrics={"minutes": round(mins, 2), "cost_usd": cost, "files": len(atts)})
     except subprocess.TimeoutExpired:
@@ -758,7 +904,7 @@ def journal(ws, mid, msg, reply, atts, before):
     after = studio_snapshot()
     touched = sorted(k for k, v in after.items() if before.get(k) != v and re.search(rf"(?<!\d){mid}(?!\d)", k))
     j = ws / "JOURNAL.md"
-    if not j.exists():
+    if not j.exists():   # в быстрой папке j — ссылка: write_text создаст файл в основной папке клиента
         j.write_text("# Рабочий журнал клиента\n\nСвежие записи внизу. Технические заметки ИИ дописывает сам под записью задачи.\n")
     notes = ws / "out" / str(mid) / "notes.md"     # технические заметки ИИ по задаче (см. CLAUDE.md)
     L = ["", f"## [{THREAD_RU.get(msg.get('thread') or 'reels', msg.get('thread') or 'рилсы')}] Задача #{mid} · {time.strftime('%Y-%m-%d %H:%M')} UTC · от {msg.get('author_name') or 'сотрудника'}",
@@ -768,14 +914,14 @@ def journal(ws, mid, msg, reply, atts, before):
     if notes.exists():
         L.append("Заметки: " + notes.read_text().strip()[:1500])
     L.append("Ответил: " + (reply or "").strip()[:700])
-    with open(j, "a") as f:
+    with journal_lock(ws), open(j, "a") as f:
         f.write("\n".join(L) + "\n")
 
 
 def resume_interrupted():
     """Задача прервалась (перезапуск, нехватка памяти) — возвращаем её в очередь.
     Сессия Claude и файлы в папке клиента сохранились, так что ИИ продолжит с того же места."""
-    files = list(CURRENT_DIR.iterdir()) + ([LEGACY_CURRENT] if LEGACY_CURRENT.exists() else [])
+    files = list(CURRENT_DIR.iterdir()) + ([LEGACY_CURRENT] if LANE == "main" and LEGACY_CURRENT.exists() else [])
     for f in files:
         try:
             mid = int(f.name) if f.parent == CURRENT_DIR else int(f.read_text().strip() or 0)
@@ -829,11 +975,15 @@ def quick_run(job):
             pass
 
 
+QUICK_POOL = None
+
+
 def quick_loop():
     """Отдельный поток: короткие задачи не ждут, пока идут монтажи (до 4 одновременно)."""
+    global QUICK_POOL
     from concurrent.futures import ThreadPoolExecutor
-    pool = ThreadPoolExecutor(max_workers=4)
-    while True:
+    pool = QUICK_POOL = ThreadPoolExecutor(max_workers=4)
+    while not STOP.is_set():
         try:
             r = requests.get(QUICK_API, headers=HDR, params={"op": "queue"}, timeout=30)
             for job in (r.json().get("jobs") or []) if r.ok else []:
@@ -965,7 +1115,7 @@ def heartbeat_loop():
             mem = {}
             for line in open("/proc/meminfo"):
                 k, v = line.split(":", 1); mem[k] = int(v.split()[0])
-            running = len(list(CURRENT_DIR.iterdir())) if CURRENT_DIR.exists() else 0
+            running = sum(len(list(d.iterdir())) for d in (HOME / ".current_jobs", HOME / ".current_jobs_fast") if d.exists())   # обе очереди
             # как в df: занято / (занято + свободно), в ГиБ (зарезервированное системой не считаем)
             api_post(op="heartbeat", disk_used_gb=round(du.used / 2**30, 1), disk_total_gb=round((du.used + du.free) / 2**30, 1),
                      load1=round(load1, 2), cpus=os.cpu_count(), mem_used_mb=(mem.get("MemTotal", 0) - mem.get("MemAvailable", 0)) // 1024,
@@ -976,33 +1126,42 @@ def heartbeat_loop():
 
 
 def main():
-    """Задачи разных клиентов идут параллельно (до PARALLEL), по одному клиенту — строго по очереди:
-    у клиента общая папка и журнал, две задачи в ней мешали бы друг другу."""
+    """Задачи разных клиентов идут параллельно (до PARALLEL), по одному клиенту в одной очереди — строго по очереди:
+    у клиента общая папка, две задачи в ней мешали бы друг другу. Основная и быстрая очереди — разные процессы
+    и разные папки (work/client_<id> и work/client_<id>_fast), поэтому озвучка не ждёт монтаж того же клиента."""
     from concurrent.futures import ThreadPoolExecutor
-    log("исполнитель запущен, параллельно до", PARALLEL)
+    signal.signal(signal.SIGTERM, lambda *_: STOP.set())
+    log("исполнитель запущен, очередь", LANE, "параллельно до", PARALLEL)
     resume_interrupted()
-    import threading
-    threading.Thread(target=quick_loop, daemon=True).start()
-    threading.Thread(target=heartbeat_loop, daemon=True).start()
-    threading.Thread(target=ig_loop, daemon=True).start()
-    threading.Thread(target=heygen_daily_loop, daemon=True).start()
+    if LANE == "main":
+        threading.Thread(target=quick_loop, daemon=True).start()
+        threading.Thread(target=heartbeat_loop, daemon=True).start()
+        threading.Thread(target=ig_loop, daemon=True).start()
+        threading.Thread(target=heygen_daily_loop, daemon=True).start()
     pool = ThreadPoolExecutor(max_workers=PARALLEL)
     busy = {}   # client_id -> future
-    while True:
+    while not STOP.is_set():
         try:
             for cid in [c for c, fut in busy.items() if fut.done()]:
                 busy.pop(cid)
             if len(busy) < PARALLEL:
                 for job in api_get(op="queue").get("jobs", []):
                     cid = job["client"]["id"]
-                    if cid in busy:
-                        continue
+                    if cid in busy or (fast_kind(job) is not None) != (LANE == "fast"):
+                        continue   # чужая очередь или клиент уже занят в этой
                     busy[cid] = pool.submit(handle, job)
                     if len(busy) >= PARALLEL:
                         break
         except Exception as e:
             log("очередь недоступна:", e)
-        time.sleep(10)
+        STOP.wait(10)
+    # остановка службы: идущие задачи доделываем (монтаж не убиваем), новые не берём
+    log("остановка: новые задачи не беру, доделываю", sum(1 for f in busy.values() if not f.done()))
+    pool.shutdown(wait=True)
+    if QUICK_POOL:
+        QUICK_POOL.shutdown(wait=True)
+    log("остановка: все задачи доделаны, выхожу")
+    os._exit(0)
 
 
 if __name__ == "__main__":

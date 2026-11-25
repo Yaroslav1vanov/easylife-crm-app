@@ -6,6 +6,7 @@ import { metricoolProfile } from "@/lib/metricoolProfile";
 import { DEFAULT_FORECAST_BENCHMARKS, FORECAST_BENCHMARKS_KEY, unpackingToText } from "@/lib/forecast";
 import { allowedLooks, dictionaryText, heygenCredits, monthStart, videoLimit } from "@/lib/avatar";
 import { COMPANY_CLIENT_ID } from "@/lib/company";
+import { analyticsContext } from "@/lib/analyticsContext";
 
 /* Канал для ИИ-исполнителя чата по клиенту (работает на нашем сервере).
    Только по секрету x-agent-secret, работает служебным ключом.
@@ -108,7 +109,7 @@ export async function GET(req: Request) {
       sb.from("client_documents").select("title, body, version").eq("client_id", cid).eq("kind", "strategy").eq("is_current", true).maybeSingle(),
       sb.from("client_chat_messages").select("id, author_type, author_name, body, attachments, created_at, ai_status, thread, script_id, quote_id, meta")
         // рилсы и сторис — только своя переписка; «Стратегия» видит все три чата клиента
-        .eq("client_id", cid).in("thread", m.thread === "strategy" ? ["reels", "stories", "strategy", "funnel"] : [m.thread || "reels"]).is("hidden_at", null)   // скрытое владельцем ИИ не видит
+        .eq("client_id", cid).in("thread", m.thread === "strategy" ? ["reels", "stories", "strategy", "funnel", "analytics"] : [m.thread || "reels"]).is("hidden_at", null)   // скрытое владельцем ИИ не видит
         .lte("id", m.id).order("id", { ascending: false }).limit(m.thread === "strategy" ? 80 : 40),
     ]);
     if (!client?.ai_chat) {
@@ -167,9 +168,15 @@ export async function GET(req: Request) {
         job, generation: gen, sync: !!m.meta?.avatar_sync,   // «Обновить образы из HeyGen» — только просмотр списка
       } : { error: "К клиенту не привязан аватар — генерировать нельзя. Напиши, что Ярославу нужно привязать аватар в «Настройках»." };
     }
+    // чат «Аналитика» (вкладка «Аналитика»): цифры каждого ролика за 90 дней + тексты наших сценариев → ANALYTICS.md
+    let analytics: string | null = null;
+    if (m.thread === "analytics") {
+      try { analytics = await analyticsContext(sb, cid); }
+      catch (e: any) { analytics = `# Аналитика\n\nЦифры не собрались: ${e?.message || e}. Скажи об этом человеку, ничего не придумывай.`; }
+    }
     // чат «Стратегия» компании (служебная карточка): план забега, задачи и живые цифры CRM
     const company = cid === COMPANY_CLIENT_ID ? await companySnapshot(sb) : null;
-    jobs.push({ message: m, client, brand_kit: brand?.kit || null, strategy: strategy?.body || null, history: (history || []).reverse(), script, quoted, planning, avatar, company, ...(await folder(sb, cid)) });
+    jobs.push({ message: m, client, brand_kit: brand?.kit || null, strategy: strategy?.body || null, history: (history || []).reverse(), script, quoted, planning, avatar, company, analytics, ...(await folder(sb, cid)) });
   }
   return NextResponse.json({ jobs });
 }

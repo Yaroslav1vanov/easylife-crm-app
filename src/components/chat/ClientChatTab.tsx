@@ -34,9 +34,11 @@ const isImage = (a: Att) => a.type.startsWith("image/") || /\.(png|jpe?g|webp|gi
 const isAudio = (a: Att) => a.type.startsWith("audio/") || /\.(mp3|wav|m4a|aac|ogg)$/i.test(a.name);
 
 
-export type ChatThread = "reels" | "stories" | "strategy" | "funnel" | "avatar";
+export type ChatThread = "reels" | "stories" | "strategy" | "funnel" | "analytics" | "avatar";
 /** Раздел «Воронка» появляется после миграции MIGRATION_2026-11-22_chat_funnel.sql: она же ставит этот флаг в app_settings. */
 export const FUNNEL_FLAG_KEY = "chat_funnel";
+/** Раздел «Аналитика» — после MIGRATION_2026-11-25_chat_analytics.sql (флаг chat_analytics). */
+export const ANALYTICS_FLAG_KEY = "chat_analytics";
 const THREADS: { id: ChatThread; label: string; hint: string; placeholder: string; empty: string }[] = [
   { id: "reels", label: "🎬 Рилсы", hint: "Чат по рилсам: монтаж роликов, правки, разбор стиля и что зашло. Готовый ролик одной кнопкой уходит к сценарию или в публикации.",
     placeholder: "Задача по рилсам: «смонтируй этот исходник в стиле клиента» (приложите видео аватара). Правка: «на 12-й секунде другой кадр», «обрежь начало до фразы …»",
@@ -50,6 +52,9 @@ const THREADS: { id: ChatThread; label: string; hint: string; placeholder: strin
   { id: "funnel", label: "🧲 Воронка", hint: "Чат по воронке: путь человека от ролика до заявки. Кодовое слово, автоответ в комментариях и директе, цепочка сообщений, дожим. Собираем под тот сервис, который выбрал клиент: ChatPlace, ManyChat или другой.",
     placeholder: "Задача по воронке: «собери воронку на консультацию под ChatPlace: кодовое слово, первое сообщение, цепочка и дожим», «перепиши первое сообщение короче», «почему мало доходят до заявки?»",
     empty: "Напишите, что продаём и через какой сервис клиент хочет воронку (ChatPlace, ManyChat или другой). ИИ соберёт цепочку сообщений и шаги настройки." },
+  { id: "analytics", label: "📊 Аналитика", hint: "Чат по цифрам: ИИ видит статистику каждого ролика за 90 дней (просмотры, пролистывания в первые секунды, среднее время просмотра, удержание, сохранения, репосты), аудиторию и тексты наших сценариев к этим роликам. Спрашивайте, почему ролик залетел или нет, на какой фразе уходят, какие хуки работают у этого клиента.",
+    placeholder: "Вопрос по цифрам: «почему у ролика про … 55% пролистали?», «на какой фразе уходят в роликах за неделю?», «какие хуки работают у этого клиента?»",
+    empty: "Спросите про цифры клиента: ИИ разберёт ролики по статистике и текстам сценариев." },
   { id: "avatar", label: "🧑‍💼 Аватар", hint: "Голос и видео аватара HeyGen. Генерация — только по кнопкам «Озвучить» и «Сделать видео», каждая тратит кредиты.",
     placeholder: "Вставьте текст для озвучки или нажмите «Озвучить сценарий» в карточке сценария. Неправильно произнёс слово — напишите «вот тут неправильно: …»",
     empty: "Вставьте текст или отправьте сценарий кнопкой «Озвучить сценарий» — ИИ подготовит заказ." },
@@ -62,16 +67,23 @@ export default function ClientChatTab({ clientId, aiEnabled, draft, initialThrea
   threadsOnly?: ChatThread[] }) {   // чат стратегии компании — только «Стратегия»
   // «Воронка» видна, только когда база и ИИ-исполнитель к ней готовы (флаг ставит миграция)
   const [funnelOn, setFunnelOn] = useState(false);
-  const threads = THREADS.filter((t) => (t.id !== "avatar" || !!avatar) && (t.id !== "funnel" || funnelOn) && (!threadsOnly || threadsOnly.includes(t.id)));
+  const [analyticsOn, setAnalyticsOn] = useState(false);
+  const threads = THREADS.filter((t) => (t.id !== "avatar" || !!avatar) && (t.id !== "funnel" || funnelOn) && (t.id !== "analytics" || analyticsOn) && (!threadsOnly || threadsOnly.includes(t.id)));
   const [thread, setThread] = useState<ChatThread>(initialThread || "reels");
   useEffect(() => { if (initialThread) setThread(initialThread); }, [initialThread]);
   const T = THREADS.find((t) => t.id === thread)!;
   const supabase = createClient();
   useEffect(() => {
-    if (threadsOnly && !threadsOnly.includes("funnel")) return;
     let off = false;
-    supabase.from("app_settings").select("value").eq("key", FUNNEL_FLAG_KEY).maybeSingle()
-      .then(({ data }) => { if (!off && data?.value === "on") setFunnelOn(true); });
+    supabase.from("app_settings").select("key, value").in("key", [FUNNEL_FLAG_KEY, ANALYTICS_FLAG_KEY])
+      .then(({ data }) => {
+        if (off) return;
+        for (const r of (data || []) as any[]) {
+          if (r.value !== "on") continue;
+          if (r.key === FUNNEL_FLAG_KEY) setFunnelOn(true);
+          if (r.key === ANALYTICS_FLAG_KEY) setAnalyticsOn(true);
+        }
+      });
     return () => { off = true; };
   }, []);
   const [msgs, setMsgs] = useState<Msg[]>([]);

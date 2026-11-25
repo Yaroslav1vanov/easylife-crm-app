@@ -31,6 +31,7 @@ import { canGenerate, type ClientAvatar } from "@/lib/avatar";
 import ClientPlanTab from "@/components/plan/ClientPlanTab";
 import ClientPortalLink from "@/components/ClientPortalLink";
 import ChatplaceBotPicker from "@/components/ChatplaceBotPicker";
+import AnalyticsAIChat from "@/components/AnalyticsAIChat";
 import { Camera, Music2, Play } from "lucide-react";
 
 // Соцсети клиента в шапке: иконка + хэндл, клик открывает профиль
@@ -107,7 +108,8 @@ export default function ClientDetailPage() {
   const [userRole, setUserRole] = useState("");
   const [myTeamId, setMyTeamId] = useState<number | null>(null);
   const [avatar, setAvatar] = useState<ClientAvatar | null>(null);   // аватар HeyGen клиента → чат «Аватар»
-  const [statsView, setStatsView] = useState<"stats" | "planfact">("stats");
+  const [statsView, setStatsView] = useState<"stats" | "planfact" | "ai">("stats");
+  const [aiAsk, setAiAsk] = useState<string | undefined>(undefined);   // «обсудить» у ролика → вопрос в чат «Аналитика»
   const router = useRouter();
   const supabase = createClient();
 
@@ -431,14 +433,16 @@ export default function ClientDetailPage() {
 
       {ctab === "stats" && !isMont && (
         <div className="v2-seg" style={{ marginBottom: 16 }}>
-          {([["stats", "Обзор"], ["planfact", "План / факт"]] as const).map(([k, l]) => (
+          {([["stats", "Обзор"], ["planfact", "План / факт"], ["ai", "💬 Чат с ИИ"]] as const).map(([k, l]) => (
             <button key={k} onClick={() => setStatsView(k)} className={statsView === k ? "on" : ""}>{l}</button>
           ))}
         </div>
       )}
       {ctab === "stats" && (statsView === "stats" || isMont) && <ClientStatsTab clientId={clientId} hasMetricool={!!(c.metricool_blog_id || (c as any).chatplace_bot_id)} layout="crm"
-        side={!isMont && !!c.metricool_blog_id ? <ViewsBreakdown clientId={clientId} /> : undefined} />}
+        side={!isMont && !!c.metricool_blog_id ? <ViewsBreakdown clientId={clientId} /> : undefined}
+        onAsk={!isMont ? (q) => { setAiAsk(q); setStatsView("ai"); } : undefined} />}
       {ctab === "stats" && statsView === "planfact" && !isMont && <PlanFactTab clientId={clientId} />}
+      {ctab === "stats" && statsView === "ai" && !isMont && <AnalyticsAIChat clientId={clientId} aiEnabled={!!c.ai_chat} draft={aiAsk} />}
       {ctab === "chat" && <ClientChatTab clientId={clientId} aiEnabled={!!c.ai_chat} isOwner={userRole === "owner" || userRole === "admin"}
         avatar={avatar} canGenerate={canGenerate(userRole, myTeamId, c)} clientPackage={c.package} draft={chatDraft} initialThread={chatThread}
         onAvatarChanged={setAvatar} />}
