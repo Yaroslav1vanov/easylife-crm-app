@@ -533,7 +533,7 @@ export default function ClientDetailPage() {
             <div className="v2-fr"><span>Telegram topic ID</span>
               <input type="number" style={{ ...inpStyle, width: 120 }} defaultValue={c.telegram_topic_id ?? ""} placeholder="напр. 12" onBlur={(e) => { const v = e.target.value ? Number(e.target.value) : null; if (v !== (c.telegram_topic_id ?? null)) updateClientField("telegram_topic_id", v); }} /></div>
             <div className="v2-hint">id топика клиента в ТГ — по нему бот понимает, чьё это видео</div>
-            {["owner", "admin", "assistant"].includes(userRole || "") && (<>
+            {["owner", "admin", "assistant", "project"].includes(userRole || "") && (<>
               <div className="v2-fr"><span>ИИ-монтажёр в чате</span>
                 <button style={{ ...selStyle, cursor: "pointer", color: c.ai_chat ? "var(--gr)" : undefined }}
                   onClick={() => updateClientField("ai_chat", !c.ai_chat)}>{c.ai_chat ? "✓ включён" : "выключен"}</button></div>

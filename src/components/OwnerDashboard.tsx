@@ -158,7 +158,7 @@ export default function OwnerDashboard({ clients, clientMonths, scripts, team, o
   const renewals = rows.filter(r => r.cm && (r.cm.status === "active" || r.cm.status === "onboarding") && r.daysLeft != null && r.daysLeft <= 7
     && !clientMonths.some(m => m.client_id === r.c.id && m.month_number > r.cm!.month_number && m.status !== "cancelled")).sort((a, b) => (a.daysLeft ?? 0) - (b.daysLeft ?? 0));
 
-  const birthdays = (role === "owner" || role === "admin" || role === "assistant") ? upcomingBirthdays([
+  const birthdays = (role === "owner" || role === "admin" || role === "assistant" || role === "project") ? upcomingBirthdays([
     ...clients.filter(c => c.stage !== "churned").map(c => ({ kind: "client" as const, id: c.id, name: `${c.name} ${c.surname || ""}`.trim(), role: c.niche, avatarUrl: c.avatar_url, birthday: c.birthday })),
     ...team.map(t => ({ kind: "team" as const, id: t.id, name: t.name, role: t.role_title, avatarUrl: t.avatar_url, birthday: t.birthday })),
   ], todayIso, 30) : [];

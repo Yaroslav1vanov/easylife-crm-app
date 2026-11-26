@@ -8,7 +8,7 @@ import { createAdmin } from "@/lib/supabase-admin";
    POST /api/scripts/trash { id }     — вернуть сценарий с тем же id, публикацию и все связи */
 export const dynamic = "force-dynamic";
 const KEEP_DAYS = 30;
-const CAN = ["owner", "admin", "assistant", "teamlead"];
+const CAN = ["owner", "admin", "assistant", "project", "teamlead"];
 
 async function guard() {
   const sb = createClient();

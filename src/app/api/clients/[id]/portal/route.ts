@@ -13,7 +13,7 @@ async function guard(clientId: number) {
   if (!user) return { err: NextResponse.json({ error: "Нужно войти в CRM" }, { status: 401 }) };
   const { data: me } = await sb.from("profiles").select("role").eq("id", user.id).maybeSingle();
   const role = me?.role || "";
-  if (["owner", "admin", "assistant"].includes(role)) return { ok: true };
+  if (["owner", "admin", "assistant", "project"].includes(role)) return { ok: true };
   if (role === "teamlead") {
     const [{ data: tm }, { data: c }] = await Promise.all([
       sb.from("team_members").select("id").eq("profile_id", user.id).maybeSingle(),

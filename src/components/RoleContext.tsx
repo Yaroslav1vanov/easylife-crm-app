@@ -3,7 +3,7 @@ import { createContext, useContext } from "react";
 
 // Роль текущего пользователя (из profiles.role), проброшенная из серверного layout.
 // Используется для ограничения UI (что видит/может монтажёр и т.п.).
-export type Role = "admin" | "owner" | "assistant" | "teamlead" | "montager" | string;
+export type Role = "admin" | "owner" | "assistant" | "project" | "teamlead" | "sales" | "montager" | string;
 
 const RoleCtx = createContext<Role>("montager");
 
@@ -24,10 +24,16 @@ export function useCanEditReadyAt(): boolean {
 }
 // Разделы, доступные роли (для сайдбара и гварда маршрутов).
 const MONTAGER_SECTIONS = ["dashboard", "today", "plan", "montage", "references", "transcribe", "motivation", "guide", "clients"];   // clients — только свои: карточка и «Чат · ИИ» для монтажа
+// Менеджер по продажам: видит всех клиентов (кейсы, цифры, отчёты), чтобы показывать их лидам. В производство не лезет.
+const SALES_SECTIONS = ["today", "tasks", "clients", "analytics", "reports", "calendar", "guide"];
 export const ALLOWED_SECTIONS: Record<string, string[] | "all"> = {
-  owner: "all", admin: "all", assistant: "all", teamlead: "all",
-  montager: MONTAGER_SECTIONS,
+  owner: "all", admin: "all", assistant: "all", project: "all", teamlead: "all",
+  montager: MONTAGER_SECTIONS, sales: SALES_SECTIONS,
 };
+/** Ассистент и проджект-менеджер: общая картина по всем клиентам и стратегия, без ЗП команды. */
+export function isAssistantLike(role: Role | null | undefined): boolean {
+  return role === "assistant" || role === "project";
+}
 /** Разделы только для владельца — деньги команды. Остальные роли их не видят вообще. */
 export const OWNER_ONLY_SECTIONS = ["payroll", "ai-usage"];
 /** Стратегия (забеги, задачи и дедлайны) и настройки — владелец и ассистент. */
@@ -42,14 +48,14 @@ export function useIsOwner(): boolean {
  *  владелец/админ и ассистент — он следит за пропусками и работает с тимлидами.
  *  Деньги (ЗП) ассистенту всё равно закрыты — они в OWNER_ONLY_SECTIONS. */
 export function seesOverview(role: Role): boolean {
-  return isOwner(role) || role === "assistant";
+  return isOwner(role) || isAssistantLike(role);
 }
 export function useSeesOverview(): boolean {
   return seesOverview(useRole());
 }
 export function sectionAllowed(role: Role, sectionId: string): boolean {
   if (OWNER_ONLY_SECTIONS.includes(sectionId)) return isOwner(role);
-  if (STRATEGY_SECTIONS.includes(sectionId)) return isOwner(role) || role === "assistant";
+  if (STRATEGY_SECTIONS.includes(sectionId)) return isOwner(role) || isAssistantLike(role);
   // Роль, которой нет в списке (осталась от старой версии, опечатка в базе), раньше
   // получала доступ ко всему. Теперь незнакомая роль получает минимум — как монтажёр.
   const allow = ALLOWED_SECTIONS[role] ?? MONTAGER_SECTIONS;

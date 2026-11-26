@@ -12,7 +12,9 @@ import { createClient as createAdmin } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
 
-const ROLES = ["owner", "admin", "teamlead", "montager"];
+const ROLES = ["owner", "admin", "assistant", "project", "teamlead", "sales", "montager"];
+// Роль доступа сразу задаёт и группу в «Команде» (member_type), чтобы человек оказался в нужном списке.
+const TYPE_BY_ROLE: Record<string, string> = { assistant: "assistant", project: "project", teamlead: "teamlead", sales: "sales", montager: "montager" };
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const teamId = Number(params.id);
@@ -74,7 +76,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   if (pErr) return NextResponse.json({ error: `роль: ${pErr.message}` }, { status: 500 });
 
   // Привязка аккаунта к строке в команде
-  const { error: tErr } = await sb.from("team_members").update({ profile_id: profile.id }).eq("id", teamId);
+  const tPatch: any = { profile_id: profile.id };
+  if (TYPE_BY_ROLE[role]) tPatch.member_type = TYPE_BY_ROLE[role];
+  const { error: tErr } = await sb.from("team_members").update(tPatch).eq("id", teamId);
   if (tErr) return NextResponse.json({ error: `привязка: ${tErr.message}` }, { status: 500 });
 
   return NextResponse.json({ ok: true, email, role, profileId: profile.id });

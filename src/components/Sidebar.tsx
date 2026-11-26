@@ -71,12 +71,13 @@ const ALL_ITEMS = GROUPS.flatMap(g => g.items);
 /** Нижний таб-бар: 4 главных раздела по роли + «Ещё» */
 function tabsForRole(role: string): string[] {
   if (role === "montager") return ["today", "montage", "plan", "references"];
-  if (role === "teamlead" || role === "assistant") return ["today", "scripts", "plan", "clients"];
+  if (role === "teamlead" || role === "assistant" || role === "project") return ["today", "scripts", "plan", "clients"];
+  if (role === "sales") return ["today", "clients", "analytics", "reports"];
   return ["today", "dashboard", "clients", "plan"];
 }
 
 const ROLE_LABEL: Record<string, string> = {
-  owner: "Владелец", admin: "Админ", teamlead: "Тимлид", montager: "Монтажёр", assistant: "Ассистент",
+  owner: "Владелец", admin: "Админ", teamlead: "Тимлид", montager: "Монтажёр", assistant: "Ассистент", project: "Проджект", sales: "Продажи",
 };
 
 export function Sidebar({ userRole }: { userRole: string }) {

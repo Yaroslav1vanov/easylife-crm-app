@@ -8,13 +8,25 @@ import AvatarUploader from "@/components/AvatarUploader";
 import Avatar from "@/components/Avatar";
 import Tour, { TourButton, type TourStep } from "@/components/Tour";
 import { useIsOwner, useSeesOverview } from "@/components/RoleContext";
-import { Crown, Users2, Scissors, Plus, X, UserPlus, AlertTriangle, type LucideIcon } from "lucide-react";
+import { Crown, Users2, Scissors, Plus, X, UserPlus, AlertTriangle, ClipboardCheck, Briefcase, Handshake, type LucideIcon } from "lucide-react";
 
 type RoleDef = { type: string; title: string; color: string; Icon: LucideIcon; roleNoun: string };
 const ROLES: RoleDef[] = [
   { type: "admin", title: "Админы", color: "var(--cy)", Icon: Crown, roleNoun: "клиентов" },
-  { type: "teamlead", title: "Менеджеры", color: "var(--pu)", Icon: Users2, roleNoun: "клиентов" },
+  { type: "assistant", title: "Ассистенты", color: "var(--cy)", Icon: ClipboardCheck, roleNoun: "клиентов" },
+  { type: "project", title: "Проджекты", color: "var(--cy)", Icon: Briefcase, roleNoun: "клиентов" },
+  { type: "teamlead", title: "Тимлиды", color: "var(--pu)", Icon: Users2, roleNoun: "клиентов" },
+  { type: "sales", title: "Продажи", color: "var(--gr)", Icon: Handshake, roleNoun: "клиентов" },
   { type: "montager", title: "Монтажёры", color: "var(--or)", Icon: Scissors, roleNoun: "в монтаже" },
+];
+
+/* Роли доступа в CRM. Выбранная роль задаёт и что человек видит, и его группу в «Команде». */
+const ACCESS_ROLES = [
+  { v: "montager", l: "Монтажёр", d: "Только свои клиенты в монтаже: Сегодня, Монтаж, Контент-план, Референсы, Транскрибация, Гайд, Моя ЗП." },
+  { v: "teamlead", l: "Тимлид", d: "Свои клиенты: сценарии, монтаж, публикации, аналитика, карточки. Без стратегии, настроек и ЗП команды." },
+  { v: "sales", l: "Менеджер по продажам", d: "Все клиенты только для показа кейсов: карточки, аналитика, отчёты, календарь, задачи. Без сценариев, монтажа и ЗП." },
+  { v: "project", l: "Проджект", d: "Все клиенты и вся работа команды, стратегия и настройки. Без ЗП команды: зарплаты видит только владелец." },
+  { v: "assistant", l: "Ассистент", d: "Как проджект: все клиенты, просрочки, стратегия и настройки. Без ЗП команды." },
 ];
 
 export default function TeamPage() {
@@ -42,7 +54,7 @@ export default function TeamPage() {
   function openAccess(m: TeamMember) {
     setAccessFor(m);
     setAccEmail(""); setAccPass(""); setAccHint(null);
-    setAccRole(m.member_type === "montager" ? "montager" : "teamlead");
+    setAccRole(ACCESS_ROLES.some(r => r.v === m.member_type) ? m.member_type : m.member_type === "admin" ? "assistant" : "teamlead");
   }
 
   // «@name@gmail.com», пробелы и невидимые символы из копипасты — частая причина отказа Supabase
@@ -181,7 +193,10 @@ export default function TeamPage() {
             <div><label style={{ fontSize: 9, fontWeight: 800, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 0.5, display: "block", marginBottom: 5 }}>Роль</label>
               <select value={newType} onChange={e => setNewType(e.target.value)} style={fld}>
                 <option value="montager">Монтажёр</option>
-                <option value="teamlead">Менеджер</option>
+                <option value="teamlead">Тимлид</option>
+                <option value="sales">Менеджер по продажам</option>
+                <option value="project">Проджект</option>
+                <option value="assistant">Ассистент</option>
                 <option value="admin">Админ</option>
               </select></div>
             <button onClick={addMember} style={{ padding: "9px 16px", borderRadius: 9, background: "var(--gr)", color: "var(--on-accent)", border: "none", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>
@@ -313,12 +328,9 @@ export default function TeamPage() {
             </div>
 
             <div>
-              <label style={{ fontSize: 9, fontWeight: 800, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 0.5, display: "block", marginBottom: 5 }}>Что видит</label>
+              <label style={{ fontSize: 9, fontWeight: 800, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 0.5, display: "block", marginBottom: 5 }}>Роль</label>
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                {[
-                  { v: "montager", l: "Монтажёр", d: "Дашборд, Монтаж, Референсы, Гайд" },
-                  { v: "teamlead", l: "Менеджер / ассистент", d: "всё, кроме ЗП" },
-                ].map(o => (
+                {ACCESS_ROLES.map(o => (
                   <button key={o.v} onClick={() => setAccRole(o.v)} title={o.d}
                     style={{ padding: "7px 12px", borderRadius: 8, fontSize: 11, fontWeight: 800, cursor: "pointer",
                       border: `1px solid ${accRole === o.v ? "var(--cy)" : "var(--brd)"}`,
@@ -329,7 +341,7 @@ export default function TeamPage() {
                 ))}
               </div>
               <div style={{ fontSize: 10, color: "var(--t3)", marginTop: 6 }}>
-                {accRole === "montager" ? "Дашборд, Монтаж, Референсы, Гайд" : "Все разделы, кроме «ЗП команды» — зарплаты видит только владелец"}
+                {ACCESS_ROLES.find(r => r.v === accRole)?.d}
               </div>
             </div>
 

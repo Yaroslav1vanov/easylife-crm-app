@@ -140,7 +140,7 @@ const S = `
 export default function StrategyPage() {
   const supabase = createClient();
   const role = useRole();
-  const allowed = isOwner(role) || role === "assistant";
+  const allowed = isOwner(role) || role === "assistant" || role === "project";
   const [tasks, setTasks] = useState<Task[]>([]);
   const [journal, setJournal] = useState<Entry[]>([]);
   const [sprints, setSprints] = useState<Sprint[]>([]);

@@ -1,8 +1,8 @@
 import type { Client, TeamMember } from "@/lib/database";
 
-/** Видит ли роль всех клиентов агентства (владелец, админ, ассистент). */
+/** Видит ли роль всех клиентов агентства (владелец, админ, ассистент, проджект, продажи). */
 export function seesAllClients(role: string | null | undefined): boolean {
-  return role === "owner" || role === "admin" || role === "assistant";
+  return ["owner", "admin", "assistant", "project", "sales"].includes(role || "");
 }
 
 /**

@@ -22,7 +22,7 @@ export async function POST(req: Request) {
     sb.from("client_avatars").select("heygen_group_id, looks_synced_at").eq("client_id", cid).maybeSingle(),
   ]);
   if (!c) return NextResponse.json({ error: "клиент не найден" }, { status: 404 });
-  if (prof?.role !== "assistant" && !canGenerate(prof?.role, tm?.id, c))
+  if (prof?.role !== "assistant" && prof?.role !== "project" && !canGenerate(prof?.role, tm?.id, c))
     return NextResponse.json({ error: "Обновлять образы могут тимлид и монтажёр этого клиента, ассистент и Ярослав" }, { status: 403 });
   if (!av?.heygen_group_id) return NextResponse.json({ error: "К клиенту не привязана группа аватара (привязывает Ярослав в «Настройках»)" }, { status: 400 });
   if (!c.ai_chat) return NextResponse.json({ error: "У клиента выключен ИИ в чате" }, { status: 400 });
