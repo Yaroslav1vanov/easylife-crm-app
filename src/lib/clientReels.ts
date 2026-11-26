@@ -36,12 +36,20 @@ export async function clientReels(
       .eq("client_id", client.id).gte("pub_date", addDays(from, -1)).lte("pub_date", addDays(to, 1)),
   ]);
   // «обычный уровень» по каждой площадке свой — просмотры TikTok и Instagram не смешиваем
+  // Новый клиент (истории за 60 дней мало): норму считаем по истории + роликам текущего периода.
+  // Меньше 3 роликов на площадке — нормы нет (0), и «× к норме» не показываем: раньше там стояло 1, и x был равен просмотрам.
   const netNorm: Record<string, number> = {};
-  for (const net of Array.from(new Set(hist.map((p: any) => p._net as string)))) {
-    const v = hist.filter((p: any) => p._net === net).map(p => reelFields(p).views).filter(x => x > 0);
-    netNorm[net] = median(v.slice(-30)) || median(v) || 1;
+  const pool = (net?: string) => {
+    const h = hist.filter((p: any) => !net || p._net === net).map(p => reelFields(p).views).filter(x => x > 0);
+    if (h.length >= 5) return h.slice(-30);
+    return h.concat(raw.filter((p: any) => !net || p._net === net).map(p => reelFields(p).views).filter(x => x > 0));
+  };
+  for (const net of Array.from(new Set([...hist, ...raw].map((p: any) => p._net as string)))) {
+    const v = pool(net);
+    netNorm[net] = v.length >= 3 ? median(v) : 0;
   }
-  const normAll = median(hist.map(p => reelFields(p).views).filter(v => v > 0).slice(-30)) || 1;
+  const allV = pool();
+  const normAll = allV.length >= 3 ? median(allV) : 0;
   const scripts = (scr.data || []) as any[];
   const nameOf = (x: any) => String(x.hook_text || x.hook || "").replace(/^Сценарий #\d+$/, "").trim();
   const byCode = new Map(scripts.filter(x => x.published_url).map(x => [code(x.published_url), x]));
@@ -65,7 +73,7 @@ export async function clientReels(
         views: f.views, reach: f.reach, likes: f.likes, comments: f.comments, saves: f.saved, shares: f.shares,
         er: base ? Math.round((((f.likes || 0) + (f.comments || 0) + (f.saved || 0) + (f.shares || 0)) / base) * 1000) / 10 : null,
         retention: f.ret, retLoop: f.retLoop, retRaw: f.retRaw, duration: f.dur, skip: f.skip,
-        x: Math.round((f.views / (netNorm[net] || normAll)) * 100) / 100,
+        x: (netNorm[net] || normAll) ? Math.round((f.views / (netNorm[net] || normAll)) * 100) / 100 : 0,
         isOurs: !!sc, scriptId: sc ? sc.id : null,
         watch: f.watch != null ? Math.round(f.watch * 10) / 10 : null,
         paidViews: f.paidViews, paidReach: f.paidReach, spend: f.spend, follows: f.follows,
@@ -104,7 +112,7 @@ async function mergeChatplace(sb: SupabaseClient, clientId: number, from: string
       date: v.date, net: "instagram", ourTitle: sc ? nameOf(sc) : null, caption,
       title: (sc ? nameOf(sc) : "") || caption || "без подписи", url: v.url || null, image: null,
       views: v.views || 0, reach: v.reach, likes: v.likes, comments: v.comments, saves: v.saves, shares: v.shares, er: er(v),
-      retention: null, duration: null, skip, x: Math.round(((v.views || 0) / (norm || 1)) * 100) / 100, isOurs: !!sc, scriptId: sc ? sc.id : null,
+      retention: null, duration: null, skip, x: norm ? Math.round(((v.views || 0) / norm) * 100) / 100 : 0, isOurs: !!sc, scriptId: sc ? sc.id : null,
       watch, paidViews: null, paidReach: null, spend: null, follows: null,
     });
   }

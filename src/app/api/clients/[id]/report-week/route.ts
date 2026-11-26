@@ -59,20 +59,23 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     };
   };
   // «обычный уровень» — по каждой площадке свой: просмотры TikTok и Instagram в одну медиану не смешиваем
+  // Новый клиент: истории мало (<5 роликов) — добавляем ролики этой недели; меньше 3 роликов — нормы нет (0),
+  // и «× к норме» / «обычный уровень» не показываем (раньше норма была 1 и x равнялся просмотрам).
   const netNorm: Record<string, number> = {};
-  for (const net of Array.from(new Set(histRaw.map((p: any) => p._net)))) {
-    const v = histRaw.filter((p: any) => p._net === net).map(p => reelFields(p).views).filter(x => x > 0);
-    netNorm[net] = median(v.slice(-30)) || median(v) || 1;
+  for (const net of Array.from(new Set([...histRaw, ...curRaw].map((p: any) => p._net)))) {
+    const h = histRaw.filter((p: any) => p._net === net).map(p => reelFields(p).views).filter(x => x > 0);
+    const v = h.length >= 5 ? h.slice(-30) : h.concat(curRaw.filter((p: any) => p._net === net).map(p => reelFields(p).views).filter(x => x > 0));
+    netNorm[net] = v.length >= 3 ? median(v) : 0;
   }
-  const mainNet = netNorm.instagram ? "instagram" : Object.keys(netNorm)[0];
-  const norm = (mainNet && netNorm[mainNet]) || 1;
+  const mainNet = netNorm.instagram ? "instagram" : Object.keys(netNorm).find(k => netNorm[k]);
+  const norm = (mainNet && netNorm[mainNet]) || 0;
   const normOf = (net: string) => netNorm[net] || norm;
   // почти не показанные ролики (реклама из кабинета, тесты) не портят статистику — только сноской.
   // Порог относительный: у небольшого аккаунта 25 просмотров — обычный ролик, а не тест (Lash Couture, 19.10).
   const isTest = (r: WeekReel) => r.views < Math.max(5, normOf(r.net) * 0.03) && r.ageDays >= 3;
 
   const curAll = curRaw.map(map), prevAll = prevRaw.map(map);
-  const reels = curAll.filter(r => !isTest(r)).map(r => ({ ...r, x: Math.round((r.views / normOf(r.net)) * 100) / 100 }));
+  const reels = curAll.filter(r => !isTest(r)).map(r => ({ ...r, x: normOf(r.net) ? Math.round((r.views / normOf(r.net)) * 100) / 100 : 0 }));
   const excluded = curAll.filter(isTest).map(r => ({ views: r.views }));
   const prevReels = prevAll.filter(r => !isTest(r));
 
@@ -188,8 +191,8 @@ async function aiNarrative(sb: any, x: {
       ? (ru ? `Ролик ${dm(top.date)} собрал ${num(top.views)} просмотров` : `The ${dm(top.date)} video reached ${num(top.views)} views`)
       : (ru ? `За неделю ${num(x.cur.views)} просмотров на ${x.cur.n} роликах` : `${num(x.cur.views)} views from ${x.cur.n} videos this week`),
     lead: ru
-      ? `Вышло ${x.cur.n} роликов, просмотров ${num(x.cur.views)}${diff != null ? `, это ${diff >= 0 ? "+" : "−"}${Math.abs(diff)}% к прошлой неделе` : ""}. Обычный уровень аккаунта — ${num(Math.round(x.norm))} просмотров на ролик.`
-      : `${x.cur.n} videos went live with ${num(x.cur.views)} views${diff != null ? `, ${diff >= 0 ? "+" : "−"}${Math.abs(diff)}% vs the previous week` : ""}. The account's usual level is ${num(Math.round(x.norm))} views per video.`,
+      ? `Вышло ${x.cur.n} роликов, просмотров ${num(x.cur.views)}${diff != null ? `, это ${diff >= 0 ? "+" : "−"}${Math.abs(diff)}% к прошлой неделе` : ""}.${x.norm ? ` Обычный уровень аккаунта — ${num(Math.round(x.norm))} просмотров на ролик.` : ""}`
+      : `${x.cur.n} videos went live with ${num(x.cur.views)} views${diff != null ? `, ${diff >= 0 ? "+" : "−"}${Math.abs(diff)}% vs the previous week` : ""}.${x.norm ? ` The account's usual level is ${num(Math.round(x.norm))} views per video.` : ""}`,
     hit: [] as string[],
     cards: [] as { tone: "g" | "y" | "r"; title: string; text: string }[],
     plan: [] as string[],
@@ -202,7 +205,7 @@ async function aiNarrative(sb: any, x: {
 Неделя: ${x.from} — ${x.to}
 Эта неделя: роликов ${x.cur.n}, просмотров ${x.cur.views}, охват ${x.cur.reach}, лайки ${x.cur.likes}, комментарии ${x.cur.comments}, сохранения ${x.cur.saved}, репосты ${x.cur.shares}, средний досмотр ${x.cur.ret ?? "—"}%
 Прошлая неделя: роликов ${x.prev.n}, просмотров ${x.prev.views}, сохранения ${x.prev.saved}, репосты ${x.prev.shares}, досмотр ${x.prev.ret ?? "—"}%
-Обычный уровень аккаунта (медиана последних 30 роликов): ${Math.round(x.norm)} просмотров
+Обычный уровень аккаунта (медиана последних 30 роликов): ${x.norm ? `${Math.round(x.norm)} просмотров` : "пока не считаем: роликов мало, сравнение с нормой не делай"}
 Ролики недели:
 ${list}`;
   const sys = ru
