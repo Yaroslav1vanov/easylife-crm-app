@@ -1,10 +1,13 @@
 "use client";
 import { useState } from "react";
-import { Link2, Copy, RefreshCw } from "lucide-react";
+import { Link2, Copy, RefreshCw, Plus } from "lucide-react";
 
 /* Кнопка в «Настройках» карточки: ссылка, по которой клиент сам подключает свои соцсети к бренду Metricool.
-   Тимлид копирует её (или сразу с текстом) и отправляет клиенту. */
-export default function MetricoolConnectLink({ clientId }: { clientId: number }) {
+   Тимлид копирует её (или сразу с текстом) и отправляет клиенту.
+   Нового клиента в Metricool ещё нет: кнопка создаёт ему бренд (с именем клиента), привязывает к карточке и сразу даёт ссылку. */
+export default function MetricoolConnectLink({ clientId, blogId, clientName, onCreated }: {
+  clientId: number; blogId: number | null; clientName?: string; onCreated?: () => void;
+}) {
   const [st, setSt] = useState<{ link: string | null; exp: string | null } | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -21,12 +24,30 @@ export default function MetricoolConnectLink({ clientId }: { clientId: number })
     } catch (e: any) { setErr(String(e?.message || e)); }
     setBusy(false);
   }
+  async function createBrand() {
+    if (!confirm(`Создать в Metricool новый бренд «${clientName || "клиент"}» и привязать его к этой карточке?\n\nЕсли клиент уже есть в Metricool, лучше выбрать его в «Привязать бренд».`)) return;
+    setBusy(true); setErr("");
+    try {
+      const r = await fetch(`/api/clients/${clientId}/metricool-brand`, { method: "POST" });
+      const j = await r.json();
+      if (!r.ok) { setErr(j.error || "Metricool не создал бренд"); setBusy(false); return; }
+      onCreated?.();
+    } catch (e: any) { setErr(String(e?.message || e)); setBusy(false); return; }
+    await get(true);
+  }
   const msg = (l: string) => `Здравствуйте! Чтобы мы могли публиковать ролики и собирать статистику, подключите, пожалуйста, ваши соцсети по ссылке: ${l}\nОткройте её, нажмите на нужную соцсеть (Instagram, TikTok, YouTube) и войдите в свой аккаунт. Регистрироваться нигде не нужно. Ссылка действует 3 дня.`;
   const copy = async (t: string, what: string) => { try { await navigator.clipboard.writeText(t); setCopied(what); setTimeout(() => setCopied(""), 1800); } catch {} };
 
   return (
     <div style={{ marginTop: 10 }}>
-      {!st ? (
+      {!st && !blogId ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <button className="v2-act" disabled={busy} onClick={createBrand} style={{ alignSelf: "flex-start" }}>
+            <Plus size={13} /> {busy ? "Создаю бренд…" : "Новый клиент: создать бренд и ссылку для подключения"}
+          </button>
+          <div className="v2-hint">Если клиента ещё нет в Metricool: создадим бренд с его именем, привяжем к карточке и дадим ссылку. По ней клиент сам войдёт в свои соцсети.</div>
+        </div>
+      ) : !st ? (
         <button className="v2-act" disabled={busy} onClick={() => get(false)}>
           <Link2 size={13} /> {busy ? "Получаю ссылку…" : "Ссылка клиенту: подключить соцсети"}
         </button>

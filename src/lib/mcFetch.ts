@@ -27,6 +27,9 @@ async function brandIds(): Promise<Set<string> | null> {
   }
 }
 
+/** Сбросить кэш списка брендов (после создания бренда). */
+export function forgetMetricoolBrands() { cache = null; }
+
 /** Есть ли бренд в аккаунте Metricool (null — не удалось проверить). */
 export async function metricoolBrandExists(blogId: string | number): Promise<boolean | null> {
   const ids = await brandIds();
@@ -36,7 +39,9 @@ export async function metricoolBrandExists(blogId: string | number): Promise<boo
 export async function mcFetch(input: string, init?: RequestInit): Promise<Response> {
   const m = input.match(/[?&]blogId=(\d+)/);
   if (m && input.includes(MC) && !input.includes("/admin/simpleProfiles")) {
-    const ids = await brandIds();
+    let ids = await brandIds();
+    // бренд могли только что создать (кнопка «Новый клиент» в настройках) — список перечитываем, прежде чем отказать
+    if (ids && !ids.has(m[1]) && cache && Date.now() - cache.at > 20 * 1000) { cache = null; ids = await brandIds(); }
     if (ids && !ids.has(m[1])) {
       console.warn(`[metricool] бренд ${m[1]} не найден в аккаунте — запрос не отправлен: ${input.split("?")[0].replace(/^https:\/\/app\.metricool\.com\/api/, "")}`);
       return new Response(JSON.stringify({ error: `Бренд Metricool ${m[1]} не найден в аккаунте (удалён или переподключён). Привяжите бренд заново: карточка клиента → «Настройки» → «Бренд в Metricool».`, brandMissing: true }),

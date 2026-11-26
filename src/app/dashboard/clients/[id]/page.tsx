@@ -521,7 +521,8 @@ export default function ClientDetailPage() {
                   // соцсети бренда — сразу в шапку карточки, вручную добавлять не нужно
                   if (v) { try { await fetch(`/api/clients/${clientId}/socials-from-metricool`, { method: "POST" }); } catch {} load(); }
                 }} />
-                {c.metricool_blog_id ? <MetricoolConnectLink clientId={clientId} /> : null}</div>
+                <MetricoolConnectLink clientId={clientId} blogId={c.metricool_blog_id ?? null} clientName={[c.name, c.surname].filter(Boolean).join(" ")}
+                  onCreated={async () => { try { await fetch(`/api/clients/${clientId}/socials-from-metricool`, { method: "POST" }); } catch {} load(); }} /></div>
             )}
             <div className="v2-fr" style={{ display: "block" }}>
               <ChatplaceBotPicker clientId={clientId} botId={(c as any).chatplace_bot_id ?? null} instagram={c.instagram}
