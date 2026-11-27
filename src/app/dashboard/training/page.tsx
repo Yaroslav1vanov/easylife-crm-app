@@ -86,30 +86,8 @@ export default function TrainingPage() {
         )}
       </div>
 
-      <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap-reverse" }}>
-        {/* список уроков */}
-        <div style={{ flex: "1 1 300px", maxWidth: 380, minWidth: 260, display: "flex", flexDirection: "column", gap: 6 }}>
-          {lessons.map((l, i) => {
-            const active = l.n === lesson.n, seen = watched.includes(l.n);
-            return (
-              <button key={l.n} onClick={() => open(l.n)}
-                style={{ display: "flex", alignItems: "center", gap: 11, padding: "11px 12px", borderRadius: 12, textAlign: "left", cursor: "pointer",
-                  border: `1px solid ${active ? tint(C, 0.55) : "var(--brd)"}`, background: active ? tint(C, 0.1) : "rgba(var(--vi-rgb),0.04)" }}>
-                <span style={{ flexShrink: 0, width: 28, height: 28, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center",
-                  fontFamily: "'Unbounded', sans-serif", fontSize: 12, fontWeight: 800,
-                  background: seen ? "rgba(var(--gr-rgb),0.15)" : tint(C, 0.12), color: seen ? "var(--gr)" : C }}>
-                  {seen ? <CheckCircle2 size={15} /> : i + 1}
-                </span>
-                <span style={{ flex: 1, minWidth: 0 }}>
-                  <span style={{ display: "block", fontSize: 13, fontWeight: 700, color: "var(--t1)", lineHeight: 1.35 }}>{l.title}</span>
-                  <span style={{ display: "block", fontSize: 11, color: "var(--t3)", marginTop: 2 }}>{l.dur}{seen ? " · просмотрено" : ""}</span>
-                </span>
-                {active && <PlayCircle size={16} style={{ color: C, flexShrink: 0 }} />}
-              </button>
-            );
-          })}
-        </div>
-
+      {/* плеер первым в разметке: на телефоне он сверху, на компьютере справа (row-reverse) */}
+      <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap", flexDirection: "row-reverse" }}>
         {/* плеер */}
         <div style={{ flex: "3 1 520px", minWidth: 0, background: "rgba(var(--vi-rgb),0.04)", border: "1px solid var(--brd)", borderRadius: 18, padding: 16 }}>
           <video key={lesson.url} ref={videoRef} src={lesson.url} controls playsInline preload="metadata" onTimeUpdate={onTime}
@@ -141,6 +119,29 @@ export default function TrainingPage() {
             </div>
           </div>
         </div>
+        {/* список уроков */}
+        <div style={{ flex: "1 1 300px", maxWidth: 380, minWidth: 260, display: "flex", flexDirection: "column", gap: 6 }}>
+          {lessons.map((l, i) => {
+            const active = l.n === lesson.n, seen = watched.includes(l.n);
+            return (
+              <button key={l.n} onClick={() => open(l.n)}
+                style={{ display: "flex", alignItems: "center", gap: 11, padding: "11px 12px", borderRadius: 12, textAlign: "left", cursor: "pointer",
+                  border: `1px solid ${active ? tint(C, 0.55) : "var(--brd)"}`, background: active ? tint(C, 0.1) : "rgba(var(--vi-rgb),0.04)" }}>
+                <span style={{ flexShrink: 0, width: 28, height: 28, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center",
+                  fontFamily: "'Unbounded', sans-serif", fontSize: 12, fontWeight: 800,
+                  background: seen ? "rgba(var(--gr-rgb),0.15)" : tint(C, 0.12), color: seen ? "var(--gr)" : C }}>
+                  {seen ? <CheckCircle2 size={15} /> : i + 1}
+                </span>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ display: "block", fontSize: 13, fontWeight: 700, color: "var(--t1)", lineHeight: 1.35 }}>{l.title}</span>
+                  <span style={{ display: "block", fontSize: 11, color: "var(--t3)", marginTop: 2 }}>{l.dur}{seen ? " · просмотрено" : ""}</span>
+                </span>
+                {active && <PlayCircle size={16} style={{ color: C, flexShrink: 0 }} />}
+              </button>
+            );
+          })}
+        </div>
+
       </div>
     </div>
   );
