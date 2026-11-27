@@ -23,9 +23,9 @@ export function useCanEditReadyAt(): boolean {
   return r === "owner" || r === "admin";
 }
 // Разделы, доступные роли (для сайдбара и гварда маршрутов).
-const MONTAGER_SECTIONS = ["dashboard", "today", "plan", "montage", "references", "transcribe", "motivation", "guide", "clients"];   // clients — только свои: карточка и «Чат · ИИ» для монтажа
+const MONTAGER_SECTIONS = ["dashboard", "today", "plan", "montage", "references", "transcribe", "motivation", "guide", "training", "clients"];   // clients — только свои: карточка и «Чат · ИИ» для монтажа
 // Менеджер по продажам: видит всех клиентов (кейсы, цифры, отчёты), чтобы показывать их лидам. В производство не лезет.
-const SALES_SECTIONS = ["today", "tasks", "clients", "analytics", "reports", "calendar", "guide"];
+const SALES_SECTIONS = ["today", "tasks", "clients", "analytics", "reports", "calendar", "guide", "training"];
 export const ALLOWED_SECTIONS: Record<string, string[] | "all"> = {
   owner: "all", admin: "all", assistant: "all", project: "all", teamlead: "all",
   montager: MONTAGER_SECTIONS, sales: SALES_SECTIONS,

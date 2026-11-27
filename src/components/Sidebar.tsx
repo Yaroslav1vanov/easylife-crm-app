@@ -13,7 +13,7 @@ import {
   LayoutDashboard, Users, FileText, Scissors, Send, Calendar, Rocket, Flame,
   HandshakeIcon, BarChart3, Mic, Coins, ClipboardList, BookOpen, Settings, LogOut, Wallet, Moon, Sun,
   CalendarCheck, CalendarDays, MoreHorizontal, Search, Target, ListChecks, type LucideIcon,
-  Trash2, Bot,
+  Trash2, Bot, GraduationCap,
 } from "lucide-react";
 
 function BrandMark({ size = 26 }: { size?: number }) {
@@ -61,6 +61,7 @@ const GROUPS: NavGroup[] = [
     { id: "motivation", path: "/dashboard/motivation", icon: Coins, label: "Моя ЗП" },
   ]},
   { title: "Ещё", items: [
+    { id: "training", path: "/dashboard/training", icon: GraduationCap, label: "Обучение" },
     { id: "guide", path: "/dashboard/guide", icon: BookOpen, label: "Гайд" },
     { id: "trash", path: "/dashboard/trash", icon: Trash2, label: "Корзина" },
     { id: "settings", path: "/dashboard/settings", icon: Settings, label: "Настройки" },
