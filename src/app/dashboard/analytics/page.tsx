@@ -18,9 +18,10 @@ type Row = {
   client_id: number; ym: string; network: string; posts_count: number | null;
   views: number | null; reach: number | null; likes: number | null; comments: number | null;
   saves: number | null; shares: number | null; top_posts: any[] | null;
-  carousels_count: number | null; carousel_views: number | null; our_videos: number | null;
+  carousels_count: number | null; carousel_views: number | null;
+  followers_start: number | null; followers_end: number | null;
 };
-type Totals = { posts: number; views: number; reach: number; likes: number; comments: number; saves: number; shares: number; our: number; carousels: number };
+type Totals = { posts: number; views: number; reach: number; likes: number; comments: number; saves: number; shares: number; carousels: number; fol: number; folEnd: number };
 
 const NETS = [
   { id: "all", label: "Все сети", color: "var(--pu)" },
@@ -35,6 +36,11 @@ const RU_M = ["январь", "февраль", "март", "апрель", "м�
 const ymLabel = (ym: string) => { const [y, m] = ym.split("-").map(Number); return `${RU_M[m - 1]} ${y}`; };
 const ymShort = (ym: string) => RU_M[Number(ym.slice(5, 7)) - 1].slice(0, 3);
 const curYm = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
+/** Сдвиг месяца: addYm("2026-01", -1) = "2025-12" */
+const addYm = (ym: string, k: number) => { const [y, m] = ym.split("-").map(Number); const d = new Date(y, m - 1 + k, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
+const spanYm = (a: string, b: string) => { const [y1, m1] = a.split("-").map(Number); const [y2, m2] = b.split("-").map(Number); return (y2 - y1) * 12 + (m2 - m1) + 1; };
+const rangeLabel = (a: string, b: string) => a === b ? ymLabel(a)
+  : a.slice(0, 4) === b.slice(0, 4) ? `${RU_M[Number(a.slice(5, 7)) - 1]} – ${ymLabel(b)}` : `${ymLabel(a)} – ${ymLabel(b)}`;
 const fmt = (v: number | null | undefined) => {
   if (v == null) return "—";
   if (v >= 1_000_000) return (v / 1_000_000).toFixed(1).replace(".0", "") + " млн";
@@ -44,11 +50,17 @@ const fmt = (v: number | null | undefined) => {
 /** Роликов за месяц: одно и то же видео публикуется в Instagram и TikTok, поэтому берём сеть, где их больше. */
 const maxPosts = (list: Row[]) => list.reduce((m, r) => Math.max(m, r.posts_count || 0), 0);
 const pct = (cur: number, prev: number | undefined) => (prev ? Math.round(((cur - prev) / prev) * 100) : null);
-const zero = (): Totals => ({ posts: 0, views: 0, reach: 0, likes: 0, comments: 0, saves: 0, shares: 0, our: 0, carousels: 0 });
+const zero = (): Totals => ({ posts: 0, views: 0, reach: 0, likes: 0, comments: 0, saves: 0, shares: 0, carousels: 0, fol: 0, folEnd: 0 });
+const sumT = (a: Totals, b: Totals): Totals => ({ posts: a.posts + b.posts, views: a.views + b.views, reach: a.reach + b.reach, likes: a.likes + b.likes, comments: a.comments + b.comments, saves: a.saves + b.saves, shares: a.shares + b.shares, carousels: a.carousels + b.carousels, fol: a.fol + b.fol, folEnd: b.folEnd });
+/** Реакций на 100 просмотров роликов */
+const er = (t: Totals) => t.views ? ((t.likes + t.comments + t.saves + t.shares) / t.views) * 100 : 0;
 const addRow = (t: Totals, r: Row) => {
   // ролики сюда не суммируем: одно видео выходит в нескольких сетях — см. maxPosts
   t.carousels += r.carousels_count || 0; t.views += r.views || 0; t.reach += r.reach || 0; t.likes += r.likes || 0;
   t.comments += r.comments || 0; t.saves += r.saves || 0; t.shares += r.shares || 0;
+  // подписчики: прирост за месяц по снимкам и сколько их на конец месяца
+  if (r.followers_start != null && r.followers_end != null) t.fol += r.followers_end - r.followers_start;
+  if (r.followers_end != null) t.folEnd += r.followers_end;
 };
 
 export default function AnalyticsPage() {
@@ -60,7 +72,8 @@ export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true);
   const [net, setNet] = useState("all");
   const [withPaused, setWithPaused] = useState(false);
-  const [sel, setSel] = useState<string | null>(null);
+  const [from, setFrom] = useState<string | null>(null);   // период: с месяца…
+  const [to, setTo] = useState<string | null>(null);       // …по месяц включительно
   const [openBrand, setOpenBrand] = useState<number | null>(null);
   const [mounted, setMounted] = useState(false);
 
@@ -73,7 +86,7 @@ export default function AnalyticsPage() {
     setClients(mine);
     if (mine.length) {
       const { data } = await supabase.from("client_monthly_stats")
-        .select("client_id, ym, network, posts_count, views, reach, likes, comments, saves, shares, top_posts, carousels_count, carousel_views, our_videos")
+        .select("client_id, ym, network, posts_count, views, reach, likes, comments, saves, shares, top_posts, carousels_count, carousel_views, followers_start, followers_end")
         .in("client_id", mine.map(c => c.id)).order("ym");
       setRows((data || []) as Row[]);
     }
@@ -112,10 +125,6 @@ export default function AnalyticsPage() {
 
   const months = useMemo(() => Array.from(new Set(rows.map(r => r.ym))).sort(), [rows]);
 
-  // «Наших» роликов — по CRM, у каждого клиента бренда своя цифра (Панченко TikTok и Instagram — отдельно)
-  const ourOf = (b: { clients: Client[] }, ym: string) =>
-    b.clients.reduce((s, c) => s + rows.filter(r => r.client_id === c.id && r.ym === ym).reduce((m, r) => Math.max(m, r.our_videos || 0), 0), 0);
-
   // итоги агентства по месяцам; одинаковые данные разных брендов (общий канал) считаем один раз
   const monthly = useMemo(() => {
     return months.map(ym => {
@@ -133,64 +142,84 @@ export default function AnalyticsPage() {
           byNet[r.network] = (byNet[r.network] || 0) + (r.views || 0);
         }
         t.posts += maxPosts(list);
-        t.our += ourOf(b, ym);
       }
       return { ym, t, byNet, active, partial: ym === curYm() };
     });
   }, [months, brands, brandRows]);
 
-  // по умолчанию — последний полный месяц: сравнивать неполный сентябрь с полным августом бессмысленно
+  // по умолчанию — последний полный месяц: сравнивать неполный месяц с полным бессмысленно
+  const lastYm = monthly.length ? monthly[monthly.length - 1].ym : null;
+  const lastFull = useMemo(() => { const f = monthly.filter(m => !m.partial); return (f.length ? f[f.length - 1] : monthly[monthly.length - 1])?.ym || null; }, [monthly]);
   useEffect(() => {
-    if (!monthly.length || (sel && monthly.find(m => m.ym === sel))) return;
-    const full = monthly.filter(m => !m.partial);
-    setSel((full.length ? full[full.length - 1] : monthly[monthly.length - 1]).ym);
-  }, [monthly]);
+    if (!lastFull || (from && to)) return;
+    setFrom(lastFull); setTo(lastFull);
+  }, [lastFull]);
+  const setRange = (a: string, b: string) => { const [x, y] = a <= b ? [a, b] : [b, a]; setFrom(x); setTo(y); };
 
-  const i = monthly.findIndex(m => m.ym === sel);
-  const cur = monthly[i];
-  const prev = i > 0 ? monthly[i - 1] : undefined;
+  // выбранный период и такой же по длине период перед ним (для сравнения)
+  const span = from && to ? spanYm(from, to) : 0;
+  const pFrom = from ? addYm(from, -span) : null, pTo = from ? addYm(from, -1) : null;
+  const inR = (ym: string, a: string | null, b: string | null) => !!a && !!b && ym >= a && ym <= b;
+  const prevHasData = !!pFrom && !!months[0] && months[0] <= pFrom;   // данные есть за весь прошлый период
+  const cur = useMemo(() => {
+    const list = monthly.filter(m => inR(m.ym, from, to));
+    if (!list.length) return null;
+    const t = list.reduce((a, m) => sumT(a, m.t), zero());
+    return { t, partial: list.some(m => m.partial), months: list.length };
+  }, [monthly, from, to]);
+  const prev = useMemo(() => {
+    if (!prevHasData) return undefined;
+    const list = monthly.filter(m => inR(m.ym, pFrom, pTo));
+    return list.length ? { t: list.reduce((a, m) => sumT(a, m.t), zero()) } : undefined;
+  }, [monthly, pFrom, pTo, prevHasData]);
   const maxViews = Math.max(1, ...monthly.map(m => m.t.views));
 
-  // рейтинг брендов за выбранный месяц
+  // клиенты за выбранный период
   const board = useMemo(() => {
-    if (!sel) return [];
-    const pi = months.indexOf(sel) - 1;
-    const prevYm = pi >= 0 ? months[pi] : null;
+    if (!from || !to) return [];
     return brands.map(b => {
       const list = brandRows.get(b.blog) || [];
-      const inSel = list.filter(r => r.ym === sel);
-      const t = zero(); inSel.forEach(r => addRow(t, r));
-      t.posts = maxPosts(inSel); t.our = ourOf(b, sel);
-      const p = zero(); list.filter(r => r.ym === prevYm).forEach(r => addRow(p, r));
+      const agg = (a: string | null, z: string | null) => months.filter(ym => inR(ym, a, z)).reduce((acc, ym) => {
+        const inM = list.filter(r => r.ym === ym);
+        const t = zero(); inM.forEach(r => addRow(t, r)); t.posts = maxPosts(inM);
+        return sumT(acc, t);
+      }, zero());
+      const t = agg(from, to);
+      const p = prevHasData ? agg(pFrom, pTo) : null;
       const spark = months.map(ym => list.filter(r => r.ym === ym).reduce((s, r) => s + (r.views || 0), 0));
-      const nets = Array.from(new Set(list.filter(r => r.ym === sel && (r.posts_count || 0) > 0).map(r => r.network)));
-      return { ...b, t, prevViews: p.views, spark, nets };
+      const nets = Array.from(new Set(list.filter(r => inR(r.ym, from, to) && (r.posts_count || 0) > 0).map(r => r.network)));
+      return { ...b, t, prevViews: p?.views, prevPosts: p?.posts, spark, nets };
     }).sort((a, b) => b.t.views - a.t.views);
-  }, [brands, brandRows, sel, months]);
+  }, [brands, brandRows, from, to, months, pFrom, pTo, prevHasData]);
+  const active = board.filter(b => b.t.posts > 0);
+  const silent = board.filter(b => b.t.posts === 0);
 
-  // лучшие ролики агентства за месяц
+  // лучшие ролики агентства за период
   const topReels = useMemo(() => {
-    if (!sel) return [];
+    if (!from || !to) return [];
     const nameOf = new Map(brands.map(b => [b.lead.id, b.name]));
     const avatarOf = new Map(brands.map(b => [b.lead.id, b.lead]));
     const seen = new Set<string>();
-    return rows.filter(r => r.ym === sel && nameOf.has(r.client_id) && (net === "all" || r.network === net))
+    return rows.filter(r => inR(r.ym, from, to) && nameOf.has(r.client_id) && (net === "all" || r.network === net))
       .flatMap(r => (r.top_posts || []).map(p => ({ ...p, network: r.network, client: nameOf.get(r.client_id)!, lead: avatarOf.get(r.client_id)! })))
       .filter(p => { const k = p.url || `${p.client}|${p.title}`; if (seen.has(k)) return false; seen.add(k); return true; })
       .sort((a, b) => (b.views || 0) - (a.views || 0)).slice(0, 10);
-  }, [rows, sel, brands, net]);
+  }, [rows, from, to, brands, net]);
 
   const openB = brands.find(b => b.blog === openBrand);
 
   if (loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--t2)" }}>Загрузка…</div>;
 
-  const Tile = ({ label, v, p, big }: { label: string; v: number; p: number | null; big?: boolean }) => (
-    <div style={{ padding: big ? "16px 18px" : "13px 14px", borderRadius: 14, background: big ? "linear-gradient(135deg, rgba(var(--cy-rgb),0.10), rgba(var(--pu-rgb),0.12))" : "var(--inset)", border: `1px solid ${big ? "rgba(var(--pu-rgb),0.35)" : "var(--brd)"}`, gridColumn: big ? "span 2" : undefined }}>
+  const cmpLabel = span === 1 ? "к прошлому месяцу" : "к прошлому периоду";
+  const Tile = ({ label, v, p, big, sub, hint }: { label: string; v: string; p?: number | null; big?: boolean; sub?: React.ReactNode; hint?: string }) => (
+    <div title={hint} style={{ padding: big ? "16px 18px" : "13px 14px", borderRadius: 14, background: big ? "linear-gradient(135deg, rgba(var(--cy-rgb),0.10), rgba(var(--pu-rgb),0.12))" : "var(--inset)", border: `1px solid ${big ? "rgba(var(--pu-rgb),0.35)" : "var(--brd)"}`, gridColumn: big ? "span 2" : undefined }}>
       <div style={{ fontSize: 10, color: "var(--t3)", fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</div>
-      <div style={{ fontFamily: "'Unbounded', sans-serif", fontSize: big ? 30 : 20, fontWeight: 800, color: "var(--t1)", marginTop: 6, lineHeight: 1.05 }}>{fmt(v)}</div>
-      <div style={{ fontSize: 11, fontWeight: 700, marginTop: 5, display: "flex", alignItems: "center", gap: 4, color: p == null ? "var(--t3)" : p >= 0 ? "var(--gr)" : "var(--rd)" }}>
-        {p == null ? "нет сравнения" : <>{p >= 0 ? <TrendingUp size={11} /> : <TrendingDown size={11} />}{p >= 0 ? "+" : ""}{p}% к прошлому месяцу</>}
-      </div>
+      <div style={{ fontFamily: "'Unbounded', sans-serif", fontSize: big ? 30 : 20, fontWeight: 800, color: "var(--t1)", marginTop: 6, lineHeight: 1.05 }}>{v}</div>
+      {sub !== undefined ? <div style={{ fontSize: 11, fontWeight: 600, marginTop: 5, color: "var(--t3)", lineHeight: 1.35 }}>{sub}</div> : (
+        <div style={{ fontSize: 11, fontWeight: 700, marginTop: 5, display: "flex", alignItems: "center", gap: 4, color: p == null ? "var(--t3)" : p >= 0 ? "var(--gr)" : "var(--rd)" }}>
+          {p == null ? "нет сравнения" : <>{p >= 0 ? <TrendingUp size={11} /> : <TrendingDown size={11} />}{p >= 0 ? "+" : ""}{p}% {cmpLabel}</>}
+        </div>
+      )}
     </div>
   );
 
@@ -227,23 +256,60 @@ export default function AnalyticsPage() {
           Статистики пока нет. Она собирается автоматически 1-го числа, а по клиенту её можно собрать кнопкой «Обновить» во вкладке «Аналитика» его карточки.
         </div>
       ) : (<>
-        {/* итоги месяца */}
-        {cur && (<>
+        {/* период */}
+        {from && to && (() => {
+          const presets: { label: string; a: string; b: string }[] = [];
+          if (lastYm && monthly.some(m => m.ym === lastYm && m.partial)) presets.push({ label: "Этот месяц", a: lastYm, b: lastYm });
+          if (lastFull) {
+            presets.push({ label: lastFull === lastYm ? "Последний месяц" : "Прошлый месяц", a: lastFull, b: lastFull });
+            // 3 / 6 / 12 полных месяцев — показываем, только если данные за такой срок уже есть
+            for (const [k, label] of [[3, "3 месяца"], [6, "6 месяцев"], [12, "Год"]] as const) {
+              const a = addYm(lastFull, -(k - 1));
+              if (months[0] && a >= months[0]) presets.push({ label, a, b: lastFull });
+            }
+          }
+          if (months[0] && lastYm) presets.push({ label: "Всё время", a: months[0], b: lastYm });
+          const sel: React.CSSProperties = { height: 32, borderRadius: 9, background: "var(--inset)", border: "1px solid var(--brd)", color: "var(--t1)", fontSize: 12, fontWeight: 700, padding: "0 8px", fontFamily: "inherit", cursor: "pointer" };
+          return (
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+              <span style={{ fontSize: 11, fontWeight: 800, color: "var(--t3)", textTransform: "uppercase", letterSpacing: 0.5, marginRight: 4 }}>Период</span>
+              {presets.map(x => (
+                <button key={x.label} onClick={() => setRange(x.a, x.b)} className={`v2-chip ${from === x.a && to === x.b ? "pu" : "mut"}`} style={{ height: 32, padding: "0 12px", cursor: "pointer" }}>{x.label}</button>
+              ))}
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 6, marginLeft: 6, fontSize: 12, color: "var(--t2)" }}>
+                с <select value={from} onChange={e => setRange(e.target.value, to)} style={sel}>{months.map(m => <option key={m} value={m}>{ymLabel(m)}</option>)}</select>
+                по <select value={to} onChange={e => setRange(from, e.target.value)} style={sel}>{months.map(m => <option key={m} value={m}>{ymLabel(m)}</option>)}</select>
+              </span>
+            </div>
+          );
+        })()}
+
+        {/* итоги периода */}
+        {cur && from && to && (<>
           <div style={{ fontSize: 13, fontWeight: 800, color: "var(--t1)" }}>
-            {ymLabel(cur.ym)}{cur.partial ? " · на сегодня, месяц ещё идёт" : ""}
-            {prev && <span style={{ fontSize: 11, color: "var(--t3)", fontWeight: 600 }}> · сравнение с {ymLabel(prev.ym)}</span>}
+            {rangeLabel(from, to)}{cur.partial ? (span === 1 ? " · на сегодня, месяц ещё идёт" : " · последний месяц ещё идёт") : ""}
+            <span style={{ fontSize: 11, color: "var(--t3)", fontWeight: 600 }}>{prev && pFrom && pTo ? ` · сравнение с ${rangeLabel(pFrom, pTo)}` : " · сравнить не с чем: раньше данных нет"}</span>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 10 }}>
-            <Tile big label="Просмотры по агентству" v={cur.t.views} p={pct(cur.t.views, prev?.t.views)} />
-            <Tile label="Клиентов с публикациями" v={cur.active} p={pct(cur.active, prev?.active)} />
-            <Tile label="Роликов вышло" v={cur.t.posts} p={pct(cur.t.posts, prev?.t.posts)} />
-            <Tile label="Из них наших · по CRM" v={cur.t.our} p={pct(cur.t.our, prev?.t.our)} />
-            {cur.t.carousels > 0 && <Tile label="Карусели и фото" v={cur.t.carousels} p={pct(cur.t.carousels, prev?.t.carousels)} />}
-            <Tile label="Охват" v={cur.t.reach} p={pct(cur.t.reach, prev?.t.reach)} />
-            <Tile label="Лайки" v={cur.t.likes} p={pct(cur.t.likes, prev?.t.likes)} />
-            <Tile label="Комментарии" v={cur.t.comments} p={pct(cur.t.comments, prev?.t.comments)} />
-            <Tile label="Сохранения" v={cur.t.saves} p={pct(cur.t.saves, prev?.t.saves)} />
-            <Tile label="Репосты" v={cur.t.shares} p={pct(cur.t.shares, prev?.t.shares)} />
+            <Tile big label="Просмотры по агентству" v={fmt(cur.t.views)} p={pct(cur.t.views, prev?.t.views)} />
+            <Tile label="Клиенты с роликами" v={`${active.length} из ${board.length}`}
+              hint="Сколько клиентов агентства выложили хотя бы один ролик за период"
+              sub={silent.length ? <>без роликов: {silent.slice(0, 3).map(b => b.name.split(" ")[0]).join(", ")}{silent.length > 3 ? ` и ещё ${silent.length - 3}` : ""}</> : "у всех были ролики"} />
+            <Tile label="Роликов вышло" v={fmt(cur.t.posts)} p={pct(cur.t.posts, prev?.t.posts)} hint="Видео: рилсы, TikTok, Shorts. Одно видео в нескольких сетях считается один раз" />
+            <Tile label="Просмотров на ролик" v={fmt(cur.t.posts ? Math.round(cur.t.views / cur.t.posts) : 0)}
+              p={prev?.t.posts ? pct(cur.t.posts ? cur.t.views / cur.t.posts : 0, prev.t.views / prev.t.posts) : null}
+              hint="Просмотры во всех сетях, делённые на число роликов" />
+            <Tile label="Подписчиков пришло" v={(cur.t.fol > 0 ? "+" : "") + fmt(cur.t.fol)} p={prev?.t.fol && prev.t.fol > 0 ? pct(cur.t.fol, prev.t.fol) : null}
+              hint="Прирост подписчиков у всех клиентов по ежедневным снимкам (за вычетом отписок)" />
+            {cur.t.folEnd > 0 && <Tile label="Подписчиков у клиентов" v={fmt(cur.t.folEnd)} sub={`на конец периода, во всех сетях`} />}
+            <Tile label="Вовлечённость" v={er(cur.t).toFixed(1).replace(".", ",") + "%"} p={prev ? pct(er(cur.t), er(prev.t)) : null}
+              hint="Лайки, комментарии, сохранения и репосты на 100 просмотров" />
+            {cur.t.carousels > 0 && <Tile label="Карусели и фото" v={fmt(cur.t.carousels)} p={pct(cur.t.carousels, prev?.t.carousels)} />}
+            <Tile label="Охват" v={fmt(cur.t.reach)} p={pct(cur.t.reach, prev?.t.reach)} hint="Уникальные люди. TikTok охват не отдаёт, тут Instagram, YouTube и Facebook" />
+            <Tile label="Лайки" v={fmt(cur.t.likes)} p={pct(cur.t.likes, prev?.t.likes)} />
+            <Tile label="Комментарии" v={fmt(cur.t.comments)} p={pct(cur.t.comments, prev?.t.comments)} />
+            <Tile label="Сохранения" v={fmt(cur.t.saves)} p={pct(cur.t.saves, prev?.t.saves)} />
+            <Tile label="Репосты" v={fmt(cur.t.shares)} p={pct(cur.t.shares, prev?.t.shares)} />
           </div>
         </>)}
 
@@ -264,10 +330,10 @@ export default function AnalyticsPage() {
           <div style={{ display: "flex", alignItems: "flex-end", gap: 14, height: 208, overflowX: "auto", padding: "4px 4px 4px" }}>
             {monthly.map(m => {
               const h = Math.max(4, Math.round((m.t.views / maxViews) * 160));
-              const on = m.ym === sel;
+              const on = inR(m.ym, from, to);
               const parts = NETS.slice(1).map(n => ({ c: n.color, v: m.byNet[n.id] || 0 })).filter(x => x.v > 0);
               return (
-                <button key={m.ym} onClick={() => setSel(m.ym)} style={{ flex: 1, minWidth: 40, maxWidth: 110, background: "transparent", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: 0 }}>
+                <button key={m.ym} onClick={() => setRange(m.ym, m.ym)} style={{ flex: 1, minWidth: 40, maxWidth: 110, background: "transparent", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: 0 }}>
                   <span style={{ fontSize: 11, fontWeight: 800, color: on ? "var(--t1)" : "var(--t3)" }}>{fmt(m.t.views)}</span>
                   <div style={{ width: "100%", height: h, borderRadius: "7px 7px 3px 3px", overflow: "hidden", display: "flex", flexDirection: "column-reverse",
                     outline: on ? "2px solid var(--pu)" : m.partial ? "1px dashed var(--pu)" : "none", outlineOffset: 2, opacity: on ? 1 : m.partial ? 0.5 : 0.78 }}>
@@ -286,13 +352,13 @@ export default function AnalyticsPage() {
           {/* рейтинг клиентов */}
           <div className="card" style={{ padding: 0, borderRadius: 14, overflow: "hidden" }}>
             <div style={{ padding: "14px 16px", fontSize: 12.5, fontWeight: 800, color: "var(--t1)", borderBottom: "1px solid var(--brd)" }}>
-              Клиенты · {sel ? ymLabel(sel) : ""} <span style={{ color: "var(--t3)", fontWeight: 600 }}>· по просмотрам</span>
+              Клиенты · {from && to ? rangeLabel(from, to) : ""} <span style={{ color: "var(--t3)", fontWeight: 600 }}>· по просмотрам</span>
             </div>
             <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 620, fontSize: 12.5 }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 700, fontSize: 12.5 }}>
                 <thead><tr style={{ color: "var(--t3)", fontSize: 10, textTransform: "uppercase", letterSpacing: 0.4 }}>
-                  {["#", "Клиент", "Роликов", "Просмотры", "Охват", "Динамика", ""].map((h, k) => (
-                    <th key={k} style={{ textAlign: k >= 2 && k <= 4 ? "right" : "left", padding: "10px 12px", fontWeight: 800 }}>{h}</th>
+                  {["#", "Клиент", "Роликов", "Просмотры", "Охват", "Подписчики", "Динамика", ""].map((h, k) => (
+                    <th key={k} style={{ textAlign: k >= 2 && k <= 5 ? "right" : "left", padding: "10px 12px", fontWeight: 800 }}>{h}</th>
                   ))}
                 </tr></thead>
                 <tbody>
@@ -317,13 +383,16 @@ export default function AnalyticsPage() {
                         </td>
                         <td style={{ padding: "10px 12px", textAlign: "right", whiteSpace: "nowrap" }}>
                           {b.t.posts || "—"}
-                          {b.t.our > 0 && <div style={{ fontSize: 10.5, color: "var(--t3)" }}>наших {b.t.our}</div>}
                         </td>
                         <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 800, color: "var(--t1)", whiteSpace: "nowrap" }}>
                           {fmt(b.t.views)}
                           {d != null && <div style={{ fontSize: 10.5, fontWeight: 700, color: d >= 0 ? "var(--gr)" : "var(--rd)" }}>{d >= 0 ? "+" : ""}{d}%</div>}
                         </td>
                         <td style={{ padding: "10px 12px", textAlign: "right" }}>{fmt(b.t.reach || null)}</td>
+                        <td style={{ padding: "10px 12px", textAlign: "right", whiteSpace: "nowrap" }}>
+                          {b.t.folEnd ? <span style={{ fontWeight: 700, color: b.t.fol > 0 ? "var(--gr)" : b.t.fol < 0 ? "var(--rd)" : "var(--t2)" }}>{b.t.fol > 0 ? "+" : ""}{fmt(b.t.fol)}</span> : "—"}
+                          {b.t.folEnd > 0 && <div style={{ fontSize: 10.5, color: "var(--t3)" }}>всего {fmt(b.t.folEnd)}</div>}
+                        </td>
                         <td style={{ padding: "10px 12px" }}><Spark data={b.spark} /></td>
                         <td style={{ padding: "10px 12px", color: "var(--t3)" }}><BarChart3 size={14} /></td>
                       </tr>
@@ -336,8 +405,8 @@ export default function AnalyticsPage() {
 
           {/* лучшие ролики агентства */}
           <div className="card" style={{ padding: 16, borderRadius: 14 }}>
-            <div style={{ fontSize: 12.5, fontWeight: 800, color: "var(--t1)", marginBottom: 12 }}>Лучшие ролики агентства</div>
-            {!topReels.length && <div style={{ fontSize: 12, color: "var(--t3)" }}>За этот месяц роликов нет</div>}
+            <div style={{ fontSize: 12.5, fontWeight: 800, color: "var(--t1)", marginBottom: 12 }}>Лучшие ролики агентства{span > 1 ? " за период" : ""}</div>
+            {!topReels.length && <div style={{ fontSize: 12, color: "var(--t3)" }}>За этот период роликов нет</div>}
             <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
               {topReels.map((p: any, k: number) => (
                 <a key={k} href={p.url || "#"} target="_blank" rel="noopener noreferrer"
@@ -360,7 +429,7 @@ export default function AnalyticsPage() {
         </div>
 
         <div style={{ fontSize: 10.5, color: "var(--t3)", lineHeight: 1.6 }}>
-          Данные — из Metricool, с момента подключения бренда; собираются автоматически 1-го числа за прошлый месяц. «Роликов» — только видео: рилсы, TikTok, Shorts; одно видео в нескольких сетях считается один раз. Карусели и фото — отдельно. «Наших» — опубликованные нами по CRM, остальное клиент выкладывает сам. Клиенты на одном аккаунте Metricool показаны одной строкой и посчитаны один раз. Подписчики копятся с сентября 2026.
+          Данные — из Metricool, с момента подключения бренда; собираются автоматически 1-го числа за прошлый месяц. «Роликов» — только видео: рилсы, TikTok, Shorts; одно видео в нескольких сетях считается один раз. Карусели и фото — отдельно. «Подписчиков пришло» — прирост по ежедневным снимкам за вычетом отписок; подписчики копятся с сентября 2026, раньше их нет. «Вовлечённость» — лайки, комментарии, сохранения и репосты на 100 просмотров. Клиенты на одном аккаунте Metricool показаны одной строкой и посчитаны один раз.
         </div>
       </>)}
 
